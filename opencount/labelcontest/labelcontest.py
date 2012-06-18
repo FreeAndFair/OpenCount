@@ -186,15 +186,18 @@ class LabelContest(wx.Panel):
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
                 self.save()
-                for ct,cid in enumerate(sum(self.contest_order,[])):
-                    if (ct,cid) not in self.text or self.text[ct,cid] == []:
-                        numt = len(self.groupedtargets[self.templatenum][self.count])
-                        title = ":".join(["title", str(ct), str(cid)])
-                        contests = [":".join(["contest", str(ct), str(cid), str(targ)]
-) for targ in range(numt)]
-                        self.text[ct,cid] = [title]+contests
-                    if (ct,cid) not in self.voteupto: 
-                        self.voteupto[ct, cid] = 1
+                print "GOT", self.contest_order
+                for ct,cid_lst in enumerate(self.contest_order):
+                    for cid in cid_lst:
+                        print "WORKING ON", ct, cid
+                        if (ct,cid) not in self.text or self.text[ct,cid] == []:
+                            numt = len(self.groupedtargets[self.templatenum][self.count])
+                            title = ":".join(["title", str(ct), str(cid)])
+                            contests = [":".join(["contest", str(ct), str(cid), str(targ)]
+    ) for targ in range(numt)]
+                            self.text[ct,cid] = [title]+contests
+                        if (ct,cid) not in self.voteupto: 
+                            self.voteupto[ct, cid] = 1
                         
                 self.canMoveOn = True
                 Publisher().sendMessage("broadcast.can_proceed")
