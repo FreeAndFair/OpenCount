@@ -279,8 +279,8 @@ class ResultsPanel(wx.Panel):
                         res[thisattr].append(a)
                 return res
     
-            if 'ab,cd' in attributes['header']:
-                ht = groupby(cvr, 'ab,cd')
+            if 'precinct' in attributes['header']:
+                ht = groupby(cvr, 'precinct')
                 for k,v in ht.items():
                     result += self.final_tally(v, name="Precinct: "+k)
                     if 'mode' in attributes['header']:
