@@ -187,17 +187,15 @@ class LabelContest(wx.Panel):
             def declareReady(x):
                 self.save()
                 for ct,cid in enumerate(sum(self.contest_order,[])):
-                    print ct,cid,(ct,cid) not in self.text
                     if (ct,cid) not in self.text or self.text[ct,cid] == []:
-                        print 'aaaa'
                         numt = len(self.groupedtargets[self.templatenum][self.count])
                         title = ":".join(["title", str(ct), str(cid)])
-                        contests = [":".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
+                        contests = [":".join(["contest", str(ct), str(cid), str(targ)]
+) for targ in range(numt)]
                         self.text[ct,cid] = [title]+contests
                     if (ct,cid) not in self.voteupto: 
                         self.voteupto[ct, cid] = 1
                         
-                print "TEXT IS", self.text
                 self.canMoveOn = True
                 Publisher().sendMessage("broadcast.can_proceed")
             button5.Bind(wx.EVT_BUTTON, declareReady)
@@ -545,7 +543,7 @@ class LabelContest(wx.Panel):
             print "SET TO", k, self.text_upto
             self.text_upto.SetValue(self.voteupto[k])
 
-        print "AND", self.text.values()
+        #print "AND", self.text.values()
         print map(len,self.text.values())
         print len(self.text_targets)
         wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
