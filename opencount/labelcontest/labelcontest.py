@@ -3,7 +3,6 @@ import math
 import cStringIO
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
 import os, sys
-import contests
 from sets import Set
 from PIL import Image, ImageDraw
 import csv
