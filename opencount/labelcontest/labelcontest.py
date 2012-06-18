@@ -186,6 +186,18 @@ class LabelContest(wx.Panel):
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
                 self.save()
+                for ct,cid in enumerate(sum(self.contest_order,[])):
+                    print ct,cid,(ct,cid) not in self.text
+                    if (ct,cid) not in self.text or self.text[ct,cid] == []:
+                        print 'aaaa'
+                        numt = len(self.groupedtargets[self.templatenum][self.count])
+                        title = ":".join(["title", str(ct), str(cid)])
+                        contests = [":".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
+                        self.text[ct,cid] = [title]+contests
+                    if (ct,cid) not in self.voteupto: 
+                        self.voteupto[ct, cid] = 1
+                        
+                print "TEXT IS", self.text
                 self.canMoveOn = True
                 Publisher().sendMessage("broadcast.can_proceed")
             button5.Bind(wx.EVT_BUTTON, declareReady)
@@ -373,7 +385,6 @@ class LabelContest(wx.Panel):
             # Don't do anything bad.
             return
 
-        # TODO maybe put this back in
         if self.currentcontests != []:
             self.saveText()
 
