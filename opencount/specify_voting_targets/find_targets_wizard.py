@@ -1,0 +1,1950 @@
+import os, sys, math, csv, copy, random, threading, time, traceback, pickle, datetime, pdb
+import numpy as np
+import scipy
+import scipy.misc
+import scipy.ndimage
+import cv
+
+from os.path import join as pathjoin
+from imageviewer import BallotViewer, BallotScreen, BoundingBox, Autodetect_Panel, Autodetect_Confirm, WorldState
+import util_gui
+import util_widgets
+import util
+import grouptargets
+import time
+
+"""
+UI intended for a user to denote all locations of voting targets, on
+all template images, using auto-detection.
+"""
+
+"""
+Bugs:
+- When zooming into a ballot image in Mosaic during Mosaic-Verification,
+  the scrollbars don't activate on the right panel until you do a resize.
+- During MosaicVerification, Deleting a target (with backspace)
+  doesn't update the mosaicpanel
+- If the UL corner of box A and the LR corner of box B are too close,
+  then trying to move A will also resize box B at the same time.
+
+Annoyances:
+- 'Modify' mode
+- Cursor while creating new targets is too big and obtrusive
+- mouse scrolling (with wheelmouse) doesn't get intuitively captured
+  between mosaic-panel and ballotviewer. Ideally, the RightThing(tm)
+  should happen when the mouse has entered either panel. Should be
+  easy to implement with the OnMouseEnter event.
+- Target Autodetection doesn't work so well on other template images,
+  where differences in rotation/whatnot make it 'harder' to do a 
+  simple naive template match. It does 'reasonably' well, but not
+  as well as I'd like.
+
+Todo:
+- If a round of template-matching doesn't change anything in a
+  contest, don't re-compute those contest bounding boxes - it's
+  frustrating when adding a new target means losing all manual
+  bounding box adjustments
+- Add undo feature
+- Add 'Add contest' feature
+  
+"""
+
+####
+## Import 3rd party libraries
+####
+
+try:
+    import wx
+    import wx.animate
+except ImportError:
+    print """Error importing wxPython (wx) -- to install wxPython (a Python GUI \
+library), do (if you're on Linux):
+    sudo apt-get install python-wxgtk2.8
+Or go to: 
+    http://www.wxpython.org/download.php
+For OS-specific installation instructions."""
+    exit(1)
+try:
+    import Image
+except ImportError:
+    print """Error importing Python Imaging Library (Image) -- to install \
+PIL (a Python image-processing library), go to: 
+    http://www.pythonware.com/products/pil/"""
+    exit(1)
+try:
+    import cv2
+except ImportError:
+    print """Error importing OpenCV w/ Python bindings (cv2) -- to install \
+OpenCV w/ Python bindings (a Python computer vision library), go to:
+    http://opencv.willowgarage.com/wiki/
+Note that documentation for installing OpenCV is pretty shaky in my \
+experience. A README section on installing OpenCV will be created soon.
+On Windows, to get the Python bindings, copy/paste the contents of:
+    opencv/build/python/2.7 (or 2.6)
+to the site-packages directory of your Python installation, i.e.:
+    C:/Python27/Lib/site-packages/
+For me, this means that you'll be adding two new files to that directory:
+    C:/Python27/Lib/site-packages/cv.py
+    C:/Python27/Lib/site-packages/cv2.pyd"""
+    exit(1)
+try:
+    import numpy as np
+except ImportError:
+    print """Error importing Numpy (numpy) -- to install Numpy, go to:
+    http://numpy.scipy.org/
+You'll probably want to install both scipy and numpy."""
+    exit(1)
+import wx.lib.inspection
+from wx.lib.pubsub import Publisher
+    
+# Get this script's directory. Necessary to know this information
+# since the current working directory may not be the same as where
+# this script lives (which is important for loading resources like
+# imgs). And yes, this is a bit hacky :\
+try:
+    # If __file__ is defined, then this script is being invoked by
+    # another script.  __file__ is the path to this script.
+    MYDIR = os.path.abspath(os.path.dirname(__file__))
+except NameError:
+    # This script is being run directly - then, sys.path[0] contains
+    # the path to this script.
+    MYDIR = os.path.abspath(sys.path[0])
+    
+# This global var can be set by other modules/functions in order to
+# allow project separation.
+CSVFILES_DIR = "./target_locations"
+    
+CONSTANT_CLOSE_TO = 4.0 # Threshold pixel proximity for is_close_to(2)
+
+TIMER = None
+        
+class SpecifyTargetsPanel(wx.Panel):
+    """
+    Panel that contains the Mosaic Panel and BallotViewer Panel. 
+    Allows a user to specify bounding boxes around all voting targets.
+    """
+    # Number of times to automatically re-run template matching
+    NUM_ITERS = 0
+    # Default 'confidence' parameter value for Template Matching
+    TEMPMATCH_DEFAULT_PARAM = 0.85
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        
+        ## Instance vars
+        self.project = None
+        self.parent = parent
+        self.world = None
+        # frontback_map maps {str templatepath: 'front'/'back'}
+        self.frontback_map = {} 
+
+        # frozen_contests maps {str temppath: List of BoundingBoxes (contests)}. 
+        # keeps track of all contests that were modified by the user.
+        self.frozen_contests = {}
+
+        self.has_started = False    # If True, then self.start() has already been called. UNUSED
+        
+        self.setup_widgets()
+
+        self.callbacks = [("signals.autodetect.final_refimg", self._final_refimg),
+                          ("signals.MainPanel.export_targets", self.pubsub_export_targets),
+                          ("broadcast.mosaicpanel.mosaic_img_selected", self.pubsub_mosaic_img_selected),
+                          ("broadcast.updated_world", self._pubsub_updatedworld),
+                          ("broadcast.ballotscreen.added_target", self.pubsub_added_target),
+                          ("broadcast.deleted_targets", self._pubsub_deleted_targets),
+                          ("broadcast.tempmatchdone", self._pubsub_tempmatchdone),
+                          ("broadcast.ballotscreen.added_contest", self._pubsub_added_contest),
+                          ("broadcast.freeze_contest", self._pubsub_freeze_contest)]
+        self.subscribe_pubsubs()
+
+        # Pubsub Subscribing
+        Publisher().subscribe(self._pubsub_project, "broadcast.project")
+        Publisher().subscribe(self._pubsub_projupdate, "broadcast.projupdate")
+
+    def get_frozen_contests(self, templatepath):
+        if templatepath not in self.frozen_contests:
+            self.frozen_contests[templatepath] = []
+        return self.frozen_contests[templatepath]
+
+    def unsubscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().unsubscribe(callback, topic)
+        self.panel_mosaic.unsubscribe_pubsubs()
+        self.ballotviewer.unsubscribe_pubsubs()
+        self.world.unsubscribe_pubsubs()
+
+    def subscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().subscribe(callback, topic)
+        self.panel_mosaic.subscribe_pubsubs()
+        self.ballotviewer.subscribe_pubsubs()
+        self.world.subscribe_pubsubs()
+        
+    def set_timer(self, timer):
+        self.TIMER = timer
+        global TIMER
+        TIMER = timer
+
+    def setup_widgets(self):
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.world = WorldState()
+        self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
+        self.panel_mosaic.Hide()
+        self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
+        self.ballotviewer.Hide()
+        self.frontbackpanel = FrontBackPanel(self)
+        self.frontbackpanel.Hide()
+        vertsizer = wx.BoxSizer(wx.VERTICAL)
+        vertsizer.Add(self.ballotviewer, border=10, proportion=2, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
+        vertsizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL | wx.ALIGN_LEFT)
+        self.sizer.Add(self.panel_mosaic, border=10, proportion=0, flag=wx.EXPAND |wx.ALL | wx.ALIGN_LEFT)
+        self.sizer.Add(vertsizer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
+        #self.sizer.Add(self.ballotviewer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
+        #self.sizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL)
+        self.SetSizer(self.sizer)
+        
+    def _pubsub_freeze_contest(self, msg):
+        """
+        Triggered when the user performs some freeze-ing action on a
+        contest bounding box:
+            Splitting
+            Resizing
+            Moving
+        """
+        temppath, contest = msg.data
+        contests = self.frozen_contests.setdefault(temppath, [])
+        if contest not in contests:
+            self.frozen_contests[temppath].append(contest)
+
+    def reset(self):
+        #self.box_locations = {}
+        #self.first_time = True
+        self.has_started = False
+        # These aren't working - it isn't removing the previous
+        # mosaic panels/ballot screens. will tend to later.
+        #self.panel_mosaic.reset()
+        #self.ballotviewer.ballotscreen.set_image(None)
+        # TOOD: RESET ballotscreen and mosaic
+
+    def validate_outputs(self):
+        """
+        Checks the outputs of this widget, raises warning dialogs
+        to the user if things don't seem right.
+        Returns True if everything is OK, False otherwise.
+        """
+        if util.is_multipage(self.project):
+            # Make sure # of backsides equals # of frontsides
+            if self.frontback_map:
+                sides = self.frontback_map.values()
+                n1 = len([s for s in sides if s == 'front'])
+                n2 = len([s for s in sides if s == 'back'])
+                if n1 != n2:
+                    dlg = wx.MessageDialog(self, message="Warning: uneven \
+number of front/back sides detected. OpenCount currently thinks that there \
+are {0} front side blank ballots, and {1} back side blank ballots. If this \
+is in error, please correct this by, for each blank ballot, indicating the \
+side.".format(n1, n2),
+                                           style=wx.OK)
+                    self.Disable()
+                    dlg.ShowModal()
+                    self.Enable()
+                    return False
+        # Make sure there are voting targets
+        if self.world.get_boxes_count_all() == 0:
+            dlg = wx.MessageDialog(self, message="""No voting targets \
+or contests were created. Please go back and do this. OpenCount won't \
+work if it has no idea where the voting targets are, or if it doesn't \
+know what contests are.""",
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return False
+        else:
+            # Finer-grained search on individual templates
+            bad_temps = {}   # maps {str temppath: [bool noTargets, bool noContests]}
+            notargets = []
+            nocontests = []
+            for temppath, boxes in self.world.box_locations.iteritems():
+                bad_temps.setdefault(temppath, [False, False])
+                targets = [b for b in boxes if not b.is_contest]
+                contests = [b for b in boxes if b.is_contest]
+                if not targets:
+                    bad_temps[temppath][0] = True
+                    notargets.append(temppath)
+                if not contests:
+                    bad_temps[temppath][1] = True
+                    nocontests.append(temppath)
+            msg = """Warning: {0} blank ballots don't have any voting \
+targets, and {1} blank ballots don't have any contests. 
+
+If you think \
+this is incorrect, and would like to go back and double-check your \
+work, choose the 'I want to double-check' button.
+
+Otherwise, if this is correct, go on ahead by choosing the \
+'This is correct, proceed onwards' button. This could be the \
+case if, for instance, a blank ballot has a totally-empty back-page.""".format(len(notargets),len(nocontests))
+            if notargets or nocontests:
+                dlg = WarnNoBoxesDialog(self, msg)
+                self.Disable()
+                statusval = dlg.ShowModal()
+                self.Enable()
+                if statusval == WarnNoBoxesDialog.GOBACK:
+                    return False
+
+        # Make sure each voting target is enclosed by a contest
+        lonely_tmpls = set()
+        for temppath, boxes in self.world.box_locations.iteritems():
+            targets = [b for b in boxes if not b.is_contest]
+            contests = [b for b in boxes if b.is_contest]
+            for target in targets:
+                contest = util_gui.find_assoc_contest(target, contests)
+                if not contest:
+                    lonely_tmpls.add(temppath)
+        if lonely_tmpls:
+            msg = """Warning: {0} blank ballots have voting targets \
+that are not enclosed by a contest. Please go back and fix them. \
+OpenCount must know the target-contest associations in order to \
+function correctly.""".format(len(lonely_tmpls))
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return False
+        return True
+        
+    def stop(self):
+        """
+        Disengage PubSub listeners.
+        """
+        self.unsubscribe_pubsubs()
+
+    def start(self):
+        """
+        Load in template images, and allow user to start drawing boxes.
+        Also assumes that self.world has been set.
+        """
+        if False:#self.has_started: # Never reset (for now)
+            self.reset()
+        self.has_started = True
+        self.subscribe_pubsubs()
+        if not self.world.get_boxes_all():
+            # User hasn't created boxes before
+            imgs_dict = {}
+            for dirpath, dirnames, filenames in os.walk(self.project.templatesdir):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    imgpath = os.path.abspath(pathjoin(dirpath, imgname))
+                    imgs_dict[imgpath] = []
+            self.world.box_locations = imgs_dict
+        else:
+            imgs_dict = self.world.get_boxes_all()
+
+        self.panel_mosaic.display_images(imgs_dict)
+
+        # Display first template on BallotScreen
+        imgpath = sorted(self.panel_mosaic.imgs.keys())[0]
+        img = util_gui.open_as_grayscale(imgpath)
+        target_locations = self.world.get_boxes(imgpath)
+        img_panel = self.panel_mosaic.img_panels[imgpath]
+        img_panel.static_bitmap.select()
+        Publisher().sendMessage("signals.ballotviewer.set_image_pil", (imgpath, img))
+        Publisher().sendMessage("signals.BallotScreen.set_bounding_boxes", (imgpath, target_locations))        
+        Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
+
+        # Try to pull in previously-saved frontback map
+        try:
+            self.import_frontback()
+        except IOError as e:
+            print 'error in importing frontback.'
+            pass
+
+        # Prepopulate self.frontback_map with template paths if
+        # necessary (i.e. if this is the first time running)
+        for templatepath in self.world.box_locations:
+            if templatepath not in self.frontback_map:
+                # Default to 'front'
+                self.frontback_map[templatepath] = 'front'
+
+        # Set frontbackpanel's Front/Back radio buttons accordingly
+        self.update_frontbackpanel()
+        
+        self.panel_mosaic.Show()
+        self.ballotviewer.Show()
+
+        if util.is_multipage(self.project):
+            self.frontbackpanel.Show()
+
+        self.sanity_check_grouping()
+        
+        self.Refresh()
+        self.parent.Fit()
+        self.parent.Refresh()
+                
+    def update_frontbackpanel(self):
+        """
+        Set the radio buttons according to the values in
+        frontback_map for the given image.
+        """
+        cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
+        side = self.frontback_map[cur_imgpath]
+        self.frontbackpanel.set_side(side)
+
+    def update_frontbackmap(self):
+        cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
+        if cur_imgpath == None:
+            return
+        self.frontback_map[cur_imgpath] = self.frontbackpanel.get_side()
+
+    def apply_target_grouping(self):
+        """
+        Tries to group voting targets into clusters (which should 
+        correspond to individual contests). This clustering will be
+        reflected in the UI as green bounding boxes. Assumes that
+        self.apply_template_matching has already been called, so that
+        self.box_locations contains all voting targets and contest
+        locations.
+        Also updates contest_id's for voting targets and contests.
+        """
+        cur_id = 0
+        for templatepath in self.world.get_boxes_all():
+            targets = [box.get_coords() for box in self.world.get_boxes(templatepath) if not box.is_contest]
+            groups = grouptargets.do_group_hist(targets, epsilon=0.215) # used to be 1.15
+            # find bounding box around each group
+            assert sum(map(lambda lst: len(lst), groups)) == len(targets), "{0} targets, but there were {1} targets in groups".format(len(targets), sum(map(lambda lst: len(lst), groups)))
+            contest_boxes = find_bounding_boxes(groups)
+            # 'normalize' bounding box sizes so that they don't extend
+            # outside the image
+            contest_boxes = normalize_boxes(contest_boxes, (self.ballotviewer.ballotscreen.img_bitmap.GetWidth(),
+                                                            self.ballotviewer.ballotscreen.img_bitmap.GetHeight()))
+            for contest in sorted(contest_boxes, key=lambda box: box.x1):
+                contest.contest_id = cur_id
+                cur_id += 1
+            '''
+            # We want to keep all frozen contests alive
+            ignore = []
+            for target in [b for b in self.world.get_boxes(templatepath) if not box.is_contest]:
+                # If target is associated with a frozen contest...
+                if util_gui.find_assoc_contest(target, self.get_frozen_contests(templatepath)):
+                    ignore.append(target)
+            # Filter out all unnecessary new contests
+            for ignore_target in ignore:
+                contest = util_gui.find_assoc_contest(ignore_target, contest_boxes)
+                if contest:
+                    pdb.set_trace()
+                    contest_boxes.remove(contest)
+            # Add in frozen contests
+            contest_boxes.extend(self.get_frozen_contests(templatepath))
+            '''
+            # Finally, update target-contest associations
+            for target in [box for box in self.world.get_boxes(templatepath) if not box.is_contest]:
+                assoc_contest = util_gui.find_assoc_contest(target, contest_boxes)
+                if assoc_contest:
+                    target.contest_id = assoc_contest.contest_id
+                else:
+                    print "Couldn't find a contest for this target."
+            self.remove_contests(templatepath)
+            self.world.add_boxes(templatepath, contest_boxes)
+            
+        self.Refresh()
+
+    def sanity_check_grouping(self):
+        """
+        Apply sanity checks to the target grouping. Assumes that
+        self.apply_target_grouping has already been called.
+        """
+        atleastone = False
+        ctr = 0
+        for temppath, boxes in self.world.get_boxes_all().items():
+            for contest in [b for b in boxes if b.is_contest]:
+                atleastone = True
+                assoc_targets = util_gui.associated_targets(contest, self.world.get_boxes(temppath))
+                if len(assoc_targets) == 1:
+                    contest.set_color("Red")
+                    ctr += 1
+        Publisher().sendMessage("broadcast.cant_proceed")
+        if ctr > 0:
+            msg = "Warning: There were {0} contests with only one voting \
+bubble detected. \nDouble check these contests (colored Red) to see if any \
+voting bubbles were missed.".format(ctr)
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.parent.Disable()
+            dlg.ShowModal()
+            self.parent.Enable()
+        elif atleastone:
+            # User may be done with this task, so emit a message
+            # to allow UI to signal to user to move on.
+            # '1' stands for my index in the NoteBook's tabs list
+            Publisher().sendMessage("broadcast.can_proceed")
+        self.Refresh()
+                                                   
+    def remove_contests(self, templatepath):
+        """
+        Remove all contests from self.box_locations that are for
+        templatepath. Keeps all voting targets though.
+        """
+        self.world.remove_contests(templatepath)
+    def remove_targets(self, templatepath):
+        """
+        Remove all voting targets from self.box_locations that are for
+        templatepath. Keeps all contest bounding boxes though.
+        """
+        self.world.remove_voting_targets(templatepath)
+    
+    def export_bounding_boxes(self):
+        """ 
+        Export box locations to csv files. Also, returns the BoundingBox
+        instances for each template image as a dict of the form:
+            {str templatepath: list boxes}
+        Because the user might have manually changed the bounding
+        boxes of each contest (by modifying the size of a contest
+        box), this function will re-compute the correct contest_ids
+        for all voting target BoundingBoxes.
+        """
+        if not self.world:
+            return
+        elif len(self.world.get_boxes_all().items()) == 0:
+            # No templates loaded
+            return
+        elif len(self.world.get_boxes_all_list()) == 0:
+            # No bounding boxes created
+            return
+        util_gui.create_dirs(CSVFILES_DIR)
+        # DOGFOOD: Delete me, and all secondary target_locations writes
+        util_gui.create_dirs('target_locations')
+        # First update contest ids for all boxes, since user might 
+        # have changed bounding boxes
+        updated_boxes = {}
+        for templatepath, boxes in self.world.get_boxes_all().items():
+            updated_boxes[templatepath] = compute_contest_ids(boxes)
+        self.world.box_locations = updated_boxes
+
+        if self.world.get_boxes_all().keys():
+            h_img, w_img = util_gui.open_img_scipy(self.world.get_boxes_all().keys()[0]).shape
+            
+        csvpath_map = {} # maps {str csvpath: str template_imgpath}
+        # Enforce the rule that all voting targets have the same dimension
+        def get_max_dimensions(boxes):
+            """
+            Return max(width, height) out of all boxes
+            """
+            w, h = None, None
+            for b in boxes:
+                _w, _h = b.width, b.height
+                if not w or _w > w:
+                    w = _w
+                elif not h or _h > h:
+                    h = _h
+            return w, h
+        w_target, h_target = get_max_dimensions([b for b in self.world.get_boxes_all_list() if not b.is_contest])
+        w_target = int(round(w_target * w_img))
+        h_target = int(round(h_target * h_img))
+        fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
+        for imgpath in self.world.get_boxes_all():
+            csvfilepath = pathjoin(CSVFILES_DIR, "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            csvfilepath2 = pathjoin('target_locations', "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            csvfile = open(csvfilepath, 'wb')
+            csvfile2 = open(csvfilepath2, 'wb')
+            csvpath_map[csvfilepath] = os.path.abspath(imgpath)
+            dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
+            dictwriter2 = csv.DictWriter(csvfile2, fieldnames=fields)
+            try:
+                dictwriter.writeheader()
+                dictwriter2.writeheader()
+            except AttributeError:
+                util_gui._dictwriter_writeheader(csvfile, fields)
+                util_gui._dictwriter_writeheader(csvfile2, fields)
+
+            for id, bounding_box in enumerate(self.world.get_boxes(imgpath)):
+                x1, y1, x2, y2 = bounding_box.get_coords()
+                row = {}
+                row['imgpath'] = os.path.abspath(imgpath)
+                row['id'] = id
+                # Convert relative coords back to pixel coords
+                row['x'] = int(round(x1 * w_img))
+                row['y'] = int(round(y1 * h_img))
+                if bounding_box.is_contest:
+                    width = int(round(abs(x1-x2)*w_img))
+                    height = int(round(abs(y1-y2)*h_img))
+                    row['width'] = width
+                    row['height'] = height
+                else:
+                    row['width'] = w_target
+                    row['height'] = h_target
+                # Replace commas with underscore to avoid problems with csv files
+                row['label'] = bounding_box.label.replace(",", "_")
+                row['is_contest'] = 1 if bounding_box.is_contest else 0
+                row['contest_id'] = bounding_box.contest_id
+                dictwriter.writerow(row)
+                dictwriter2.writerow(row)
+            csvfile.close()
+            csvfile2.close()
+        csvpath_map_filepath = pathjoin(CSVFILES_DIR, 'csvpath_map.p')
+        pickle.dump(csvpath_map, open(csvpath_map_filepath, 'wb'))
+        val = copy.deepcopy(self.world.get_boxes_all())
+        return val
+    
+    def export_frontback(self):
+        """
+        Exports the front/back mappings for each template image to an
+        output file, given by: project.frontback_map
+        """
+        if not self.project:
+            return
+        # Make sure we write out the front/back info of the currently-
+        # viewed template, to avoid losing user's work
+        self.update_frontbackmap()
+        pickle.dump(self.frontback_map, open(self.project.frontback_map, 'wb'))
+
+    def import_frontback(self):
+        if not self.project:
+            return
+        frontback_map = pickle.load(open(self.project.frontback_map, 'rb'))
+        self.frontback_map = frontback_map
+
+    #### Pubsub Callbacks
+
+    def _final_refimg(self, msg):
+        """ Receive the reference image as a PIL image """
+        self.refimg = msg.data
+    def pubsub_export_targets(self, msg):    
+        """ Export box locations to csv files """
+        self.export_bounding_boxes()
+            
+    def pubsub_mosaic_img_selected(self, msg):
+        imgpath = msg.data
+        img = util_gui.open_as_grayscale(imgpath)
+        target_locations = self.world.get_boxes(imgpath)
+        self.update_frontbackmap()
+        Publisher().sendMessage("signals.ballotviewer.set_image_pil", (imgpath, img))
+        Publisher().sendMessage("signals.BallotScreen.set_bounding_boxes", (imgpath, target_locations))
+        # Update frontbackpanel
+        self.update_frontbackpanel()
+        
+    def _pubsub_updatedworld(self, msg):
+        """
+        Triggered when the user modifies the voting targets in the
+        BallotScreen (during Mosaic verify).
+        """
+        self.panel_mosaic.Refresh()
+        self.Refresh()
+    def pubsub_added_target(self, msg):
+        """
+        Triggered when the user adds a new bounding box to the image.
+        Run template matching across all template images with this
+        as the reference image. In addition, this will run template
+        matching several times in order to detect as many targets as
+        it can.
+        """
+        def sanity_check(box_coords):
+            """
+            Makes sure box_coords is of the form:
+                box_coords : (ul_x, ul_y, lr_x, lr_y)
+            In addition, make sure that it's a box with nonzero area,
+            and that it's at least 2x2 pixels
+            """
+            MIN_DIM = 2
+            ul_x, ul_y, lr_x, lr_y = box_coords
+            return ((abs(ul_x - lr_x) >= MIN_DIM) and
+                    (abs(ul_y - lr_y) >= MIN_DIM) and
+                    ul_x < lr_x and ul_y < lr_y and 
+                    ul_x != lr_x and ul_y != lr_y)
+                    
+        self.TIMER.stop_task(('user', 'Select/Group Voting Targets'))
+        self.TIMER.start_task(('cpu', 'TemplateMatch Targets Computation'))
+        imgpath, box = msg.data
+        box = normalize_boxes((box,), self.ballotviewer.get_imgsize())[0]
+        box_copy = box.copy()
+        box_copy.set_color("Green")
+        # First do an autofit on the selected region
+        img_pil = util_gui.open_as_grayscale(imgpath)
+        w_img, h_img = img_pil.size
+        ul_x = intround(box.x1*w_img)
+        ul_y = intround(box.y1*h_img)
+        lr_x = intround(box.x2*w_img)
+        lr_y = intround(box.y2*h_img)
+        if not sanity_check((ul_x,ul_y,lr_x,lr_y)):
+            return
+        if self.world.get_boxes_count_all() == 0:
+            # The user did drag-and-drop creation, so do autofit
+            region_pil = img_pil.crop((ul_x, ul_y, lr_x, lr_y))
+            refimg_rect = np.array(util_gui.fit_image(region_pil, padx=0, pady=0), dtype='f')
+            exemplar_boxdims = None
+        else:
+            # Run template matching on the user-selected region,
+            # and find a new 'fitted' bounding box around the newly
+            # detected voting target
+            def get_exemplar_target(world):
+                for temppath, boxes in self.world.box_locations.iteritems():
+                    targets = [b for b in boxes if not b.is_contest]
+                    if targets:
+                        return temppath, targets[0]
+                print "== Error in get_exemplar_target: Couldn't find a \
+single voting target, which violates assumptions."
+                return None, None
+            exemplar_temppath, b = get_exemplar_target(self.world)
+            exemplar_boxdims = b.width, b.height
+            if exemplar_temppath == self.ballotviewer.ballotscreen.current_imgpath:
+                exemplar_img = img_pil
+            else:
+                exemplar_img = util_gui.open_as_grayscale(exemplar_temppath)
+            target_pil = exemplar_img.crop((intround(b.x1*w_img), intround(b.y1*h_img),
+                                           intround(b.x2*w_img), intround(b.y2*h_img)))
+            # Extract region from current image
+            ex_w = int(round(exemplar_boxdims[0]*w_img))
+            ex_h = int(round(exemplar_boxdims[1]*h_img))
+            if abs(ul_x - lr_x) < ex_w:
+                # Extend region so that it's larger
+                delta = abs(ex_w - abs(ul_x - lr_x))
+                if lr_x == (img_pil.size[0] - 1):
+                    ul_x -= delta
+                else:
+                    lr_x += delta
+            if abs(ul_y - lr_y) < ex_h:
+                delta = abs(ex_h - abs(ul_y - lr_y))
+                if lr_y == (img_pil.size[1] - 1):
+                    ul_y -= delta
+                else:
+                    lr_y += delta
+                
+            region_pil = img_pil.crop((ul_x, ul_y, lr_x, lr_y))
+
+            region_np = np.array(region_pil, dtype='f')
+            target_np = np.array(target_pil, dtype='f')
+                        
+            region_cv = cv.fromarray(region_np)
+            target_cv = cv.fromarray(target_np)
+
+            try:
+                outCv = cv.CreateMat(region_np.shape[0]-target_np.shape[0]+1,
+                                     region_np.shape[1]-target_np.shape[1]+1,
+                                     region_cv.type)
+            except Exception as e:
+                print e
+                pdb.set_trace()
+            cv.MatchTemplate(region_cv, target_cv, outCv, cv.CV_TM_CCOEFF_NORMED)
+            Iout = np.asarray(outCv)
+            
+            (y,x) = np.unravel_index(Iout.argmax(), Iout.shape)
+            w_box = intround(b.width*w_img)
+            h_box = intround(b.height*h_img)
+            r3 = [y, y+h_box, x, x+w_box]
+            newtarget = region_np[r3[0]:r3[1], r3[2]:r3[3]]
+            refimg_rect = newtarget
+        
+        # On rare occasions, refimg_rect is a 0-d array, which breaks
+        # things. Check for this, and other degenerate cases
+        if refimg_rect.shape == ():
+            return
+        elif refimg_rect.shape[0] in (0,1) or refimg_rect.shape[1] in (0,1):
+            return
+            
+        if not sanity_check_box(refimg_rect):
+            x1,y1,x2,y2 = box.get_coords()
+            x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
+            y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
+            user_region = np.array(img_pil.crop((x1,y1,x2,y2)), dtype='f')
+            dlg = WarningSelectedRegion(self, refimg_rect, user_region)
+            # if I don't disable this, then the click to exit modal
+            # mode will end up creating a new target
+            self.Disable()
+            response = dlg.ShowModal()
+            self.Enable()
+            if response in (wx.ID_NO, wx.ID_CANCEL):
+                return
+            elif response == WarningSelectedRegion.OVERRIDE:
+                refimg_rect = user_region
+        try:
+            param = float(self.project.tempmatch_param)
+        except AttributeError:
+            param = self.TEMPMATCH_DEFAULT_PARAM
+        timelogfile = open(pathjoin(self.project.projdir_path, 'tempmatch_timing.log'), 'a')
+        first_time = True if self.world.get_boxes_count_all() == 0 else False
+        t = ThreadTempMatch(self.world.box_locations, 
+                            refimg_rect, 
+                            first_time,
+                            param,
+                            exemplar_boxdims,
+                            outfile=timelogfile)
+        t.start()
+        gauge = TempMatchProgress(self)
+        gauge.Show()
+        self.Disable()
+
+    def _pubsub_added_contest(self, msg):
+        """
+        Triggered when the user adds a new contest bounding box to the
+        image.
+        """
+        imgpath, box = msg.data
+        box = box.copy()
+        box.restore_color()
+        self.world.add_box(imgpath, box)
+        self.Refresh()
+
+    def _pubsub_tempmatchdone(self, msg):
+        """
+        Triggered when Template Matching is done - now, do target
+        grouping.
+        """
+        self.apply_target_grouping()
+        self.sanity_check_grouping()
+        self.TIMER.stop_task(('cpu', 'TemplateMatch Targets Computation'))
+        self.TIMER.start_task(('user', 'Select/Group Voting Targets'))
+        Publisher().sendMessage("signals.MosaicPanel.update_all_boxes", self.world.get_boxes_all())
+
+    def _pubsub_deleted_targets(self, msg):
+        """
+        Triggered when an outside source has deleted some 
+        BoundingBoxes.
+        """
+        imgpath, del_boxes = msg.data
+        for contest in [b for b in del_boxes if b.is_contest]:
+            if contest in self.get_frozen_contests(imgpath):
+                self.frozen_contests[imgpath].remove(contest)
+        self.Refresh()
+
+    def _pubsub_project(self, msg):
+        """
+        Triggered when the user selects a Project. Pull in relevant
+        state. Also, 'mutate' the current WorldState to reflect the
+        project change.
+        """
+        project = msg.data
+        self.project = project
+        timelogfile = open(pathjoin(self.project.projdir_path, 'tempmatch_timing.log'), 'a')
+        print >>timelogfile, '================================'
+        print >>timelogfile, datetime.datetime.now()
+        print >>timelogfile, '================================'
+        timelogfile.close()
+
+        global CSVFILES_DIR
+        CSVFILES_DIR = project.target_locs_dir
+        self.project.addCloseEvent(self.export_bounding_boxes)
+        self.project.addCloseEvent(self.export_frontback)
+        if not project.templatesdir:
+            # user hasn't gotten to this part yet
+            # Reset the WorldState
+            self.world.reset()
+            return
+        # annoying: get a template image size
+        # Assumes that all templates are the same image size
+        imgpath = ''
+        for dirpath, dirnames, filenames in os.walk(project.templatesdir):
+            imgs = [pathjoin(dirpath, f) for f in filenames if util_gui.is_image_ext(f)]
+            if imgs:
+                imgpath = imgs[0]
+                break
+        if not imgpath:
+            print "Error: imgpath was {0} in SpecifyTargetPanel._pubsub_project".format(imgpath)
+            exit(1)
+        imgsize = Image.open(imgpath).size
+        worldstate = import_worldstate(project.target_locs_dir, imgsize)
+        self.world.mutate(worldstate)
+        self.import_frontback()
+
+    def _pubsub_projupdate(self, msg):
+        """
+        Triggered when a change is made to the Project.
+        """
+        pass
+        
+def import_worldstate(csvdir, imgsize):
+    """
+    Given a directory containing csv files, return a new worldstate.
+    """
+    world = WorldState()
+    boxes = util_gui.import_box_locations(csvdir, imgsize)
+    for temppath, box_locations in boxes.items():
+        world.add_boxes(temppath, box_locations)
+    return world
+                
+class MosaicPanel(wx.Panel):
+    """
+    A panel that displays a grid (mosaic) of images.
+    """
+    
+    # Maximum height of all images in the mosaic
+    HEIGHT = 400
+    
+    def __init__(self, parent, world, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        
+        ## Instance variables
+        self.parent = parent
+        self.world = world
+        self.imgs = {}    # dict mapping {str imgpath: wxBitmap bitmap}
+        self.img_panels = {}   # dict mapping {str imgpath: Panel}
+        
+        self._cache_imgs_pil = {}
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+        # Pubsubs
+        self.callbacks = [("signals.MosaicPanel.update_all_boxes", self._pubsub_update_all_boxes),
+                          ("signals.MosaicPanel.update_boxes", self._pubsub_update_boxes),
+                          ("broadcast.deleted_targets", self._pubsub_deleted_targets),
+                          ("broadcast.updated_world", self._pubsub_updated_world)]
+
+        self.setup_widgets()
+        
+    def subscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().subscribe(callback, topic)
+        
+    def unsubscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().unsubscribe(callback, topic)
+
+    def OnChildFocus(self, evt):
+        # If I don't override this child focus event, then wx will
+        # reset the scrollbars at extremely annoying times. Weird.
+        # For inspiration, see:
+        #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
+        pass
+
+    def setup_widgets(self):
+        self.window = wx.ScrolledWindow(self)
+        self.window.sizer = wx.GridSizer(rows=0, cols=1, vgap=1, hgap=1)
+        self.window.SetSizer(self.window.sizer)
+        self.window.panels = [] # stores Panels that have NotStaticBmps
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        # if proportion=0, then the mosaic is a tiny, tiny slice. >:(
+        self.sizer.Add(self.window, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+        self.Fit()
+
+    def reset(self):
+        self.imgs = {}
+        self.img_panels = {}
+        self.setup_widgets()
+        
+    def display_images(self, imgs):
+        """
+        Display images on the mosaic, in addition to each img's 
+        bounding boxes.
+        Input:
+            dict imgs: maps {str imgpath: list of BoundingBox instances},
+                       where 'coords' is relative.
+        """
+        self.imgs = imgs
+        cols = 1 if len(self.imgs) <= 1 else 2
+        self.window.sizer = wx.GridSizer(rows=0, cols=cols, vgap=1, hgap=1)
+        self.window.SetSizer(self.window.sizer)
+        self.window.panels = []
+        if not self.imgs:
+            # Display dummy placeholder images
+            for i in range(4):
+                panel = wx.Panel(self.window)
+                self.window.panels.append(panel)
+                panel.txt = wx.StaticText(panel, label="Dummy Image {0}".format(i))
+                blank_bitmap = util_gui.make_blank_bitmap((MosaicPanel.HEIGHT, MosaicPanel.HEIGHT / 2), 200)
+                static_bitmap = NotStaticBitmap(panel, blank_bitmap, "(Dummy Image {0})".format(i), self.world)
+                panel.static_bitmap = static_bitmap
+                self.img_panels[static_bitmap.imgpath] = panel
+                panel.sizer = wx.BoxSizer(wx.VERTICAL)
+                panel.sizer.Add(panel.txt, proportion=0, flag=wx.ALIGN_LEFT)
+                panel.sizer.Add(static_bitmap, proportion=0, flag=wx.ALL)
+                panel.SetSizer(panel.sizer)
+                panel.Fit()
+                panel.SetMinSize(panel.GetVirtualSize())
+                self.window.sizer.Add(panel, proportion=1, flag=wx.ALL)
+        else:
+            for imgpath in sorted(self.imgs):
+                bounding_boxes = self.imgs[imgpath]
+
+                pil_img = util_gui.open_as_grayscale(imgpath)
+                w_img, h_img = pil_img.size
+                if h_img != MosaicPanel.HEIGHT:
+                    new_w = int(round((MosaicPanel.HEIGHT / float(h_img)) * w_img))
+                    pil_img = pil_img.resize((new_w, MosaicPanel.HEIGHT))
+                img_bitmap = util_gui.PilImageToWxBitmap(pil_img)
+
+                panel = wx.Panel(self.window, style=wx.SIMPLE_BORDER)
+                self.window.panels.append(panel)
+                panel.txt = wx.StaticText(panel, label=os.path.split(imgpath)[1])
+                static_bitmap = NotStaticBitmap(panel, img_bitmap, imgpath, self.world)
+                static_bitmap.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown_mosaicimg)
+                panel.static_bitmap = static_bitmap
+                self.img_panels[imgpath] = panel
+                panel.sizer = wx.BoxSizer(wx.VERTICAL)
+                panel.sizer.Add(panel.txt, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
+                panel.sizer.Add(static_bitmap, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
+                panel.SetSizer(panel.sizer)
+                panel.Fit()
+                #panel.SetMinSize((img_bitmap.GetWidth(), img_bitmap.GetHeight()))
+                self.window.sizer.Add(panel, proportion=0, flag=wx.ALIGN_TOP | wx.ALL, border=4)
+                
+        self.window.Fit()
+        self.Fit()
+        
+        w, h = self.GetVirtualSize()
+        num_scrolls = 20.0
+        x, y = round(w / num_scrolls), round(h / num_scrolls)
+        self.window.SetScrollbars(num_scrolls, num_scrolls, x, y)
+        
+        self.window.SetMinSize((w,600))
+        self.SetMinSize((w, 600))
+        self.Refresh()
+    
+    def update_targets(self, imgpath, targets):
+        """
+        Update one of the displayed images (given by imgpath), by
+        resetting the targets with 'targets'.
+        """
+        panel = self.img_panels[imgpath]
+        #panel.static_bitmap.match_coords = [(t.x1, t.y1, t.x2, t.y2) for t in targets]
+        bounding_boxes = []
+        
+        for box in targets:
+            bounding_boxes.append(box.copy())
+
+        panel.static_bitmap.bounding_boxes = bounding_boxes
+        #self.Refresh()
+    
+    def update_all_targets(self, box_locations):
+        """
+        Updates all box_locations, including voting targets and 
+        contest bboxes. 
+        Input:
+            dict box_locations: Maps templatepath to list of BoundingBoxes
+        """
+        for templatepath in box_locations:
+            panel = self.img_panels[templatepath]
+            panel.static_bitmap.bounding_boxes = box_locations[templatepath]
+        self.Refresh()
+        
+    def remove_targets(self, imgpath, boxes):
+        """
+        Removes all BoundingBoxes in 'boxes' from template image given
+        by 'imgpath'.
+        Input:
+            str imgpath
+            list boxes
+        """
+        panel_boxes = self.img_panels[imgpath].static_bitmap.bounding_boxes
+        for b in boxes:
+            if b not in panel_boxes:
+                print "MosaicPanel -- Warning: {0} was not found in {1}".format(b, imgpath)
+            else:
+                panel_boxes.remove(b)
+        self.Refresh()
+        
+    #### Pubsub
+    def _pubsub_update_all_boxes(self, msg):
+        """
+        Triggered usually when an operation is done that modifies 
+        BoundingBoxes for all template images (say, after a 
+        template-matching run).
+        msg.data = box_locations, where box_locations is a dict 
+        mapping templatepath to a list of BoundingBox instances.
+        """
+        box_locations = msg.data
+        self.Refresh()
+        #self.update_all_targets(box_locations)
+    def _pubsub_update_boxes(self, msg):
+        """
+        Used to update the box locations for only one template image.
+        msg.data := str templatepath, list box_locations
+        """
+        templatepath, box_locations = msg.data
+        self.Refresh()
+        #self.update_targets(templatepath, box_locations)
+    def _pubsub_deleted_targets(self, msg):
+        """
+        Triggered when the user deletes a BoundingBox (via 
+        MyBallotScreen).
+        msg.data := str templatepath, list BoundingBox
+        """
+        templatepath, boxes = msg.data
+        #self.remove_targets(templatepath, boxes)
+        self.Refresh()
+    def _pubsub_updated_world(self, msg):
+        """
+        Triggered whenever the WorldState gets updated. Since this
+        probably means box locations got changed, I should redraw
+        myself. For performance, it'd be a good idea to only redraw
+        things that have changed - but for now, just redraw everything.
+        """
+        self.Refresh()
+        
+    #### Event Handlers
+    
+    def onLeftDown_mosaicimg(self, evt):
+        self.SetFocus()
+        for static_bitmap in [panel.static_bitmap for panel in self.img_panels.values()]:
+            static_bitmap.unselect()
+        notstatic_bitmap = evt.GetEventObject()
+        notstatic_bitmap.select()
+        # Shift scrollbars so that the selected img is 'centered' in
+        # UL corner.
+        imgpath = notstatic_bitmap.imgpath
+        #pos_ul = MosaicPanel.HEIGHT * (sorted(self.img_panels.keys()).index(imgpath))
+        idx = sorted(self.img_panels.keys()).index(imgpath)
+        if idx % 2 == 1:
+            row = (idx-1) / 2
+        else:
+            row = idx / 2
+        col = idx % 2
+        width_panel = self.img_panels.values()[0].GetSize()[0] + 5 # '5' is from the border
+        height_panel = self.img_panels.values()[0].GetSize()[1] + 5 # '5' is from the border
+        pos_ul =  (width_panel * col, height_panel * row)
+        x_units = pos_ul[0] / self.window.GetScrollPixelsPerUnit()[0]
+        y_units = pos_ul[1] / self.window.GetScrollPixelsPerUnit()[1]
+        self.window.Scroll(x_units, y_units)
+        Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", notstatic_bitmap.imgpath)
+
+    def onSize(self, evt):
+        self.ClearBackground()
+        self.Refresh()
+        evt.Skip()
+    def onPaint(self, evt):
+        self.ClearBackground()
+        evt.Skip()
+    
+class NotStaticBitmap(wx.Panel):
+    def __init__(self, parent, bmp, imgpath, world, *args, **kwargs):
+        """
+        bounding_boxes is a tuple of (x1,y1,x2,y2), and are relative.
+        """
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.world = world
+        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
+        self.bmp = bmp
+        self.imgpath = imgpath
+        self.is_selected = False
+        self.SetMinSize((bmp.GetWidth(), bmp.GetHeight()))
+        self.Bind(wx.EVT_PAINT, self.onPaint)
+    def select(self):
+        """
+        When a user clicks this bitmap, surround it with a border
+        in order to signify that it's selected.
+        """
+        self.is_selected = True
+        self.Refresh()
+    def unselect(self):
+        self.is_selected = False
+        self.Refresh()
+    def onPaint(self, evt):
+        dc = wx.AutoBufferedPaintDC(self)
+        dc.DrawBitmap(self.bmp, 0, 0)
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        if self.is_selected:
+            # Draw Border
+            dc.SetPen(wx.Pen("Yellow", 10))
+            dc.DrawRectangle(0,0,self.bmp.GetWidth()-1,self.bmp.GetHeight()-15)
+        for bounding_box in self.world.get_boxes(self.imgpath):
+            x1, y1, x2, y2 = bounding_box.get_coords()
+            dc.SetPen(wx.Pen(bounding_box.color, bounding_box.line_width))
+            w_img, h_img = self.bmp.GetWidth(), self.bmp.GetHeight()
+            x1_client, y1_client = int(round(x1*w_img)), int(round(y1*h_img))
+            x2_client, y2_client = int(round(x2*w_img)), int(round(y2*h_img))
+            w_client, h_client = abs(x1_client - x2_client), abs(y1_client - y2_client)
+            dc.DrawRectangle(x1_client, y1_client, w_client, h_client)
+            #dc.SetPen(wx.Pen(BoundingBox.CIRCLE_COLOR, 1))
+            #dc.DrawCircle(x_client, y_client, BoundingBox.CIRCLE_RAD)        
+
+class MyBallotScreen(BallotScreen):
+    """
+    Basically, exactly the same as BallotScreen, but, the first 
+    bounding box is created via click-and-drag, and subsequent
+    boxes are place-and-drop (whose dims are specified by the first
+    bounding box).
+    """
+    
+    def __init__(self, parent, world, *args, **kwargs):
+        BallotScreen.__init__(self, parent, world, *args, **kwargs)
+        
+        self.ghost_box = None   # BoundingBox to show on mouse cursor
+        self.display_ghost_box = False  # If True, display self.ghost_box
+        
+    def subscribe_pubsubs(self):
+        BallotScreen.subscribe_pubsubs(self)
+        callbacks = (("broadcast.undo", self._pubsub_undo),)
+        self.callbacks.extend(callbacks)
+        for (topic, callback) in callbacks:
+            Publisher().subscribe(callback, topic)
+
+    def _pubsub_updated_world(self, msg):
+        """
+        If no boxes remain on this template, then nuke the ghost_box.
+        """
+        if not self.world.get_boxes(self.current_imgpath):
+            self.ghost_box = None
+            self.display_ghost_box = False
+            
+        BallotScreen._pubsub_updated_world(self, msg)
+    def _pubsub_undo(self, msg):
+        """
+        Triggered whenever the user does 'Ctrl-z' anywhere in the UI.
+        Since the user might not be on the tab for 'Select and Group
+        Voting Targets', only do undo if this tab is currently the one
+        displayed. If nothing is sent in msg.data, then do an 
+        unconditional undo.
+        msg.data := int page, where 'page' is a 0-indexed integer
+            representing which page is displayed
+        """
+        page_num = msg.data
+        if not page_num or page_num == 2: # hard-coded constant for this page.
+            self.undo()
+        
+    def set_state(self, newstate):
+        oldstate = self.curstate
+        if (oldstate == BallotScreen.STATE_ADD_TARGET
+                and newstate != BallotScreen.STATE_ADD_TARGET):
+            self.display_ghost_box = False
+        if (newstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST)):
+            self.display_ghost_box = True
+        BallotScreen.set_state(self, newstate)
+        
+    def onLeftDown(self, evt):
+        self.SetFocus()
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if (self.curstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST)):
+            if False: #self.ghost_box:
+                # User previously created a bounding box, so 'place'
+                # down a pre-sized box at current location
+                x_rel, y_rel = x / float(self.img_bitmap.GetWidth()), y / float(self.img_bitmap.GetHeight())
+                
+                w_box, h_box = self.ghost_box.width, self.ghost_box.height
+                new_box = BoundingBox(x_rel, y_rel, x_rel+w_box, y_rel+h_box, color="Purple")
+                self.set_new_box(new_box)
+                self.Refresh()
+            else:
+                # User is creating his/her first bounding box via
+                # 'drag and drop'
+                BallotScreen.onLeftDown(self, evt)
+        else:
+            BallotScreen.onLeftDown(self, evt)
+    
+    def onMotion(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        x_rel, y_rel = x / float(self.img_bitmap.GetWidth()), y / float(self.img_bitmap.GetHeight())
+        if (self.curstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST)
+                and self.is_new_box()):
+            BallotScreen.onMotion(self,evt)
+        elif (self.curstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST)
+                and not self.is_new_box()):
+            self.Refresh()
+            BallotScreen.onMotion(self, evt)
+        else:
+            BallotScreen.onMotion(self, evt)
+    
+    def onPaint(self, evt):
+        """ Refresh screen. """
+        if self.IsDoubleBuffered():
+            dc = wx.PaintDC(self)
+        else:
+            dc = wx.BufferedPaintDC(self)
+        # You must do PrepareDC in order to force the dc to account
+        # for scrolling.
+        self.PrepareDC(dc)
+        
+        dc.DrawBitmap(self.img_bitmap, 0, 0)
+        self._display_targets(dc)
+        if self.curstate == BallotScreen.STATE_AUTODETECT and self._autodet_rect:
+            self._draw_autodet_rect(dc)
+        #if self.auxstate == BallotScreen.STATE_RESIZE_TARGET:
+        if self.is_resize_target():
+            self._draw_resize_rect(dc)
+        if self.curstate == BallotScreen.STATE_AUTODETECT_VERIFY:
+            self._draw_candidate_targets(dc, self.candidate_targets)
+        if self._dragselectregion:
+            self._draw_dragselectregion(dc)        
+        if self.display_ghost_box and self.ghost_box:
+            self._draw_box(dc, self.ghost_box)
+        evt.Skip()
+
+class Figure(wx.Panel):
+    """
+    A class that combines an image and a caption.
+    """
+    def __init__(self, parent, imgpath='', caption='Caption', 
+                 img=None, height=100, *args, **kwargs):
+        """
+        You can pass in the image in several ways: either as a path
+        to the image (imgpath), or as the img itself (img), in either
+        PIL, numpy array, or wxBitmap/wxImage format.
+        
+        obj parent: Parent widget
+        str imgpath: Path to image
+        str caption: Text that will be displayed under the image
+        obj img: PIL Image, wxImage, or wxBitmap
+        int height: Height (in pixels) of the displayed figure.
+        """
+        wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
+        
+        ## Instance vars
+        self.parent = parent
+        self.imgpath = imgpath
+        self.caption = caption
+        self.img = img
+        self.img_bitmap = None  # Should be set by _set_image
+        self._set_image(imgpath, img, height)
+        
+        self.panel_img = wx.Panel(self)
+        self.panel_img.SetMinSize((self.img_bitmap.GetWidth(), height))
+        
+        self.panel_caption = wx.Panel(self)
+        txt = wx.StaticText(self.panel_caption, label=caption)
+        txt.Wrap(self.img_bitmap.GetWidth())
+        self.panel_caption.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.panel_caption.sizer.Add(txt, flag=wx.ALIGN_CENTER)
+        self.panel_caption.SetSizer(self.panel_caption.sizer)
+        self.panel_caption.Fit()
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.panel_img, border=10, flag=wx.ALL | wx.EXPAND)
+        self.sizer.Add(self.panel_caption, border=10, flag=wx.ALL | wx.EXPAND)
+        self.SetSizer(self.sizer)
+        
+        self.panel_img.Bind(wx.EVT_PAINT, self.onPaint_img)
+        
+        #self.img_bitmap.ConvertToImage().SaveFile('img_bitmap.png', wx.BITMAP_TYPE_PNG)
+
+        self.Fit()
+        
+    def compute_size(self):
+        return self.sizer.GetMinSize()
+
+    def _set_image(self, imgpath, img, height):
+        if img != None:
+            try:
+                # PIL Image
+                w_img, h_img = img.size
+                c = h_img / float(height)
+                new_w = int(round(w_img / c))
+                pil_resize = img.resize((new_w, height), Image.ANTIALIAS)
+                self.img_bitmap = util_gui.PilImageToWxBitmap(pil_resize)
+                return
+            except:
+                # Well, it's not a PIL Image!
+                pass
+            try:
+                # Numpy array
+                h_img, w_img = img.shape
+                c = float(height) / h_img
+                try:
+                    resized_img = scipy.misc.imresize(img, c, interp='bilinear')
+                except TypeError as e:
+                    # scipy v0.7.0 doesn't take interp kwrd arg, but
+                    # v0.10.0rc1 does.
+                    resized_img = scipy.misc.imresize(img, c)
+                self.img_bitmap = util_gui.NumpyToWxBitmap(resized_img)
+                return
+            except Exception as e:
+                # Well, it's not a Numpy array!
+                pass
+            try:
+                # wxImage
+                w_img, h_img = img.GetWidth(), img.GetHeight()
+                c = h_img / float(height)
+                new_w = int(round(w_img / c))
+                self.img_bitmap = img.Rescale(new_w, height, wx.IMAGE_QUALITY_HEIGHT).ConvertToBitmap()
+                return
+            except:
+                # Well, it's not a wxImage
+                pass
+            try:
+                # wxBitmap
+                pil = util_gui.WxBitmapToPilImage(img)
+                w_img, h_img = pil.size
+                c = h_img / float(height)
+                new_w = int(round(w_img / c))
+                pil_resize = pil.resize((new_w, height), Image.ANTIALIAS)
+                self.img_bitmap = util_gui.PilImageToWxBitmap(pil_resize)
+                return
+            except:
+                # wat
+                print 'Unrecognized input to Figure._set_image:', type(img)
+                raise RuntimeError("Wat, in Figure._set_image")
+        elif imgpath:
+            self.img_pil = util_gui.open_img_as_grayscale(imgpath)
+            w_img, h_img = self.img_pil.size
+            c = h_img / float(height)
+            new_w = int(round(w_img / c))
+            img_pil_resize = self.img_pil.resize((new_w, height), Image.ANTIALIAS)
+            
+            self.img_bitmap = util_gui.PilImageToWxBitmap(img_pil_resize)
+        else:
+            # User didn't pass in an img nor imgpath, so set to blank
+            # bitmap
+            self.img_bitmap = util_gui.make_blank_bitmap((100, 100), 200)
+            
+    def onPaint_img(self, evt):
+        if self.IsDoubleBuffered():
+            dc = wx.PaintDC(self.panel_img)
+        else:
+            dc = wx.BufferedPaintDC(self.panel_img)
+        dc.DrawBitmap(self.img_bitmap, 0, 0)
+        evt.Skip()
+        
+class WarningSelectedRegion(wx.Dialog):
+    """
+    A Dialog that pops up when the system detects that the user selected
+    something weird.
+    """
+    OVERRIDE = 42
+    def __init__(self, parent, refimg_rect, user_region, *args, **kwargs):
+        """
+        obj refimg_prect: A numpy array for the auto-created region
+        obj user_region: A numpy array for the exact region that the
+                         user created (useful for overriding auto-crop)
+        """
+        wx.Dialog.__init__(self, parent, title="Warning -- Possible Voting Target Error", *args, **kwargs)
+        self.parent = parent
+        
+        self.panel = wx.Panel(self)
+        self.panel.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.panel.SetSizer(self.panel.sizer)
+
+        self.panel_figs = wx.Panel(self.panel) # figures, btns
+        sizer_figs = wx.BoxSizer(wx.HORIZONTAL)
+        self.panel_figs.SetSizer(sizer_figs)
+        # Left side (autocrop region, yes/no btns)
+        self.fig = Figure(self.panel_figs, img=refimg_rect, caption="An auto-cropped region.")
+        self.fig2 = Figure(self.panel_figs, img=user_region, caption="The exact region you selected.")
+        sizer_figs.Add(self.fig, border=10, flag=wx.ALL | wx.ALIGN_TOP)
+        sizer_figs.Add(self.fig2, border=10, flag=wx.ALL | wx.ALIGN_TOP)
+        self.panel_figs.Fit()
+        msg = """OpenCount detected \
+that you might have made a mistake when selecting the voting target. \
+Displayed on the left is the region that OpenCount received. Does this region \
+only contain the full voting target? 
+
+If the image on the left contains only voting \
+target in its entirety, and nothing else, then click yes to proceed."""
+        msg2 = """If parts of the \
+target is missing (or there's non-voting target pixels present), then \
+click 'No' and retry the selection. Zooming-in might help with precision."""
+        msg3 = """Or, if you want to force OpenCount to use exactly what you \
+selected (the image on the right), then click 'Use what I selected"."""
+        self.txt = wx.StaticText(self.panel, label=msg)
+        self.txt.Wrap(450)
+        self.txt2 = wx.StaticText(self.panel, label=msg2)
+        self.txt2.Wrap(450)
+        self.txt3 = wx.StaticText(self.panel, label=msg3)
+        self.txt3.Wrap(450)
+        
+        panel_btn = wx.Panel(self.panel, style=wx.SIMPLE_BORDER)
+        self.btn_yes = wx.Button(panel_btn, id=wx.ID_YES)
+        self.btn_yes.Bind(wx.EVT_BUTTON, self.onButton_yes)
+        
+        self.btn_no = wx.Button(panel_btn, id=wx.ID_NO)
+        self.btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
+
+        txt = wx.StaticText(panel_btn, label="Or")
+
+        self.btn_ignore = wx.Button(panel_btn, label="Use what I selected.")
+        self.btn_ignore.Bind(wx.EVT_BUTTON, self.onButton_override)
+
+        panel_btn.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        panel_btn.sizer.Add(self.btn_yes, border=10, flag=wx.ALL | wx.ALIGN_CENTER)
+        panel_btn.sizer.Add(self.btn_no, border=10, flag=wx.ALL | wx.ALIGN_CENTER)
+        panel_btn.sizer.Add(txt, border=15, flag=wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER)
+        panel_btn.sizer.Add(self.btn_ignore, border=10, flag=wx.ALL | wx.ALIGN_CENTER)
+        panel_btn.SetSizer(panel_btn.sizer)
+        panel_btn.Fit()
+
+        # Debug Button
+        btn_debug = wx.Button(self.panel, label="Debug")
+        btn_debug.Bind(wx.EVT_BUTTON, self.onButton_debug)
+
+        self.panel.sizer.Add(self.panel_figs, border=10, flag=wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER)
+        self.panel.sizer.Add(self.txt, border=10)
+        self.panel.sizer.Add(wx.StaticLine(self.panel), proportion=1, flag=wx.ALIGN_CENTER | wx.EXPAND)
+        self.panel.sizer.Add(self.txt2, border=10)
+        self.panel.sizer.Add(wx.StaticLine(self.panel), proportion=1, flag=wx.ALIGN_CENTER | wx.EXPAND)
+        self.panel.sizer.Add(self.txt3, border=10)
+        self.panel.sizer.Add((10, 10))
+        self.panel.sizer.Add(panel_btn, border=10, flag=wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER)
+        self.panel.sizer.Add(btn_debug, flag=wx.ALIGN_CENTER)
+        self.panel.Fit()
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.panel, border=10, flag=wx.ALL)
+        self.SetSizer(self.sizer)
+        self.Fit()
+        
+    def onButton_yes(self, evt):
+        self.EndModal(wx.ID_YES)
+    def onButton_no(self, evt):
+        self.EndModal(wx.ID_NO)
+    def onButton_override(self, evt):
+        self.EndModal(self.OVERRIDE)
+    def onButton_debug(self, evt):
+        
+        print "DEBUG"
+        
+class TempMatchProgress(util_widgets.ProgressGauge):
+    """
+    A dialog that pops up to display a progress gauge when template
+    matching is occuring.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        # get num of jobs - in this case, it's:
+        #   <num template images> * <num_iters>
+        totaljobs = len(parent.world.box_locations)*(SpecifyTargetsPanel.NUM_ITERS+1)
+        msg = "Auto-detecting voting targets..."
+
+        util_widgets.ProgressGauge.__init__(self, parent, totaljobs, msg=msg, *args, **kwargs)
+        
+    def _pubsub_done(self, msg):
+        self.parent.Enable()
+        self.Destroy()
+        
+def print_write(msg, file=None):
+    """
+    Output msg both to stdout and to an optional file.
+    """
+    if file:
+        print >>file, msg
+    print msg
+
+class ThreadTempMatch(threading.Thread):
+    def __init__(self, box_locations, refimg_rect, first_time, param, boxdims,outfile=None, *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.box_locations = copy.deepcopy(box_locations)
+        self.refimg_rect = refimg_rect
+        self.first_time = first_time
+        self.param = param
+        self.outfile = outfile
+        self.boxdims = boxdims
+    def standardize_boxsizes(self):
+        """
+        Given a dict mapping str temppath -> list BoundingBoxes,
+        modify all boxes to have equal size.
+        """
+        if not self.boxdims:
+            # This is the first templatematching call
+            return
+        w_box, h_box = self.boxdims
+        for temppath in self.box_locations.keys():
+            self.box_locations[temppath] = [util_gui.standardize_box(b) for b in self.box_locations[temppath]]
+            for b in self.box_locations[temppath]:
+                x_del = (b.x2-b.x1)-w_box
+                y_del = (b.y2-b.y1)-h_box
+                b.x1 += x_del / 2.0
+                b.x2 -= x_del / 2.0
+                b.y1 += y_del / 2.0
+                b.y2 -= y_del / 2.0
+                if b.x1 < 0:
+                    delta = abs(b.x1)
+                    b.x1 = 0
+                    b.x2 += (x_del / 2.0) + delta
+                if b.x2 >= 1.0:
+                    delta = abs(1.0 - b.x2)
+                    b.x1 -= abs((x_del / 2.0)) + delta
+                    b.x2 -= abs((x_del / 2.0)) + delta
+                if b.y1 < 0:
+                    delta = abs(b.y1)
+                    b.y1 = 0
+                    b.y2 += abs((y_del / 2.0)) + delta
+                if b.y2 >= 1.0:
+                    delta = abs(1.0 - b.y2)
+                    b.y1 -= abs(y_del / 2.0) + delta
+                    b.y2 -= abs(y_del / 2.0) + delta
+            
+    def run(self):
+        _t = time.time()
+        newboxes1 = template_match(self.box_locations, 
+                                   self.refimg_rect, 
+                                   confidence=self.param)
+        t1 = time.time() - _t
+        msg1 = """Time elapsed (secs) for template_match call: {0}
+  Avg. time per ballot: {1}""".format(t1, t1 / len(self.box_locations))
+        print_write(msg1, self.outfile)
+        # Also 'center' the targets 
+        for temppath, newboxes in newboxes1.items():
+            self.box_locations.setdefault(temppath, []).extend(newboxes)
+        # Now, grab a random newly-detected voting target, and re-run
+        # template matching. 
+        new_boxes_flat = reduce(lambda x,y: x+y, newboxes1.values(), [])
+        num_new_boxes = len(new_boxes_flat)
+        if num_new_boxes:            
+            def get_random(new_boxes):
+                """
+                'randomly' get a box from a template image.
+                """
+                candidates = [x for x in new_boxes if len(new_boxes[x])]
+                temppath = random.choice(candidates)
+                box = random.choice(new_boxes[temppath])
+                return box, temppath
+
+            for i in range(SpecifyTargetsPanel.NUM_ITERS):
+                box, temppath = get_random(newboxes1)
+                img = util_gui.open_as_grayscale(temppath)
+                refimg_pil = crop_out_box(img, box)
+                refimg = np.array(refimg_pil, dtype='f')
+                _t = time.time()
+                new_boxes2 = template_match(self.box_locations, refimg, False, self.param)
+                t2 = time.time() - _t
+                msg = """\tTime elapsed (secs) for {0}-th template_match call: {1}
+\t  Avg. Time per ballot: {2}""".format(i+1, t2, t2 / len(self.box_locations))
+                print_write(msg, self.outfile)
+                for temppath, boxes in new_boxes2.items():
+                    self.box_locations.setdefault(temppath, []).extend(boxes)
+                ct = sum([len(lst) for lst in new_boxes2.values()])
+                foo = "Found {0} more additional targets".format(ct)
+                print_write(foo, self.outfile)
+        # wx.CallAfter is used to avoid crashing Linux - if you
+        # directly call Publisher().sendMessage, X11 crashes.
+        self.standardize_boxsizes()
+        wx.CallAfter(Publisher().sendMessage, "signals.world.set_boxes", self.box_locations)
+        wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.done")
+        wx.CallAfter(Publisher().sendMessage, "broadcast.tempmatchdone")
+        self.outfile.close()
+
+class FrontBackPanel(wx.Panel):
+    """
+    Class to allow user to select if this image is a front or back.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(sizer)
+        txt = wx.StaticText(self, label="Which side is this ballot image?")
+        radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        radiobtn_front = wx.RadioButton(self, label="Front side", style=wx.RB_GROUP)
+        radiobtn_front.Bind(wx.EVT_RADIOBUTTON, self.onRadioButton)
+        radiobtn_back = wx.RadioButton(self, label="Back side")
+        radiobtn_back.Bind(wx.EVT_RADIOBUTTON, self.onRadioButton)
+        self.radiobtn_front = radiobtn_front
+        self.radiobtn_back = radiobtn_back
+        radio_sizer.Add(radiobtn_front)
+        radio_sizer.Add(radiobtn_back)
+        sizer.Add(txt)
+        sizer.Add((10, 10))
+        sizer.Add(radio_sizer)
+        
+    def onRadioButton(self, evt):
+        front_val = self.radiobtn_front.GetValue()
+        back_val = self.radiobtn_back.GetValue()
+
+    def set_side(self, side):
+        """
+        Sets the RadioButton to 'side' appropriately. Expects 'side' to
+        either be 'front' or 'back'.
+        """
+        if side == 'front':
+            self.radiobtn_front.SetValue(True)
+            self.radiobtn_back.SetValue(False)
+        else:
+            self.radiobtn_back.SetValue(True)
+            self.radiobtn_front.SetValue(False)
+
+    def get_side(self):
+        return 'front' if self.radiobtn_front.GetValue() else 'back'
+
+class WarnNoBoxesDialog(wx.Dialog):
+    """
+    A warning dialog that might be displayed when the user tries
+    to leave the 'Specify and Group Targets' page, but the output
+    validation fails.
+    """
+    GOBACK = 42
+    PROCEED = 9001
+
+    def __init__(self, parent, msg, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        txt = wx.StaticText(self, label=msg)
+        btn_goback = wx.Button(self, label="I want to go back and double-check")
+        btn_goback.Bind(wx.EVT_BUTTON, self.onButton_goback)
+        btn_proceed = wx.Button(self, label="This is correct, proceed onwards.")
+        btn_proceed.Bind(wx.EVT_BUTTON, self.onButton_proceed)
+
+        sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_btns.Add(btn_goback, flag=wx.ALIGN_CENTER)
+        sizer_btns.Add((30, 10))
+        sizer_btns.Add(btn_proceed, flag=wx.ALIGN_CENTER)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(txt, border=10, flag=wx.ALL)
+        sizer.Add((20, 20))
+        sizer.Add(sizer_btns, border=10, flag=wx.ALL | wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+        
+    def onButton_goback(self, evt):
+        self.EndModal(WarnNoBoxesDialog.GOBACK)
+    def onButton_proceed(self, evt):
+        self.EndModal(WarnNoBoxesDialog.PROCEED)
+
+    
+
+def find_bounding_boxes(groups):
+    """
+    Given a list of box-groups, returns a single bounding box for each
+    group of boxes.
+    Input:
+        A tuple of tuples of the form (upper, left, lower, right)
+    Output:
+        A tuple of BoundingBox instances
+    """
+    bounding_boxes = []
+    for group in groups:
+        min_x1 = min([x1 for (x1,y1,x2,y2) in group])
+        min_y1 = min([y1 for (x1,y1,x2,y2) in group])
+        max_x2 = max([x2 for (x1,y1,x2,y2) in group])
+        max_y2 = max([y2 for (x1,y1,x2,y2) in group])
+        # Now add 'padding'
+        min_x1 = max(0, min_x1 - 0.05)
+        min_y1 = max(0, min_y1 - 0.025)
+        max_x2 = min(1.0, max_x2 + 0.05)
+        max_y2 = min(1.0, max_y2 + 0.025)
+        bounding_boxes.append(BoundingBox(min_x1, min_y1, max_x2, max_y2,
+                                          is_contest=True))
+    return bounding_boxes
+        
+def compute_contest_ids(bounding_boxes):
+    """
+    Given a list of BoundingBox instances (both contests and voting
+    targets), update the contest_ids of all voting targets by
+    associating each voting target to the contest box that surrounds
+    it.
+    A useful function to call whenever contest bounding boxes have
+    been changed.
+    Output:
+        A list of BoundingBoxes, same number as input, but with
+        updated contest_id fields.
+    """
+    new_boxes = []
+    targets = [b for b in bounding_boxes if not b.is_contest]
+    contest_boxes = [b for b in bounding_boxes if b.is_contest]
+    cur_id = 0
+    # sort by x1 to process column-by-column
+    for contest in sorted(contest_boxes, key=lambda box: box.x1):
+        new_contest = contest.copy()
+        new_contest.contest_id = cur_id
+        cur_id += 1
+        new_boxes.append(new_contest)
+    for target in [box for box in bounding_boxes if not box.is_contest]:
+        new_target = target.copy()
+        assoc_contest = util_gui.find_assoc_contest(target, contest_boxes)
+        if assoc_contest:
+            new_target.contest_id = util_gui.find_assoc_contest(target, contest_boxes).contest_id
+        else:
+            # If no contest bounds this target, then assign it a dummy contest_id value.
+            new_target.contest_id = -1
+        new_boxes.append(new_target)
+    return new_boxes
+
+def sanity_check_box(img):
+    """
+    Given the image region that the user selected (that supposedly
+    contains a voting target), try a series of heuristics to try to
+    detect if the user actually highlighted the entire voting target.
+    1.) To detect if part of the box is 'chopped off', we could check
+        to see if a vertical and horizontal line passing through the
+        center of the region encounters two distinct lines. (This
+        assumes that the input to this function is reasonably centered)
+    2.) To detect if too much was highlighted (say, some text was 
+        inadvertantly included).
+    Input:
+        obj img: A numpy array
+    Output:
+        True if img passes the sanity checks, False otherwise.
+    """
+    h, w = img.shape
+    img_threshold = util_gui.autothreshold_numpy(img, method='otsu', slop=15)
+    #_img_threshold2 = util_gui.autothreshold_numpy(img, method='otsu', slop=15)
+    #scipy.misc.imsave('no_threshold_np.png', img)
+    #scipy.misc.imsave('threshold_np_{0}.png'.format('kmeans'), img_threshold)
+    #scipy.misc.imsave('threshold_np_otsu.png', _img_threshold2)
+    num_x1 = num_collisions(img_threshold, 'x', (h/2)-2)
+    num_x2 = num_collisions(img_threshold, 'x', h/2)
+    num_x3 = num_collisions(img_threshold, 'x', (h/2)+2)
+    num_y1 = num_collisions(img_threshold, 'y', (w/2)-2)
+    num_y2 = num_collisions(img_threshold, 'y', w/2)
+    num_y3 = num_collisions(img_threshold, 'y', (w/2)+2)
+    ## 1,2) Detect chopped-off, too much
+    if (num_x1 != 2 and num_x2 != 2 and num_x3 != 2):
+        print "Failed sanity check: on X axis, didn't hit 2 times. Hit {0} times instead.".format(max(num_x1, num_x2, num_x3))
+        return False
+    elif (num_y1 != 2 and num_y2 != 2 and num_y3 != 2):
+        print "Failed sanity check: on Y axis, didn't hit 2 times. Hit {0} times instead.".format(max(num_y1, num_y2, num_y3))
+        return False
+    return True
+    
+def num_collisions(img, axis, a):
+    """
+    Return number of times a line (on axis) drawn at row/col 'a' 
+    intersects with a line/object.
+    Assumes that img has been thresholded.
+    Input:
+        obj img: a numpy array
+        str axis: 'x' for x axis (horiz line), 'y' for y axis (vert line)
+        int a: which row/col to search on (0 indexed).
+    """
+    BLACK = 0   # I always forget 0 is black, 255 is white
+    WHITE = 255
+    if axis.lower() == 'y':
+        img = img.T
+    try:
+        row_or_col = img[a]
+    except IndexError as e:
+        print e
+        pdb.set_trace()
+    num_collisions = 0
+    flag_in_line = False
+    for val in row_or_col:
+        if not flag_in_line and val == BLACK:
+            flag_in_line = True
+            num_collisions += 1
+        elif flag_in_line and val == WHITE:
+            flag_in_line = False
+    return num_collisions
+           
+def normalize_boxes(boxes, imgsize):
+    """
+    Given a list of BoundingBoxes, normalize each bounding box so that
+    each box doesn't extend outside of the image. 
+    Input:
+        list boxes: A list of BoundingBoxes instances
+        tuple imgsize: (int width, int height)
+    Output:
+        A list of BoundingBox instances with 'normalized' sizes.
+    """
+    def normalize(box, imgsize):
+        box_copy = box.copy()
+        box_copy.x1 = max(0, box.x1)
+        box_copy.y1 = max(0, box.y1)
+        box_copy.x2 = min(1.0 - (1.0 / imgsize[0]), box.x2)
+        box_copy.y2 = min(1.0 - (1.0 / imgsize[1]), box.y2)
+        return box_copy
+    return [normalize(box, imgsize) for box in boxes]
+
+def intround(num):
+    return int(round(num))
+
+def crop_out_box(img, box):
+    """
+    Given a PIL image and a BoundingBox, crops out a portion of the
+    Pil image and returns it (as specified by the BoundingBox).
+    Input:
+        obj img: a PIL image
+        obj box: a BoundingBox instance
+    Output:
+        A PIL image.
+    """
+    w_img, h_img = img.size
+    ul_x = intround(box.x1*w_img)
+    ul_y = intround(box.y1*h_img)
+    lr_x = intround(box.x2*w_img)
+    lr_y = intround(box.y2*h_img)
+    return img.crop((ul_x, ul_y, lr_x, lr_y))
+    
+def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
+    """
+    Input:
+        dict boxes: {str templatepath: list BoundingBoxes}
+        obj ref_img: A numpy array
+    Output:
+        Return a dict mapping templatepath to new matched 
+        BoundingBoxes.
+    """
+    def is_overlap(rect1, rect2):
+        """
+        Returns True if any part of rect1 is contained within rect2.
+        Input:
+            rect1: Tuple of (x1,y1,x2,y2)
+            rect2: Tuple of (x1,y1,x2,y2)
+        """
+        def is_within_box(pt, box):
+            return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
+        x1, y1, x2, y2 = rect1
+        w, h = abs(x2-x1), abs(y2-y1)
+        # Checks (in order): UL, UR, LR, LL corners
+        return (is_within_box((x1,y1), rect2) or
+                is_within_box((x1+w,y1), rect2) or 
+                is_within_box((x1+w,y1+h), rect2) or 
+                is_within_box((x1,y1+h), rect2))
+    def too_close(b1, b2):
+        """
+        Input:
+            b1: Tuple of (x1,y1,x2,y2)
+            b2: Tuple of (x1,y1,x2,y2)
+        """
+        dist = util_gui.dist_euclidean
+        w, h = abs(b1[0]-b1[2]), abs(b1[1]-b1[3])
+        return ((abs(b1[0] - b2[0]) <= w / 2.0 and
+                 abs(b1[1] - b2[1]) <= h / 2.0) or
+                is_overlap(b1, b2) or 
+                is_overlap(b2, b1))
+    def fix_box(box, imgsize):
+        """
+        If the box extends outside the image in any direction,
+        extend it in the opposite direction to enforce that each
+        box is the same size (and chop it off at the image
+        boundary).
+        """
+        flag = False
+        w_img, h_img = imgsize
+        ul_x, lr_x = map(lambda x: int(round(x*w_img)), (box.x1, box.x2))
+        ul_y, lr_y = map(lambda y: int(round(y*h_img)), (box.y1, box.y2))
+        if ul_x < 0:
+            ul_x = 0
+            lr_x += abs(ul_x)
+        if lr_x >= w_img:
+            delta = abs(lr_x - w_img + 1.0)
+            lr_x -= delta
+            ul_x -= delta
+        if ul_y < 0:
+            ul_y = 0
+            lr_y += abs(ul_y)
+        if lr_y >= h_img:
+            delta = abs(lr_y - h_img + 1.0)
+            lr_y -= delta
+            ul_y -= delta
+        box.x1 = ul_x / float(w_img)
+        box.x2 = lr_x / float(w_img)
+        box.y1 = ul_y / float(h_img)
+        box.y2 = lr_y / float(h_img)
+        return box
+
+    count = 0
+    new_boxes = {}  # {str templatepath: list of BoundingBoxes}
+    ref_imgs = [ref_img]
+    for cur_ref_img in ref_imgs:
+        _count = 0
+        for (templateimgpath, bounding_boxes) in boxes.items():
+            img_array = util_gui.open_img_scipy(templateimgpath)
+            match_coords = util_gui.template_match(img_array,
+                                                   cur_ref_img, 
+                                                   confidence=confidence)
+            wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.tick")
+            h_img, w_img = img_array.shape
+            new_bounding_boxes = []
+            for (x,y) in match_coords:
+                x_rel, y_rel = x / float(w_img), y / float(h_img)
+                flag = True
+                for box in [b for b in bounding_boxes if not b.is_contest]+new_bounding_boxes:
+                    if too_close((x_rel,y_rel,x_rel+box.width,y_rel+box.height),
+                                 box.get_coords()):
+                        flag = False
+                        break
+                if flag:
+                    # Let's also add some padding
+                    if add_padding:
+                        # This is the first bounding box, so add some
+                        # padding to the auto-fitted thing
+                        PAD_X, PAD_Y = 2.0 / w_img, 2.0 / h_img
+                    else:
+                        # Don't add padding, it was added earlier
+                        PAD_X, PAD_Y = 0.0, 0.0
+                    w_fitted = cur_ref_img.shape[1] / float(w_img)
+                    h_fitted = cur_ref_img.shape[0] / float(h_img)
+                    box_new = BoundingBox(x_rel-PAD_X, y_rel-PAD_Y, 
+                                          x_rel+abs(w_fitted)+PAD_X,
+                                          y_rel+abs(h_fitted)+PAD_Y,
+                                          color="Orange")
+                    box_new = fix_box(box_new, (w_img,h_img))
+                    new_bounding_boxes.append(box_new)
+            new_bounding_boxes = normalize_boxes(new_bounding_boxes,
+                                                (w_img, h_img))
+            count += len(new_bounding_boxes)
+            _count += len(new_bounding_boxes)
+            new_boxes.setdefault(templateimgpath, []).extend(new_bounding_boxes)
+        print 'Number of new voting targets detected:', _count
+    return new_boxes
+
