@@ -193,8 +193,7 @@ class LabelContest(wx.Panel):
                         if (ct,cid) not in self.text or self.text[ct,cid] == []:
                             numt = len(self.groupedtargets[self.templatenum][self.count])
                             title = ":".join(["title", str(ct), str(cid)])
-                            contests = [":".join(["contest", str(ct), str(cid), str(targ)]
-    ) for targ in range(numt)]
+                            contests = [":".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
                             self.text[ct,cid] = [title]+contests
                         if (ct,cid) not in self.voteupto: 
                             self.voteupto[ct, cid] = 1
