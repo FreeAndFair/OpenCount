@@ -186,10 +186,10 @@ class LabelContest(wx.Panel):
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
                 self.save()
-                print "GOT", self.contest_order
+                #print "GOT", self.contest_order
                 for ct,cid_lst in enumerate(self.contest_order):
                     for cid in cid_lst:
-                        print "WORKING ON", ct, cid
+                        #print "WORKING ON", ct, cid
                         if (ct,cid) not in self.text or self.text[ct,cid] == []:
                             numt = len(self.groupedtargets[self.templatenum][self.count])
                             title = ":".join(["title", str(ct), str(cid)])
