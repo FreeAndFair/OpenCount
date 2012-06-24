@@ -18,9 +18,6 @@ import fnmatch
 import shutil
 from random import random
 
-#sys.path.append('../firstpass_gui/post_processing')
-#from vote_tally import quarantine
-
 def extractTargets(I,Iref,bbs,verbose=False):
 
     ''' Perform local alignment around each target, then crop out target  '''
