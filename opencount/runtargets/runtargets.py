@@ -150,26 +150,39 @@ class RunThread(threading.Thread):
 
         # check if > 1 template
         if self.rerun:
-            if 0: #not is_multipage(self.proj):
-                if len(possible)==1:
-                    res = convertImagesSingle(imagepath,
-                                              pathjoin(templatedir, possible[0]),
-                                              csvPattern,
-                                              self.proj.extracted_dir, 
-                                              self.proj.extracted_metadata,
-                                              self.proj.ballot_metadata,
-                                              self.proj.quarantined,
-                                              self.stopped)
-                else:
-                    fh=open(self.proj.grouping_results)
-                    dreader=csv.DictReader(fh)
-                    ballot2group={}
-                    for row in dreader:
-                        ballot2group[row['samplepath']]=row['templatepath']
+            # if 0: #not is_multipage(self.proj):
+            #     if len(possible)==1:
+            #         res = convertImagesSingle(imagepath,
+            #                                   pathjoin(templatedir, possible[0]),
+            #                                   csvPattern,
+            #                                   self.proj.extracted_dir, 
+            #                                   self.proj.extracted_metadata,
+            #                                   self.proj.ballot_metadata,
+            #                                   self.proj.quarantined,
+            #                                   self.stopped)
+            #     else:
+            #         fh=open(self.proj.grouping_results)
+            #         dreader=csv.DictReader(fh)
+            #         ballot2group={}
+            #         for row in dreader:
+            #             ballot2group[row['samplepath']]=row['templatepath']
                         
-                    fh.close()
-                    res = convertImagesMulti(imagepath,
-                                             ballot2group,
+            #         fh.close()
+            #         res = convertImagesMulti(imagepath,
+            #                                  ballot2group,
+            #                                  csvPattern,
+            #                                  self.proj.extracted_dir, 
+            #                                  self.proj.extracted_metadata,
+            #                                  self.proj.ballot_metadata,
+            #                                  self.proj.quarantined,
+            #                                  self.stopped)
+            # else:
+            bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
+            tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
+            
+            if len(tpl2imgs)==1:
+                res = convertImagesSingleMAP(bal2imgs,
+                                             tpl2imgs,
                                              csvPattern,
                                              self.proj.extracted_dir, 
                                              self.proj.extracted_metadata,
@@ -177,39 +190,26 @@ class RunThread(threading.Thread):
                                              self.proj.quarantined,
                                              self.stopped)
             else:
-                bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
-                tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
-                
-                if len(tpl2imgs)==1:
-                    res = convertImagesSingleMAP(bal2imgs,
-                                                 tpl2imgs,
-                                                 csvPattern,
-                                                 self.proj.extracted_dir, 
-                                                 self.proj.extracted_metadata,
-                                                 self.proj.ballot_metadata,
-                                                 self.proj.quarantined,
-                                                 self.stopped)
-                else:
-                    fh=open(self.proj.grouping_results)
-                    dreader=csv.DictReader(fh)
-                    bal2tpl={}
-                    qfile = open(self.proj.quarantined, 'r')
-                    qfiles = set([f.strip() for f in qfile.readlines()])
-                    qfile.close()
-                    for row in dreader:
-                        sample = os.path.abspath(row['samplepath'])
-                        if sample not in qfiles:
-                            bal2tpl[sample]=row['templatepath']
-                    fh.close()
-                    res = convertImagesMultiMAP(bal2imgs,
-                                                tpl2imgs,
-                                                bal2tpl,
-                                                csvPattern,
-                                                self.proj.extracted_dir, 
-                                                self.proj.extracted_metadata,
-                                                self.proj.ballot_metadata,
-                                                self.proj.quarantined,
-                                                self.stopped)
+                fh=open(self.proj.grouping_results)
+                dreader=csv.DictReader(fh)
+                bal2tpl={}
+                qfile = open(self.proj.quarantined, 'r')
+                qfiles = set([f.strip() for f in qfile.readlines()])
+                qfile.close()
+                for row in dreader:
+                    sample = os.path.abspath(row['samplepath'])
+                    if sample not in qfiles:
+                        bal2tpl[sample]=row['templatepath']
+                fh.close()
+                res = convertImagesMultiMAP(bal2imgs,
+                                            tpl2imgs,
+                                            bal2tpl,
+                                            csvPattern,
+                                            self.proj.extracted_dir, 
+                                            self.proj.extracted_metadata,
+                                            self.proj.ballot_metadata,
+                                            self.proj.quarantined,
+                                            self.stopped)
     
             if not res:
                 # Was told to abort everything.
