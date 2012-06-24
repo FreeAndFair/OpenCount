@@ -148,35 +148,7 @@ class RunThread(threading.Thread):
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
 
-        # check if > 1 template
         if self.rerun:
-            # if 0: #not is_multipage(self.proj):
-            #     if len(possible)==1:
-            #         res = convertImagesSingle(imagepath,
-            #                                   pathjoin(templatedir, possible[0]),
-            #                                   csvPattern,
-            #                                   self.proj.extracted_dir, 
-            #                                   self.proj.extracted_metadata,
-            #                                   self.proj.ballot_metadata,
-            #                                   self.proj.quarantined,
-            #                                   self.stopped)
-            #     else:
-            #         fh=open(self.proj.grouping_results)
-            #         dreader=csv.DictReader(fh)
-            #         ballot2group={}
-            #         for row in dreader:
-            #             ballot2group[row['samplepath']]=row['templatepath']
-                        
-            #         fh.close()
-            #         res = convertImagesMulti(imagepath,
-            #                                  ballot2group,
-            #                                  csvPattern,
-            #                                  self.proj.extracted_dir, 
-            #                                  self.proj.extracted_metadata,
-            #                                  self.proj.ballot_metadata,
-            #                                  self.proj.quarantined,
-            #                                  self.stopped)
-            # else:
             bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
             
