@@ -859,6 +859,8 @@ imgsize was {1}. Oh well, using new imgsize'.format(self.project.imgsize,
             TIMER.dump()
         except:
             pass
+        if self.notebook.GetCurrentPage() == self.panel_define_attrs:
+            self.panel_define_attrs.stop()
         self.panel_correct_grouping.dump_state()
         wx.Frame.Destroy(self)
 
