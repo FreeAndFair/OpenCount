@@ -381,8 +381,7 @@ class VerifyPanel(wx.Panel):
         self.mainPanel.GetSizer().SetSizeHints(self)
         self.mainPanel.SetupScrolling()
     
-    
-    def initLayout(self):
+    def overlays_layout_vert(self):
         gridsizer = wx.GridSizer(rows=4, cols=2, hgap=5, vgap=5)
         
         # HBOX 1 (min overlay)
@@ -408,6 +407,38 @@ class VerifyPanel(wx.Panel):
         self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
         gridsizer.Add(st4, flag=wx.ALIGN_LEFT)
         gridsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
+
+        return gridsizer
+
+    def overlays_layout_horiz(self):
+        gridsizer = wx.GridSizer(rows=2, cols=4, hgap=5, vgap=5)
+        
+        # Add texts
+        st1 = wx.StaticText(self.mainPanel, -1, "min:     ", style=wx.ALIGN_LEFT)
+        gridsizer.Add(st1, flag=wx.ALIGN_LEFT)
+        st2 = wx.StaticText(self.mainPanel, -1, "max:     ", style=wx.ALIGN_LEFT)
+        gridsizer.Add(st2, flag=wx.ALIGN_LEFT)
+        st3 = wx.StaticText(self.mainPanel, -1, "Attribute Patch:", style=wx.ALIGN_LEFT)
+        gridsizer.Add(st3, flag=wx.ALIGN_LEFT)
+        st4 = wx.StaticText(self.mainPanel, -1, "diff:", style=wx.ALIGN_LEFT)
+        gridsizer.Add(st4, flag=wx.ALIGN_LEFT)
+        # HBOX 1 (min overlay)
+        self.minOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        gridsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
+        # HBOX 2 (max overlay)
+        self.maxOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        gridsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
+        # HBOX 3 (template patch)
+        self.templateImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        gridsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
+        # HBOX 6 (diff patch)
+        self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        gridsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
+
+        return gridsizer
+
+    def initLayout(self):
+        gridsizer = self.overlays_layout_vert()
         
         # HBOX 5 (ComboBox and buttons)
         hbox5 = wx.BoxSizer(wx.HORIZONTAL)
@@ -437,6 +468,7 @@ class VerifyPanel(wx.Panel):
         
         # VBOX2 (right half)
         vbox2 = wx.BoxSizer(wx.VERTICAL)
+        self.vbox2 = vbox2
         vbox2.Add((-1,5))
         vbox2.Add(hbox8, flag=wx.LEFT | wx.CENTRE)
         #vbox2.Add(hbox4, flag=wx.LEFT | wx.CENTRE)
