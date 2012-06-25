@@ -312,6 +312,7 @@ class VerifyPanel(wx.Panel):
         self.project = None
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.patchsizer = None
         
         # List of groups to-be-verified
         self.queue = []
@@ -382,64 +383,71 @@ class VerifyPanel(wx.Panel):
         self.mainPanel.SetupScrolling()
     
     def overlays_layout_vert(self):
-        gridsizer = wx.GridSizer(rows=4, cols=2, hgap=5, vgap=5)
+        self.patchsizer.Clear(False)
+        self.patchsizer.SetRows(4)
+        self.patchsizer.SetCols(2)
         
         # HBOX 1 (min overlay)
-        st1 = wx.StaticText(self.mainPanel, -1, "min:     ", style=wx.ALIGN_LEFT)
-        self.minOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(st1, flag=wx.ALIGN_LEFT)
-        gridsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
         
         # HBOX 2 (max overlay)
-        st2 = wx.StaticText(self.mainPanel, -1, "max:     ", style=wx.ALIGN_LEFT)
-        self.maxOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(st2, flag=wx.ALIGN_LEFT)
-        gridsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
         
         # HBOX 3 (template patch)
-        st3 = wx.StaticText(self.mainPanel, -1, "Attribute Patch:", style=wx.ALIGN_LEFT)
-        self.templateImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(st3, flag=wx.ALIGN_LEFT)
-        gridsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
         
         # HBOX 6 (diff patch)
-        st4 = wx.StaticText(self.mainPanel, -1, "diff:", style=wx.ALIGN_LEFT)
-        self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(st4, flag=wx.ALIGN_LEFT)
-        gridsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
-
-        return gridsizer
+        self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
 
     def overlays_layout_horiz(self):
-        gridsizer = wx.GridSizer(rows=2, cols=4, hgap=5, vgap=5)
-        
+        self.patchsizer.Clear(False)
+        self.patchsizer.SetRows(2)
+        self.patchsizer.SetCols(4)
         # Add texts
-        st1 = wx.StaticText(self.mainPanel, -1, "min:     ", style=wx.ALIGN_LEFT)
-        gridsizer.Add(st1, flag=wx.ALIGN_LEFT)
-        st2 = wx.StaticText(self.mainPanel, -1, "max:     ", style=wx.ALIGN_LEFT)
-        gridsizer.Add(st2, flag=wx.ALIGN_LEFT)
-        st3 = wx.StaticText(self.mainPanel, -1, "Attribute Patch:", style=wx.ALIGN_LEFT)
-        gridsizer.Add(st3, flag=wx.ALIGN_LEFT)
-        st4 = wx.StaticText(self.mainPanel, -1, "diff:", style=wx.ALIGN_LEFT)
-        gridsizer.Add(st4, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
         # HBOX 1 (min overlay)
-        self.minOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
         # HBOX 2 (max overlay)
-        self.maxOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
         # HBOX 3 (template patch)
-        self.templateImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
         # HBOX 6 (diff patch)
-        self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        gridsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
+        self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
 
-        return gridsizer
+    def set_patch_layout(self, orient='horizontal'):
+        """
+        Change the orientation of the overlay patch images. Either
+        arrange 'horizontal', or stack 'vertical'.
+        """
+        if orient == 'horizontal':
+            sizer = self.overlays_layout_horiz()
+        else:
+            sizer = self.overlays_layout_vert()
+        self.Refresh()
+        self.Layout()
+        self.Refresh()
 
     def initLayout(self):
-        gridsizer = self.overlays_layout_vert()
-        
+        st1 = wx.StaticText(self.mainPanel, -1, "min:     ", style=wx.ALIGN_LEFT)
+        st2 = wx.StaticText(self.mainPanel, -1, "max:     ", style=wx.ALIGN_LEFT)
+        st3 = wx.StaticText(self.mainPanel, -1, "Attribute Patch:", style=wx.ALIGN_LEFT)
+        st4 = wx.StaticText(self.mainPanel, -1, "diff:", style=wx.ALIGN_LEFT)
+        self.st1, self.st2, self.st3, self.st4 = st1, st2, st3, st4
+
+        self.minOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        self.maxOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        self.templateImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+
+        self.patchsizer = wx.GridSizer()
+        self.set_patch_layout('horizontal')
         # HBOX 5 (ComboBox and buttons)
         hbox5 = wx.BoxSizer(wx.HORIZONTAL)
         self.templateChoice = wx.ComboBox(self.mainPanel, choices=[], style=wx.CB_READONLY)
@@ -473,7 +481,7 @@ class VerifyPanel(wx.Panel):
         vbox2.Add(hbox8, flag=wx.LEFT | wx.CENTRE)
         #vbox2.Add(hbox4, flag=wx.LEFT | wx.CENTRE)
         #vbox2.Add(vbox1, flag=wx.LEFT | wx.CENTRE)
-        vbox2.Add(gridsizer, flag=wx.LEFT | wx.CENTRE)
+        vbox2.Add(self.patchsizer, flag=wx.LEFT | wx.CENTRE)
         vbox2.Add(hbox5, flag=wx.LEFT | wx.CENTRE)
         
         # HBOX7
@@ -554,7 +562,6 @@ Do you really want to re-run grouping?"""
         self.SetSizer(self.sizerprelude, deleteOld=False)
         self.Layout()
         self.importPatches()
-    
     
     def getTemplates(self):
         """
@@ -792,52 +799,6 @@ Do you really want to re-run grouping?"""
             util_gui._dictwriter_writeheader(csvfile, fields)
         dictwriter.writerows(self._rows)
     
-    
-    def displayNextGroup(self):
-        '''
-        if (len(self.queue) == 0):
-            self.okayButton.Disable()
-            self.splitButton.Disable()
-            self.canMoveOn = True
-            return
-            
-        self.currentGroup = self.queue.pop(0)
-        
-        overlayMin = self.currentGroup.overlayMin
-        overlayMax = self.currentGroup.overlayMax
-        ordered_attrvals = self.currentGroup.orderedAttrVals
-        samples = self.currentGroup.samples
-        
-        self.minOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMin * 255.0))
-        self.maxOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMax * 255.0))
-        
-        self.tNumBallots.SetValue("{0}".format(len(samples)))
-        
-        self.templateChoice.Clear()
-        history = set()
-        for (attrval, flipped, imageorder, foo) in ordered_attrvals:
-            if attrval not in history:
-                display_string = attrval
-                self.templateChoice.Append(display_string)
-                history.add(attrval)
-        
-        #self.templateChoice.SetSelection(0)
-        self.templateChoice.SetSelection(self.currentGroup.index)
-        
-        self.updateTemplateThumb()
-        
-        if (len(samples) <= 1):
-            self.splitButton.Enable(False)
-        else:
-            self.splitButton.Enable(True)
-        
-        self.fitPanel()
-        #self.Fit()
-        #self.parent.Fit()
-        '''
-        pass
-        
-    
     def updateTemplateThumb(self):
         """
         Updates the 'Attribute Patch' and 'Diff' image patches.
@@ -908,6 +869,12 @@ Do you really want to re-run grouping?"""
         ordered_attrvals = self.currentGroup.orderedAttrVals
         samples = self.currentGroup.samples
         
+        h, w = overlayMin.shape
+        if w > h:
+            self.set_patch_layout('vertical')
+        else:
+            self.set_patch_layout('horizontal')
+
         self.minOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMin * 255.0))
         self.maxOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMax * 255.0))
         
