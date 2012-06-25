@@ -9,10 +9,9 @@ from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
 import label_attributes, util
 
-#from gridAlign import *
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
-from pixel_reg.doGrouping import  groupImagesMAP, encodepath#,groupImages
+from pixel_reg.doGrouping import  groupImagesMAP, encodepath
 
 ####
 ## Import 3rd party libraries
@@ -73,19 +72,6 @@ You'll probably want to install both scipy and numpy."""
 import wx.lib.inspection
 from wx.lib.pubsub import Publisher
 
-def MyDebug(f):
-    def res(*args, **kargs):
-        #print "***********"
-        #print 'call', f.__name__, args, kargs
-        #print "***********"
-        #time.sleep(3)
-        v = f(*args, **kargs)
-        #print "***********"
-        #print 'done', f.__name__
-        #print "***********"
-        return v
-    return res
-
 # Set by MainFrame
 TIMER = None
 
@@ -99,7 +85,7 @@ except NameError:
     # This script is being run directly
     MYDIR = os.path.abspath(sys.path[0])
 
-@MyDebug
+
 def adjustSize(I, Iref):
     height, width = Iref.shape
     origHeight, origWidth = I.shape
@@ -109,7 +95,7 @@ def adjustSize(I, Iref):
     
     return newI   
 
-@MyDebug
+
 def generateOverlays(templateImg, sampleImages, region):
     #resMin = resMax = templateImg[region[0]:region[1],region[2]:region[3]]
     resMin = resMax = None
@@ -126,7 +112,7 @@ def generateOverlays(templateImg, sampleImages, region):
             
     return (resMin, resMax) 
 
-@MyDebug
+
 def splitArray(arr):
     if (len(arr) > 1):
         mid = int(round(len(arr) / 2.0))
@@ -319,7 +305,7 @@ class ProcessClass(threading.Thread):
         self.fn(self.stopped, *self.args)
 
 class VerifyPanel(wx.Panel):
-    @MyDebug
+    
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -395,7 +381,7 @@ class VerifyPanel(wx.Panel):
         self.mainPanel.GetSizer().SetSizeHints(self)
         self.mainPanel.SetupScrolling()
     
-    @MyDebug
+    
     def initLayout(self):
         gridsizer = wx.GridSizer(rows=4, cols=2, hgap=5, vgap=5)
         
@@ -523,7 +509,7 @@ Do you really want to re-run grouping?"""
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    @MyDebug
+    
     def start(self, samplesdir, templatesdir):
         self.samplesdir = samplesdir
         self.templatesdir = templatesdir
@@ -537,7 +523,7 @@ Do you really want to re-run grouping?"""
         self.Layout()
         self.importPatches()
     
-    @MyDebug
+    
     def getTemplates(self):
         """
         Load in all attribute patches - in particular, loading in the
@@ -561,7 +547,7 @@ Do you really want to re-run grouping?"""
                         rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
                         self.templates.setdefault(attrtype, {})[attrval] = fastResize(imgpatch, rszFac) / 255.0
                     
-    @MyDebug
+    
     def countTemplates(self):
         if (self.templates == None):
             i = 0
@@ -573,7 +559,7 @@ Do you really want to re-run grouping?"""
         else:
             return len(self.templates)
     
-    @MyDebug
+    
     def groupBallots(self):
         r = ProcessClass(self.groupBallotsProcess, True)
         r.start()
@@ -715,7 +701,7 @@ Do you really want to re-run grouping?"""
         self.mainPanel.Show()
         self.Fit()
 
-    @MyDebug
+    
     def groupBallotsProcess(self, stopped, deleteall):
         num = 0
         for dirpath, dirnames, filenames in os.walk(self.samplesdir):
@@ -739,7 +725,7 @@ Do you really want to re-run grouping?"""
         
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         
-    @MyDebug
+    
     def initBindings(self):
         self.templateChoice.Bind(wx.EVT_COMBOBOX, self.OnSelectTemplate)
         self.Bind(wx.EVT_BUTTON, self.OnClickOK, self.okayButton)
@@ -749,7 +735,7 @@ Do you really want to re-run grouping?"""
         self.Bind(wx.EVT_BUTTON, self.OnClickQuarantine, self.quarantineButton)
         self.Bind(wx.EVT_SIZE, self.OnSize)
         
-    @MyDebug
+    
     def exportResults(self):
         """
         Export all attrtype->attrval mappings for each sample ballot
@@ -774,7 +760,7 @@ Do you really want to re-run grouping?"""
             util_gui._dictwriter_writeheader(csvfile, fields)
         dictwriter.writerows(self._rows)
     
-    @MyDebug
+    
     def displayNextGroup(self):
         '''
         if (len(self.queue) == 0):
@@ -819,7 +805,7 @@ Do you really want to re-run grouping?"""
         '''
         pass
         
-    @MyDebug
+    
     def updateTemplateThumb(self):
         """
         Updates the 'Attribute Patch' and 'Diff' image patches.
@@ -843,7 +829,7 @@ Do you really want to re-run grouping?"""
         self.diffImg.SetBitmap(NumpyToWxBitmap(diffImg))
         self.Refresh()
 
-    @MyDebug
+    
     def OnSelectTemplate(self, event):
         """
         Triggered when the user selects a different attribute value
@@ -915,7 +901,7 @@ Do you really want to re-run grouping?"""
         
         self.fitPanel()
     
-    @MyDebug
+    
     def OnClickOK(self, event):
         #templates = self.currentGroup.orderedAttrVals
         #samples = self.currentGroup.samples
@@ -1027,7 +1013,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         # but always 'correct' the flipinfo, even for single page elections
         add_flipinfo(self.project, correctedflips, fields, self.resultsPath)
         
-    @MyDebug
+    
     def OnClickSplit(self, event):
         newGroups = self.currentGroup.split()
         for group in newGroups:
@@ -1053,7 +1039,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         self.queueList.Fit()
         self.Fit()
         
-    @MyDebug
+    
     def OnClickRun(self, event):
         try:
             self.TIMER.start_task(('cpu', 'Group Ballots Computation'))
@@ -1094,7 +1080,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
             else:
                 self.select_group(self.queue[0])
         
-    @MyDebug
+    
     def checkCanMoveOn(self):
         # TODO: Fix this implementation. Currently, self.templatesdir
         # happens to be None, which causes errors.
@@ -1165,7 +1151,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
                 csvfile.close()
         return tuple(attr_types)
 
-    @MyDebug
+    
     def importPatches(self):
         """
         Reads in all .csv files in precinct_locations/, and stores
