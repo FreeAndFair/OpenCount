@@ -328,9 +328,7 @@ def convertImagesWorkerMAP(job):
     #(tplL, csvPattern, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     print "START"
     (tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
-
     t0=time.clock();
-
     if tplImL==-1:
         # need to load the template images
         tplImL=[]

@@ -144,6 +144,7 @@ class MainPanel(wx.Panel):
         self.contests = wx.ListBox(self, -1, choices=[])
         def clicked2(x):
             v = self.contests.HitTest(x.GetPosition())
+            print "HIT", v
             self.contests.Select(v)
             self.set_contest(v)
             
@@ -227,15 +228,22 @@ the next step.",
         self.discard.SetValue(self.discardlist[self.curballot])
 
         print "AND ATTRS IS", self.attributes
+        print "qf", self.qfiles
+        print 'cur', self.curballot
+        print self.ballot_attributes
         if self.attributes[self.curballot] != []:
             print 'a'
             data = self.attributes[self.curballot]
-        elif self.qfiles[self.curballot] in self.ballot_attributes:
-            print 'b'
-            data = self.ballot_attributes[self.qfiles[self.curballot]][1:-2]
+        elif self.ballot_attributes:
+            if self.qfiles[self.curballot] in self.ballot_attributes:
+                print 'b'
+                data = self.ballot_attributes[self.qfiles[self.curballot]][1:-2]
+            else:
+                print 'c'
+                data = ['']*(len(self.ballot_attributes['header'])-3)
         else:
-            print 'c'
-            data = ['']*(len(self.ballot_attributes['header'])-3)
+            print 'd'
+            data = []
         print 'SO GET', data
         for inp,dat in zip(self.attributes_text, data):
             inp.SetValue(dat)
