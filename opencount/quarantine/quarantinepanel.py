@@ -104,8 +104,9 @@ class MainPanel(wx.Panel):
 
         def clicked1(x):
             v = self.contest_title.HitTest(x.GetPosition())
-            self.contest_title.Select(v)
-            self.show_contest(v)
+            okay = self.show_contest(v)
+            if okay:
+                self.contest_title.Select(v)
         self.contest_title.Bind(wx.EVT_LEFT_DOWN, clicked1)
 
         self.middle_col.Add(self.contest_title)
@@ -144,7 +145,6 @@ class MainPanel(wx.Panel):
         self.contests = wx.ListBox(self, -1, choices=[])
         def clicked2(x):
             v = self.contests.HitTest(x.GetPosition())
-            print "HIT", v
             self.contests.Select(v)
             self.set_contest(v)
             
@@ -249,6 +249,7 @@ the next step.",
             inp.SetValue(dat)
 
         for each in self.data[n]:
+            print "ADD", each
             self.contests.Append(self.labeltext[each[0]][0])
 
         if first:
@@ -264,6 +265,7 @@ the next step.",
         s = wx.BoxSizer(wx.HORIZONTAL)
         name = wx.StaticText(self, -1)
         check = wx.CheckBox(self, -1, label="Voted?")
+        print 'add ', name
         self.candidates.append((name, check))
         s.Add(name)
         s.Add(check)
@@ -308,11 +310,16 @@ ballot images exist, so, no need to save contest data."
             cs[1].SetValue(yesno)
         self.discard.SetValue(self.discardlist[self.curballot])
 
-    def show_contest(self, which):
+    def show_contest(self, which, force=False):
         """
         Show a contest that we've decided to look at
         by clicking on the contest_title ListBox
         """
+        # You can't have the same contest twice on a ballot
+        if which in [x[0] if x else None for x in self.data[self.curballot]]: 
+            print which, self.count, self.data
+            if [x[0] if x else None for x in self.data[self.curballot]].index(which) != self.count: return False
+
         self.contest_title.SetSelection(which)
         self.label_index = which
         self.reset_contests()
@@ -322,9 +329,10 @@ ballot images exist, so, no need to save contest data."
             self.add_new_target()
             cs = self.candidates[-1]
             cs[0].SetLabel(name)
-        self.data[self.curballot][self.count]
         self.Fit()
         self.Refresh()
+
+        return True # A-OK!
 
     def set_contest(self, which, save=True):
         """
@@ -339,9 +347,9 @@ ballot images exist, so, no need to save contest data."
         self.count = which
 
         if self.data[self.curballot][self.count] != []:
-            self.show_contest(self.data[self.curballot][self.count][0])
+            self.show_contest(self.data[self.curballot][self.count][0], force=True)
         else:
-            self.show_contest(0)
+            self.show_contest(0, force=True)
 
         self.restore_contest_data()
         self.Fit()
@@ -357,17 +365,15 @@ ballot images exist, so, no need to save contest data."
         self.reset_contests()
         bdata = self.data[self.curballot]
         bdata = bdata[:self.count] + bdata[self.count+1:]
-        self.number_of_contests -= 1
-        print 'setting', bdata
         self.data[self.curballot] = bdata 
+
         self.contests.Delete(self.count)
+
+        self.number_of_contests -= 1
         if self.count == len(bdata):
             self.set_contest(self.count-1, False)
         else:
             self.set_contest(self.count, False)
-        #print 'current contest', self.count
-        #print 'data', self.data
-        #print 'list', self.contests
 
     def show_image(self):
         f = Image.open(self.qfiles[self.curballot])
@@ -377,7 +383,7 @@ ballot images exist, so, no need to save contest data."
     def save(self):
         self.save_contest_data()
 
-        print "WRITING ON", self.proj.quarantine_internal
+        print "DATA", self.data
         pickle.dump((self.data, self.discardlist, self.attributes), 
                     open(self.proj.quarantine_internal, "w"))
 
