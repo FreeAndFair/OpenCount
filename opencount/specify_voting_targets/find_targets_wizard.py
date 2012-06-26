@@ -1550,8 +1550,9 @@ class ThreadTempMatch(threading.Thread):
                                    self.refimg_rect, 
                                    confidence=self.param)
         t1 = time.time() - _t
+        avg_time = t1 / len(self.box_locations) if self.box_locations else t1
         msg1 = """Time elapsed (secs) for template_match call: {0}
-  Avg. time per ballot: {1}""".format(t1, t1 / len(self.box_locations))
+  Avg. time per ballot: {1}""".format(t1, avg_time)
         print_write(msg1, self.outfile)
         # Also 'center' the targets 
         for temppath, newboxes in newboxes1.items():

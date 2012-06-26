@@ -613,6 +613,7 @@ discard it by choosing the 'Discard and Proceed' button.""".format(useless_attrt
         for b in attrboxes:
             if attrtype in b.get_attrtypes():
                 b.remove_attrtype(attrtype)
+        attrboxes = [b for b in attrboxes if b.get_attrtypes()]
         common.dump_attrboxes(attrboxes, self.project.ballot_attributesfile)
 
     def is_attrmaps_unique(self):

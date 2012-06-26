@@ -521,8 +521,6 @@ class DefineAttributesPanel(wx.Panel):
         self.parent.Fit()
         self.parent.Refresh()
 
-        self.project.addCloseEvent(self.export_attribute_patches)
-
     def _pubsub_project(self, msg):
         """
         Triggered when the user selects a Project. Pull in relevant
@@ -532,20 +530,6 @@ class DefineAttributesPanel(wx.Panel):
         self.project = project
         self.templatesdir = project.templatesdir
         self.ballotviewer.ballotscreen.csvdir = project.patch_loc_dir
-        '''
-        try:
-            attributes = pickle.load(open(project.ballot_attributesfile, 'rb'))
-        except IOError as e:
-            # This project is 'old' and doesn't have it. Create it to 
-            # 'update' this project.
-            attributes = {}
-            project.ballot_attributesfile = os.path.join(project.projdir_path, 'ballot_attributes.p')
-            attrs_file = open(project.ballot_attributesfile, 'wb')
-            pickle.dump(attributes, attrs_file)
-            attrs_file.close()
-        self.world.attributes = attributes
-        self.project.addCloseEvent(self.export_attribute_patches)
-        '''
 
     def _pubsub_projupdate(self, msg):
         """

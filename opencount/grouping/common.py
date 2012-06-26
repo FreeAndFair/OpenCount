@@ -133,10 +133,20 @@ with type {0} was found."
         return self.get_boxes_all_list()
 
     def remove_attrtype(self, attrtype):
-        box = self.get_attrbox(attrtype)
-        box.remove_attrtype(attrtype)
-        if not box.attrs:
-            self.remove_attrbox(box)
+        """
+        Removes the attrtype from all instances of AttributeBoxes.
+        """
+        for temppath, boxes in self.box_locations.iteritems():
+            for b in boxes:
+                if attrtype in b.get_attrtypes():
+                    b.remove_attrtype(attrtype)
+        self._remove_empties()
+
+    def _remove_empties(self):
+        newboxlocs = {}
+        for temppath, boxes in self.box_locations.iteritems():
+            newboxlocs[temppath] = [b for b in boxes if b.get_attrtypes()]
+        self.box_locations = newboxlocs
 
     def remove_attrbox(self, box):
         for temppath in self.box_locations:
@@ -150,9 +160,11 @@ def dump_attrboxes(attrboxes, filepath):
     listdata = [b.marshall() for b in attrboxes]
     f = open(filepath, 'wb')
     pickle.dump(listdata, f)
+    f.close()
 def load_attrboxes(filepath):
     f = open(filepath, 'rb')
     listdata = pickle.load(f)
+    f.close()
     return [AttributeBox.unmarshall(b) for b in listdata]
 
 def marshall_iworldstate(world):
