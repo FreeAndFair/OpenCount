@@ -8,7 +8,7 @@ import os
 from os.path import join as pathjoin
 from util import get_filename, create_dirs, is_image_ext, encodepath
 from PIL import Image, ImageDraw
-from util import pil2wxb, wxb2pil
+from util import pil2wxb, wxb2pil, MyGauge
 from time import time
 import imageFile
 from wx.lib.pubsub import Publisher
@@ -260,7 +260,6 @@ class GridShow(wx.ScrolledWindow):
         
         self.Refresh()
 
-    # XXX zoom make sure to reset threshold
     def setLine(self, which, evt=None):
         if evt == None:
             imgIdx = which - (which%self.numcols)
@@ -323,8 +322,17 @@ class GridShow(wx.ScrolledWindow):
 
     def findBoundry(self):
         hist = [0]*256
-        for _,v in self.enumerateOverFullList():
+        gaguge = MyGauge(self, 1)
+        wx.CallAfter(Publisher().sendMessage, 
+                     "signals.MyGauge.nextjob", 
+                     len(self.classifiedindex)/1000)
+        gauge.Show()
+        for i,(_,v) in enumerate(self.enumerateOverFullList()):
+            if i%1000 == 0:
+                # Don't want to slow it down too much
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             hist[int(v)] += 1
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         print list(enumerate(hist))
 
         # I'm going to assume there are two normal dist. variables 

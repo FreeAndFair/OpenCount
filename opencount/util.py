@@ -756,19 +756,17 @@ def focus_on_contest(imgman, contest_bbox):
 def encodepath(p):
     return hashlib.sha224(p).hexdigest()
 
-#def decodepath(path):
-#    return os.path.join(path.split(":~-~:"))
-
 def is_multipage(project):
     """
     Currently an ad-hoc method of determining if the current election
     is multipage or not.
     """
-    ballot_to_images_path = project.ballot_to_images
-    try:
-        return len(pickle.load(open(ballot_to_images_path)).items()[0][1]) != 1
-    except:
-        return False
+    #ballot_to_images_path = project.ballot_to_images
+    #try:
+    #    return len(pickle.load(open(ballot_to_images_path)).items()[0][1]) != 1
+    #except:
+    #    return False
+    return project.is_multipage
 
 def to_straightened_path(imgpath, rootdir, straightdir):
     """

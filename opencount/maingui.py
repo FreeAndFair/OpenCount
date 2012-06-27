@@ -232,7 +232,7 @@ class ConfigPanel(wx.Panel):
         self.is_double_sided = wx.CheckBox(self, -1, label="Double sided ballots.")
         self.is_double_sided.Bind(wx.EVT_CHECKBOX, self.changeDoubleSided, self.is_double_sided)
         self.left_sizer.Add(self.is_double_sided)
-
+        
         self.is_straightened = wx.CheckBox(self, -1, label="Ballots already straightened.")
         self.is_straightened.Bind(wx.EVT_CHECKBOX, self.changeStraightened, self.is_straightened)
         self.left_sizer.Add(self.is_straightened)
@@ -298,6 +298,7 @@ blank ballots and voted ballots directories first.")
             
     def changeDoubleSided(self, x):
         val = self.is_double_sided.GetValue()
+        self.project.is_multipage = val
         if val:
             ds = DoubleSided(self, -1)
             ds.Show()
@@ -359,6 +360,9 @@ blank ballots and voted ballots directories first.")
             self.set_samplepath(samplesdir)
         else:
             self.box_samples.txt_samplespath.SetLabel(samplesdir)
+        if self.project.is_multipage:
+            self.is_double_sided.SetValue(True)
+
         if os.path.exists(templatesdir) and os.path.exists(samplesdir):
             Publisher().sendMessage("broadcast.can_proceed")
 
@@ -1297,6 +1301,7 @@ class Project(object):
         self.vals = {'name': name,
                      'projdir_path': projdir_path,
                      'config_path': pathjoin(projdir_path, 'project.config'),
+                     'is_multipage': False,
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
                      'contest_text': pathjoin(projdir_path, 'contest_text.csv'),
                      'contest_internal': pathjoin(projdir_path, 'contest_internal.p'),

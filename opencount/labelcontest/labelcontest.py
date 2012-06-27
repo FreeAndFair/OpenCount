@@ -186,18 +186,17 @@ class LabelContest(wx.Panel):
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
                 self.save()
-                #print "GOT", self.contest_order
                 for ct,cid_lst in enumerate(self.contest_order):
                     for cid in cid_lst:
-                        #print "WORKING ON", ct, cid
                         if (ct,cid) not in self.text or self.text[ct,cid] == []:
-                            numt = len(self.groupedtargets[self.templatenum][self.count])
+                            numt = len(self.groupedtargets[ct][cid])
                             title = ":".join(["title", str(ct), str(cid)])
                             contests = [":".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
                             self.text[ct,cid] = [title]+contests
                         if (ct,cid) not in self.voteupto: 
                             self.voteupto[ct, cid] = 1
-                        
+                print "TEXT NOW", self.text
+                self.restoreText()
                 self.canMoveOn = True
                 Publisher().sendMessage("broadcast.can_proceed")
             button5.Bind(wx.EVT_BUTTON, declareReady)
@@ -459,6 +458,7 @@ class LabelContest(wx.Panel):
 
     def restoreText(self):
         arr = self.text[self.currentcontests[self.count]]
+        print "RESTORE", self.currentcontests[self.count], arr
         self.text_upto.SetValue(int(self.voteupto[self.currentcontests[self.count]]))
         # First check if we've filled in text here before.
         if len(arr) == len(self.text_targets)+1:
