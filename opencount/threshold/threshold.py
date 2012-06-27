@@ -323,16 +323,16 @@ class GridShow(wx.ScrolledWindow):
     def findBoundry(self):
         hist = [0]*256
         gaguge = MyGauge(self, 1)
-        wx.CallAfter(Publisher().sendMessage, 
-                     "signals.MyGauge.nextjob", 
-                     len(self.classifiedindex)/1000)
-        gauge.Show()
+        #wx.CallAfter(Publisher().sendMessage, 
+        #             "signals.MyGauge.nextjob", 
+        #             len(self.classifiedindex)/1000)
+        #gauge.Show()
         for i,(_,v) in enumerate(self.enumerateOverFullList()):
-            if i%1000 == 0:
+            #if i%1000 == 0:
                 # Don't want to slow it down too much
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             hist[int(v)] += 1
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         print list(enumerate(hist))
 
         # I'm going to assume there are two normal dist. variables 
