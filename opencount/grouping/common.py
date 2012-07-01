@@ -1,9 +1,12 @@
-import sys
+import sys, os, csv, pickle
+from os.path import join as pathjoin
 sys.path.append('../')
 
 import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
+
+DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
 class AttributeBox(BoundingBox):
     """
@@ -204,6 +207,59 @@ def dump_iworldstate(iworld, filepath):
     f = open(filepath, 'wb')
     pickle.dump(marshall_iworldstate(iworld), f)
     f.close()
+
+def get_attrtypes(project):
+    """
+    Returns all attribute types in this election.
+    """
+    attr_types = set()
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, filename), 'r')
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['attr_type'] != '_dummy_':
+                    attr_types.add(row['attr_type'])
+            csvfile.close()
+    return tuple(attr_types)
+
+def importPatches(project):
+    """
+    Reads in all .csv files in precinct_locations/, and returns
+    them.
+    """
+    if not project or not project.patch_loc_dir:
+        return
+    def is_csvfile(p):
+        return os.path.splitext(p)[1].lower() == '.csv'
+    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
+              'attr_type', 'attr_val', 'side')
+    boxes = {}
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for csvfilepath in [f for f in filenames if is_csvfile(f)]:
+            try:
+                csvfile = open(os.path.join(dirpath, csvfilepath), 'rb')
+                dictreader = csv.DictReader(csvfile)
+                for row in dictreader:
+                    imgpath = os.path.abspath(row['imgpath'])
+                    id = int(row['id'])
+                    if id == DUMMY_ROW_ID:
+                        boxes.setdefault(imgpath, [])
+                        continue
+                    x1 = int(row['x'])
+                    y1 = int(row['y'])
+                    x2 = x1 + int(row['width'])
+                    y2 = y1 + int(row['height'])
+                    side = row['side']
+                    if not(boxes.has_key(imgpath)):
+                        boxes[imgpath]=[]
+                    boxes[imgpath].append(((y1, y2, x1, x2), 
+                                           row['attr_type'], 
+                                           row['attr_val'],
+                                           side))
+            except IOError as e:
+                print "Unable to open file: {0}".format(csvfilepath)
+    return boxes
 
 class TextInputDialog(wx.Dialog):
     """

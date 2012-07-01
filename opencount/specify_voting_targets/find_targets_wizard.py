@@ -867,6 +867,9 @@ class MosaicPanel(wx.Panel):
     # Maximum height of all images in the mosaic
     HEIGHT = 400
     
+    # Maximum number of images to load into memory at once
+    NUM_MAX_IMGS = 16
+
     def __init__(self, parent, world, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         
@@ -901,8 +904,13 @@ class MosaicPanel(wx.Panel):
         #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
         pass
 
+    def onScroll(self, evt):
+
+        evt.Skip()
+
     def setup_widgets(self):
         self.window = wx.ScrolledWindow(self)
+        self.window.Bind(wx.EVT_SCROLLWIN, self.onScroll)
         self.window.sizer = wx.GridSizer(rows=0, cols=1, vgap=1, hgap=1)
         self.window.SetSizer(self.window.sizer)
         self.window.panels = [] # stores Panels that have NotStaticBmps
@@ -951,14 +959,14 @@ class MosaicPanel(wx.Panel):
         else:
             for imgpath in sorted(self.imgs):
                 bounding_boxes = self.imgs[imgpath]
-
+                _t = time.time()
                 pil_img = util_gui.open_as_grayscale(imgpath)
                 w_img, h_img = pil_img.size
                 if h_img != MosaicPanel.HEIGHT:
                     new_w = int(round((MosaicPanel.HEIGHT / float(h_img)) * w_img))
+                    c = MosaicPanel.HEIGHT / float(h_img)
                     pil_img = pil_img.resize((new_w, MosaicPanel.HEIGHT))
                 img_bitmap = util_gui.PilImageToWxBitmap(pil_img)
-
                 panel = wx.Panel(self.window, style=wx.SIMPLE_BORDER)
                 self.window.panels.append(panel)
                 panel.txt = wx.StaticText(panel, label=os.path.split(imgpath)[1])

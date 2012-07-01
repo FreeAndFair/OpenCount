@@ -1,5 +1,5 @@
 import os, sys, math, csv, random, pickle, pdb
-import scipy
+import scipy, cv
 import scipy.ndimage
 import scipy.misc
 import imageviewer
@@ -64,6 +64,19 @@ def img_size_scipy(img):
     """
     size = img.shape
     return size[1], size[0]
+
+def fastResize(I,rszFac,sig=-1):
+    if rszFac==1:
+        return I
+    else:
+        Icv=cv.fromarray(np.copy(I))
+        I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
+        cv.Resize(Icv,I1cv)
+        Iout=np.asarray(I1cv)
+        if sig>0:
+            Iout=gaussian_filter(Iout,sig);
+
+        return Iout
 
 def open_img_scipy(imgpath, flag='normal'):
     """ 

@@ -20,7 +20,7 @@ from runtargets.runtargets import RunTargets
 from grouping.define_attributes import DefineAttributesPanel
 from grouping.define_attributes import AttributeBox
 from grouping.label_attributes import LabelAttributesPanel
-from grouping.verify_grouping import VerifyPanel
+from grouping.verify_grouping import GroupingMasterPanel
 from post_processing.postprocess import ResultsPanel
 from quarantine.quarantinepanel import QuarantinePanel
 
@@ -609,7 +609,7 @@ class MainFrame(wx.Frame):
         self.panel_define_attrs.unsubscribe_pubsubs()
         self.panel_label_attrs = LabelAttributesPanel(notebook)
         self.panel_label_attrs.unsubscribe_pubsubs()
-        self.panel_correct_grouping = VerifyPanel(notebook)
+        self.panel_correct_grouping = GroupingMasterPanel(notebook)
         self.panel_run = RunTargets(notebook)
         self.panel_set_threshold = tab_wrap(ThresholdPanel)(notebook)
         self.panel_quarantine = QuarantinePanel(notebook)
@@ -673,8 +673,8 @@ straightened, I'm now unlocking the UI."
             self.Enable()
             self.waiting_for_votedstraights = False
             if self.get_num_template_ballots() != 1:
-                self.panel_correct_grouping.start(self.project.samplesdir,
-                                                  self.project.templatesdir)
+                self.panel_correct_grouping.start()
+                self.panel_correct_grouping.SendSizeEvent()
             self.SendSizeEvent()
         
     def spawn_straightener_jobs(self):
@@ -1147,8 +1147,8 @@ voted ballots to be straightened.", style=wx.OK)
                 else:
                     print "== Voted ballots are already straightened, can \
 proceed normally."
-                    self.panel_correct_grouping.start(self.project.samplesdir,
-                                                      self.project.templatesdir)
+                    self.panel_correct_grouping.start()
+                    self.panel_correct_grouping.SendSizeEvent()
                     self.SendSizeEvent()
         elif new == self.RUN:
             # Run
