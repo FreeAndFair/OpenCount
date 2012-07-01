@@ -1391,7 +1391,7 @@ def create_projconfig(projname, projpath):
     for each in dummyProject.vals.keys():
         obj = Element(each)
         # Then fill in with default value.
-        obj.text = getattr(dummyProject, each)
+        obj.text = str(getattr(dummyProject, each))
         root.append(obj)
     
     tree = ElementTree(root)
