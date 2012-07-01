@@ -1,10 +1,18 @@
-import sys, os, csv, pickle
+import sys, os, csv, pickle, pdb
+import numpy as np
 from os.path import join as pathjoin
+from scipy import misc
 sys.path.append('../')
+sys.path.append('../pixel_reg/')
+import pixel_reg.shared as sh
+from pixel_reg.imagesAlign import fastResize
 
 import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
+from util import encodepath
+import specify_voting_targets.util_gui as util_gui
+
 
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
@@ -260,6 +268,170 @@ def importPatches(project):
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
+
+class GroupClass(object):
+    """
+    A class that represents a potential group of images.
+    """
+    # A dict mapping {str label: int count}
+    ctrs = {}
+    def __init__(self, groupname, elements, patchDir):
+        """
+        groupname: A tuple [str categoryname, str categoryvalue], i.e.
+                   AttrType, AttrVal. Represents the current-guess 
+                   about AttrType->AttrVal value for all the elements.
+        elements: A list of (str sampleid, attrs_list), where attrs_list
+                 is a list [(attrval_1, flip_1, imageorder), ..., (attrval_N, flip_N, imageorder)]
+        str patchDir: path to the .png image representing the attribute patch
+        """
+        self.groupname = groupname
+        self.elements = elements
+        self.patchDir = patchDir
+        self.overlayMax = None
+        self.overlayMin = None
+        # orderedAttrVals is a list of tuples of the form:
+        #   (str attrval, int flipped, int imageorder, "<imgname>+[flipped]")
+        self.orderedAttrVals = []
+        
+        # Index into the attrs_list that this group is currently using.
+        # Is 'finalized' in OnClickOK
+        self.index = 0
+        
+        # The label that will be displayed in the ListBoxes to 
+        # the user, i.e. a public name for this GroupClass.
+        self.label = 'Type: {0} Value: {1}'.format(self.groupname[0],
+                                                   self.groupname[1])
+        if self.label not in GroupClass.ctrs:
+            GroupClass.ctrs[self.label] = 1
+        else:
+            GroupClass.ctrs[self.label] += 1
+        self.label += '-{0}'.format(GroupClass.ctrs[self.label])
+
+        self.processElements()
+
+    def __eq__(self, o):
+        return (o and issubclass(type(o), GroupClass) and
+                self.groupname == o.groupname and
+                self.elements == o.elements)
+        
+    @property
+    def attrtype(self):
+        return self.groupname[0]
+    @property
+    def attrval(self):
+        return self.groupname[1]
+
+    def processElements(self):
+        """
+        Go through the elements generating overlays and compiling an ordered list
+        of candidate templates
+        """
+        # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
+        weightedAttrVals = {}
+        # self.elements is a list of the form [(imgpath_1, attrlist_1), ..., (imgpath_N, attrlist_N)]
+        # where each attrlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
+        for element in self.elements:
+            # element := (imgpath, attrlist)
+            """
+            Overlays
+            """
+            path = os.path.join(self.patchDir, encodepath(element[0])+'.png')
+            try:
+                img = misc.imread(path, flatten=1)
+                if (self.overlayMin == None):
+                    self.overlayMin = img
+                else:
+                    self.overlayMin = np.fmin(self.overlayMin, img)
+                if (self.overlayMax == None):
+                    self.overlayMax = img
+                else:
+                    self.overlayMax = np.fmax(self.overlayMax, img)
+            except:
+                print "Cannot open patch @ {0}".format(path)
+                pdb.set_trace()
+            """
+            Ordered templates
+            """
+            vote = 1.0
+            for attrval_t in element[1]:
+                # attrval_t := (attrval, flipped, imageorder)
+                if (attrval_t not in weightedAttrVals):
+                    weightedAttrVals[attrval_t] = vote
+                else:
+                    weightedAttrVals[attrval_t] = weightedAttrVals[attrval_t] + vote
+                
+                vote = vote / 2.0
+                
+        self.orderedAttrVals = [(attrval_t[0], 
+                                 attrval_t[1], 
+                                 attrval_t[2],
+                                 "{0}{1}".format(util_gui.get_filename(attrval_t[0]), 
+                                                 ", flipped" if attrval_t[1] == 1 else ""))
+                                for (attrval_t, weight) in sorted(weightedAttrVals.items(), 
+                                                                   key=lambda t: t[1],
+                                                                   reverse=True)]
+
+        rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+        self.overlayMax = fastResize(self.overlayMax, rszFac) / 255.0
+        self.overlayMin = fastResize(self.overlayMin, rszFac) / 255.0
+        
+    def split(self):
+        groups = []
+        new_elements = {}
+        all_attrslist = [t[1] for t in self.elements]
+        # for common_prefix, strip out imageOrder, since that's not
+        # important for splitting.
+        all_attrslist2 = []
+        for lst in all_attrslist:
+            t = []
+            for (attrval, flipped, imageorder) in lst:
+                t.append((attrval,flipped))
+            all_attrslist2.append(t)
+            
+        n = num_common_prefix(*all_attrslist2)
+
+        def naive_split(elements):
+            mid = int(round(len(elements) / 2.0))
+            group1 = elements[:mid]
+            group2 = elements[mid:]
+            # TODO: Is this groupname/patchDir setting correct?
+            groups.append(GroupClass(self.groupname, group1, self.patchDir))
+            groups.append(GroupClass(self.groupname, group2, self.patchDir))
+            return groups
+            
+        if n == len(all_attrslist[0]):
+            print "rankedlists were same for all voted ballots -- \
+doing a naive split instead."
+            return naive_split(self.elements)
+
+        if n == 0:
+            print "== Wait, n shouldn't be 0 here (in GroupClass.split). \
+Changing to n=1, since that makes some sense."
+            print "Enter in 'c' for 'continue' to continue execution."
+            pdb.set_trace()
+            n = 1
+
+        # group by index 'n' into each ballots attrslist (i.e. ranked list)
+        for (samplepath, attrslist) in self.elements:
+            if len(attrslist) <= 1:
+                print "==== Can't split anymore."
+                return [self]
+            new_attrval = attrslist[n][0]
+            new_groupname = (self.attrtype, new_attrval)
+            new_elements.setdefault(new_groupname, []).append((samplepath, attrslist))
+
+        if len(new_elements) == 1:
+            # no new groups were made -- just do a naive split
+            print "After a 'smart' split, no new groups were made. So, \
+just doing a naive split."
+            return naive_split(self.elements)
+
+        print 'number of new groups after split:', len(new_elements)
+        for groupname in new_elements:
+            elements = new_elements[groupname]
+            newPatchDir = self.patchDir # TODO: Is this actually used?            
+            groups.append(GroupClass(groupname, elements, newPatchDir))
+        return groups
 
 class TextInputDialog(wx.Dialog):
     """

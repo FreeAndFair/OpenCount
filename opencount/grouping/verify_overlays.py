@@ -29,11 +29,29 @@ from wx.lib.pubsub import Publisher
 THRESHOLD = 0.9
 
 class VerifyPanel(wx.Panel):
-    
-    def __init__(self, parent, *args, **kwargs):
+    """
+    Modes for verify behavior.
+    MODE_NORMAL: The general behavior, where you have N predetermined
+                 group categories that you want to assign to some 
+                 data.
+    MODE_YESNO: A subset of MODE_NORMAL, where you only have two
+                groups: groupA, and 'other'.
+    """
+    MODE_NORMAL = 0
+    MODE_YESNO  = 1
+
+    YES_IDX = 0
+    OTHER_IDX = 1
+
+    def __init__(self, parent, verifymode=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
+
+        if not verifymode:
+            self.mode = VerifyPanel.MODE_NORMAL
+        else:
+            self.mode = verifymode
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.patchsizer = None
@@ -50,15 +68,12 @@ class VerifyPanel(wx.Panel):
         self.resultsPath = None
         self.csvdir = None
         
-        self.templatesdir = None
-        self.samplesdir = None
         # templates is a dict mapping
         #    {str attrtype: 
         #      {str attrval: obj attrpatch_img}}
         # where attrpatch_img is the image patch on the template corresponding to the
         # attrtype attribute type.
         self.templates = None
-        self.templatePaths = None
         
         self.canMoveOn = False
         self.mainPanel = scrolled.ScrolledPanel(self, size=self.GetSize(), pos=(0,0))
@@ -67,15 +82,6 @@ class VerifyPanel(wx.Panel):
         self.initBindings()
         
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
-        Publisher().subscribe(self._pubsub_message_dialog, "message_dialog")
-
-    def _pubsub_message_dialog(self, msg):
-        """
-        Triggered when the UI wants to create a message dialog.
-        """
-        msg, style = msg.data
-        dlg = wx.MessageDialog(self, message=msg, style=style)
-        dlg.ShowModal()
 
     def fitPanel(self):
         w, h = self.parent.GetClientSize()
@@ -156,6 +162,9 @@ class VerifyPanel(wx.Panel):
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
+        # Buttons for MODE_YESNO
+        self.yes_button = wx.Button(self.mainPanel, label="Yes")
+        self.no_button = wx.Button(self.mainPanel, label="No")
         hbox5.Add((5,-1))
         hbox5.Add(self.templateChoice, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
@@ -166,6 +175,11 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((40,-1))
+        hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
+
+
 
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
@@ -186,7 +200,6 @@ class VerifyPanel(wx.Panel):
         vbox2.Add(hbox5, flag=wx.LEFT | wx.CENTRE)
         
         # HBOX7
-        
         hbox7 = wx.BoxSizer(wx.HORIZONTAL) 
         self.queueList = wx.ListBox(self.mainPanel)
         self.queueList.Bind(wx.EVT_LISTBOX, self.onSelect_queuelistbox)
@@ -199,12 +212,17 @@ class VerifyPanel(wx.Panel):
         hbox7.Add((25,-1))
         hbox7.Add(vbox2, flag = wx.ALIGN_LEFT | wx.ALIGN_CENTRE)
         
+        if self.mode == VerifyPanel.MODE_NORMAL:
+            self.yes_button.Hide()
+            self.no_button.Hide()
+        elif self.mode == VerifyPanel.MODE_YESNO:
+            self.okayButton.Hide()
+            self.quarantineButton.Hide()
+
+
         self.mainPanel.SetSizer(hbox7)
-
         self.sizer.Add(self.mainPanel, flag=wx.EXPAND)
-        
         self.mainPanel.Hide()
-
         self.SetSizer(self.sizer, deleteOld=False)
 
     def onSelect_queuelistbox(self, evt):
@@ -215,7 +233,13 @@ class VerifyPanel(wx.Panel):
             
     def start(self, groups, patches):
         """
-        Called after grouping computation is done.
+        Start verifying the overlays. Groups is a list of 
+        GroupClass objects, representing pre-determined clusters
+        within a data set.
+        patches is a dict that contains information about each possible
+        group:
+          {str temppath_i: 
+            (((x1,y1,x2,y2), patchtype_i, patchval_i, imgpath_i), ...)}
         """
         self.patches = patches
         for group in groups:
@@ -244,17 +268,6 @@ class VerifyPanel(wx.Panel):
                         imgpatch = misc.imread(pathjoin(dirpath, f), flatten=1)
                         rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
                         self.templates.setdefault(attrtype, {})[attrval] = fastResize(imgpatch, rszFac) / 255.0
-    
-    def countTemplates(self):
-        if (self.templates == None):
-            i = 0
-            for dirpath, dirnames, filenames in os.walk(self.templatesdir):
-                for f in filenames:
-                    if util_gui.is_image_ext(f):
-                        i += 1
-            return i
-        else:
-            return len(self.templates)
     
     def dump_state(self):
         if self.project:
@@ -292,16 +305,10 @@ class VerifyPanel(wx.Panel):
         """
         self.SetSizer(self.sizer, deleteOld=False)
 
-        #for group in self.queue:
-        #    self.queueList.Append(group.label)        
-        #for finished_group in self.finished:
-        #    self.finishedList.Append(finished_group.label)
-
         self.getTemplates()
 
         if self.queue:
             self.select_group(self.queue[0])
-        #self.queueList.SetSelection(0)
 
         self.mainPanel.Show()
         self.Fit()
@@ -312,8 +319,9 @@ class VerifyPanel(wx.Panel):
         self.Bind(wx.EVT_BUTTON, self.OnClickSplit, self.splitButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickDebug, self.debugButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickQuarantine, self.quarantineButton)
+        self.Bind(wx.EVT_BUTTON, self.OnClickYes, self.yes_button)
+        self.Bind(wx.EVT_BUTTON, self.OnClickNo, self.no_button)
         self.Bind(wx.EVT_SIZE, self.OnSize)
-        
     
     def exportResults(self):
         """
@@ -367,6 +375,10 @@ class VerifyPanel(wx.Panel):
         self.updateTemplateThumb()
         
     def add_finalize_group(self, group, final_index):
+        """
+        Finalize a group, stating that all images in group match the
+        class given by final_index.
+        """
         group.index = final_index
         self.finished.append(group)
         self.finishedList.Append(group.label)
@@ -442,6 +454,28 @@ class VerifyPanel(wx.Panel):
         
         self.remove_group(self.currentGroup)
 
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        else:
+            self.select_group(self.queue[0])
+
+    def OnClickYes(self, event):
+        """ Used for MODE_YESNO """
+        assert len(self.patches) == 2
+        self.add_finalize_group(self.currentGroup, VerifyPanel.YES_IDX)
+        self.remove_group(self.currentGroup)
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        else:
+            self.select_group(self.queue[0])
+        
+    def OnClickNo(self, event):
+        """ USED FOR MODE_YESNO """
+        assert len(self.patches) == 2
+        self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
+        self.remove_group(self.currentGroup)
         if self.is_done_verifying():
             self.currentGroup = None
             self.done_verifying()
@@ -596,12 +630,8 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         
     
     def checkCanMoveOn(self):
-        # TODO: Fix this implementation. Currently, self.templatesdir
-        # happens to be None, which causes errors.
+        # TODO: Fix this implementation.
         return True
-
-        if (self.countTemplates() == 1):
-            return True
 
         return self.canMoveOn
 
