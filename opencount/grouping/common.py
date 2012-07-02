@@ -13,7 +13,6 @@ from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from util import encodepath
 import specify_voting_targets.util_gui as util_gui
 
-
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
 class AttributeBox(BoundingBox):
@@ -275,18 +274,17 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, groupname, elements, patchDir):
+    def __init__(self, groupname, elements):
         """
         groupname: A tuple [str categoryname, str categoryvalue], i.e.
                    AttrType, AttrVal. Represents the current-guess 
                    about AttrType->AttrVal value for all the elements.
-        elements: A list of (str sampleid, attrs_list), where attrs_list
+        elements: A list of (str sampleid, attrs_list, str imgpatch), where attrs_list
                  is a list [(attrval_1, flip_1, imageorder), ..., (attrval_N, flip_N, imageorder)]
-        str patchDir: path to the .png image representing the attribute patch
+                 and imgpatch is a path to the extracted patch.
         """
         self.groupname = groupname
         self.elements = elements
-        self.patchDir = patchDir
         self.overlayMax = None
         self.overlayMin = None
         # orderedAttrVals is a list of tuples of the form:
@@ -328,14 +326,14 @@ class GroupClass(object):
         """
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
         weightedAttrVals = {}
-        # self.elements is a list of the form [(imgpath_1, attrlist_1), ..., (imgpath_N, attrlist_N)]
+        # self.elements is a list of the form [(imgpath_i, attrlist_i, patchpath_i), ...]
         # where each attrlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
         for element in self.elements:
-            # element := (imgpath, attrlist)
+            # element := (imgpath, attrlist, patchpath)
             """
             Overlays
             """
-            path = os.path.join(self.patchDir, encodepath(element[0])+'.png')
+            path = element[2]
             try:
                 img = misc.imread(path, flatten=1)
                 if (self.overlayMin == None):
@@ -395,8 +393,8 @@ class GroupClass(object):
             group1 = elements[:mid]
             group2 = elements[mid:]
             # TODO: Is this groupname/patchDir setting correct?
-            groups.append(GroupClass(self.groupname, group1, self.patchDir))
-            groups.append(GroupClass(self.groupname, group2, self.patchDir))
+            groups.append(GroupClass(self.groupname, group1))
+            groups.append(GroupClass(self.groupname, group2))
             return groups
             
         if n == len(all_attrslist[0]):
@@ -412,13 +410,13 @@ Changing to n=1, since that makes some sense."
             n = 1
 
         # group by index 'n' into each ballots attrslist (i.e. ranked list)
-        for (samplepath, attrslist) in self.elements:
+        for (samplepath, attrslist, patchpath) in self.elements:
             if len(attrslist) <= 1:
                 print "==== Can't split anymore."
                 return [self]
             new_attrval = attrslist[n][0]
             new_groupname = (self.attrtype, new_attrval)
-            new_elements.setdefault(new_groupname, []).append((samplepath, attrslist))
+            new_elements.setdefault(new_groupname, []).append((samplepath, attrslist, patchpath))
 
         if len(new_elements) == 1:
             # no new groups were made -- just do a naive split
@@ -429,8 +427,7 @@ just doing a naive split."
         print 'number of new groups after split:', len(new_elements)
         for groupname in new_elements:
             elements = new_elements[groupname]
-            newPatchDir = self.patchDir # TODO: Is this actually used?            
-            groups.append(GroupClass(groupname, elements, newPatchDir))
+            groups.append(GroupClass(groupname, elements))
         return groups
 
 class TextInputDialog(wx.Dialog):

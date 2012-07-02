@@ -10,7 +10,6 @@ from specify_voting_targets.util_gui import *
 from verify_overlays import VerifyPanel
 import label_attributes, util, common
 
-
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
 from pixel_reg.doGrouping import  groupImagesMAP, encodepath
@@ -264,7 +263,9 @@ class RunGroupingPanel(wx.Panel):
                     dummies = [0]*len(data["attrOrder"])
                     attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
                     bestMatch = attrs_list[0]
-                    grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list))
+                    patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
+                                    encodepath(ballotid)+'.png')
+                    grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
         else:
             # Multipage
             for attr_type in attr_types:
@@ -283,15 +284,18 @@ class RunGroupingPanel(wx.Panel):
                     attrs_list = zip(data["attrOrder"], data["flipOrder"], data["imageOrder"])
                     bestMatch = attrs_list[0]
                     bestAttr = bestMatch[0]
-                    grouping_results.setdefault(attr_type, {}).setdefault(bestAttr, []).append((ballotid, attrs_list))
+                    patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
+                                    encodepath(ballotid)+'.png')
+                                                                
+                    grouping_results.setdefault(attr_type, {}).setdefault(bestAttr, []).append((ballotid, attrs_list, patchpath))
         
         groups = []
         # Seed initial set of groups
         i = 1
         for attrtype, _dict in grouping_results.items():
             for attrval, samples in _dict.items():
-                extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
-                group = common.GroupClass((attrtype, attrval), samples, extracted_attr_dir)
+                #extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
+                group = common.GroupClass((attrtype, attrval), samples)
                 groups.append(group)
                 i += 1        
 

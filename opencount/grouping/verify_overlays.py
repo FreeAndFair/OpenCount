@@ -498,7 +498,7 @@ class VerifyPanel(wx.Panel):
             elements = group.elements
             attrtype = group.attrtype
             index = group.index
-            for samplepath, attrs_list in elements:
+            for samplepath, attrs_list, patchpath in elements:
                 results.setdefault(samplepath, {})[attrtype] = attrs_list[index]
 
         attr_types = set(common.get_attrtypes(self.project))
