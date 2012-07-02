@@ -100,8 +100,8 @@ def start_straightening(imgsdir, outdir, num_imgs, queue, size=None):
     spawns child worker processes.
     """
     print "Spawning master process to start straightening images in", imgsdir
-    logger = multiprocessing.log_to_stderr()
-    logger.setLevel(logging.INFO)
+    #logger = multiprocessing.log_to_stderr()
+    #logger.setLevel(logging.INFO)
 
     p = multiprocessing.Process(target=spawn_jobs, args=(imgsdir, outdir, num_imgs, queue, size))
     p.start()

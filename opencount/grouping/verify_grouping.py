@@ -93,15 +93,26 @@ class GroupingMasterPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        self.project = None
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.run_grouping = RunGroupingPanel(self)
         self.verify_grouping = VerifyPanel(self)
+
+        self._rows = [] # Used for exportResults
         
-        self.sizer.Add(self.run_grouping, proportion=0, flag=wx.EXPAND)
-        self.sizer.Add(self.verify_grouping, proportion=0, flag=wx.EXPAND)
+        self.sizer.Add(self.run_grouping, proportion=1, flag=wx.EXPAND)
+        self.sizer.Add(self.verify_grouping, proportion=1, flag=wx.EXPAND)
         self.run_grouping.Hide()
         self.verify_grouping.Hide()
         self.SetSizer(self.sizer)
+
+        Publisher().subscribe(self._pubsub_project, "broadcast.project")
+
+    def _pubsub_project(self, msg):
+        project = msg.data
+        self.project = project
+        
+        self.project.addCloseEvent(self.exportResults)
 
     def set_timer(self, timer):
         self.TIMER = timer
@@ -119,19 +130,11 @@ class GroupingMasterPanel(wx.Panel):
         If groups is None, then we skipped it, so we should
         load in the previous verify-grouping state.
         """
-        self.run_grouping.Hide()
-        self.verify_grouping.Show()
-        if groups:
-            self.verify_grouping.start(groups, self.run_grouping.patches)
-            self.verify_grouping.SendSizeEvent()
-            self.Refresh()
-            self.Fit()
-        else:
-            patches = common.importPatches(self.project)
+        def get_exemplar_paths():
             exemplar_paths = {}
             dirs = os.listdir(self.project.projdir_path)
+            pre, post = 'ballot_grouping_metadata-', '_exemplars'
             for dir in dirs:
-                pre, post = 'ballot_grouping_metadata-', '_exemplars'
                 if (dir.startswith(pre) and
                     dir.endswith(post)):
                     attrtype = dir[len(pre):-len(post)]
@@ -140,19 +143,130 @@ class GroupingMasterPanel(wx.Panel):
                         for f in filenames:
                             attrval = os.path.splitext(f)[0]
                             exemplar_paths.setdefault(attrtype, {})[attrval] = pathjoin(dirpath, f)
-            self.verify_grouping.start(groups, patches, exemplar_paths)
-            #self.verify_grouping.load_state()
-            #self.verify_grouping.start_verifygrouping()
+            return exemplar_paths
+
+        self.run_grouping.Hide()
+        self.verify_grouping.Show()
+        if groups:
+            exemplar_paths = get_exemplar_paths()
+            self.verify_grouping.start(groups, self.run_grouping.patches, exemplar_paths, ondone=self.verifying_done)
+            self.verify_grouping.SendSizeEvent()
+            self.SendSizeEvent()
+            self.Refresh()
+            self.Fit()
+        else:
+            #self.verify_grouping.start(groups, patches, exemplar_paths)
+            self.verify_grouping.load_state()
+            exemplar_paths = get_exemplar_paths()
+            self.verify_grouping.ondone = self.verifying_done
+            self.verify_grouping.load_exemplar_attrpatches(exemplar_paths)
+            self.verify_grouping.start_verifygrouping()
             self.SendSizeEvent()
             self.Refresh()
             self.Fit()
 
+    def verifying_done(self, results):
+        """
+        Called when the user is finished with grouping verification.
+        """
+        attr_types = set(common.get_attrtypes(self.project))
+        fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
+        # maps {str ballotid: {str attrtype: int imageorder}}
+        # this is useful because we can then infer which 
+        # voted image is front/back (in bal2imgs) by comparing
+        # to the temp2imgs, at which we know the correct ordering.
+        sample_attrmap = {}
+        bal2tmp = {}
+        sample_flips = {} # {str ballotid: [flip0, flip1]}
+        if util.is_multipage(self.project):
+            img2tmp = pickle.load(open(self.project.image_to_template, 'rb'))
+        else:
+            img2tmp = None
+        # _rows is a list of rows, used in exportResults
+        self._rows = []
+        hosed_bals = []
+        munged_patches = munge_patches(self.verify_grouping.patches,
+                                       util.is_multipage(self.project),
+                                       img2tmp)
+        for samplepath, attrdict in results.items():
+            row = {}
+            row['samplepath'] = samplepath
+            for attrtype, (attrval, flip, imageorder) in attrdict.items():
+                row[attrtype] = attrval
+                sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
+                sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
+            
+            templateid = determine_template(attrdict, munged_patches)
+            if not templateid:
+                hosed_bals.append((samplepath, attrdict, munged_patches))
+                continue
+            row['templatepath'] = templateid
+            bal2tmp[samplepath] = templateid
+            self._rows.append(row)
+        if hosed_bals:
+            msg = """Warning: There were {0} voted ballots for which \
+OpenCount wasn't able to determine the corresponding blank ballot. \
+OpenCount has quarantined these voted ballots - you will have the \
+opportunity to manually group these ballots.\n""".format(len(hosed_bals))
+            msg2 = "The hosed ballots were:\n"
+            qfile = open(self.project.quarantined, 'a')
+            for (samplepath, attrdict, munged_patches) in hosed_bals:
+                msg2 += """    Imagepath: {0}
+        Attributes: {1}\n""".format(os.path.relpath(samplepath), attrdict)
+                print >>qfile, os.path.abspath(samplepath)
+            qfile.close()
+            msg3 = "\nFor reference, the template attr patches were: {0}".format(munged_patches)
+            HOSED_FILENAME = os.path.join(self.project.projdir_path, 'hosed_votedballots.log')
+            msg4 = "\n(This information has been dumped to '{0}'".format(HOSED_FILENAME)
+            msg = msg + msg2 + msg3 + msg4
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            try:
+                f = open(HOSED_FILENAME, 'w')
+                print >>f, msg
+                f.close()
+            except IOError as e:
+                print e
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+        # Force one export, to allow add_flipinfo to do its magic
+        self.exportResults()
+                                          
+        # For multipage, we need to both:
+        #  a.) Correct the ordering in ballot_to_images
+        #  b.) Add in the correct flipped_front/flipped_back column values
+        correctedflips = fix_ballot_to_images(self.project, bal2tmp, sample_attrmap, self.verify_grouping.patches, sample_flips)
+        # but always 'correct' the flipinfo, even for single page elections
+        add_flipinfo(self.project, correctedflips, fields, self.project.grouping_results)
+        
+    def exportResults(self):
+        """
+        Export all attrtype->attrval mappings for each sample ballot
+        to a csv file.
+        """
+        if not self._rows:
+            return
+        if not self.is_done_verifying():
+            print "NOT DONE VERIFYING"
+            return
+        attr_types = common.get_attrtypes(self.project)
+        fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
+        csvfilepath = self.project.grouping_results
+        csvfile = open(csvfilepath, 'wb')
+        dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
+        try:
+            dictwriter.writeheader()
+        except AttributeError:
+            util_gui._dictwriter_writeheader(csvfile, fields)
+        print "DUMPING TO", csvfilepath
+        dictwriter.writerows(self._rows)
+
+    def is_done_verifying(self):
+        return self.verify_grouping.is_done_verifying()
+
     def dump_state(self):
         self.verify_grouping.dump_state()
 
-    def exportResults(self):
-        self.verify_grouping.exportResults()
-        
     def checkCanMoveOn(self):
         return True
 
@@ -402,20 +516,6 @@ class ProcessClass(threading.Thread):
     def run(self):
         self.fn(self.stopped, *self.args)
 
-def num_common_prefix(*args):
-    """
-    For each input list L, return the number of common elements amongst
-    all lists (starting from L-R ordering).
-    Assumes all input lists are of the same length.
-    """
-    result = 0
-    for idx in range(len(args[0])):
-        val = args[0][idx]
-        for lst in args[1:]:
-            if val != lst[idx]:
-                return result
-        result += 1
-    return result
 
 def get_votedballot_img(ballotid, imageorder, project, bal2img=None):
     """
@@ -438,3 +538,119 @@ def to_templateid(temppath, project, img2temp):
         return img2temp[temppath]
 
 
+def add_flipinfo(project, correctedflips, fields, csvpath):
+    """
+    In the .csv file in grouping_results.csv, fill in the 'flipped_front'
+    and 'flipped_back' columns.
+    sample_flips: dict {str ballotid: [flipfront, flipback]}
+    """
+    newrows = []
+    csvfile = open(csvpath, 'r')
+    for row in csv.DictReader(csvfile):
+        sampleid = row['samplepath']
+        flipfront, flipback = correctedflips[sampleid]
+        row['flipped_front'] = flipfront if flipfront != None else 'None'
+        row['flipped_back'] = flipback if flipback != None else 'None'
+        newrows.append(row)
+    csvfile.close()
+    writefile = open(csvpath, 'w')
+    util_gui._dictwriter_writeheader(writefile, fields)
+    writer = csv.DictWriter(writefile, fieldnames=fields)
+    writer.writerows(newrows)
+    writefile.close()
+def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips):
+    """
+    Fix the ordering in the ballot_to_images mapping.
+    dict bal2tmp: {str ballotid: str templateid}
+    dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}
+    dict patches: {str temppath: list of ((y1,y2,x1,x2),attrtype,attrval,side)}
+    dict sample_flips: {str ballotid: [flip_0, flip_1]}
+    Returns a dict that tells you, for each sample Ballot, whether the front/back
+    is flipped:
+      {str ballotid: [flip_front, flip_back]}
+    """
+    if not util.is_multipage(project):
+        # Don't do anything, just return a 'dummy' correctedflips.
+        # In this case, it is just sample_flips, since for singepage,
+        # imageorder '0' is always 'front'
+        return sample_flips
+    else:
+        b2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
+        tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
+        correctedflips = {}
+        for ballotid, templateid in bal2tmp.iteritems():
+            side0, side1 = None, None
+            attr_tuples = patches[tmp2imgs[templateid][0]] + patches[tmp2imgs[templateid][1]]
+            for (r, attrtype, attrval, side) in attr_tuples:
+                imageorder = sample_attrmap[ballotid][attrtype]
+                if imageorder == 0:
+                    side0 = side
+                else:
+                    side1 = side
+            img0, img1 = b2imgs[ballotid]
+            front, back = None,None
+            flip0, flip1 = sample_flips[ballotid]
+            if side0 == 'front':
+                front = img0
+                back = img1
+                correctedflips[ballotid] = flip0, flip1
+            else:
+                front = img1
+                back = img0
+                flip0, flip1 = sample_flips[ballotid]
+                correctedflips[ballotid] = flip1, flip0
+            b2imgs[ballotid] = front, back
+        pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
+        return correctedflips
+
+def determine_template(sample_attrs, template_attrs):
+    """
+    Given a sample image's attrtype->attrval mappings, return the
+    template that has the same attrtype->attrval mapping.
+    Also returns the side ordering of the sample (i.e. that '0' is 'front',
+    and '1' is 'back').
+    Input:
+      dict sample_attrs: {str attrtype: (str attrval, int flip, int imageorder)}
+      dict template_attrs: {str temppath: {str attrtype: str attrval, int side}}
+    """
+    for temppath, temp_attrdict in template_attrs.iteritems():
+        flag = True
+        for attrtype, (temp_attrval, temp_side) in temp_attrdict.iteritems():
+            if attrtype not in sample_attrs:
+                # I.e. an attr on the back of a Template will not be found
+                # on a sample image of a Front side.
+                continue
+            sample_attrval, flip, imageorder = sample_attrs[attrtype]
+            if sample_attrval != temp_attrval:
+                flag = False
+                break
+        if flag:
+            return temppath
+    # if we get here, we're hosed
+    print "== Error, determine_template couldn't find a template. We're hosed."
+    return None
+
+def munge_patches(patches, is_multipage=False, img2tmp=None):
+    """
+    Convert self.patches dict to the template_attrs dict needed for
+    determine_template.
+    If multipage, this should return a dict:
+        {str tempid: {str attrtype: (str attrval, str side)}}
+    else:
+        {str temppath: {str attrtype: str attrval, 'front'}}
+    Input:
+      dict patches: {str temppath: list of ((y1,y2,x1,x2), attrtype, attrval, side)}
+    Output:
+      dict result: {str temppath: {str attrype: (str attrval, int side)}}
+    """
+    result = {}
+    if not is_multipage:
+        for temppath, tuples in patches.iteritems():
+            for (r, attrtype, attrval, side) in tuples:
+                result.setdefault(temppath, {})[attrtype] = (attrval, 'front')
+    else:
+        for temppath, tuples in patches.iteritems():
+            for (r, attrtype, attrval, side) in tuples:
+                result.setdefault(img2tmp[temppath], {})[attrtype] = (attrval, side)
+
+    return result
