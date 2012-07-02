@@ -607,7 +607,7 @@ class MainFrame(wx.Frame):
         self.panel_label_contests = tab_wrap(LabelContest)(notebook)
         self.panel_define_attrs = DefineAttributesPanel(notebook)
         self.panel_define_attrs.unsubscribe_pubsubs()
-        self.panel_label_attrs = LabelAttributesPanel(notebook)
+        self.panel_label_attrs = tab_wrap(LabelAttributesPanel)(notebook)
         self.panel_label_attrs.unsubscribe_pubsubs()
         self.panel_correct_grouping = GroupingMasterPanel(notebook)
         self.panel_run = RunTargets(notebook)
@@ -1107,6 +1107,7 @@ because the current election has only one template. Skipping ahead to 'Run'."
                 self.panel_define_attrs.SendSizeEvent()
                 self.SendSizeEvent()
         elif new == self.LABEL_ATTRS:
+            self.panel_label_attrs.start(self.GetSize())
             if self.get_num_template_ballots() == 1:
                 msg = "The step 'Specify Precinct Paches' (along with \
 'Correct Grouping') is unnecessary because the current election only has \
@@ -1335,10 +1336,11 @@ class Project(object):
                      'extracted_precinct_dir': pathjoin(projdir_path, 'extracted_precincts'),
                      'ballot_grouping_metadata': pathjoin(projdir_path, 'ballot_grouping_metadata'),
                      'patch_loc_dir': pathjoin(projdir_path, 'precinct_locations'),
+                     'attr_internal': pathjoin(projdir_path, 'attr_internal.p'),
                      'grouping_results': pathjoin(projdir_path, 'grouping_results.csv'),
                      'tempmatch_param': str(find_targets_wizard.SpecifyTargetsPanel.TEMPMATCH_DEFAULT_PARAM),
                      'ballot_attributesfile': pathjoin(projdir_path, 'ballot_attributes.p'),
-                     'imgsize': '',
+                     'imgsize': (0,0),
                      'votedballots_straightdir': pathjoin(projdir_path, 'votedballots_straight'),
                      'blankballots_straightdir': pathjoin(projdir_path, 'blankballots_straight'),
                      'are_blankballots_straightened': False,
@@ -1389,7 +1391,7 @@ def create_projconfig(projname, projpath):
     for each in dummyProject.vals.keys():
         obj = Element(each)
         # Then fill in with default value.
-        obj.text = getattr(dummyProject, each)
+        obj.text = str(getattr(dummyProject, each))
         root.append(obj)
     
     tree = ElementTree(root)
@@ -1417,6 +1419,8 @@ def read_projconfig(configpath):
                 val = int(obj.text)
             elif type(getattr(project, each)) == type(True):
                 val = obj.text == 'True'
+            elif type(getattr(project, each)) == type(tuple()):
+                val = eval(obj.text) # HACK FIXME
             else:
                 val = obj.text
             setattr(project, each, val)

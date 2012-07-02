@@ -368,6 +368,7 @@ class LabelContest(wx.Panel):
 
         self.contest_order = [[y[0] for y in x] for x in self.boxes]
         self.boxes = [[y[1:] for y in x] for x in self.boxes]
+        print "CROP", self.crop
 
         self.currentcontests = []
 
@@ -548,7 +549,7 @@ class LabelContest(wx.Panel):
         #print "AND", self.text.values()
         print map(len,self.text.values())
         print len(self.text_targets)
-        wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
+        self.contesttitle = wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
         number_targets = len(self.groupedtargets[self.templatenum][self.count])
         self.text_title = wx.ComboBox(self.textarea, -1,
                                       choices=list(Set([x[0] for x in self.text.values() if x and len(x)-1 == number_targets])),
@@ -594,6 +595,10 @@ class LabelContest(wx.Panel):
 
         self.text_title.Bind(wx.EVT_TEXT_ENTER, enterPushed)
         
+        if number_targets == 0: 
+            self.text_upto = wx.lib.intctrl.IntCtrl(self.textarea, pos=(0,-10000))
+            return
+
         wx.StaticText(self.textarea, label="Candidates", pos=(0,70))
         for i in range(number_targets):
             tt = wx.ComboBox(self.textarea, -1,

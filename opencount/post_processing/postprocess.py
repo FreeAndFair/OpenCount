@@ -233,27 +233,29 @@ class ResultsPanel(wx.Panel):
         overunder = {}
         total = {}
         for path,ballot_cvr in cvr:
-            for cid in ballot_cvr:
-                if cid not in res: 
-                    res[cid] = [0]*(len(text[cid])-2)
+            for ocid in ballot_cvr:
+                cid = (tuple(text[ocid][:2]),tuple(sorted(text[ocid][2:])))
+                if cid not in res:
+                    res[cid] = dict((candidate, 0) for candidate in text[ocid][2:])
                     overunder[cid] = [0,0]
                     total[cid] = 0
-                for i,each in enumerate(ballot_cvr[cid][:-1]):
-                    res[cid][i] += int(each)
-                if ballot_cvr[cid][-1] == 'OVERVOTED':
+                for i,each in enumerate(ballot_cvr[ocid][:-1]):
+                    res[cid][text[ocid][i+2]] += int(each)
+                if ballot_cvr[ocid][-1] == 'OVERVOTED':
                     overunder[cid][0] += 1
-                elif ballot_cvr[cid][-1] == 'UNDERVOTED':
+                elif ballot_cvr[ocid][-1] == 'UNDERVOTED':
                     overunder[cid][1] += 1
                 total[cid] += 1
+
         s = ""
         if name != None:
             s += "------------------\n"+name+"\n------------------\n"
         for cid,votes in res.items():
-            votelist = [a+": "+str(b) for a,b in zip(text[cid][2:],votes)]
+            votelist = [a+": "+str(b) for a,b in votes.items()]
             show_overunder = ['Over Votes: ' + str(overunder[cid][0]),
                               'Under Votes: ' + str(overunder[cid][1]),
                               'Total Ballots: ' + str(total[cid])]
-            s += "\n\t".join([text[cid][1]]+votelist+show_overunder)
+            s += "\n\t".join([cid[0][1]]+votelist+show_overunder)
             s += "\n"
         #print s
         return s+"\n"
