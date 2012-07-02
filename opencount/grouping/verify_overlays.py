@@ -479,7 +479,7 @@ class VerifyPanel(wx.Panel):
         # First populate results
         print "DONE Verifying!"
         self.Disable()
-        results = {}
+        results = {} # {grouplabel: elements}
         for group in self.finished:
             results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
         for grouplabel in self.templates:

@@ -275,13 +275,32 @@ def importPatches(project):
                     side = row['side']
                     if not(boxes.has_key(imgpath)):
                         boxes[imgpath]=[]
-                    boxes[imgpath].append(((y1, y2, x1, x2), 
-                                           row['attr_type'], 
-                                           row['attr_val'],
-                                           side))
+                    # Currently, we don't create an exemplar attrpatch
+                    # for flipped/wrong-imgorder. For now, just fake it.
+                    for flip in (0,1):
+                        for imgorder in (0,1):
+                            grouplabel = make_grouplabel((row['attr_type'],row['attr_val']),
+                                                         ('flip',flip),
+                                                         ('imageorder', imgorder))
+                            boxes[imgpath].append(((y1, y2, x1, x2), 
+                                                   grouplabel,
+                                                   side))
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
+
+def make_grouplabel(*args):
+    """ Given k-v tuples, returns a grouplabel.
+    >>> make_grouplabel(('attr', 'precinct'), ('side', 0))
+    """
+    return frozenset(args)
+
+def get_propval(grouplabel, k):
+    t = tuple(grouplabel)
+    for key,v in t:
+        if k == key:
+            return k,v
+    return None
 
 class GroupClass(object):
     """

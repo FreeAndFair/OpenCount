@@ -131,6 +131,10 @@ class GroupingMasterPanel(wx.Panel):
         load in the previous verify-grouping state.
         """
         def get_exemplar_paths():
+            """ Return a dict {grouplabel: str imgpath} """
+            # TODO: Currently we dont' create exemplars for
+            # upsidedown/wrong-side attribute patches. So,
+            # we fake it. 
             exemplar_paths = {}
             dirs = os.listdir(self.project.projdir_path)
             pre, post = 'ballot_grouping_metadata-', '_exemplars'
@@ -142,7 +146,11 @@ class GroupingMasterPanel(wx.Panel):
                                                                          dir)):
                         for f in filenames:
                             attrval = os.path.splitext(f)[0]
-                            exemplar_paths.setdefault(attrtype, {})[attrval] = pathjoin(dirpath, f)
+                            for flip in (0, 1):
+                                for imageorder in (0, 1):
+                                    exemplar_paths[common.make_grouplabel((attrtype,attrval),
+                                                                          ('flip', flip),
+                                                                          ('imageorder', imageorder))] = pathjoin(dirpath, f)
             return exemplar_paths
 
         self.run_grouping.Hide()
@@ -168,9 +176,25 @@ class GroupingMasterPanel(wx.Panel):
     def verifying_done(self, results):
         """
         Called when the user is finished with grouping verification.
+        results is a dict of the form:
+            {grouplabel: elements}
         """
-        
         attr_types = set(common.get_attrtypes(self.project))
+        # munge results -> results_foo
+        results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
+        for grouplabel, elements in results.iteritems():
+            # elements := (samplepath, rankedlist, patchpath)
+            for attrtype in attr_types:
+                attrval = common.get_propval(grouplabel, attrtype)
+                if attrval:
+                    break
+            assert attrval
+            samplepath = elements[0]
+            flip = common.get_propval(grouplabel, 'flip')
+            imgorder = common.get_propval(grouplabel, 'imgorder')
+            results_foo.setdefault(samplepath, {}).setdefault(attrtype, {}).setdefault(attrval, []).append((samplepath,
+                                                                                                            flip,
+                                                                                                            imgorder))
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
         # maps {str ballotid: {str attrtype: int imageorder}}
         # this is useful because we can then infer which 
@@ -189,7 +213,8 @@ class GroupingMasterPanel(wx.Panel):
         munged_patches = munge_patches(self.verify_grouping.patches,
                                        util.is_multipage(self.project),
                                        img2tmp)
-        for samplepath, attrdict in results.items():
+
+        for samplepath, attrdict in results_foo.items():
             row = {}
             row['samplepath'] = samplepath
             for attrtype, (attrval, flip, imageorder) in attrdict.items():
@@ -389,6 +414,7 @@ class RunGroupingPanel(wx.Panel):
                     file.close()
                     dummies = [0]*len(data["attrOrder"])
                     attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
+                    pdb.set_trace()
                     bestMatch = attrs_list[0]
                     patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
                                     encodepath(ballotid)+'.png')
@@ -422,7 +448,7 @@ class RunGroupingPanel(wx.Panel):
         for attrtype, _dict in grouping_results.items():
             for attrval, samples in _dict.items():
                 #extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
-                group = common.GroupClass((attrtype, attrval), samples)
+                group = common.GroupClass(samples)
                 groups.append(group)
                 i += 1
 
