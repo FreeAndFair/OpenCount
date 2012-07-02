@@ -169,6 +169,7 @@ class GroupingMasterPanel(wx.Panel):
         """
         Called when the user is finished with grouping verification.
         """
+        
         attr_types = set(common.get_attrtypes(self.project))
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
         # maps {str ballotid: {str attrtype: int imageorder}}
@@ -247,7 +248,6 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         if not self._rows:
             return
         if not self.is_done_verifying():
-            print "NOT DONE VERIFYING"
             return
         attr_types = common.get_attrtypes(self.project)
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
@@ -258,7 +258,6 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
             dictwriter.writeheader()
         except AttributeError:
             util_gui._dictwriter_writeheader(csvfile, fields)
-        print "DUMPING TO", csvfilepath
         dictwriter.writerows(self._rows)
 
     def is_done_verifying(self):

@@ -67,16 +67,15 @@ class VerifyPanel(wx.Panel):
         # List of groups that have been verified
         self.finished = []
 
-        # A dict mapping {str temppath: list of ((y1,y2,x1,x2), attr_type, attr_val, str side)}
+        # A dict mapping {str temppath: list of ((y1,y2,x1,x2), grouplabel)}
         self.patches = {}
         
         self.resultsPath = None
         
         # templates is a dict mapping
-        #    {str attrtype: 
-        #      {str attrval: obj attrpatch_img}}
+        #    {grouplabel: obj attrpatch_img}
         # where attrpatch_img is the image patch on the template corresponding to the
-        # attrtype attribute type.
+        # grouplabel
         self.templates = None
         
         self.canMoveOn = False
@@ -257,13 +256,13 @@ class VerifyPanel(wx.Panel):
     def load_exemplar_attrpatches(self, exemplar_paths):
         """
         Load in all attribute patches for each attrtype->attrval pair.
+        exemplar_paths: {grouplabel: str patchpath}
         """
         self.templates = {}
-        for attrtype, _d in exemplar_paths.iteritems():
-            for attrval, patchpath in _d.iteritems():
-                imgpatch = misc.imread(patchpath, flatten=1)
-                rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
-                self.templates.setdefault(attrtype,{})[attrval] = fastResize(imgpatch, rszFac)/255.0
+        for grouplabel, patchpath in exemplar_paths.iteritems():
+            imgpatch = misc.imread(patchpath, flatten=1)
+            rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
+            self.templates[grouplabel] = fastResize(imgpatch, rszFac)/255.0
     
     def dump_state(self):
         if self.project:
@@ -301,6 +300,18 @@ class VerifyPanel(wx.Panel):
         """
         self.SetSizer(self.sizer, deleteOld=False)
 
+        if self.mode == VerifyPanel.MODE_YESNO:
+            # Add a dummy group to each GroupClass
+            num_descs = 0
+            for group in self.queue:
+                for element in group.elements:
+                    num_descs = len(element[1][0]) - 1
+                    break
+                break
+            for group in self.queue:
+                for element in group.elements:
+                    element[1].append((('othertype','otherval'),) + (('dummy',None),)*num_descs)
+            
         if self.queue:
             self.select_group(self.queue[0])
 
@@ -326,10 +337,10 @@ class VerifyPanel(wx.Panel):
         templates = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
 
-        attrtype = self.currentGroup.attrtype
+        idx = self.templateChoice.GetSelection()
+        curgrouplabel = self.currentGroup.orderedAttrVals[idx]
 
-        attrval = self.templateChoice.GetStringSelection()
-        attrpatch_img = self.templates[attrtype][attrval]
+        attrpatch_img = self.templates[curgrouplabel]
         
         height, width = attrpatch_img.shape
         IO = imagesAlign(overlayMax, attrpatch_img)
@@ -403,11 +414,11 @@ class VerifyPanel(wx.Panel):
         
         self.templateChoice.Clear()
         history = set()
-        for (attrval, flipped, imageorder, foo) in ordered_attrvals:
-            if attrval not in history:
-                display_string = attrval
+        for grouplabel in ordered_attrvals:
+            if grouplabel not in history:
+                display_string = str(grouplabel)
                 self.templateChoice.Append(display_string)
-                history.add(attrval)
+                history.add(grouplabel)
         
         self.templateChoice.SetSelection(self.currentGroup.index)
         
@@ -447,7 +458,6 @@ class VerifyPanel(wx.Panel):
     def OnClickNo(self, event):
         """ USED FOR MODE_YESNO """
         assert len(self.patches) == 1
-        self.currentGroup.groupname = ('othertype', 'otherval')
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -470,51 +480,25 @@ class VerifyPanel(wx.Panel):
         print "DONE Verifying!"
         self.Disable()
         results = {}
-        results = {} # maps {str attrtype: {str attrval: elements}}
         for group in self.finished:
-            elements = group.elements
-            attrtype = group.attrtype
-            index = group.index
-            attrval = group.attrval
-            results.setdefault(attrtype, {}).setdefault(attrval, []).append(elements)
+            results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
+        for grouplabel in self.templates:
+            if grouplabel not in results:
+                results[grouplabel] = []
 
         if self.outfilepath:
             pickle.dump(results, open(self.outfilepath, 'wb'))
 
-        # For backwards-compatibility, using results_b to ondone
-        results_b = {}
-        for group in self.finished:
-            elements = group.elements
-            attrtype = group.attrtype
-            index = group.index
-            for samplepath, attrs_list, patchpath in elements:
-                results_b.setdefault(samplepath, {})[attrtype] = attrs_list[index]
-
         if self.ondone:
-            self.ondone(results_b)
+            self.ondone(results)
 
     def OnClickSplit(self, event):
         newGroups = self.currentGroup.split()
         for group in newGroups:
-            #self.queue.insert(0, group)
             self.add_group(group)
         
-        #self.displayNextGroup()
         self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
-        
-        # Visual
-        '''
-        curIndex = self.queueList.GetSelection()
-        curGroup = self.queueList.GetStringSelection()
-        i = len(newGroups)
-        while i > 0:
-            self.queueList.Insert("{0}_{1}".format(curGroup, i), curIndex)
-            i -= 1
-        
-        self.queueList.Delete(curIndex+len(newGroups))
-        self.queueList.SetSelection(curIndex)
-        '''
         self.queueList.Fit()
         self.Fit()
         
@@ -537,12 +521,6 @@ class VerifyPanel(wx.Panel):
         
     def OnClickQuarantine(self, event):
         if (self.currentGroup != None):
-            '''
-            self.displayNextGroup()
-            curIndex = self.queueList.GetSelection()
-            self.queueList.Delete(curIndex)
-            self.queueList.SetSelection(curIndex)
-            '''
             self.quarantine_group(self.currentGroup)
             if self.is_done_verifying():
                 self.done_verifying()

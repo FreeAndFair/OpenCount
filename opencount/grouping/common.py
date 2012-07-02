@@ -289,50 +289,62 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, groupname, elements):
+    def __init__(self, elements):
         """
-        groupname: A tuple [str categoryname, str categoryvalue], i.e.
-                   AttrType, AttrVal. Represents the current-guess 
-                   about AttrType->AttrVal value for all the elements.
         elements: A list of (str sampleid, attrs_list, str imgpatch), where attrs_list
                  is a list [(attrval_1, flip_1, imageorder), ..., (attrval_N, flip_N, imageorder)]
                  and imgpatch is a path to the extracted patch.
+                 Revised: A list of (str sampleid, rankedlist, str imgpatch),
+                 where sampleid is the ID for this data point. 
+                 rankedlist is a list of lists, where each sublist is
+                 of a tuple for each possible group. For instance, if
+                 the groups are 'one' and 'two', then:
+                     rankedlist := (('one',), ('two',))
+                 You can have multiple properties determine a group:
+                     rankedlist := (('one', 'front'), ('two', 'back'))
+                 rankedlist is sorted by confidence values, such
+                 that our best guess is the first group in the list.
+                 imgpatch is a path to the image.
         """
-        self.groupname = groupname
-        self.elements = elements
+        self.final_label = None # Finalized labeling for this group
+        self.elements = list(elements)
+        for i in range(len(elements)):
+            if not issubclass(type(elements[i][1]), list):
+                self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.overlayMax = None
         self.overlayMin = None
         # orderedAttrVals is a list of tuples of the form:
-        #   (str attrval, int flipped, int imageorder, "<imgname>+[flipped]")
+        #   (str attrval, int flipped, int imageorder)
         self.orderedAttrVals = []
         
         # Index into the attrs_list that this group is currently using.
         # Is 'finalized' in OnClickOK
         self.index = 0
-        
+
+        self.processElements()
+
         # The label that will be displayed in the ListBoxes to 
         # the user, i.e. a public name for this GroupClass.
-        self.label = 'Type: {0} Value: {1}'.format(self.groupname[0],
-                                                   self.groupname[1])
+        self.label = str(self.getcurrentgrouplabel())
+                     
         if self.label not in GroupClass.ctrs:
             GroupClass.ctrs[self.label] = 1
         else:
             GroupClass.ctrs[self.label] += 1
         self.label += '-{0}'.format(GroupClass.ctrs[self.label])
 
-        self.processElements()
-
     def __eq__(self, o):
         return (o and issubclass(type(o), GroupClass) and
-                self.groupname == o.groupname and
                 self.elements == o.elements)
         
-    @property
-    def attrtype(self):
-        return self.groupname[0]
-    @property
-    def attrval(self):
-        return self.groupname[1]
+    def __str__(self):
+        return "GroupClass({0} elems)".format(len(self.elements))
+    def __repr__(self):
+        return "GroupClass({0} elems)".format(len(self.elements))
+    
+
+    def getcurrentgrouplabel(self):
+        return self.orderedAttrVals[self.index]
 
     def processElements(self):
         """
@@ -361,26 +373,20 @@ class GroupClass(object):
                     self.overlayMax = np.fmax(self.overlayMax, img)
             except:
                 print "Cannot open patch @ {0}".format(path)
-                pdb.set_trace()
             """
             Ordered templates
             """
             vote = 1.0
-            for attrval_t in element[1]:
-                # attrval_t := (attrval, flipped, imageorder)
-                if (attrval_t not in weightedAttrVals):
-                    weightedAttrVals[attrval_t] = vote
+            rankedlist = element[1]
+            for group in rankedlist:
+                if (group not in weightedAttrVals):
+                    weightedAttrVals[group] = vote
                 else:
-                    weightedAttrVals[attrval_t] = weightedAttrVals[attrval_t] + vote
+                    weightedAttrVals[group] = weightedAttrVals[group] + vote
                 
                 vote = vote / 2.0
-                
-        self.orderedAttrVals = [(attrval_t[0], 
-                                 attrval_t[1], 
-                                 attrval_t[2],
-                                 "{0}{1}".format(util_gui.get_filename(attrval_t[0]), 
-                                                 ", flipped" if attrval_t[1] == 1 else ""))
-                                for (attrval_t, weight) in sorted(weightedAttrVals.items(), 
+        self.orderedAttrVals = [group
+                                for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
 
@@ -391,28 +397,20 @@ class GroupClass(object):
     def split(self):
         groups = []
         new_elements = {}
-        all_attrslist = [t[1] for t in self.elements]
-        # for common_prefix, strip out imageOrder, since that's not
-        # important for splitting.
-        all_attrslist2 = []
-        for lst in all_attrslist:
-            t = []
-            for (attrval, flipped, imageorder) in lst:
-                t.append((attrval,flipped))
-            all_attrslist2.append(t)
-            
-        n = num_common_prefix(*all_attrslist2)
+        all_rankedlists = [t[1] for t in self.elements]
+
+        n = num_common_prefix(*all_rankedlists)
 
         def naive_split(elements):
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
             # TODO: Is this groupname/patchDir setting correct?
-            groups.append(GroupClass(self.groupname, group1))
-            groups.append(GroupClass(self.groupname, group2))
+            groups.append(GroupClass(group1))
+            groups.append(GroupClass(group2))
             return groups
             
-        if n == len(all_attrslist[0]):
+        if n == len(all_rankedlists[0]):
             print "rankedlists were same for all voted ballots -- \
 doing a naive split instead."
             return naive_split(self.elements)
@@ -425,13 +423,12 @@ Changing to n=1, since that makes some sense."
             n = 1
 
         # group by index 'n' into each ballots attrslist (i.e. ranked list)
-        for (samplepath, attrslist, patchpath) in self.elements:
-            if len(attrslist) <= 1:
+        for (samplepath, rankedlist, patchpath) in self.elements:
+            if len(rankedlist) <= 1:
                 print "==== Can't split anymore."
                 return [self]
-            new_attrval = attrslist[n][0]
-            new_groupname = (self.attrtype, new_attrval)
-            new_elements.setdefault(new_groupname, []).append((samplepath, attrslist, patchpath))
+            new_group = rankedlist[n]
+            new_elements.setdefault(new_group, []).append((samplepath, rankedlist, patchpath))
 
         if len(new_elements) == 1:
             # no new groups were made -- just do a naive split
@@ -440,9 +437,8 @@ just doing a naive split."
             return naive_split(self.elements)
 
         print 'number of new groups after split:', len(new_elements)
-        for groupname in new_elements:
-            elements = new_elements[groupname]
-            groups.append(GroupClass(groupname, elements))
+        for grouplabel, elements in new_elements.iteritems():
+            groups.append(GroupClass(elements))
         return groups
 
 class TextInputDialog(wx.Dialog):
