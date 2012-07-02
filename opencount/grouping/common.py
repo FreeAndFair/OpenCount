@@ -230,6 +230,21 @@ def get_attrtypes(project):
             csvfile.close()
     return tuple(attr_types)
 
+def num_common_prefix(*args):
+    """
+    For each input list L, return the number of common elements amongst
+    all lists (starting from L-R ordering).
+    Assumes all input lists are of the same length.
+    """
+    result = 0
+    for idx in range(len(args[0])):
+        val = args[0][idx]
+        for lst in args[1:]:
+            if val != lst[idx]:
+                return result
+        result += 1
+    return result
+
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns

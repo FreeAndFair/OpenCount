@@ -50,8 +50,11 @@ class VerifyPanel(wx.Panel):
 
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
-        else:
+        elif verifymode == VerifyPanel.MODE_YESNO:
             self.mode = verifymode
+        else:
+            print "Unrecognized mode for VerifyPanel:", verifymode
+            self.mode = VerifyPanel.MODE_NORMAL
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.patchsizer = None
@@ -84,9 +87,9 @@ class VerifyPanel(wx.Panel):
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
 
     def fitPanel(self):
-        w, h = self.parent.GetClientSize()
-        self.mainPanel.SetMinSize((w * 0.95, h * 0.9))
-        self.mainPanel.GetSizer().SetSizeHints(self)
+        #w, h = self.parent.GetClientSize()
+        #self.mainPanel.SetMinSize((w * 0.95, h * 0.9))
+        #self.mainPanel.GetSizer().SetSizeHints(self)
         self.mainPanel.SetupScrolling()
     
     def overlays_layout_vert(self):
@@ -179,8 +182,6 @@ class VerifyPanel(wx.Panel):
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
 
-
-
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
         st5 = wx.StaticText(self.mainPanel, -1, "# of ballots in the group: ", style=wx.ALIGN_LEFT)
@@ -219,9 +220,8 @@ class VerifyPanel(wx.Panel):
             self.okayButton.Hide()
             self.quarantineButton.Hide()
 
-
         self.mainPanel.SetSizer(hbox7)
-        self.sizer.Add(self.mainPanel, flag=wx.EXPAND)
+        self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
         self.mainPanel.Hide()
         self.SetSizer(self.sizer, deleteOld=False)
 
@@ -231,7 +231,7 @@ class VerifyPanel(wx.Panel):
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    def start(self, groups, patches):
+    def start(self, groups, patches, exemplar_paths, outdir):
         """
         Start verifying the overlays. Groups is a list of 
         GroupClass objects, representing pre-determined clusters
@@ -240,12 +240,29 @@ class VerifyPanel(wx.Panel):
         group:
           {str temppath_i: 
             (((x1,y1,x2,y2), patchtype_i, patchval_i, imgpath_i), ...)}
+        exemplar_paths is a dict that maps each attrtype->attrval mapping
+        to an exemplar image patch:
+          {str attrtype: {str attrval: str imgpath}}
+        outdir specifies where the grouping results get saved to.
         """
         self.patches = patches
+        self.load_exemplar_attrpatches(exemplar_paths)
+        self.outdir = outdir
         for group in groups:
             self.add_group(group)
         self.start_verifygrouping()
     
+    def load_exemplar_attrpatches(self, exemplar_paths):
+        """
+        Load in all attribute patches for each attrtype->attrval pair.
+        """
+        self.templates = {}
+        for attrtype, _d in exemplar_paths.iteritems():
+            for attrval, patchpath in _d.iteritems():
+                imgpatch = misc.imread(patchpath, flatten=1)
+                rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
+                self.templates.setdefault(attrtype,{})[attrval] = fastResize(imgpatch, rszFac)/255.0
+
     def getTemplates(self):
         """
         Load in all attribute patches - in particular, loading in the
@@ -305,7 +322,7 @@ class VerifyPanel(wx.Panel):
         """
         self.SetSizer(self.sizer, deleteOld=False)
 
-        self.getTemplates()
+        #self.getTemplates()
 
         if self.queue:
             self.select_group(self.queue[0])
@@ -462,7 +479,7 @@ class VerifyPanel(wx.Panel):
 
     def OnClickYes(self, event):
         """ Used for MODE_YESNO """
-        assert len(self.patches) == 2
+        assert len(self.patches) == 1
         self.add_finalize_group(self.currentGroup, VerifyPanel.YES_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -473,7 +490,9 @@ class VerifyPanel(wx.Panel):
         
     def OnClickNo(self, event):
         """ USED FOR MODE_YESNO """
-        assert len(self.patches) == 2
+        pdb.set_trace()
+        assert len(self.patches) == 1
+        self.currentGroup.groupname = ('othertype', 'otherval')
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -488,7 +507,9 @@ class VerifyPanel(wx.Panel):
     def done_verifying(self):
         """
         When the user has finished verifying all groups, do some
-        fancy computing.
+        fancy computing, and output results.
+        Outputs grouping results into the specified out-directory,
+        where each group gets outputted to an output file.
         """
         # First populate results
         print "DONE Verifying!"

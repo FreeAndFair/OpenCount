@@ -127,8 +127,22 @@ class GroupingMasterPanel(wx.Panel):
             self.Refresh()
             self.Fit()
         else:
-            self.verify_grouping.load_state()
-            self.verify_grouping.start_verifygrouping()
+            patches = common.importPatches(self.project)
+            exemplar_paths = {}
+            dirs = os.listdir(self.project.projdir_path)
+            for dir in dirs:
+                pre, post = 'ballot_grouping_metadata-', '_exemplars'
+                if (dir.startswith(pre) and
+                    dir.endswith(post)):
+                    attrtype = dir[len(pre):-len(post)]
+                    for dirpath, dirnames, filenames in os.walk(pathjoin(self.project.projdir_path,
+                                                                         dir)):
+                        for f in filenames:
+                            attrval = os.path.splitext(f)[0]
+                            exemplar_paths.setdefault(attrtype, {})[attrval] = pathjoin(dirpath, f)
+            self.verify_grouping.start(groups, patches, exemplar_paths)
+            #self.verify_grouping.load_state()
+            #self.verify_grouping.start_verifygrouping()
             self.SendSizeEvent()
             self.Refresh()
             self.Fit()
@@ -297,7 +311,7 @@ class RunGroupingPanel(wx.Panel):
                 #extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
                 group = common.GroupClass((attrtype, attrval), samples)
                 groups.append(group)
-                i += 1        
+                i += 1
 
         self.parent.grouping_done(groups)
 
