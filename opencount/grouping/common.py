@@ -248,7 +248,7 @@ def num_common_prefix(*args):
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns
-    them.
+    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side)}
     """
     if not project or not project.patch_loc_dir:
         return
@@ -299,7 +299,7 @@ def get_propval(grouplabel, k):
     t = tuple(grouplabel)
     for key,v in t:
         if k == key:
-            return k,v
+            return v
     return None
 
 class GroupClass(object):

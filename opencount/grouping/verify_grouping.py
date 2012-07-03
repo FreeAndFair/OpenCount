@@ -183,18 +183,23 @@ class GroupingMasterPanel(wx.Panel):
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
         for grouplabel, elements in results.iteritems():
-            # elements := (samplepath, rankedlist, patchpath)
+            # elements := list of (samplepath, rankedlist, patchpath)
+            if not elements:
+                # This grouplabel never got assigned any samples
+                continue
             for attrtype in attr_types:
                 attrval = common.get_propval(grouplabel, attrtype)
                 if attrval:
                     break
-            assert attrval
-            samplepath = elements[0]
+            assert attrval != None
             flip = common.get_propval(grouplabel, 'flip')
-            imgorder = common.get_propval(grouplabel, 'imgorder')
-            results_foo.setdefault(samplepath, {}).setdefault(attrtype, {}).setdefault(attrval, []).append((samplepath,
-                                                                                                            flip,
-                                                                                                            imgorder))
+            imgorder = common.get_propval(grouplabel, 'imageorder')
+            assert flip != None
+            assert imgorder != None
+            for (samplepath, rankedlist, patchpath) in elements:
+                results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
+                                                                    flip,
+                                                                    imgorder)
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
         # maps {str ballotid: {str attrtype: int imageorder}}
         # this is useful because we can then infer which 
@@ -210,7 +215,9 @@ class GroupingMasterPanel(wx.Panel):
         # _rows is a list of rows, used in exportResults
         self._rows = []
         hosed_bals = []
+
         munged_patches = munge_patches(self.verify_grouping.patches,
+                                       self.project,
                                        util.is_multipage(self.project),
                                        img2tmp)
 
@@ -351,9 +358,25 @@ class RunGroupingPanel(wx.Panel):
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
         tpl2imgs=pickle.load(open(self.project.template_to_images,'rb'))
 
+        # munge patches into format that groupImagesMAP wants
+        all_attrtypes = common.get_attrtypes(self.project)
+        def munge_patches(patches, attrtypes):
+            """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side)}
+            to: {str templatepath: ((y1,y2,x1,x2), attrtype, attrval, side)}
+            """
+            result = {}
+            for temppath, patchtriple in patches.iteritems():
+                for (bb, grouplabel, side) in patchtriple:
+                    for attrtype in attrtypes:
+                        if common.get_propval(grouplabel, attrtype):
+                            attrval = common.get_propval(grouplabel, attrtype)
+                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side))
+            assert len(result) == len(patches)
+            return result
+        munged = munge_patches(self.patches, all_attrtypes)
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
-                       self.patches,
+                       munged,
                        self.project.extracted_precinct_dir, 
                        self.project.ballot_grouping_metadata, 
                        stopped,
@@ -395,10 +418,7 @@ class RunGroupingPanel(wx.Panel):
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
         
         grouping_results = {}
-        attr_types = set()
-        for values_list in self.patches.values():
-            for (r, attrtype, attrval, side) in values_list:
-                attr_types.add(attrtype)
+        attr_types = common.get_attrtypes(self.project)
         if not util.is_multipage(self.project):
             for attr_type in attr_types:
                 for ballotid in bal2imgs:
@@ -414,7 +434,6 @@ class RunGroupingPanel(wx.Panel):
                     file.close()
                     dummies = [0]*len(data["attrOrder"])
                     attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
-                    pdb.set_trace()
                     bestMatch = attrs_list[0]
                     patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
                                     encodepath(ballotid)+'.png')
@@ -445,10 +464,20 @@ class RunGroupingPanel(wx.Panel):
         groups = []
         # Seed initial set of groups
         i = 1
+        # Note: grouping_results is structured strangely, hence, why
+        # the strange code below.
         for attrtype, _dict in grouping_results.items():
-            for attrval, samples in _dict.items():
+            for (attrval,flip,imgorder), samples in _dict.items():
                 #extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
-                group = common.GroupClass(samples)
+                munged_samples = []
+                for (path, rankedlist, patchpath) in samples:
+                    maps = []
+                    for (attrval, flip, imgorder) in rankedlist:
+                        maps.append(((attrtype,attrval),('flip',flip),('imageorder',imgorder)))
+                    munged_samples.append((path,
+                                           [common.make_grouplabel(*mapping) for mapping in maps],
+                                          patchpath))
+                group = common.GroupClass(munged_samples)
                 groups.append(group)
                 i += 1
 
@@ -655,7 +684,7 @@ def determine_template(sample_attrs, template_attrs):
     print "== Error, determine_template couldn't find a template. We're hosed."
     return None
 
-def munge_patches(patches, is_multipage=False, img2tmp=None):
+def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     """
     Convert self.patches dict to the template_attrs dict needed for
     determine_template.
@@ -664,18 +693,29 @@ def munge_patches(patches, is_multipage=False, img2tmp=None):
     else:
         {str temppath: {str attrtype: str attrval, 'front'}}
     Input:
-      dict patches: {str temppath: list of ((y1,y2,x1,x2), attrtype, attrval, side)}
+      dict patches: {str temppath: list of ((y1,y2,x1,x2), grouplabel, side)}
     Output:
       dict result: {str temppath: {str attrype: (str attrval, int side)}}
     """
+    def get_attrtypeval(grouplabel,attrtypes):
+        v = None
+        for attrtype in attrtypes:
+            v = common.get_propval(grouplabel, attrtype)
+            if v:
+                break
+        assert v
+        return attrtype, v
     result = {}
+    attrtypes = common.get_attrtypes(project)
     if not is_multipage:
         for temppath, tuples in patches.iteritems():
-            for (r, attrtype, attrval, side) in tuples:
+            for (r, grouplabel, side) in tuples:
+                attrtype, attrval = get_attrtypeval(grouplabel, attrtypes)
                 result.setdefault(temppath, {})[attrtype] = (attrval, 'front')
     else:
         for temppath, tuples in patches.iteritems():
-            for (r, attrtype, attrval, side) in tuples:
+            for (r, grouplabel, side) in tuples:
+                attrtype, attrval = get_attrtypeval(grouplabel, attrtypes)
                 result.setdefault(img2tmp[temppath], {})[attrtype] = (attrval, side)
 
     return result

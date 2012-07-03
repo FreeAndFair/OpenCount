@@ -339,7 +339,6 @@ class VerifyPanel(wx.Panel):
 
         idx = self.templateChoice.GetSelection()
         curgrouplabel = self.currentGroup.orderedAttrVals[idx]
-
         attrpatch_img = self.templates[curgrouplabel]
         
         height, width = attrpatch_img.shape
