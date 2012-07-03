@@ -291,14 +291,22 @@ def importPatches(project):
 
 def make_grouplabel(*args):
     """ Given k-v tuples, returns a grouplabel.
-    >>> make_grouplabel(('attr', 'precinct'), ('side', 0))
+    >>> make_grouplabel(('precinct', '380400'), ('side', 0))
     """
     return frozenset(args)
 
-def get_propval(grouplabel, k):
+def get_propval(grouplabel, property):
+    """ Returns the value of a property in a grouplabel, or None
+    if the property isn't present.
+    >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
+    >>> get_propval(grouplabel, 'precinct')
+    380400
+    >>> get_propval(grouplabel, 'foo') == None
+    True
+    """
     t = tuple(grouplabel)
     for key,v in t:
-        if k == key:
+        if key == property:
             return v
     return None
 
