@@ -151,6 +151,7 @@ class GroupingMasterPanel(wx.Panel):
                                     exemplar_paths[common.make_grouplabel((attrtype,attrval),
                                                                           ('flip', flip),
                                                                           ('imageorder', imageorder))] = pathjoin(dirpath, f)
+                             
             return exemplar_paths
 
         self.run_grouping.Hide()

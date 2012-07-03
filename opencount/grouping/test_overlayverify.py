@@ -13,18 +13,22 @@ WHICH_DEMO = 1
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
+        # 1.) Set up data
         if WHICH_DEMO == 0:
             mode = VerifyPanel.MODE_YESNO
             groupclasses, patches, exemplar_paths = self.get_data()
         else:
             mode = VerifyPanel.MODE_NORMAL
             groupclasses, patches, exemplar_paths = self.get_data2()
+
+        # 2.) Create VerifyPanel widget
         self.verifypanel = VerifyPanel(self, verifymode = mode)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.verifypanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(sizer)
-        self.verifypanel.start(groupclasses, patches, exemplar_paths, 'groupout.p', ondone=self.on_verify_done)
+
+        # 3.) Start
+        self.verifypanel.start(groupclasses, patches, exemplar_paths, ondone=self.on_verify_done)
         self.Layout()
 
     def on_verify_done(self, results):
