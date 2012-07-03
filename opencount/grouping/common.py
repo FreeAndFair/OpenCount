@@ -318,22 +318,14 @@ class GroupClass(object):
     ctrs = {}
     def __init__(self, elements):
         """
-        elements: A list of (str sampleid, attrs_list, str imgpatch), where attrs_list
-                 is a list [(attrval_1, flip_1, imageorder), ..., (attrval_N, flip_N, imageorder)]
-                 and imgpatch is a path to the extracted patch.
-                 Revised: A list of (str sampleid, rankedlist, str imgpatch),
+        elements: A list of (str sampleid, rankedlist, str imgpatch),
                  where sampleid is the ID for this data point. 
-                 rankedlist is a list of lists, where each sublist is
-                 of a tuple for each possible group. For instance, if
-                 the groups are 'one' and 'two', then:
-                     rankedlist := (('one',), ('two',))
-                 You can have multiple properties determine a group:
-                     rankedlist := (('one', 'front'), ('two', 'back'))
-                 rankedlist is sorted by confidence values, such
-                 that our best guess is the first group in the list.
-                 imgpatch is a path to the image.
+                 rankedlist is a list of grouplabels, which should be
+                 sorted by confidence (i.e. the most-likely grouplabel
+                 should be at index 0).
+                 imgpatch is a path to the image that this element
+                 represents.
         """
-        self.final_label = None # Finalized labeling for this group
         self.elements = list(elements)
         for i in range(len(elements)):
             if not issubclass(type(elements[i][1]), list):
@@ -368,7 +360,6 @@ class GroupClass(object):
         return "GroupClass({0} elems)".format(len(self.elements))
     def __repr__(self):
         return "GroupClass({0} elems)".format(len(self.elements))
-    
 
     def getcurrentgrouplabel(self):
         return self.orderedAttrVals[self.index]

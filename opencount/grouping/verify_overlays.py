@@ -240,11 +240,16 @@ class VerifyPanel(wx.Panel):
         patches is a dict that contains information about each possible
         group:
           {str temppath_i: 
-            (((x1,y1,x2,y2), patchtype_i, patchval_i, imgpath_i), ...)}
-        exemplar_paths is a dict that maps each attrtype->attrval mapping
-        to an exemplar image patch:
-          {str attrtype: {str attrval: str imgpath}}
-        outdir specifies where the grouping results get saved to.
+            (((y1,y2,x1,x2), grouplabel_i, imgpath_i), ...)}
+        exemplar_paths is a dict that maps each grouplabel to an
+        exemplar image patch:
+          {grouplabel: str imgpath}
+        outfilepath is an optional file to store the grouping results.
+        ondone is an optional function to call when grouping is done:
+        it should be a function that accepts one argument (the grouping
+        results). The grouping results is a dict that maps each grouplabel
+        to a list of samples:
+          {grouplabel: list of (sampleid, rankedlist, patchpath)}
         """
         self.patches = patches
         self.load_exemplar_attrpatches(exemplar_paths)
