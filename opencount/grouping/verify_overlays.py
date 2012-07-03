@@ -49,7 +49,8 @@ class VerifyPanel(wx.Panel):
         self.project = None
         self.ondone = None  # An optional callback function to call
                             # when verifying is done
-
+        self.outfilepath = None   # An optional filepath to output
+                                  # grouping results to.
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
