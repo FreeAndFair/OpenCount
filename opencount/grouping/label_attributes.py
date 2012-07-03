@@ -1,5 +1,6 @@
 import os, sys
 from labelcontest.labelcontest import LabelContest
+from PIL import Image
 import pickle
 import csv
 
@@ -28,6 +29,9 @@ class LabelAttributesPanel(LabelContest):
     
             self.groupedtargets.append(thisballot)
         self.groupedtargets_back = self.groupedtargets
+
+        self.template_width, self.template_height = Image.open(self.dirList[0]).size
+
     def unsubscribe_pubsubs(self):
         pass
 

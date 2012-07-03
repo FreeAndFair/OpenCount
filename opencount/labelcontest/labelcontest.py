@@ -33,7 +33,7 @@ class LabelContest(wx.Panel):
         """
         self.dirList = []
 
-        thewidth = None
+        thewidth = theheight = None
 
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
         # where:
@@ -65,7 +65,7 @@ class LabelContest(wx.Panel):
                 if row[0] not in self.dirList:
                     self.dirList.append(row[0])
                     if thewidth == None:
-                        thewidth = Image.open(row[0]).size[0]
+                        thewidth, theheight = Image.open(row[0]).size
             lst = gr.values()
 
             # Figure out where the columns are.
@@ -91,6 +91,7 @@ class LabelContest(wx.Panel):
             slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
             
             self.groupedtargets.append(slist)
+        self.template_width, self.template_height = thewidth, theheight
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
@@ -288,12 +289,12 @@ class LabelContest(wx.Panel):
                 u = min(uu,u)
                 d = max(dd,d)
                 r = max(rr,r)
-            return ID, l-goleft,u-int(.06*self.templateimg[i].size[1]), l+width,d+int(.03*self.templateimg[i].size[1])
+            return ID, l-goleft,u-int(.06*self.template_height), l+width,d+int(.03*self.template_height)
         
         # The (id,l,u,r,d) tuple for each contest of each template
 
         for i,ballot in enumerate(self.groupedtargets):
-            ballotw = self.templateimg[i].size[0]
+            ballotw = self.template_width
             columns = {}
             for group in ballot:
                 for target in group:
@@ -304,10 +305,10 @@ class LabelContest(wx.Panel):
                 continue
             leftmargin = min(columns)
             # Interior space available
-            remaining = max(ballotw-(2*leftmargin), 0.10*self.templateimg[i].size[1])
+            remaining = max(ballotw-(2*leftmargin), 0.10*self.template_height)
             # The size of one box
             boxwidth = remaining/len(columns)
-            boxwidth = min(boxwidth, self.templateimg[i].size[0]/2)
+            boxwidth = min(boxwidth, self.template_width/2)
             goleft = 0
             if len(columns) >= 2:
                 goleft = max(0,columns[1]-(columns[0]+boxwidth))
@@ -341,10 +342,6 @@ class LabelContest(wx.Panel):
         self.crop = {}
         self.resize = {}
 
-        self.templateimg = []
-        for each in self.dirList:
-            self.templateimg.append(Image.open(each).convert("RGB"))
-
         self.groups = []
 
         self.setupBoxes()
@@ -360,7 +357,7 @@ class LabelContest(wx.Panel):
                     self.text[i,x[0]] = []
                     self.voteupto[i,x[0]] = 1
                 factor = 1
-                self.crop[i,x[0]] = (self.templateimg[i],
+                self.crop[i,x[0]] = (self.dirList[i],
                                      (x[1], x[2], 
                                       int((x[3]-x[1])*factor+x[1]),
                                       int((x[4]-x[2])*factor+x[2])))
@@ -392,7 +389,7 @@ class LabelContest(wx.Panel):
         self.templatenum += ct
 
         # Save the image corresponding to this template
-        self.imgo = self.templateimg[self.templatenum]
+        self.imgo = Image.open(self.dirList[self.templatenum])
 
         # The text that we're going to guess goes in these boxes.
         # This is used when we pattern match contests against each other.
@@ -632,7 +629,7 @@ class LabelContest(wx.Panel):
 
 
     def changeFocusImage(self, move=False, applyfn=None):
-        it = self.crop[self.currentcontests[self.count]][0]
+        it = self.imgo#self.crop[self.currentcontests[self.count]][0]
         if applyfn != None:
             it = applyfn(it)
         if not move:
