@@ -5,7 +5,6 @@ from scipy import misc
 sys.path.append('../')
 sys.path.append('../pixel_reg/')
 import pixel_reg.shared as sh
-from pixel_reg.imagesAlign import fastResize
 
 import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
@@ -409,8 +408,8 @@ class GroupClass(object):
                                                                    reverse=True)]
 
         rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-        self.overlayMax = fastResize(self.overlayMax, rszFac) / 255.0
-        self.overlayMin = fastResize(self.overlayMin, rszFac) / 255.0
+        self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
+        self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
         
     def split(self):
         groups = []

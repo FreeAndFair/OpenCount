@@ -4,7 +4,9 @@ import numpy as np
 import cv
 import csv
 import string
+import math
 from scipy import misc
+from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 MAX_PRECINCT_PATCH_DIM=800
 MAX_PRECINCT_PATCH_DISPLAY=800
@@ -12,6 +14,75 @@ FLIP_CHECK_HEIGHT=200
 COARSE_BALLOT_REG_HEIGHT=500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
+
+def fastResize(I,rszFac,sig=-1):
+    if rszFac==1:
+        return I
+    else:
+        Icv=cv.fromarray(np.copy(I))
+        I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
+        cv.Resize(Icv,I1cv)
+        Iout=np.asarray(I1cv)
+        if sig>0:
+            Iout=gaussian_filter(Iout,sig);
+
+        return Iout
+
+def fastFlip(I):
+    Icv=cv.fromarray(np.copy(I))
+    I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
+    cv.Flip(Icv,I1cv,-1)
+    Iout=np.asarray(I1cv)
+    return Iout
+
+
+''' 
+Input: 
+  patch: image patch to find
+  imList: list of full filenames for images to search
+  threshold: only return matches above this value
+  rszFac: downsampling factor for speed
+  region: bounding box to limit search for speed (TODO)
+
+Output:
+  list of tuples, one for every match
+  ((filename, score, left, right, up, down), (...) )
+
+  Example:
+  I1cropped=I1[i1:i2,j1:j2]
+
+TODOS(kai)
+  - implement the region input
+  - return multiple matches on same image
+
+'''
+def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[]):
+    matchList = [] # (filename, left,right,up,down)
+
+    patch1 = np.round(fastResize(patch,rszFac)*255.)/255;
+    patch[patch==1.0]=.999; patch[patch==0.0]=.001
+    for imP in imList:
+        I = standardImread(imP,flatten=True)
+        I[I==1.0]=.999; I[I==0.0]=.001
+        I1 = np.round(fastResize(I,rszFac)*255.)/255.
+
+        patchCv=cv.fromarray(np.copy(patch1))
+        ICv=cv.fromarray(np.copy(I1))
+        outCv=cv.CreateMat(I1.shape[0]-patch1.shape[0]+1,I1.shape[1]-patch1.shape[1]+1,patchCv.type)
+        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+        Iout=np.asarray(outCv)
+        Iout[Iout==1.0]=0;
+        # TODO: nonmax suppression
+
+        if Iout.max() < threshold:
+            continue
+
+        YX=np.unravel_index(Iout.argmax(),Iout.shape)
+        i1=YX[0]; i2=YX[0]+patch1.shape[0]
+        j1=YX[1]; j2=YX[1]+patch1.shape[1]
+        matchList.append((imP,Iout.max(),i1,i2,j1,j2))
+
+    return matchList
 
 def numProcs():
     nProc=mp.cpu_count() 

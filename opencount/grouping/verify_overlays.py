@@ -261,7 +261,7 @@ class VerifyPanel(wx.Panel):
         for grouplabel, patchpath in exemplar_paths.iteritems():
             imgpatch = misc.imread(patchpath, flatten=1)
             rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
-            self.templates[grouplabel] = fastResize(imgpatch, rszFac)/255.0
+            self.templates[grouplabel] = sh.fastResize(imgpatch, rszFac)/255.0
     
     def dump_state(self):
         if self.project:
