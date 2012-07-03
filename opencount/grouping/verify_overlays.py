@@ -68,9 +68,6 @@ class VerifyPanel(wx.Panel):
         # List of groups that have been verified
         self.finished = []
 
-        # A dict mapping {str temppath: list of ((y1,y2,x1,x2), grouplabel)}
-        self.patches = {}
-        
         self.resultsPath = None
         
         # templates is a dict mapping
@@ -232,17 +229,14 @@ class VerifyPanel(wx.Panel):
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    def start(self, groups, patches, exemplar_paths, outfilepath=None, ondone=None):
+    def start(self, groups, exemplar_paths, outfilepath=None, ondone=None):
         """
         Start verifying the overlays. Groups is a list of 
         GroupClass objects, representing pre-determined clusters
         within a data set.
-        patches is a dict that contains information about each possible
-        group:
-          {str temppath_i: 
-            (((y1,y2,x1,x2), grouplabel_i, imgpath_i), ...)}
         exemplar_paths is a dict that maps each grouplabel to an
-        exemplar image patch:
+        exemplar image patch. This is the set of possible labels
+        for each example in the data set:
           {grouplabel: str imgpath}
         outfilepath is an optional file to store the grouping results.
         ondone is an optional function to call when grouping is done:
@@ -251,7 +245,6 @@ class VerifyPanel(wx.Panel):
         to a list of samples:
           {grouplabel: list of (sampleid, rankedlist, patchpath)}
         """
-        self.patches = patches
         self.load_exemplar_attrpatches(exemplar_paths)
         self.outfilepath = outfilepath
         self.ondone = ondone
@@ -296,9 +289,6 @@ class VerifyPanel(wx.Panel):
         #self.queue.extend(d['finished'])
         self.finished = d['finished']
  
-        # also load in self.patches
-        self.patches = common.importPatches(self.project)
-
     def start_verifygrouping(self):
         """
         Called after sample ballots have been grouped by Kai's grouping
@@ -451,7 +441,6 @@ class VerifyPanel(wx.Panel):
 
     def OnClickYes(self, event):
         """ Used for MODE_YESNO """
-        assert len(self.patches) == 1
         self.add_finalize_group(self.currentGroup, VerifyPanel.YES_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -462,7 +451,6 @@ class VerifyPanel(wx.Panel):
         
     def OnClickNo(self, event):
         """ USED FOR MODE_YESNO """
-        assert len(self.patches) == 1
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():

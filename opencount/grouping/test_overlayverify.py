@@ -8,7 +8,7 @@ WHICH_DEMO := 0 -- Demo Normal N-class Verify Overlay UI
 WHICH_DEMO := 1 -- Demo Yes/No Verify Overlay UI
 """
 
-WHICH_DEMO = 1
+WHICH_DEMO = 0      # <-- Change this to switch modes
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
@@ -16,10 +16,10 @@ class MainFrame(wx.Frame):
         # 1.) Set up data
         if WHICH_DEMO == 0:
             mode = VerifyPanel.MODE_YESNO
-            groupclasses, patches, exemplar_paths = self.get_data()
+            groupclasses, exemplar_paths = self.get_data()
         else:
             mode = VerifyPanel.MODE_NORMAL
-            groupclasses, patches, exemplar_paths = self.get_data2()
+            groupclasses, exemplar_paths = self.get_data2()
 
         # 2.) Create VerifyPanel widget
         self.verifypanel = VerifyPanel(self, verifymode = mode)
@@ -28,7 +28,7 @@ class MainFrame(wx.Frame):
         self.SetSizer(sizer)
 
         # 3.) Start
-        self.verifypanel.start(groupclasses, patches, exemplar_paths, ondone=self.on_verify_done)
+        self.verifypanel.start(groupclasses, exemplar_paths, ondone=self.on_verify_done)
         self.Layout()
 
     def on_verify_done(self, results):
@@ -37,6 +37,7 @@ class MainFrame(wx.Frame):
             print "In Group {0}, there were: {1} elements".format(grouplabel, len(results[grouplabel]))
 
     def get_data(self):
+        """ Mode Yes/No """
         groups1_dir = 'test_imgs/groups/ones'
         groups2_dir = 'test_imgs/groups/twos'
         groups1, groups2 = [], []
@@ -51,11 +52,11 @@ class MainFrame(wx.Frame):
             groups2.append((imgpath, (g_one,), patchpath))
         allexamples = groups1 + groups2
         groupclass = GroupClass(allexamples)
-        patches = {'test_imgs/template/template.png': ((300,30, 400,130), g_one)}
         exemplar_paths = {g_one: 'test_imgs/extracted_patches/patch_template_one.png'}
-        return (groupclass,), patches, exemplar_paths
+        return (groupclass,), exemplar_paths
 
     def get_data2(self):
+        """ Mode 'Normal' """
         groups1_dir = 'test_imgs2/groups/ones'
         groups2_dir = 'test_imgs2/groups/twos'
         groups1, groups2 = [], []
@@ -71,11 +72,9 @@ class MainFrame(wx.Frame):
             groups2.append((imgpath, (g_two, g_one), patchpath))
         g1 = GroupClass(groups1)
         g2 = GroupClass(groups2)
-        patches = {'test_imgs2/template/template_one.png': ((300,30, 400,130), g_one),
-                   'test_imgs2/template/template_two.png': ((300,30, 400,130), g_two)}
         exemplar_paths = {g_one: 'test_imgs2/extracted_patches/patch_template_one.png',
                           g_two: 'test_imgs2/extracted_patches/patch_template_two.png'}
-        return (g1,g2), patches, exemplar_paths
+        return (g1,g2), exemplar_paths
         
 
 if __name__ == '__main__':

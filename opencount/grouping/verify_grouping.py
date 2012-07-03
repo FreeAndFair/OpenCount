@@ -158,7 +158,7 @@ class GroupingMasterPanel(wx.Panel):
         self.verify_grouping.Show()
         if groups:
             exemplar_paths = get_exemplar_paths()
-            self.verify_grouping.start(groups, self.run_grouping.patches, exemplar_paths, ondone=self.verifying_done)
+            self.verify_grouping.start(groups, exemplar_paths, ondone=self.verifying_done)
             self.verify_grouping.SendSizeEvent()
             self.SendSizeEvent()
             self.Refresh()
@@ -217,7 +217,7 @@ class GroupingMasterPanel(wx.Panel):
         self._rows = []
         hosed_bals = []
 
-        munged_patches = munge_patches(self.verify_grouping.patches,
+        munged_patches = munge_patches(self.run_grouping.patches,
                                        self.project,
                                        util.is_multipage(self.project),
                                        img2tmp)
@@ -269,7 +269,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         # For multipage, we need to both:
         #  a.) Correct the ordering in ballot_to_images
         #  b.) Add in the correct flipped_front/flipped_back column values
-        correctedflips = fix_ballot_to_images(self.project, bal2tmp, sample_attrmap, self.verify_grouping.patches, sample_flips)
+        correctedflips = fix_ballot_to_images(self.project, bal2tmp, sample_attrmap, self.run_grouping.patches, sample_flips)
         # but always 'correct' the flipinfo, even for single page elections
         add_flipinfo(self.project, correctedflips, fields, self.project.grouping_results)
         
