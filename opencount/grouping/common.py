@@ -244,6 +244,18 @@ def num_common_prefix(*args):
         result += 1
     return result
 
+def is_img_ext(f):
+    return os.path.splitext(f.lower())[1].lower() in ('.bmp', '.jpg',
+                                                      '.jpeg', '.png',
+                                                      '.tif', '.tiff')
+def get_imagepaths(dir):
+    """ Given a directory, return all imagepaths. """
+    results = []
+    for dirpath, dirnames, filenames in os.path.walk(dir):
+        results.append([pathjoin(dirpath, imname) 
+                        for imname in filter(is_img_ext, filenames)])
+    return results
+
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns

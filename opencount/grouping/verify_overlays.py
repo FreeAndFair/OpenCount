@@ -36,9 +36,15 @@ class VerifyPanel(wx.Panel):
                  data.
     MODE_YESNO: A subset of MODE_NORMAL, where you only have two
                 groups: groupA, and 'other'.
+    MODE_YESNO2: Like MODE_YESNO, but answering the the slightly
+                 different question: "Do these images represent
+                 /some/ group?" The idea is, this mode doesn't
+                 know the groups ahead of time, whereas MODE_YESNO
+                 does.
     """
     MODE_NORMAL = 0
     MODE_YESNO  = 1
+    MODE_YESNO2 = 2
 
     YES_IDX = 0
     OTHER_IDX = 1
@@ -54,6 +60,8 @@ class VerifyPanel(wx.Panel):
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
+            self.mode = verifymode
+        elif verifymode == VerifyPanel.MODE_YESNO2:
             self.mode = verifymode
         else:
             print "Unrecognized mode for VerifyPanel:", verifymode
@@ -217,6 +225,13 @@ class VerifyPanel(wx.Panel):
         elif self.mode == VerifyPanel.MODE_YESNO:
             self.okayButton.Hide()
             self.quarantineButton.Hide()
+        elif self.mode == VerifyPanel.MODE_YESNO2:
+            self.okayButton.Hide()
+            self.quarantineButton.Hide()
+            self.templateImg.Hide()
+            self.diffImg.Hide()
+            self.st3.Hide()
+            self.st4.Hide()
 
         self.mainPanel.SetSizer(hbox7)
         self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
@@ -245,7 +260,11 @@ class VerifyPanel(wx.Panel):
         to a list of samples:
           {grouplabel: list of (sampleid, rankedlist, patchpath)}
         """
-        self.load_exemplar_attrpatches(exemplar_paths)
+        if exemplar_paths:
+            self.load_exemplar_attrpatches(exemplar_paths)
+        else:
+            self.exemplar_paths = None
+            self.templates = {}
         self.outfilepath = outfilepath
         self.ondone = ondone
         for group in groups:
@@ -328,6 +347,9 @@ class VerifyPanel(wx.Panel):
         """
         Updates the 'Attribute Patch' and 'Diff' image patches.
         """
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            # We don't have exemplar patches
+            return
         overlayMin = self.currentGroup.overlayMin
         overlayMax = self.currentGroup.overlayMax
         templates = self.currentGroup.orderedAttrVals
@@ -475,9 +497,10 @@ class VerifyPanel(wx.Panel):
         results = {} # {grouplabel: elements}
         for group in self.finished:
             results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
-        for grouplabel in self.templates:
-            if grouplabel not in results:
-                results[grouplabel] = []
+        if self.templates:
+            for grouplabel in self.templates:
+                if grouplabel not in results:
+                    results[grouplabel] = []
 
         if self.outfilepath:
             pickle.dump(results, open(self.outfilepath, 'wb'))
@@ -486,14 +509,52 @@ class VerifyPanel(wx.Panel):
             self.ondone(results)
 
     def OnClickSplit(self, event):
+        def collect_ids(newGroups):
+            ids = {} # {str attrname: list of ids}
+            groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
+            for group in newGroups:
+                foo = list(group.getcurrentgrouplabel())
+                k = tuple(sorted([t[0] for t in foo]))
+                id = foo[0][1]
+                ids.setdefault(k, []).append(id)
+            return ids
+        def assign_new_id(group, ids):
+            """ Given a new GroupClass, and a previous IDS mapping,
+            find a unique new id for group to use.
+            """
+            foo = list(group.getcurrentgrouplabel())
+            k = tuple(sorted([t[0] for t in foo]))
+            i = 0
+            while i >= 0:
+                if i not in ids[k]:
+                    pdb.set_trace()
+                    grouplabel = group.orderedAttrVals[0]
+                    newgrouplabel = common.make_grouplabel(*[(a, i) for a in k])
+                    group.orderedAttrVals[0] = newgrouplabel
+                    ids.setdefault(k, []).append(i)
+                    break
+                i += 1
+            return group
+            
+
         newGroups = self.currentGroup.split()
+
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            # For each new group, make sure each GroupClass with a 
+            # given attr has unique 'attr' values (i.e. a 
+            # global counter)
+            ids = collect_ids(newGroups)
+            for group in newGroups:
+                assign_new_id(group, ids)
+
         for group in newGroups:
             self.add_group(group)
         
         self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
         self.queueList.Fit()
-        self.Fit()
+        self.parent.Fit()
+        self.fitPanel()
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):
