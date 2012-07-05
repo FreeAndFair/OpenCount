@@ -1,4 +1,4 @@
-import os, sys, csv, time, optparse, threading, shutil, re, traceback, pdb
+import os, sys, csv, time, optparse, threading, shutil, re, traceback, pdb, multiprocessing, logging
 from xml.etree.ElementTree import Element, ElementTree
 from os.path import join as pathjoin
 
@@ -1513,6 +1513,9 @@ def make_optionparser():
     return parser
 
 def main():
+    logger = multiprocessing.log_to_stderr()
+    logger.setLevel(logging.INFO)
+
     parser = make_optionparser()
     options, args = parser.parse_args()
     options.devmode = True

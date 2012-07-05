@@ -61,7 +61,7 @@ class LabelAttributesPanel(LabelContest):
         # attrdata is a list of dicts (marshall'd AttributeBoxes)
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
 
-        frame = TestFrame(self, self.proj)
+        #frame = TestFrame(self, self.proj)
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
