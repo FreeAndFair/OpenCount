@@ -54,9 +54,9 @@ Output:
 TODOS(kai)
   - implement the region input
   - return multiple matches on same image
-
+  - seems to be weird behavior when rszFac is .75
 '''
-def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[]):
+def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[],padding=.75):
     matchList = [] # (filename, left,right,up,down)
 
     patch1 = np.round(fastResize(patch,rszFac)*255.)/255;
@@ -64,7 +64,18 @@ def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[]):
     for imP in imList:
         I = standardImread(imP,flatten=True)
         I[I==1.0]=.999; I[I==0.0]=.001
-        I1 = np.round(fastResize(I,rszFac)*255.)/255.
+        I = np.round(fastResize(I,rszFac)*255.)/255.
+
+        # crop to region if specified
+        if len(region)>0:
+            i1 = region[0]*rszFac
+            i2 = region[1]*rszFac
+            j1 = region[2]*rszFac
+            j2 = region[3]*rszFac
+            [bbOut,bbOff]=expand(i1,i2,j1,j2,I.shape[0],I.shape[1],padding)
+            I1=I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
+        else:
+            I1=I;
 
         patchCv=cv.fromarray(np.copy(patch1))
         ICv=cv.fromarray(np.copy(I1))
@@ -80,7 +91,12 @@ def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[]):
         YX=np.unravel_index(Iout.argmax(),Iout.shape)
         i1=YX[0]; i2=YX[0]+patch1.shape[0]
         j1=YX[1]; j2=YX[1]+patch1.shape[1]
-        matchList.append((imP,Iout.max(),i1,i2,j1,j2))
+        if len(region)>0:
+            i1 = i1 + bbOut[0]
+            i2 = i2 + bbOut[0]
+            j1 = j1 + bbOut[2]
+            j2 = j2 + bbOut[2]
+        matchList.append((imP,Iout.max(),rszFac,i1,i2,j1,j2))
 
     return matchList
 
