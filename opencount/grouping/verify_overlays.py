@@ -171,9 +171,14 @@ class VerifyPanel(wx.Panel):
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
+
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
         self.no_button = wx.Button(self.mainPanel, label="No")
+        # Buttons for MODE_YESNO2
+        self.manuallylabelButton = wx.Button(self.mainPanel, label='Manually Label This Group')
+        self.manuallylabelButton.Bind(wx.EVT_BUTTON, self.OnClickLabelManually)
+
         hbox5.Add((5,-1))
         hbox5.Add(self.templateChoice, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
@@ -187,6 +192,8 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((40,-1))
+        hbox5.Add(self.manuallylabelButton, flag=wx.LEFT | wx.CENTRE)
 
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
@@ -222,9 +229,11 @@ class VerifyPanel(wx.Panel):
         if self.mode == VerifyPanel.MODE_NORMAL:
             self.yes_button.Hide()
             self.no_button.Hide()
+            self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO:
             self.okayButton.Hide()
             self.quarantineButton.Hide()
+            self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -434,7 +443,8 @@ class VerifyPanel(wx.Panel):
         history = set()
         for grouplabel in ordered_attrvals:
             if grouplabel not in history:
-                display_string = str(grouplabel)
+                #display_string = str(grouplabel)
+                display_string = common.str_grouplabel(grouplabel)
                 self.templateChoice.Append(display_string)
                 history.add(grouplabel)
         
@@ -481,6 +491,11 @@ class VerifyPanel(wx.Panel):
             self.done_verifying()
         else:
             self.select_group(self.queue[0])
+
+    def OnClickLabelManually(self, event):
+        """ USED FOR MODE_YESNO2. Signal that the user wants to 
+        manually label everything in this group. """
+        pass
 
     def is_done_verifying(self):
         return not self.queue

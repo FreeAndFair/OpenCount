@@ -12,6 +12,7 @@ from specify_voting_targets import util_gui
 import common
 import util
 import verify_overlays
+import group_attrs
 
 DUMMY_ROW_ID = -42
 
@@ -27,7 +28,9 @@ class TestFrame(wx.Frame):
         self.Fit()
         
         attrdata = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
-        groups = group_attributes(attrdata, self.project)
+        groups = group_attrs.group_attributes(attrdata, self.project.imgsize,
+                                              self.projdir_path,
+                                              self.template_to_images)#self.project)
 
         self.panel.start(groups, None, ondone=self.verify_done)
         
@@ -78,7 +81,8 @@ class LabelAttributesPanel(LabelContest):
             self.groupedtargets.append(thisballot)
         self.groupedtargets_back = self.groupedtargets
 
-        self.template_width, self.template_height = Image.open(self.dirList[0]).size
+        #self.template_width, self.template_height = Image.open(self.dirList[0]).size
+        self.template_width, self.template_height = self.proj.imgsize
 
     def unsubscribe_pubsubs(self):
         pass
@@ -140,110 +144,3 @@ class LabelAttributesPanel(LabelContest):
     def checkCanMoveOn(self):
         return True
 
-def group_attributes(attrdata, project):
-    """ Using NCC, group all attributes to try to reduce operator
-    effort.
-      attrdata: A list of dicts (marshall'd AttributeBoxes)
-      project: A Project.
-    """
-    def munge_matches(matches, grouplabel, patchpaths):
-        """ Given matches from find_patch_matches, convert it to
-        a format that GroupClass likes:
-          (sampleid, rankedlist, patchpath)
-        """
-        results = []
-        for (filename, score, rszFac, l,r,u,d) in matches:
-            relpath = os.path.relpath(filename)
-            patchpath = patchpaths[relpath]
-            results.append((relpath, (grouplabel,), patchpath))
-        return results
-    def extract_temp_patches(d, temppaths, outdir='extract_attrs_templates'):
-        """ Save the attribute patch pointed to by d, and return a
-        mapping that does:
-          {str filenname: str patchpath}
-        """
-        result = {}
-        img_w, img_h = project.imgsize
-        x1, y1 = int(round(d['x1']*img_w)), int(round(d['y1']*img_h))
-        x2, y2 = int(round(d['x2']*img_w)), int(round(d['y2']*img_h))
-        for temppath in temppaths:
-            attrtype = tuple(sorted(d['attrs'].keys()))
-            relpath = os.path.relpath(temppath)
-            attrtype_str = '-'.join(attrtype)
-            outdir_full = os.path.join(project.projdir_path, outdir, attrtype_str)
-            outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
-            if not os.path.exists(outpath_full):
-                util_gui.create_dirs(outdir_full)
-                im = shared.standardImread(temppath, flatten=True)
-                patch = im[y1:y2, x1:x2]
-                scipy.misc.imsave(outpath_full, patch)
-            result[relpath] = outpath_full
-        return result
-    def missing_templates(matches, temppaths):
-        """ Returns templatepaths missing from matches. """
-        history = {}
-        result = []
-        for (filename, _, _, _, _, _, _) in matches:
-            history[filename] = True
-        for temppath in temppaths:
-            if temppath not in history:
-                result.append(temppath)
-        return result
-        
-    tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
-    groups = []
-    """
-    Fixed-point iteration.
-    """
-    #all_templatepaths = common.get_imagepaths(project.templatesdir)
-    no_change = False
-    history = set()
-    attrtype_ctr = {}
-    w_img, h_img = project.imgsize
-    while tmp2imgs and not no_change:
-        flag = False
-        for d in attrdata:
-            x1, y1 = int(round(d['x1']*w_img)), int(round(d['y1']*h_img))
-            x2, y2 = int(round(d['x2']*w_img)), int(round(d['y2']*h_img))
-            side = d['side']
-            attrtype = tuple(sorted(d['attrs'].keys()))
-            temppaths = []
-            patch = None   # Current patch we're examining
-            for tempid, paths in tmp2imgs.iteritems():
-                if side == 'front':
-                    path = paths[0]
-                else:
-                    path = paths[1]
-                if (attrtype, path) in history:
-                    continue
-                temppaths.append(path)
-                if patch == None:
-                    tempimg = shared.standardImread(path,flatten=True)
-                    patch = tempimg[y1:y2, x1:x2]
-            if patch == None:
-                # If we get here, then for the given attribute d,
-                # we've grouped every blank ballot.
-                continue
-            patchpaths = extract_temp_patches(d, temppaths)
-            matches = shared.find_patch_matches(patch, temppaths)
-            print "len(matches):", len(matches)
-            if matches:
-                flag = True
-                # First handle 'found' templates
-                for (filename, _, rscFac, _, _, _, _) in matches:
-                    history.add((attrtype, filename))
-                inc_counter(attrtype_ctr, attrtype)
-                grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
-                elements = munge_matches(matches, grouplabel, patchpaths)
-                in_group = common.GroupClass(elements)
-                groups.append(in_group)
-        if not flag:
-            # Convergence achieved, stop iterating
-            no_change = True
-    return groups
-    
-def inc_counter(ctr, k):
-    if k not in ctr:
-        ctr[k] = 1
-    else:
-        ctr[k] = ctr[k] + 1
