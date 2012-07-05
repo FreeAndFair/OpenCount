@@ -32,6 +32,17 @@ class TestFrame(wx.Frame):
         self.panel.start(groups, None, ondone=self.verify_done)
         
     def verify_done(self, results):
+        """ Called when the user finished verifying the auto-grouping of
+        attribute patches (for blank ballots).
+        results is a dict mapping:
+            {grouplabel: list of (str temppath, rankedlist, str patchpath)}
+        The idea is that for each key-value pairing (k,v) in results, the
+        user has said that: "These blank ballots in 'v' all have the same
+        attribute value, since their overlays looked the same."
+        The next step is for the user to actually label these groups (instead
+        of labeling each individual blank ballot). The hope is that the
+        number of groups is much less than the number of blank ballots.
+        """
         print "Verifying done."
         for grouplabel,elements in results.iteritems():
             print "For grouplabel {0}, there were {1} elements:".format(grouplabel, len(elements))
@@ -56,7 +67,6 @@ class LabelAttributesPanel(LabelContest):
         self.types = [x['attrs'].keys()[0] for x in attrdata]
 
         print "LOAD", attrdata
-        print "IMSIZE", self.proj.imgsize
 
         width, height = self.proj.imgsize
         self.dirList = [os.path.join(self.proj.blankballots_straightdir,x) for x in os.listdir(self.proj.blankballots_straightdir)]
@@ -142,7 +152,7 @@ def group_attributes(attrdata, project):
           (sampleid, rankedlist, patchpath)
         """
         results = []
-        for (filename, score, l,r,u,d) in matches:
+        for (filename, score, rszFac, l,r,u,d) in matches:
             relpath = os.path.relpath(filename)
             patchpath = patchpaths[relpath]
             results.append((relpath, (grouplabel,), patchpath))
@@ -173,7 +183,7 @@ def group_attributes(attrdata, project):
         """ Returns templatepaths missing from matches. """
         history = {}
         result = []
-        for (filename, _, _, _, _, _) in matches:
+        for (filename, _, _, _, _, _, _) in matches:
             history[filename] = True
         for temppath in temppaths:
             if temppath not in history:
@@ -220,20 +230,12 @@ def group_attributes(attrdata, project):
             if matches:
                 flag = True
                 # First handle 'found' templates
-                for (filename, _, _, _, _, _) in matches:
+                for (filename, _, rscFac, _, _, _, _) in matches:
                     history.add((attrtype, filename))
                 inc_counter(attrtype_ctr, attrtype)
                 grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
                 elements = munge_matches(matches, grouplabel, patchpaths)
                 in_group = common.GroupClass(elements)
-                # Now handle 'missing' templates
-                #missing = missing_templates(matches, temppaths)
-                #grouplabel_miss = common.make_grouplabel((d['attrtype'], ''))
-                #elements_miss = []
-                #for misspath in missing:
-                #    elements_miss.append((misspath, (grouplabel_miss,), patchpaths[misspath]))
-                #miss_group = common.GroupClass(grouplabel_miss, elements_miss)
-                #assert len(elements) + len(elements_miss) == len(temppaths)
                 groups.append(in_group)
         if not flag:
             # Convergence achieved, stop iterating

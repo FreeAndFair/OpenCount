@@ -227,6 +227,7 @@ class VerifyPanel(wx.Panel):
             self.quarantineButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
+            self.no_button.Hide()
             self.quarantineButton.Hide()
             self.templateImg.Hide()
             self.diffImg.Hide()
@@ -527,7 +528,6 @@ class VerifyPanel(wx.Panel):
             i = 0
             while i >= 0:
                 if i not in ids[k]:
-                    pdb.set_trace()
                     grouplabel = group.orderedAttrVals[0]
                     newgrouplabel = common.make_grouplabel(*[(a, i) for a in k])
                     group.orderedAttrVals[0] = newgrouplabel

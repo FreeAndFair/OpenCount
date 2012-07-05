@@ -46,7 +46,7 @@ Input:
 
 Output:
   list of tuples, one for every match
-  ((filename, score, left, right, up, down), (...) )
+  ((filename, score, rszFac, left, right, up, down), (...) )
 
   Example:
   I1cropped=I1[i1:i2,j1:j2]

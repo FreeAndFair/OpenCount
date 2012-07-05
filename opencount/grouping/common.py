@@ -300,6 +300,8 @@ def importPatches(project):
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
 
+""" GroupLabel Data Type """
+
 def make_grouplabel(*args):
     """ Given k-v tuples, returns a grouplabel.
     >>> make_grouplabel(('precinct', '380400'), ('side', 0))
