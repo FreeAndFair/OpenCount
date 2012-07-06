@@ -83,7 +83,7 @@ class LabelAttributesPanel(LabelContest):
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
         frontback = pickle.load(open(self.proj.frontback_map))
 
-        frame = TestFrame(self, self.proj)
+        #frame = TestFrame(self, self.proj)
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
