@@ -325,7 +325,7 @@ class VerifyPanel(wx.Panel):
         """
         self.SetSizer(self.sizer, deleteOld=False)
 
-        if self.mode == VerifyPanel.MODE_YESNO:
+        if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
             # Add a dummy group to each GroupClass
             num_descs = 0
             for group in self.queue:
@@ -495,7 +495,14 @@ class VerifyPanel(wx.Panel):
     def OnClickLabelManually(self, event):
         """ USED FOR MODE_YESNO2. Signal that the user wants to 
         manually label everything in this group. """
-        pass
+        self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
+        self.remove_group(self.currentGroup)
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        else:
+            self.select_group(self.queue[0])
+            
 
     def is_done_verifying(self):
         return not self.queue
@@ -511,12 +518,17 @@ class VerifyPanel(wx.Panel):
         print "DONE Verifying!"
         self.Disable()
         results = {} # {grouplabel: elements}
-        for group in self.finished:
-            results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
-        if self.templates:
-            for grouplabel in self.templates:
-                if grouplabel not in results:
-                    results[grouplabel] = []
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            # Hack: Treat each GroupClass as separate categories,
+            # instead of trying to merge them.
+            pass
+        else:
+            for group in self.finished:
+                results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
+            if self.templates:
+                for grouplabel in self.templates:
+                    if grouplabel not in results:
+                        results[grouplabel] = []
 
         if self.outfilepath:
             pickle.dump(results, open(self.outfilepath, 'wb'))
@@ -551,7 +563,6 @@ class VerifyPanel(wx.Panel):
                 i += 1
             return group
             
-
         newGroups = self.currentGroup.split()
 
         if self.mode == VerifyPanel.MODE_YESNO2:
@@ -561,6 +572,7 @@ class VerifyPanel(wx.Panel):
             ids = collect_ids(newGroups)
             for group in newGroups:
                 assign_new_id(group, ids)
+            
 
         for group in newGroups:
             self.add_group(group)
