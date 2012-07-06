@@ -29,8 +29,8 @@ class TestFrame(wx.Frame):
         
         attrdata = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         groups = group_attrs.group_attributes(attrdata, self.project.imgsize,
-                                              self.projdir_path,
-                                              self.template_to_images)#self.project)
+                                              self.project.projdir_path,
+                                              self.project.template_to_images)
 
         self.panel.start(groups, None, ondone=self.verify_done)
         
@@ -38,7 +38,7 @@ class TestFrame(wx.Frame):
         """ Called when the user finished verifying the auto-grouping of
         attribute patches (for blank ballots).
         results is a dict mapping:
-            {grouplabel: list of (str temppath, rankedlist, str patchpath)}
+            {grouplabel: list of GroupClass objects}
         The idea is that for each key-value pairing (k,v) in results, the
         user has said that: "These blank ballots in 'v' all have the same
         attribute value, since their overlays looked the same."
@@ -47,11 +47,29 @@ class TestFrame(wx.Frame):
         number of groups is much less than the number of blank ballots.
         """
         print "Verifying done."
-        for grouplabel,elements in results.iteritems():
-            print "For grouplabel {0}, there were {1} elements:".format(grouplabel, len(elements))
+        num_elements = 0
+        for grouplabel,groups in results.iteritems():
+            cts = 0
+            for group in groups:
+                cts += len(group.elements)
+            print "grouplabel {0}, {1} elements, is_manual: {2}".format(grouplabel, cts, group.is_manual)
+            num_elements += cts
         print "The idea: Each group contains images whose overlays \
 are the same. It might be the case that two groups could be merged \
 together."
+        # If a group has group.is_manual set to True, then, every
+        # element in the group should be manually labeled by the
+        # user (this is activated when, say, the overlays are so
+        # terrible that the user just wants to label them all
+        # one by one)
+        if num_elements == 0:
+            reduction = 0
+        else:
+            reduction = len(sum(results.values(), [])) / float(num_elements)
+        
+        print "== Reduction in effort: ({0} / {1}) = {2}".format(len(sum(results.values(), [])),
+                                                                 num_elements,
+                                                                 reduction)
 
 class LabelAttributesPanel(LabelContest):
     """
@@ -65,7 +83,7 @@ class LabelAttributesPanel(LabelContest):
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
         frontback = pickle.load(open(self.proj.frontback_map))
 
-        #frame = TestFrame(self, self.proj)
+        frame = TestFrame(self, self.proj)
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
