@@ -1303,6 +1303,7 @@ class Project(object):
                      'projdir_path': projdir_path,
                      'config_path': pathjoin(projdir_path, 'project.config'),
                      'is_multipage': False,
+                     'ocr_tmp_dir': pathjoin(projdir_path, 'ocr_tmp_dir'),
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
                      'contest_text': pathjoin(projdir_path, 'contest_text.csv'),
                      'contest_internal': pathjoin(projdir_path, 'contest_internal.p'),
@@ -1471,7 +1472,7 @@ def is_step_finished(project, stepnum):
                 and os.path.exists(project.raw_samplesdir))
     elif stepnum == MainFrame.SELECT_TARGETS:
         # Must have at least one voting target selected, and
-        # all contests must have more than one target.
+        # all contests must have more than one targyet.
         pass
 
 def get_max_dimensions(imgsdir):
