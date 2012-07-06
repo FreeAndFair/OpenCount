@@ -353,8 +353,7 @@ class GroupClass(object):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.overlayMax = None
         self.overlayMin = None
-        # orderedAttrVals is a list of tuples of the form:
-        #   (str attrval, int flipped, int imageorder)
+        # orderedAttrVals is a list of grouplabels
         self.orderedAttrVals = []
         
         # Index into the attrs_list that this group is currently using.
@@ -372,6 +371,8 @@ class GroupClass(object):
         else:
             GroupClass.ctrs[self.label] += 1
         self.label += '-{0}'.format(GroupClass.ctrs[self.label])
+
+        self.is_manual = False # If this group should be labeled manually
 
     def __eq__(self, o):
         return (o and issubclass(type(o), GroupClass) and

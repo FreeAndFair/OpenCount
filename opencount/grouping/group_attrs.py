@@ -161,7 +161,7 @@ class TestFrame(wx.Frame):
         """ Called when the user finished verifying the auto-grouping of
         attribute patches (for blank ballots).
         results is a dict mapping:
-            {grouplabel: list of (str temppath, rankedlist, str patchpath)}
+            {grouplabel: list of GroupClass objects}
         The idea is that for each key-value pairing (k,v) in results, the
         user has said that: "These blank ballots in 'v' all have the same
         attribute value, since their overlays looked the same."
@@ -171,22 +171,23 @@ class TestFrame(wx.Frame):
         """
         print "Verifying done."
         num_elements = 0
-        for grouplabel,elements in results.iteritems():
-            print "For grouplabel {0}, there were {1} elements:".format(grouplabel, len(elements))
-            num_elements += len(elements)
+        for grouplabel,groups in results.iteritems():
+            cts = 0
+            for group in groups:
+                cts += len(group.elements)
+            print "grouplabel {0}, {1} elements, is_manual: {2}".format(grouplabel, cts, group.is_manual)
+            num_elements += cts
         print "The idea: Each group contains images whose overlays \
 are the same. It might be the case that two groups could be merged \
 together."
         if num_elements == 0:
             reduction = 0
         else:
-            reduction = len(results) / float(num_elements)
+            reduction = len(sum(results.values(), [])) / float(num_elements)
         
-        print "== Reduction in effort: ({0} / {1}) = {2}".format(len(results),
+        print "== Reduction in effort: ({0} / {1}) = {2}".format(len(sum(results.values(), [])),
                                                                  num_elements,
                                                                  reduction)
-        pdb.set_trace()
-
 def main():
     args = sys.argv[1:]
     rootdir = args[0]
