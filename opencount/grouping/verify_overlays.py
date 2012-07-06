@@ -327,6 +327,10 @@ class VerifyPanel(wx.Panel):
 
         if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
             # Add a dummy group to each GroupClass
+            if self.mode == VerifyPanel.MODE_YESNO:
+                type, val = 'othertype', 'otherval'
+            else:
+                type, val = 'manualtype', 'manualval'
             num_descs = 0
             for group in self.queue:
                 for element in group.elements:
@@ -335,7 +339,7 @@ class VerifyPanel(wx.Panel):
                 break
             for group in self.queue:
                 for element in group.elements:
-                    element[1].append((('othertype','otherval'),) + (('dummy',None),)*num_descs)
+                    element[1].append(((type, val),) + (('dummy',None),)*num_descs)
             
         if self.queue:
             self.select_group(self.queue[0])
@@ -495,6 +499,7 @@ class VerifyPanel(wx.Panel):
     def OnClickLabelManually(self, event):
         """ USED FOR MODE_YESNO2. Signal that the user wants to 
         manually label everything in this group. """
+        self.currentGroup.is_manual = True
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -517,14 +522,17 @@ class VerifyPanel(wx.Panel):
         # First populate results
         print "DONE Verifying!"
         self.Disable()
-        results = {} # {grouplabel: elements}
+        results = {} # {grouplabel: groups}
         if self.mode == VerifyPanel.MODE_YESNO2:
             # Hack: Treat each GroupClass as separate categories,
             # instead of trying to merge them.
-            pass
+            for group in self.finished:
+                grouplabel = group.orderedAttrVals[0]
+                assert grouplabel not in results
+                results[grouplabel] = [group]
         else:
             for group in self.finished:
-                results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
+                results.setdefault(group.getcurrentgrouplabel(), []).append(group)
             if self.templates:
                 for grouplabel in self.templates:
                     if grouplabel not in results:
@@ -540,7 +548,8 @@ class VerifyPanel(wx.Panel):
         def collect_ids(newGroups):
             ids = {} # {str attrname: list of ids}
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
-            for group in newGroups:
+
+            for group in groups:
                 foo = list(group.getcurrentgrouplabel())
                 k = tuple(sorted([t[0] for t in foo]))
                 id = foo[0][1]
@@ -572,7 +581,6 @@ class VerifyPanel(wx.Panel):
             ids = collect_ids(newGroups)
             for group in newGroups:
                 assign_new_id(group, ids)
-            
 
         for group in newGroups:
             self.add_group(group)
