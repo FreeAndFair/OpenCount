@@ -9,23 +9,36 @@ import verify_overlays
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 
-
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
     """ Using NCC, group all attributes to try to reduce operator
     effort.
       attrdata: A list of dicts (marshall'd AttributeBoxes)
       project: A Project.
     """
-    def munge_matches(matches, grouplabel, patchpaths, d):
+    def munge_matches(matches, grouplabel, patchpaths, d, outdir='extract_attrs_templates'):
         """ Given matches from find_patch_matches, convert it to
         a format that GroupClass likes:
           (sampleid, rankedlist, patchpath)
+        Also saves the registered patches to output dir.
         """
         results = []
-        for (filename, score1, score2, Ireg, l,r,u,d, rszFac) in matches:
+        for (filename, score1, score2, Ireg, y1,y2,x1,x2, rszFac) in matches:
             relpath = os.path.relpath(filename)
             patchpath = patchpaths[relpath]
             results.append((relpath, (grouplabel,), patchpath))
+
+            # Save registered patch
+            attrtype = tuple(sorted(d['attrs'].keys()))
+            relpath = os.path.relpath(filename)
+            attrtype_str = '-'.join(attrtype)
+            outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
+            outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
+            if not os.path.exists(outpath_full):
+                Ireg[0,0] = 0.9
+                Ireg[0,1] = 0.1
+                Ireg = np.nan_to_num(Ireg)
+                util_gui.create_dirs(outdir_full)
+                scipy.misc.imsave(outpath_full, Ireg)
         return results
     def get_temp_patches(d, temppaths, outdir='extract_attrs_templates'):
         """Return a mapping that does:
@@ -90,11 +103,15 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
                 # If we get here, then for the given attribute d,
                 # we've grouped every blank ballot.
                 continue
-            scipy.misc.imsave("{0}.png".format(str(attrtype)), patch)
+            #scipy.misc.imsave("{0}.png".format(str(attrtype)), patch)
             #patchpaths = extract_temp_patches(d, temppaths)
             patchpaths = get_temp_patches(d, temppaths)
             _t = time.time()
-            matches = shared.find_patch_matches(patch, temppaths, threshold=0.6)
+            h, w = patch.shape
+            x1, y1 = 0, 0
+            x2, y2 = w-1, h-1
+            bb = [y1, y2, x1, x2]
+            matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.6)
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,
@@ -102,7 +119,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
             if matches:
                 flag = True
                 # First handle 'found' templates
-                for (filename, _, _, _, _, _, _, rszFac) in matches:
+                for (filename, _, _, _,  _, _, _, _, rszFac) in matches:
                     history.add((attrtype, filename))
                 inc_counter(attrtype_ctr, attrtype)
                 grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
@@ -155,10 +172,13 @@ class TestFrame(wx.Frame):
         print "The idea: Each group contains images whose overlays \
 are the same. It might be the case that two groups could be merged \
 together."
-        
+        if num_elements == 0:
+            reduction = 0
+        else:
+            reduction = len(results) / float(num_elements)
         print "== Reduction in effort: ({0} / {1}) = {2}".format(len(results),
                                                                  num_elements,
-                                                                 len(results) / float(num_elements))
+                                                                 reduction)
         
 
 def main():
