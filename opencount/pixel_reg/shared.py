@@ -378,7 +378,8 @@ def arraySlice(A,inds):
     return out
 
 def standardImread(fNm,flatten=False):
-    I=np.float32(misc.imread(fNm)/255.0)
+    Icv=cv.LoadImage(fNm);
+    I=np.float32(np.asarray(Icv[:,:])/255.0)
     if flatten:
         I=rgb2gray(I)
     return I

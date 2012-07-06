@@ -7,7 +7,6 @@ from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, an
 # load patch
 ballotDir = '../../test-ballots/1side_Ntemplates/cedar2008primary_full/blank'
 I=sh.standardImread(os.path.join(ballotDir,'20120608170512502_0001.jpg'),flatten=True)
-
 bb=[320,400,500,950]
 patch = I[bb[0]:bb[1],bb[2]:bb[3]]
 #imshow(patch); show()
