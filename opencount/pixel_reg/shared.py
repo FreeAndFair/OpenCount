@@ -16,6 +16,10 @@ COARSE_BALLOT_REG_HEIGHT=500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
+def prepOpenCV(I):
+    I[I>.99]=.99
+    I[I<.01]=.01
+
 def fastResize(I,rszFac,sig=-1):
     if rszFac==1:
         return I
@@ -62,9 +66,9 @@ TODOS(kai)
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding=.75):
     matchList = [] # (filename, left,right,up,down)
-
+    prepOpenCV(I);
     I = np.round(fastResize(I,rszFac)*255.)/255;
-    I[I==1.0]=.999; I[I==0.0]=.001
+
     bb[0] = bb[0]*rszFac
     bb[1] = bb[1]*rszFac
     bb[2] = bb[2]*rszFac
@@ -81,8 +85,8 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
 
     for imP in imList:
         I1 = standardImread(imP,flatten=True)
+        prepOpenCV(I1)
         I1 = np.round(fastResize(I1,rszFac)*255.)/255.
-        I1[I1==1.0]=.999; I1[I1==0.0]=.001
 
         # crop to region if specified
         if len(bbSearch)>0:
@@ -96,6 +100,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
         outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1,patchCv.type)
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
+
         Iout[Iout==1.0]=0;
 
         if Iout.max() < threshold:
@@ -145,10 +150,12 @@ def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[],padding=.7
     matchList = [] # (filename, left,right,up,down)
 
     patch1 = np.round(fastResize(patch,rszFac)*255.)/255;
-    patch[patch==1.0]=.999; patch[patch==0.0]=.001
+    prepOpenCV(patch)
+    #patch[patch>.99]=.99; patch[patch<.01]=.01
     for imP in imList:
         I = standardImread(imP,flatten=True)
-        I[I==1.0]=.999; I[I==0.0]=.001
+        prepOpenCV(I)
+        #I[I>.99]=.99; I[I==0.0]=.001
         I = np.round(fastResize(I,rszFac)*255.)/255.
 
         # crop to region if specified

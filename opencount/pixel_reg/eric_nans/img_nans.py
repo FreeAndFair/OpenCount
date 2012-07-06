@@ -2,6 +2,7 @@ import sys, os, pickle, pdb, wx, time
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
+from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 sys.path.append('../')
 
@@ -25,5 +26,4 @@ matches = shared.find_patch_matchesV1(patch, bb, ('bad_english_nans.png',), thre
 print "Ireg is:"
 print Ireg
 
-
-
+imshow(Ireg);show()

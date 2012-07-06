@@ -65,6 +65,8 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
 
 def evalPatchSimilarity(I,patch):
     # perform template matching and return the best match in expanded region
+    sh.prepOpenCV(I)
+    sh.prepOpenCV(patch)
     patchCv=cv.fromarray(np.copy(patch))
     ICv=cv.fromarray(np.copy(I))
     # call template match
@@ -99,9 +101,9 @@ def dist2patches(patchTuples,scale):
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
         I=np.round(sh.fastResize(pt[0],scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
-        I[I==1.0]=.999; I[I==0.0]=.001
+        #I[I==1.0]=.999; I[I==0.0]=.001
         patch=np.round(sh.fastResize(pt[1],scale)*255.)/255.
-        patch[patch==1.0]=.999; patch[patch==0.0]=.001
+        #patch[patch==1.0]=.999; patch[patch==0.0]=.001
 
         res=evalPatchSimilarity(I,patch)
         scores[idx]=res[0]
