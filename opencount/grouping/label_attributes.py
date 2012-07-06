@@ -67,12 +67,9 @@ class LabelAttributesPanel(LabelContest):
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
 
-        print "LOAD", attrdata
-
         width, height = self.proj.imgsize
         self.dirList = [os.path.join(self.proj.blankballots_straightdir,x) for x in os.listdir(self.proj.blankballots_straightdir)]
         for i,f in enumerate(self.dirList):
-            print "MAP", frontback[os.path.abspath(f)]
             thisballot = [[(at['id'], 0,
                           int(at['x1']*width), int(at['y1']*height), 
                           int(at['x2']*width), int(at['y2']*height))] for at in attrdata if at['side'] == frontback[os.path.abspath(f)]]
@@ -228,7 +225,6 @@ def group_attributes(attrdata, project):
                 continue
             patchpaths = extract_temp_patches(d, temppaths)
             matches = shared.find_patch_matches(patch, temppaths)
-            print "len(matches):", len(matches)
             if matches:
                 flag = True
                 # First handle 'found' templates
