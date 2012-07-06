@@ -9,6 +9,8 @@ import verify_overlays
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 
+_i = 0
+
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
     """ Using NCC, group all attributes to try to reduce operator
     effort.
@@ -34,8 +36,8 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
             outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
             outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
             if not os.path.exists(outpath_full):
-                Ireg[0,0] = 0.9
-                Ireg[0,1] = 0.1
+                Ireg[0,0] = 0.99
+                Ireg[0,1] = 0.01
                 Ireg = np.nan_to_num(Ireg)
                 util_gui.create_dirs(outdir_full)
                 scipy.misc.imsave(outpath_full, Ireg)
@@ -103,13 +105,16 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
                 # If we get here, then for the given attribute d,
                 # we've grouped every blank ballot.
                 continue
-            #scipy.misc.imsave("{0}.png".format(str(attrtype)), patch)
+            global _i
+            #scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
+
+            _i += 1
             #patchpaths = extract_temp_patches(d, temppaths)
             patchpaths = get_temp_patches(d, temppaths)
             _t = time.time()
             h, w = patch.shape
             x1, y1 = 0, 0
-            x2, y2 = w-1, h-1
+            x2, y2 = w-3, h-3
             bb = [y1, y2, x1, x2]
             matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.6)
             _endt = time.time() - _t
@@ -176,14 +181,14 @@ together."
             reduction = 0
         else:
             reduction = len(results) / float(num_elements)
+        
         print "== Reduction in effort: ({0} / {1}) = {2}".format(len(results),
                                                                  num_elements,
                                                                  reduction)
-        
+        pdb.set_trace()
 
 def main():
     args = sys.argv[1:]
-    #rootdir = 'test_group_attrs/alameda_larger'
     rootdir = args[0]
     attrdata = pickle.load(open(pathjoin(rootdir, 'ballot_attributes.p'), 'rb'))
     #imgsize = (1460, 2100)
