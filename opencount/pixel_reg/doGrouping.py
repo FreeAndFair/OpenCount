@@ -256,7 +256,7 @@ def listAttributesNEW(patchesH):
     attrMap = {}
     for k in patchesH.keys():
         val=patchesH[k]
-        for (bb,attrName,attrVal,side) in val:
+        for (bb,attrName,attrVal,side,is_digitbased) in val:
             # check if type is in attrMap, if not, create
             if attrMap.has_key(attrName):
                 attrMap[attrName][attrVal]=(bb,side,k)

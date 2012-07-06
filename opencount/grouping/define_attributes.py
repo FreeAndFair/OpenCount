@@ -95,7 +95,7 @@ class IBallotScreen(imageviewer.BallotScreen):
         try:
             new_rows = {}
             fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 
-                      'attr_type', 'attr_val', 'side')
+                      'attr_type', 'attr_val', 'side', 'is_digitbased')
             notebook = self.parent.parent
             project = notebook.GetParent().project
             for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
@@ -197,6 +197,7 @@ the same name.""".format(attrtype), style=wx.OK)
                     return
             new_box.add_attrtypes(attr_types)
             new_box.side = page
+            new_box.is_digitbased = dlg.is_digitbased
             self.world.add_box(self.current_imgpath, new_box)
             self._limbobox = None
             self.Refresh()
@@ -603,9 +604,13 @@ class AttributeContextMenu(wx.Menu):
         dlg = DefineAttributeDialog(self.parent, message="New Attribute Name(s):",
                                     vals=old_attrtypes,
                                     can_add_more=True)
+        if self.attrbox.is_digitbased == True:
+            dlg.chkbox_is_digitbased.SetValue(True)
+        
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             new_attrtypes = dlg.results
+            self.attrbox.is_digitbased = dlg.is_digitbased
             for i, new_attrtype in enumerate(new_attrtypes):
                 if i < len(old_attrtypes):
                     old_attrtype = old_attrtypes[i]
@@ -638,6 +643,7 @@ class DefineAttributeDialog(wx.Dialog):
         self.results = []
         self._panel_btn = None
         self.btn_ok = None
+        self.is_digitbased = False
 
         self.input_pairs = []
         for idx, val in enumerate(vals):
@@ -673,6 +679,11 @@ class DefineAttributeDialog(wx.Dialog):
             gridsizer.Add(input_ctrl, border=10, flag=wx.ALL)
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
+        
+        
+        self.chkbox_is_digitbased = wx.CheckBox(self, label="Is this a digit-based precinct patch?")
+        self.sizer.Add(self.chkbox_is_digitbased, proportion=0)
+
         self._add_btn_panel(self.sizer)
         self.SetSizer(self.sizer)
         if not can_add_more:
@@ -716,6 +727,8 @@ class DefineAttributeDialog(wx.Dialog):
 
     def onButton_ok(self, evt):
         history = set()
+        if self.chkbox_is_digitbased.GetValue() == True:
+            self.is_digitbased = True
         for txt, input_ctrl in self.input_pairs:
             val = input_ctrl.GetValue()
             if val in history:
@@ -751,7 +764,7 @@ def delete_attr_type(attrvalsdir, attrtype):
     attrvalsdir is the project.patch_loc_dir, i.e. the output directory
     of 'Label Ballot Attributes'. It may or may not exist, btw.
     """
-    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'attr_type', 'attr_val', 'side')
+    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'attr_type', 'attr_val', 'side','is_digitbased')
     for dirpath, dirnames, filenames in os.walk(attrvalsdir):
         for filename in [f for f in filenames if f.lower().endswith('.csv')]:
             filepath = pathjoin(dirpath, filename)

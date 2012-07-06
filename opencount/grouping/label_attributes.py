@@ -65,6 +65,7 @@ class LabelAttributesPanel(LabelContest):
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
+        self.is_digitbased = [x['is_digitbased'] for x in attrdata]
 
         print "LOAD", attrdata
 
@@ -121,7 +122,7 @@ class LabelAttributesPanel(LabelContest):
             print "MAKING", name
             out = csv.writer(open(name, "w"))
             out.writerow(["imgpath","id","x","y","width",
-                          "height","attr_type","attr_val","side"])
+                          "height","attr_type","attr_val","side","is_digitbased"])
             out.writerow([os.path.abspath(self.dirList[ballot]), DUMMY_ROW_ID,0,0,0,0,"_dummy_","_dummy_","_dummy_"])
             for uid,each in enumerate(vals):
                 pos = self.groupedtargets_back[ballot][uid][0]
@@ -130,7 +131,7 @@ class LabelAttributesPanel(LabelContest):
                 out.writerow([os.path.abspath(self.dirList[ballot]),
                               uid, pos[2], pos[3],
                               pos[4]-pos[2], pos[5]-pos[3],
-                              self.types[uid], value, self.sides[uid]])
+                              self.types[uid], value, self.sides[uid], self.is_digitbased[uid]])
     def validate_outputs(self):
         return True
     def stop(sefl):
@@ -206,6 +207,7 @@ def group_attributes(attrdata, project):
             x1, y1 = int(round(d['x1']*w_img)), int(round(d['y1']*h_img))
             x2, y2 = int(round(d['x2']*w_img)), int(round(d['y2']*h_img))
             side = d['side']
+            is_digitbased = d['is_digitbased']
             attrtype = tuple(sorted(d['attrs'].keys()))
             temppaths = []
             patch = None   # Current patch we're examining
