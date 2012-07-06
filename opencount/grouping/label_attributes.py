@@ -63,20 +63,19 @@ class LabelAttributesPanel(LabelContest):
     
         # attrdata is a list of dicts (marshall'd AttributeBoxes)
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
+        frontback = pickle.load(open(self.proj.frontback_map))
 
         #frame = TestFrame(self, self.proj)
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
 
-        print "LOAD", attrdata
-
         width, height = self.proj.imgsize
         self.dirList = [os.path.join(self.proj.blankballots_straightdir,x) for x in os.listdir(self.proj.blankballots_straightdir)]
-        for f in self.dirList:
+        for i,f in enumerate(self.dirList):
             thisballot = [[(at['id'], 0,
                           int(at['x1']*width), int(at['y1']*height), 
-                          int(at['x2']*width), int(at['y2']*height))] for at in attrdata]
+                          int(at['x2']*width), int(at['y2']*height))] for at in attrdata if at['side'] == frontback[os.path.abspath(f)]]
     
             self.groupedtargets.append(thisballot)
         self.groupedtargets_back = self.groupedtargets
