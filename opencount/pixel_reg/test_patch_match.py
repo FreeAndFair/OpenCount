@@ -1,5 +1,7 @@
 import shared as sh
 import os
+import numpy as np
+import pdb
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 # load patch
@@ -20,6 +22,25 @@ for root, dirs, files in os.walk(ballotDir):
         p1=os.path.join(root,f)
         imList.append(p1)
         
+#results = sh.find_patch_matches(patch,imList,region=bb)
+results = sh.find_patch_matchesV1(I,bb,imList,bbSearch=list(bb))
 
-out = sh.find_patch_matches(patch,imList,region=bb)
-print out
+minOverlay=[]
+maxOverlay=[]
+for r1 in results:
+    if len(minOverlay)==0:
+        minOverlay = r1[3]
+        maxOverlay = r1[3]
+    else:
+        tmpMat = np.zeros((r1[3].shape[0],r1[3].shape[1],2))
+        tmpMat[:,:,0] = r1[3]
+
+        tmpMat[:,:,1] = minOverlay
+        minOverlay = np.min(tmpMat,axis=2)
+
+        tmpMat[:,:,1] = maxOverlay
+        maxOverlay = np.max(tmpMat,axis=2)
+
+figure(1);imshow(minOverlay);title('min');
+figure(2);imshow(maxOverlay);title('max');
+show()

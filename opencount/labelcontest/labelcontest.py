@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw
 import csv
 import pickle
 
+from group_contests import do_grouping, intersect
+
 sys.path.append('..')
 from util import ImageManipulate, pil2wxb
 
@@ -183,6 +185,7 @@ class LabelContest(wx.Panel):
         template.Add(button3)
         template.Add(button4)
 
+        self.equivs = []
         if self.proj.options.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
@@ -202,6 +205,36 @@ class LabelContest(wx.Panel):
                 Publisher().sendMessage("broadcast.can_proceed")
             button5.Bind(wx.EVT_BUTTON, declareReady)
             template.Add(button5)
+            def equiv(x):
+                gr = do_grouping(self.proj.ocr_tmp_dir, self.dirList)
+                gr = [[(b[0],b[1]) for b in a] for a in gr]
+                print gr
+                mapping = {}
+                for ballot_count, ballot in enumerate(self.groupedtargets):
+                    print 'on ballot', ballot_count
+                    contestbboxes = [x[1] for x in sum(gr, []) if x[0] == ballot_count]
+                    print 'bboxes', contestbboxes
+                    for targetlist in ballot:
+                        print 'picking rep ', targetlist[0][2:]
+                        w = [i for i,x in enumerate(contestbboxes) if intersect(targetlist[0][2:], x)]
+                        if len(w) != 1:
+                            print 'i got', w, 'of them'
+                            print 'gr', gr
+                            print 'mapping', mapping
+                            print 'contest bboxes', contestbboxes
+                            print 'targetlist', targetlist
+                            raise Exception("OH NO SOMETHING WENT WRONG")
+                        print 'w', w
+                        print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
+                        mapping[(ballot_count, contestbboxes[w[0]])] = (ballot_count, targetlist[0][1])
+                print 
+                print mapping
+                self.equivs = [[mapping[item] for item in group] for group in gr]
+                print "EQUIVS", self.equivs
+                
+            button6 = wx.Button(self, label="Compute Equiv Classes")
+            button6.Bind(wx.EVT_BUTTON, equiv)
+            template.Add(button6)
 
         rightside.Add(textbox)
         rightside.Add((20,-1))
@@ -390,15 +423,9 @@ class LabelContest(wx.Panel):
 
         # Save the image corresponding to this template
         self.imgo = Image.open(self.dirList[self.templatenum])
-
-        # The text that we're going to guess goes in these boxes.
-        # This is used when we pattern match contests against each other.
-        self.guesstext = []
         
         for ct,cid in enumerate(self.contest_order[self.templatenum]):
-            # For now just punt on it.
-            self.guesstext.append("")
-            # But actually do fill in the current contest keys to use to index in the hashtables.
+            # Fill in the current contest keys to use to index in the hashtables.
             self.currentcontests.append((self.templatenum,cid))
 
         # Which contest we're on.
@@ -407,11 +434,13 @@ class LabelContest(wx.Panel):
         # It's okay to clear things now.
         self.doNotClear = False
 
+        print 'ballot switch restore'
         # Fill in any text we might have entered so far.
-        self.restoreText()
+        #self.restoreText()
+        print 'now do add'
 
         # Show everything.
-        self.doadd(0)
+        self.doadd(0, dosave=False)
 
     def updateTemplate(self):
         """
@@ -429,9 +458,6 @@ class LabelContest(wx.Panel):
                 pass
             elif self.text[self.currentcontests[c]] != []:
                 dr.rectangle(box, fill=(0,200,0))
-            elif self.guesstext[c] != "":
-                # For when we think we know what it should be but are'nt sure.
-                dr.rectangle(box, fill=(0,0,200))
             else:
                 dr.rectangle(box, fill=(200,0,0))
 
@@ -465,9 +491,9 @@ class LabelContest(wx.Panel):
             for i,each in enumerate(self.text_targets):
                 # NO OFF BY ONE ERROR FOR YOU!
                 each.SetValue(arr[i+1])
+            print 'all is well'
         else:
-            # None. Set the title to be what we guess it might be.
-            self.text_title.SetValue(self.guesstext[self.count])
+            print 'something wrong', len(arr), len(self.text_targets)+1
         self.text_title.SetMark(0,0)
         self.text_title.SetInsertionPointEnd()
 
@@ -476,6 +502,7 @@ class LabelContest(wx.Panel):
         I hope I don't have to explain what this does.
         """
         #print "SAVING", self.count
+        print "SAVING", self.templatenum, self.count
         try:
             self.text_title.GetValue()
         except:
@@ -486,8 +513,20 @@ class LabelContest(wx.Panel):
             # We have entered at least something ... save it
             self.text[self.currentcontests[self.count]] = v
         else:
+            print 'clear it', self.currentcontests[self.count]
             self.text[self.currentcontests[self.count]] = []
         self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
+
+        print 'hmmm', self.currentcontests
+        for equiv in self.equivs:
+            if self.currentcontests[self.count] in equiv:
+                print "FOUND IT", equiv
+                for each in equiv:
+                    print 'setting', each, self.text[self.currentcontests[self.count]]
+                    self.text[each] = self.text[self.currentcontests[self.count]]
+                    self.voteupto[each] = self.voteupto[self.currentcontests[self.count]]
+        print 'text now', self.text
+
         if removeit:
             for each in self.text_targets:
                 each.SetValue("")
@@ -644,13 +683,12 @@ class LabelContest(wx.Panel):
         scale = min(1/percentage_w, 1/percentage_h)
         if not move:
             center, scale = restore
-            print "RESTORE TO", center
         self.imagebox.set_center(center)
         self.imagebox.set_scale(scale)
         self.imagebox.Refresh()
         
 
-    def doadd(self, ctby):
+    def doadd(self, ctby, dosave=True):
         """
         Set up everything for a given contest.
         ctby is how many contests to skip by.
@@ -667,7 +705,10 @@ class LabelContest(wx.Panel):
 
         self.doNotClear = False
 
-        self.saveText()
+        if dosave:
+            # We don't want to save when we're moving to a different
+            #  ballot image. We've already done that in nexttemplate.
+            self.saveText()
 
         self.count += ctby
 
