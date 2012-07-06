@@ -1,9 +1,18 @@
-import sys
+import sys, os, csv, pickle, pdb
+import numpy as np
+from os.path import join as pathjoin
+from scipy import misc
 sys.path.append('../')
+sys.path.append('../pixel_reg/')
+import pixel_reg.shared as sh
 
 import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
+from util import encodepath
+import specify_voting_targets.util_gui as util_gui
+
+DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
 class AttributeBox(BoundingBox):
     """
@@ -204,6 +213,264 @@ def dump_iworldstate(iworld, filepath):
     f = open(filepath, 'wb')
     pickle.dump(marshall_iworldstate(iworld), f)
     f.close()
+
+def get_attrtypes(project):
+    """
+    Returns all attribute types in this election.
+    """
+    attr_types = set()
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, filename), 'r')
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['attr_type'] != '_dummy_':
+                    attr_types.add(row['attr_type'])
+            csvfile.close()
+    return tuple(attr_types)
+
+def num_common_prefix(*args):
+    """
+    For each input list L, return the number of common elements amongst
+    all lists (starting from L-R ordering).
+    Assumes all input lists are of the same length.
+    """
+    result = 0
+    for idx in range(len(args[0])):
+        val = args[0][idx]
+        for lst in args[1:]:
+            if val != lst[idx]:
+                return result
+        result += 1
+    return result
+
+def is_img_ext(f):
+    return os.path.splitext(f.lower())[1].lower() in ('.bmp', '.jpg',
+                                                      '.jpeg', '.png',
+                                                      '.tif', '.tiff')
+def get_imagepaths(dir):
+    """ Given a directory, return all imagepaths. """
+    results = []
+    for dirpath, dirnames, filenames in os.path.walk(dir):
+        results.append([pathjoin(dirpath, imname) 
+                        for imname in filter(is_img_ext, filenames)])
+    return results
+
+def importPatches(project):
+    """
+    Reads in all .csv files in precinct_locations/, and returns
+    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side)}
+    """
+    if not project or not project.patch_loc_dir:
+        return
+    def is_csvfile(p):
+        return os.path.splitext(p)[1].lower() == '.csv'
+    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
+              'attr_type', 'attr_val', 'side')
+    boxes = {}
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for csvfilepath in [f for f in filenames if is_csvfile(f)]:
+            try:
+                csvfile = open(os.path.join(dirpath, csvfilepath), 'rb')
+                dictreader = csv.DictReader(csvfile)
+                for row in dictreader:
+                    imgpath = os.path.abspath(row['imgpath'])
+                    id = int(row['id'])
+                    if id == DUMMY_ROW_ID:
+                        boxes.setdefault(imgpath, [])
+                        continue
+                    x1 = int(row['x'])
+                    y1 = int(row['y'])
+                    x2 = x1 + int(row['width'])
+                    y2 = y1 + int(row['height'])
+                    side = row['side']
+                    if not(boxes.has_key(imgpath)):
+                        boxes[imgpath]=[]
+                    # Currently, we don't create an exemplar attrpatch
+                    # for flipped/wrong-imgorder. For now, just fake it.
+                    for flip in (0,1):
+                        for imgorder in (0,1):
+                            grouplabel = make_grouplabel((row['attr_type'],row['attr_val']),
+                                                         ('flip',flip),
+                                                         ('imageorder', imgorder))
+                            boxes[imgpath].append(((y1, y2, x1, x2), 
+                                                   grouplabel,
+                                                   side))
+            except IOError as e:
+                print "Unable to open file: {0}".format(csvfilepath)
+    return boxes
+
+""" GroupLabel Data Type """
+
+def make_grouplabel(*args):
+    """ Given k-v tuples, returns a grouplabel.
+    >>> make_grouplabel(('precinct', '380400'), ('side', 0))
+    """
+    return frozenset(args)
+
+def get_propval(grouplabel, property):
+    """ Returns the value of a property in a grouplabel, or None
+    if the property isn't present.
+    >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
+    >>> get_propval(grouplabel, 'precinct')
+    380400
+    >>> get_propval(grouplabel, 'foo') == None
+    True
+    """
+    t = tuple(grouplabel)
+    for key,v in t:
+        if key == property:
+            return v
+    return None
+
+class GroupClass(object):
+    """
+    A class that represents a potential group of images.
+    """
+    # A dict mapping {str label: int count}
+    ctrs = {}
+    def __init__(self, elements):
+        """
+        elements: A list of (str sampleid, rankedlist, str imgpatch),
+                 where sampleid is the ID for this data point. 
+                 rankedlist is a list of grouplabels, which should be
+                 sorted by confidence (i.e. the most-likely grouplabel
+                 should be at index 0).
+                 imgpatch is a path to the image that this element
+                 represents.
+        """
+        self.elements = list(elements)
+        for i in range(len(elements)):
+            if not issubclass(type(elements[i][1]), list):
+                self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
+        self.overlayMax = None
+        self.overlayMin = None
+        # orderedAttrVals is a list of tuples of the form:
+        #   (str attrval, int flipped, int imageorder)
+        self.orderedAttrVals = []
+        
+        # Index into the attrs_list that this group is currently using.
+        # Is 'finalized' in OnClickOK
+        self.index = 0
+
+        self.processElements()
+
+        # The label that will be displayed in the ListBoxes to 
+        # the user, i.e. a public name for this GroupClass.
+        self.label = str(self.getcurrentgrouplabel())
+                     
+        if self.label not in GroupClass.ctrs:
+            GroupClass.ctrs[self.label] = 1
+        else:
+            GroupClass.ctrs[self.label] += 1
+        self.label += '-{0}'.format(GroupClass.ctrs[self.label])
+
+    def __eq__(self, o):
+        return (o and issubclass(type(o), GroupClass) and
+                self.elements == o.elements)
+        
+    def __str__(self):
+        return "GroupClass({0} elems)".format(len(self.elements))
+    def __repr__(self):
+        return "GroupClass({0} elems)".format(len(self.elements))
+
+    def getcurrentgrouplabel(self):
+        return self.orderedAttrVals[self.index]
+
+    def processElements(self):
+        """
+        Go through the elements generating overlays and compiling an ordered list
+        of candidate templates
+        """
+        # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
+        weightedAttrVals = {}
+        # self.elements is a list of the form [(imgpath_i, attrlist_i, patchpath_i), ...]
+        # where each attrlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
+        for element in self.elements:
+            # element := (imgpath, attrlist, patchpath)
+            """
+            Overlays
+            """
+            path = element[2]
+            try:
+                img = misc.imread(path, flatten=1)
+                if (self.overlayMin == None):
+                    self.overlayMin = img
+                else:
+                    self.overlayMin = np.fmin(self.overlayMin, img)
+                if (self.overlayMax == None):
+                    self.overlayMax = img
+                else:
+                    self.overlayMax = np.fmax(self.overlayMax, img)
+            except:
+                print "Cannot open patch @ {0}".format(path)
+            """
+            Ordered templates
+            """
+            vote = 1.0
+            rankedlist = element[1]
+            for group in rankedlist:
+                if (group not in weightedAttrVals):
+                    weightedAttrVals[group] = vote
+                else:
+                    weightedAttrVals[group] = weightedAttrVals[group] + vote
+                
+                vote = vote / 2.0
+        self.orderedAttrVals = [group
+                                for (group, weight) in sorted(weightedAttrVals.items(), 
+                                                                   key=lambda t: t[1],
+                                                                   reverse=True)]
+
+        rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+        self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
+        self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
+        
+    def split(self):
+        groups = []
+        new_elements = {}
+        all_rankedlists = [t[1] for t in self.elements]
+
+        n = num_common_prefix(*all_rankedlists)
+
+        def naive_split(elements):
+            mid = int(round(len(elements) / 2.0))
+            group1 = elements[:mid]
+            group2 = elements[mid:]
+            # TODO: Is this groupname/patchDir setting correct?
+            groups.append(GroupClass(group1))
+            groups.append(GroupClass(group2))
+            return groups
+            
+        if n == len(all_rankedlists[0]):
+            print "rankedlists were same for all voted ballots -- \
+doing a naive split instead."
+            return naive_split(self.elements)
+
+        if n == 0:
+            print "== Wait, n shouldn't be 0 here (in GroupClass.split). \
+Changing to n=1, since that makes some sense."
+            print "Enter in 'c' for 'continue' to continue execution."
+            pdb.set_trace()
+            n = 1
+
+        # group by index 'n' into each ballots attrslist (i.e. ranked list)
+        for (samplepath, rankedlist, patchpath) in self.elements:
+            if len(rankedlist) <= 1:
+                print "==== Can't split anymore."
+                return [self]
+            new_group = rankedlist[n]
+            new_elements.setdefault(new_group, []).append((samplepath, rankedlist, patchpath))
+
+        if len(new_elements) == 1:
+            # no new groups were made -- just do a naive split
+            print "After a 'smart' split, no new groups were made. So, \
+just doing a naive split."
+            return naive_split(self.elements)
+
+        print 'number of new groups after split:', len(new_elements)
+        for grouplabel, elements in new_elements.iteritems():
+            groups.append(GroupClass(elements))
+        return groups
 
 class TextInputDialog(wx.Dialog):
     """

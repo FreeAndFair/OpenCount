@@ -97,10 +97,10 @@ def dist2patches(patchTuples,scale):
     for idx in range(len(patchTuples)):
         pt=patchTuples[idx]
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
-        I=np.round(fastResize(pt[0],scale)*255.)/255.
+        I=np.round(sh.fastResize(pt[0],scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
         I[I==1.0]=.999; I[I==0.0]=.001
-        patch=np.round(fastResize(pt[1],scale)*255.)/255.
+        patch=np.round(sh.fastResize(pt[1],scale)*255.)/255.
         patch[patch==1.0]=.999; patch[patch==0.0]=.001
 
         res=evalPatchSimilarity(I,patch)

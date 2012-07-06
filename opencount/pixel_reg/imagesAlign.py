@@ -54,8 +54,8 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
     else:
-        I1=fastResize(I1,rszFac)
-        Iref1=fastResize(Iref1,rszFac)
+        I1=sh.fastResize(I1,rszFac)
+        Iref1=sh.fastResize(Iref1,rszFac)
         S=np.eye(3); S[0,0]=1/rszFac; S[1,1]=1/rszFac;
         H0=np.eye(3)
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
@@ -79,8 +79,8 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
     if np.prod(wh)<minArea:
         H=H0
     else:
-        I1=fastResize(I,.5)
-        Iref1=fastResize(Iref,.5)
+        I1=sh.fastResize(I,.5)
+        Iref1=sh.fastResize(Iref,.5)
         S=np.eye(3); S[0,0]=2; S[1,1]=2;
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
         (H,errx)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose)
@@ -255,26 +255,6 @@ def pttransform(I,H0,pt0):
 
     return pt1
 
-def fastResize(I,rszFac,sig=-1):
-    if rszFac==1:
-        return I
-    else:
-        Icv=cv.fromarray(np.copy(I))
-        I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
-        cv.Resize(Icv,I1cv)
-        Iout=np.asarray(I1cv)
-        if sig>0:
-            Iout=gaussian_filter(Iout,sig);
-
-        return Iout
-
-
-def fastFlip(I):
-    Icv=cv.fromarray(np.copy(I))
-    I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
-    cv.Flip(Icv,I1cv,-1)
-    Iout=np.asarray(I1cv)
-    return Iout
 
 def associateTwoPage(tplImL, balImL):
     # return permuted balImL list
@@ -291,9 +271,9 @@ def associateTwoPage(tplImL, balImL):
 
 def checkBallotFlipped(I,Iref,verbose=False):
     rszFac=sh.resizeOrNot(I.shape,sh.FLIP_CHECK_HEIGHT)
-    Iref1=fastResize(Iref,rszFac)
-    I1=fastResize(I,rszFac)
-    IR=fastFlip(I1)
+    Iref1=sh.fastResize(Iref,rszFac)
+    I1=sh.fastResize(I,rszFac)
+    IR=sh.fastFlip(I1)
     (H,Io,err)=imagesAlign(I1,Iref1,type='translation')
     (HR,IoR,errR)=imagesAlign(IR,Iref1,type='translation')
     
@@ -301,7 +281,7 @@ def checkBallotFlipped(I,Iref,verbose=False):
         print 'flip margin: ', err, errR
         
     if err>errR:
-        return (True, fastFlip(I),errR);
+        return (True, sh.fastFlip(I),errR);
     else:
         return (False, I, err);
 

@@ -4,7 +4,10 @@ import numpy as np
 import cv
 import csv
 import string
+import math
+import imagesAlign as lk
 from scipy import misc
+from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 MAX_PRECINCT_PATCH_DIM=800
 MAX_PRECINCT_PATCH_DISPLAY=800
@@ -12,6 +15,175 @@ FLIP_CHECK_HEIGHT=200
 COARSE_BALLOT_REG_HEIGHT=500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
+
+def fastResize(I,rszFac,sig=-1):
+    if rszFac==1:
+        return I
+    else:
+        Icv=cv.fromarray(np.copy(I))
+        I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
+        cv.Resize(Icv,I1cv)
+        Iout=np.asarray(I1cv)
+        if sig>0:
+            Iout=gaussian_filter(Iout,sig);
+
+        return Iout
+
+def fastFlip(I):
+    Icv=cv.fromarray(np.copy(I))
+    I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
+    cv.Flip(Icv,I1cv,-1)
+    Iout=np.asarray(I1cv)
+    return Iout
+
+
+''' 
+Input: 
+  I0: full image
+  bb: bounding box of patch
+  imList: list of full filenames for images to search
+  threshold: only return matches above this value
+  rszFac: downsampling factor for speed
+  region: bounding box to limit search for speed (TODO)
+
+Output:
+  list of tuples, one for every match
+  ((filename, score1, score2, patch, i1, i2, j1, j2, resize factor), (...) )
+
+  score1: result from NCC
+  score2: produced from local alignment. this score is much more reliable.
+
+  Example:
+  I1cropped=I1[i1:i2,j1:j2]
+
+TODOS(kai)
+  - return multiple matches on same image
+  - seems to be weird behavior when rszFac is .75
+'''
+def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding=.75):
+    matchList = [] # (filename, left,right,up,down)
+
+    I = np.round(fastResize(I,rszFac)*255.)/255;
+    I[I==1.0]=.999; I[I==0.0]=.001
+    bb[0] = bb[0]*rszFac
+    bb[1] = bb[1]*rszFac
+    bb[2] = bb[2]*rszFac
+    bb[3] = bb[3]*rszFac
+    [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],.25)
+    patch = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
+    patch0 = I[bb[0]:bb[1],bb[2]:bb[3]]
+
+    if len(bbSearch)>0:
+        bbSearch[0] = bbSearch[0]*rszFac
+        bbSearch[1] = bbSearch[1]*rszFac
+        bbSearch[2] = bbSearch[2]*rszFac
+        bbSearch[3] = bbSearch[3]*rszFac
+
+    for imP in imList:
+        I1 = standardImread(imP,flatten=True)
+        I1 = np.round(fastResize(I1,rszFac)*255.)/255.
+        I1[I1==1.0]=.999; I1[I1==0.0]=.001
+
+        # crop to region if specified
+        if len(bbSearch)>0:
+            [bbOut1,bbOff1]=expand(bbSearch[0],bbSearch[1],
+                                   bbSearch[2],bbSearch[3],
+                                   I1.shape[0],I1.shape[1],padding)
+            I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
+
+        patchCv=cv.fromarray(np.copy(patch))
+        ICv=cv.fromarray(np.copy(I1))
+        outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1,patchCv.type)
+        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+        Iout=np.asarray(outCv)
+        Iout[Iout==1.0]=0;
+
+        if Iout.max() < threshold:
+            continue
+
+        score1 = Iout.max()
+
+        YX=np.unravel_index(Iout.argmax(),Iout.shape)
+        i1=YX[0]; i2=YX[0]+patch.shape[0]
+        j1=YX[1]; j2=YX[1]+patch.shape[1]
+        I1c = I1[i1:i2,j1:j2]
+        IO=lk.imagesAlign(I1c,patch,type='rigid')
+        Ireg = IO[1]
+        Ireg = Ireg[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
+
+        diff=np.abs(Ireg-patch0);
+        err=np.sum(diff[np.nonzero(diff>.25)])
+
+        score2 = err / diff.size
+
+        matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
+
+    return matchList
+
+
+''' 
+Input: 
+  patch: image patch to find
+  imList: list of full filenames for images to search
+  threshold: only return matches above this value
+  rszFac: downsampling factor for speed
+  region: bounding box to limit search for speed (TODO)
+
+Output:
+  list of tuples, one for every match
+  ((filename, score, rszFac, left, right, up, down), (...) )
+
+  Example:
+  I1cropped=I1[i1:i2,j1:j2]
+
+TODOS(kai)
+  - implement the region input
+  - return multiple matches on same image
+  - seems to be weird behavior when rszFac is .75
+'''
+def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[],padding=.75):
+    matchList = [] # (filename, left,right,up,down)
+
+    patch1 = np.round(fastResize(patch,rszFac)*255.)/255;
+    patch[patch==1.0]=.999; patch[patch==0.0]=.001
+    for imP in imList:
+        I = standardImread(imP,flatten=True)
+        I[I==1.0]=.999; I[I==0.0]=.001
+        I = np.round(fastResize(I,rszFac)*255.)/255.
+
+        # crop to region if specified
+        if len(region)>0:
+            i1 = region[0]*rszFac
+            i2 = region[1]*rszFac
+            j1 = region[2]*rszFac
+            j2 = region[3]*rszFac
+            [bbOut,bbOff]=expand(i1,i2,j1,j2,I.shape[0],I.shape[1],padding)
+            I1=I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
+        else:
+            I1=I;
+
+        patchCv=cv.fromarray(np.copy(patch1))
+        ICv=cv.fromarray(np.copy(I1))
+        outCv=cv.CreateMat(I1.shape[0]-patch1.shape[0]+1,I1.shape[1]-patch1.shape[1]+1,patchCv.type)
+        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+        Iout=np.asarray(outCv)
+        Iout[Iout==1.0]=0;
+        # TODO: nonmax suppression
+
+        if Iout.max() < threshold:
+            continue
+
+        YX=np.unravel_index(Iout.argmax(),Iout.shape)
+        i1=YX[0]; i2=YX[0]+patch1.shape[0]
+        j1=YX[1]; j2=YX[1]+patch1.shape[1]
+        if len(region)>0:
+            i1 = i1 + bbOut[0]
+            i2 = i2 + bbOut[0]
+            j1 = j1 + bbOut[2]
+            j2 = j2 + bbOut[2]
+        matchList.append((imP,Iout.max(),rszFac,i1,i2,j1,j2))
+
+    return matchList
 
 def numProcs():
     nProc=mp.cpu_count() 
