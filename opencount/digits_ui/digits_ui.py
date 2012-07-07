@@ -55,7 +55,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.bitmapdc = None
         self.i, self.j = 0, 0
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
-        self.cellmap = {} # Maps {str imgID: (i,j)}
+        self.imgID2cell = {} # Maps {str imgID: (i,j)}
+        self.cell2imgID = {} # Maps {(i,j): str imgID}
 
         self.boxes = [] 
         self._box = None # A Box that is being created
@@ -66,28 +67,38 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_SIZE, self.onSize)
 
+    """ Box-Creation methods """
     def _start_box(self, x, y):
         """ Start creating a boundingbox at (x,y) """
         assert not self._box
         self._box = Box(x, y, x+1, y+1)
-
     def _finish_box(self, x, y):
         """ Finish creating the self._box Box. """
         assert self._box
+        if self._box.width < 4 or self._box.height < 4:
+            self._box = None
+            return
         self.boxes.append(self._box)
         self._box = None
-
     def _is_box(self):
         """ Returns True if I'm in the middle of creating a box """
         return self._box != None
-
     def _update_box(self, x, y):
         """ Updates box to have new coordinates """
         assert self._box
         self._box.x2, self._box.y2 = x, y
 
+    def xy2cell(self, x, y):
+        """Transforms (x,y) coord to (i,j) cell index."""
+        return (int(y / self.cellh), int(x / self.cellw))
+    def cell2xy(self, i, j):
+        """Transforms (i,j) cell indices to (x,y) coords """
+        return (j * self.cellw, i * self.cellh)
+
     def onLeftDown(self, evt):
         x,y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        i,j = self.xy2cell(x,y)
+        print "Looking at imgpath:", self.cell2imgID[(i,j)]
         self._start_box(x, y)
         self.Refresh()
         
@@ -122,8 +133,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def add_img(self, imgbitmap, imgID):
         """Adds a new image to this grid. """
         (x, y) = self._get_cur_loc()
-        assert imgID not in self.cellmap
-        self.cellmap[imgID] = (self.i, self.j)
+        assert imgID not in self.imgID2cell
+        assert (self.i, self.j) not in self.cell2imgID
+        self.imgID2cell[imgID] = (self.i, self.j)
+        self.cell2imgID[(self.i, self.j)] = imgID
         self.bitmapdc.DrawBitmap(imgbitmap, x, y)
         if self.j >= (DigitLabelPanel.NUM_COLS - 1):
             self.i += 1
