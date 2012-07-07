@@ -274,11 +274,15 @@ def find_squares(graph):
 
     return list(set([x for x in sum([dfs_square([start]) for start in graph], []) if x]))
 
-def do_extract(name, img, squares):
+def do_extract(name, img, squares, giventargets):
     def area(x): 
         if x == None: return 0
         return (x[2]-x[0])*(x[3]-x[1])
 
+    avg_targ_area = sum(map(area,giventargets))/len(giventargets)
+    squares = [x for x in squares if area(x) > avg_targ_area*2]
+    targets = [x for x in giventargets]
+    """
     ## Begin hack since I have to deal with my own targets
     bigest_box = max(squares, key=area)
     squares = [x for x in squares if intersect(x, bigest_box) == x]
@@ -299,7 +303,7 @@ def do_extract(name, img, squares):
         for k in tounion:
             del graph[k]
     #print 'after', targets
-
+    """
     oldtargets = [x for x in targets]
     contests = []
 
@@ -338,7 +342,7 @@ def do_extract(name, img, squares):
     #exit(0)
         
 
-def extract_contest(image_path):
+def extract_contest(image_path, targets):
     #Image.open(image_path).save(tmp+"/"+image_path.split("/")[-1][:-4]+"-orig.png")
     data = load_num(image_path)
     lines = find_lines(data)
@@ -377,7 +381,8 @@ def extract_contest(image_path):
             imd.rectangle((l,u,r,d), fill=c)
         new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-box.png")
 
-    return data, do_extract(image_path.split("/")[-1], load_pil(image_path), squares)
+    return data, do_extract(image_path.split("/")[-1], 
+                            load_pil(image_path), squares, targets)
 
 def ballot_preprocess(i, f, image, contests, targets, lang):
     print 'making', f, f.split("/")[-1].split(".")[0]
@@ -412,7 +417,14 @@ def compare_preprocess(lang, path, image, contest, targets):
         name = os.path.join(path, str(upper)+".tif")
         img.save(name)
         os.popen("tesseract %s %s -l %s"%(name, name, lang))
-        blocks.append(open(name+".txt").read().decode('utf8'))
+        if os.path.exists(name+".txt"):
+            blocks.append(open(name+".txt").read().decode('utf8'))
+        else:
+            print "-"*40
+            print "OCR FAILED"
+            print "-"*40
+            blocks.append("")
+            
     
     print blocks
     return blocks
@@ -472,14 +484,12 @@ def merge_equal(contests):
             # get a representitive, then get the non-matching part, then the text
             #score, matching = compare(s[0][0][2], each[2])
             score = compare(s[0][2], each[2])
-            if score < .4:
-                print 'merging'
+            if score < .2:
                 #s.append((each, matching))
                 s.append(each)
                 found = True
                 break
         if not found:
-            print 'making new'
             #sets.append([(each, list(zip(range(len(each)), range(len(each)))))])
             sets.append([each])
     return sets
@@ -503,18 +513,20 @@ def equ_class(contests):
         result += merge_equal(group)
     return result
     
-def do_grouping(t, paths, lang_map = {}):
+def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
+    print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp+"*")
     ballots = []
+    print "LEN", len(giventargets), len(paths)
     for i,f in enumerate(paths):
         print f
-        im, (contests, targets) = extract_contest(f)
-        lang = lang_map[f] if f in lang_map else 'chi_sim'
+        im, (contests, targets) = extract_contest(f, giventargets[i])
+        lang = lang_map[f] if f in lang_map else 'eng'
         get = ballot_preprocess(i, f, im, contests, targets, lang)
         ballots.append(get)
     return equ_class(ballots)

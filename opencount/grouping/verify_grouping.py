@@ -362,16 +362,16 @@ class RunGroupingPanel(wx.Panel):
         # munge patches into format that groupImagesMAP wants
         all_attrtypes = common.get_attrtypes(self.project)
         def munge_patches(patches, attrtypes):
-            """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side)}
-            to: {str templatepath: ((y1,y2,x1,x2), attrtype, attrval, side)}
+            """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased}
+            to: {str templatepath: ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased}
             """
             result = {}
             for temppath, patchtriple in patches.iteritems():
-                for (bb, grouplabel, side) in patchtriple:
+                for (bb, grouplabel, side, is_digitbased) in patchtriple:
                     for attrtype in attrtypes:
                         if common.get_propval(grouplabel, attrtype):
                             attrval = common.get_propval(grouplabel, attrtype)
-                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side))
+                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased))
             assert len(result) == len(patches)
             return result
         munged = munge_patches(self.patches, all_attrtypes)
@@ -618,7 +618,7 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
     Fix the ordering in the ballot_to_images mapping.
     dict bal2tmp: {str ballotid: str templateid}
     dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}
-    dict patches: {str temppath: list of ((y1,y2,x1,x2),attrtype,attrval,side)}
+    dict patches: {str temppath: list of ((y1,y2,x1,x2),attrtype,attrval,side, is_digitbased)}
     dict sample_flips: {str ballotid: [flip_0, flip_1]}
     Returns a dict that tells you, for each sample Ballot, whether the front/back
     is flipped:

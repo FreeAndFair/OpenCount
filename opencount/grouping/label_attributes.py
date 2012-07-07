@@ -87,6 +87,7 @@ class LabelAttributesPanel(LabelContest):
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
+        self.is_digitbased = [x['is_digitbased'] for x in attrdata]
 
         width, height = self.proj.imgsize
         self.dirList = [os.path.join(self.proj.blankballots_straightdir,x) for x in os.listdir(self.proj.blankballots_straightdir)]
@@ -142,7 +143,7 @@ class LabelAttributesPanel(LabelContest):
             print "MAKING", name
             out = csv.writer(open(name, "w"))
             out.writerow(["imgpath","id","x","y","width",
-                          "height","attr_type","attr_val","side"])
+                          "height","attr_type","attr_val","side","is_digitbased"])
             out.writerow([os.path.abspath(self.dirList[ballot]), DUMMY_ROW_ID,0,0,0,0,"_dummy_","_dummy_","_dummy_"])
             for uid,each in enumerate(vals):
                 pos = self.groupedtargets_back[ballot][uid][0]
@@ -151,7 +152,7 @@ class LabelAttributesPanel(LabelContest):
                 out.writerow([os.path.abspath(self.dirList[ballot]),
                               uid, pos[2], pos[3],
                               pos[4]-pos[2], pos[5]-pos[3],
-                              self.types[uid], value, self.sides[uid]])
+                              self.types[uid], value, self.sides[uid], self.is_digitbased[uid]])
     def validate_outputs(self):
         return True
     def stop(sefl):

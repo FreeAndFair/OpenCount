@@ -166,19 +166,14 @@ class LabelContest(wx.Panel):
         button22 = wx.Button(self, label='Next Unfilled Contest')
         button1.Bind(wx.EVT_BUTTON, lambda x: self.doadd(-1))
         def nextunfilled(x):
+            # Get the unfilled contests.
             aftertext = [x[0] for x in self.text.items() if x[1] == []]
+            # Get their actual order on the screen, not the internal order.
             aftertext = [(t,self.contest_order[t].index(c)) for t,c in aftertext]
+            # Remove the ones before the current target.
             aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
-            #print 'a', aftertext
-            #print self.text
-            #print "MIN", aftertext
+            # Pick the first.
             temp,cont = min(aftertext)
-            #cont = self.contest_order[temp].index(cont)
-            #print "ORDER", self.contest_order[temp]
-            #print "GOING TO CONT", cont
-            #cont = self.contest_order[temp][cont]
-            #print "TRANSLATE TO", cont
-            #print "PICK", temp, cont
             if temp != self.templatenum:
                 self.nexttemplate(temp-self.templatenum)
             self.doadd(cont)
@@ -197,7 +192,7 @@ class LabelContest(wx.Panel):
         button4 = wx.Button(self, label='Next Ballot')
         button3.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(-1))
         button4.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(1))
-        # How much to scale the template by.
+
         self.templatebox = wx.Panel(self, size=(303,500))
         self.templatebox.img = wx.StaticBitmap(self.templatebox)
         
@@ -227,7 +222,10 @@ class LabelContest(wx.Panel):
             template.Add(button5)
             def equiv(x):
                 languages = {}
-                gr = do_grouping(self.proj.ocr_tmp_dir, self.dirList, languages)
+                targets = [[t[2:] for t in sum(ballot,[])] for ballot in self.groupedtargets]
+                print "ALL", targets
+                gr = do_grouping(self.proj.ocr_tmp_dir, 
+                                 self.dirList, targets, languages)
                 gr = [[(b[0],b[1]) for b in a] for a in gr]
                 print gr
                 mapping = {}

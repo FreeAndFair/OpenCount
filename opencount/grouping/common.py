@@ -23,7 +23,7 @@ class AttributeBox(BoundingBox):
                  target_id=None,
                  line_width=None, children=None,
                  is_new=False, is_selected=False,
-                 attrs=None, side='front'):
+                 attrs=None, side='front', is_digitbased=False):
         """
         attrs is a dict mapping:
             {str attrtype: str attrval}
@@ -35,6 +35,7 @@ class AttributeBox(BoundingBox):
                              is_new=is_new, is_selected=is_selected)
         self.attrs = attrs if attrs else {}
         self.side = side
+        self.is_digitbased = is_digitbased
 
     def has_attrtype(self, attrtype):
         return attrtype in self.attrs
@@ -79,7 +80,7 @@ self.attrs: {1}".format(oldname, self.attrs)
                            is_selected=self.is_selected,
                            target_id=self.target_id,
                             attrs=self.attrs,
-                            side=self.side)
+                            side=self.side, is_digitbased=self.is_digitbased)
 
     def marshall(self):
         """
@@ -88,6 +89,7 @@ self.attrs: {1}".format(oldname, self.attrs)
         data = BoundingBox.marshall(self)
         data['attrs'] = self.attrs
         data['side'] = self.side
+        data['is_digitbased'] = self.is_digitbased
         return data
 
     @staticmethod
@@ -101,11 +103,11 @@ self.attrs: {1}".format(oldname, self.attrs)
         return (a and self.x1 == a.x1 and self.y1 == a.y1 and self.x2 == a.x2
                 and self.y2 == a.y2 and self.is_contest == a.is_contest
                 and self.label == a.label and self.attrs == a.attrs 
-                and self.side == a.side)
+                and self.side == a.side and self.is_digitbased == a.is_digitbased)
     def __repr__(self):
-        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side)
+        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased)
     def __str___(self):
-        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side)
+        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased)
 
 class IWorldState(WorldState):
     def __init__(self, box_locations=None):
@@ -259,14 +261,14 @@ def get_imagepaths(dir):
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns
-    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side)}
+    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased)}
     """
     if not project or not project.patch_loc_dir:
         return
     def is_csvfile(p):
         return os.path.splitext(p)[1].lower() == '.csv'
     fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
-              'attr_type', 'attr_val', 'side')
+              'attr_type', 'attr_val', 'side', 'is_digitbased')
     boxes = {}
     for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
         for csvfilepath in [f for f in filenames if is_csvfile(f)]:
@@ -284,6 +286,7 @@ def importPatches(project):
                     x2 = x1 + int(row['width'])
                     y2 = y1 + int(row['height'])
                     side = row['side']
+                    is_digitbased = row['is_digitbased']
                     if not(boxes.has_key(imgpath)):
                         boxes[imgpath]=[]
                     # Currently, we don't create an exemplar attrpatch
@@ -295,7 +298,7 @@ def importPatches(project):
                                                          ('imageorder', imgorder))
                             boxes[imgpath].append(((y1, y2, x1, x2), 
                                                    grouplabel,
-                                                   side))
+                                                   side, is_digitbased))
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
