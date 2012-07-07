@@ -1,11 +1,15 @@
-import sys, os, pickle, pdb
+import sys, os, pickle, pdb, Queue, threading, time
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
+import wx.lib.inspection
+from wx.lib.pubsub import Publisher
+
 import numpy as np
 from os.path import join as pathjoin
 
 sys.path.append('..')
+import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 
@@ -36,6 +40,8 @@ class Box(object):
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
     NUM_COLS = 4
+
+    DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
 
     def __init__(self, parent, extracted_dir, *args, **kwargs):
         """
@@ -126,8 +132,20 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if box:
             #npimg = self.extract_patch(box.x1, box.y1, box.x2, box.y2)
             self.extract_patch(box.x1, box.y1, box.x2, box.y2)
-            npimg = scipy.ndimage.imread('patch_tmp.png', flatten=True)
-            
+            PATCH_TMP = 'patch_tmp.png'
+            ALLPATCHES_TMP = 'allpatches_tmp.png'
+            npimg = scipy.ndimage.imread(PATCH_TMP, flatten=True)
+            # Save self.bitmapdc to a tmp png file. Ugh.
+            memdc = wx.MemoryDC()
+            w, h = self.bitmapdc.GetSize()
+            bitmap = wx.EmptyBitmap(w, h, -1)
+            memdc.SelectObject(bitmap)
+            memdc.Blit(0, 0, w, h, self.bitmapdc, 0, 0)
+            memdc.SelectObject(wx.NullBitmap)
+            bitmap.SaveFile(ALLPATCHES_TMP, wx.BITMAP_TYPE_PNG)
+            # End ugh.
+            #nppatch = scipy.ndimage.imread(ALLPATCHES_TMP, flatten=True)
+            self.start_tempmatch(npimg, ALLPATCHES_TMP)
             '''
             x_img, y_img = int(x / self.cellw), int(y / self.cellh)
             w, h = box.width, box.height
@@ -136,6 +154,23 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             boxesmap = do_template_match(box, self.
             '''
         self.Refresh()
+
+    def start_tempmatch(self, digitimg, allimgpath):
+        self.queue = Queue.Queue()
+        t = ThreadDoTempMatch(digitimg, allimgpath, self.queue, self.DIGITTEMPMATCH_JOB_ID)
+
+        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
+                             msg="Finding digit instances...",
+                             job_id=self.DIGITTEMPMATCH_JOB_ID)
+        t.start()
+        gauge.Show()
+        
+    def on_tempmatchdone(self):
+        """Called when the template-matching thread is finished. """
+        print "TEMPMATCH DONE."
+        queue = self.queue
+        matches = queue.get()
+        print "Num. Matches Found:", len(matches)
 
     def onMotion(self, evt):
         x,y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -238,6 +273,26 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dc.SetPen(wx.Pen("Red", 2))
             x1, y1, x2, y2 = make_canonical(*self._box.get_coords())
             dc.DrawRectangle(x1, y1, self._box.width, self._box.height)
+
+class ThreadDoTempMatch(threading.Thread):
+    def __init__(self, img1, img2_path, queue, job_id, *args, **kwargs):
+        """ Search for img1 within img2. """
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.img1 = img1
+        self.img2_path = img2_path
+        self.queue = queue
+        self.job_id = job_id
+        
+    def run(self):
+        h, w =  self.img1.shape
+        bb = [0, h-1, 0, w-1]
+        matches = shared.find_patch_matchesV1(self.img1, bb, (self.img2_path,))
+        print 'DONE with temp matching'
+        self.queue.put(matches)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick",
+                     (self.job_id,))
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
+                     (self.job_id,))
         
 class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
