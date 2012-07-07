@@ -171,9 +171,14 @@ class VerifyPanel(wx.Panel):
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
+
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
         self.no_button = wx.Button(self.mainPanel, label="No")
+        # Buttons for MODE_YESNO2
+        self.manuallylabelButton = wx.Button(self.mainPanel, label='Manually Label This Group')
+        self.manuallylabelButton.Bind(wx.EVT_BUTTON, self.OnClickLabelManually)
+
         hbox5.Add((5,-1))
         hbox5.Add(self.templateChoice, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
@@ -187,6 +192,8 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((40,-1))
+        hbox5.Add(self.manuallylabelButton, flag=wx.LEFT | wx.CENTRE)
 
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
@@ -222,9 +229,11 @@ class VerifyPanel(wx.Panel):
         if self.mode == VerifyPanel.MODE_NORMAL:
             self.yes_button.Hide()
             self.no_button.Hide()
+            self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO:
             self.okayButton.Hide()
             self.quarantineButton.Hide()
+            self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -316,8 +325,12 @@ class VerifyPanel(wx.Panel):
         """
         self.SetSizer(self.sizer, deleteOld=False)
 
-        if self.mode == VerifyPanel.MODE_YESNO:
+        if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
             # Add a dummy group to each GroupClass
+            if self.mode == VerifyPanel.MODE_YESNO:
+                type, val = 'othertype', 'otherval'
+            else:
+                type, val = 'manualtype', 'manualval'
             num_descs = 0
             for group in self.queue:
                 for element in group.elements:
@@ -326,7 +339,7 @@ class VerifyPanel(wx.Panel):
                 break
             for group in self.queue:
                 for element in group.elements:
-                    element[1].append((('othertype','otherval'),) + (('dummy',None),)*num_descs)
+                    element[1].append(((type, val),) + (('dummy',None),)*num_descs)
             
         if self.queue:
             self.select_group(self.queue[0])
@@ -434,7 +447,8 @@ class VerifyPanel(wx.Panel):
         history = set()
         for grouplabel in ordered_attrvals:
             if grouplabel not in history:
-                display_string = str(grouplabel)
+                #display_string = str(grouplabel)
+                display_string = common.str_grouplabel(grouplabel)
                 self.templateChoice.Append(display_string)
                 history.add(grouplabel)
         
@@ -482,6 +496,19 @@ class VerifyPanel(wx.Panel):
         else:
             self.select_group(self.queue[0])
 
+    def OnClickLabelManually(self, event):
+        """ USED FOR MODE_YESNO2. Signal that the user wants to 
+        manually label everything in this group. """
+        self.currentGroup.is_manual = True
+        self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
+        self.remove_group(self.currentGroup)
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        else:
+            self.select_group(self.queue[0])
+            
+
     def is_done_verifying(self):
         return not self.queue
         
@@ -495,13 +522,21 @@ class VerifyPanel(wx.Panel):
         # First populate results
         print "DONE Verifying!"
         self.Disable()
-        results = {} # {grouplabel: elements}
-        for group in self.finished:
-            results.setdefault(group.getcurrentgrouplabel(), []).extend(group.elements)
-        if self.templates:
-            for grouplabel in self.templates:
-                if grouplabel not in results:
-                    results[grouplabel] = []
+        results = {} # {grouplabel: groups}
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            # Hack: Treat each GroupClass as separate categories,
+            # instead of trying to merge them.
+            for group in self.finished:
+                grouplabel = group.orderedAttrVals[0]
+                assert grouplabel not in results
+                results[grouplabel] = [group]
+        else:
+            for group in self.finished:
+                results.setdefault(group.getcurrentgrouplabel(), []).append(group)
+            if self.templates:
+                for grouplabel in self.templates:
+                    if grouplabel not in results:
+                        results[grouplabel] = []
 
         if self.outfilepath:
             pickle.dump(results, open(self.outfilepath, 'wb'))
@@ -513,7 +548,8 @@ class VerifyPanel(wx.Panel):
         def collect_ids(newGroups):
             ids = {} # {str attrname: list of ids}
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
-            for group in newGroups:
+
+            for group in groups:
                 foo = list(group.getcurrentgrouplabel())
                 k = tuple(sorted([t[0] for t in foo]))
                 id = foo[0][1]
@@ -536,7 +572,6 @@ class VerifyPanel(wx.Panel):
                 i += 1
             return group
             
-
         newGroups = self.currentGroup.split()
 
         if self.mode == VerifyPanel.MODE_YESNO2:
