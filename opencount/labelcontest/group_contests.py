@@ -212,7 +212,6 @@ def dfs(graph, start):
     return seen.keys()
 
 def to_graph(lines, width, height):
-
     print width, height
     table = [[None]*(width+20) for _ in range(height+20)]
     equal = []
@@ -380,19 +379,20 @@ def extract_contest(image_path):
 
     return data, do_extract(image_path.split("/")[-1], load_pil(image_path), squares)
 
-def ballot_preprocess(i, f, image, contests, targets):
+def ballot_preprocess(i, f, image, contests, targets, lang):
     print 'making', f, f.split("/")[-1].split(".")[0]
     sub = os.path.join(tmp+"", f.split("/")[-1].split(".")[0]+"-dir")
     os.mkdir(sub)
     res = []
     for c in contests:
         os.mkdir(os.path.join(sub, "-".join(map(str,c))))
-        t = compare_preprocess(os.path.join(sub, "-".join(map(str,c))), image, c, targets)
+        t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
+                               image, c, targets)
         res.append((i, c, t))
     return res
 
 
-def compare_preprocess(path, image, contest, targets):
+def compare_preprocess(lang, path, image, contest, targets):
     #print contest, targets
     #print [intersect(contest, x) for x in targets]
     #print 'all', targets
@@ -411,7 +411,7 @@ def compare_preprocess(path, image, contest, targets):
         img = num2pil(cont_area[upper:lower])
         name = os.path.join(path, str(upper)+".tif")
         img.save(name)
-        os.popen("tesseract %s %s -l eng"%(name, name))
+        os.popen("tesseract %s %s -l %s"%(name, name, lang))
         blocks.append(open(name+".txt").read().decode('utf8'))
     
     print blocks
@@ -472,7 +472,7 @@ def merge_equal(contests):
             # get a representitive, then get the non-matching part, then the text
             #score, matching = compare(s[0][0][2], each[2])
             score = compare(s[0][2], each[2])
-            if score < .2:
+            if score < .4:
                 print 'merging'
                 #s.append((each, matching))
                 s.append(each)
@@ -503,7 +503,7 @@ def equ_class(contests):
         result += merge_equal(group)
     return result
     
-def do_grouping(t, paths):
+def do_grouping(t, paths, lang_map = {}):
     global tmp
     if t[-1] != '/': t += '/'
     tmp = t
@@ -514,8 +514,9 @@ def do_grouping(t, paths):
     for i,f in enumerate(paths):
         print f
         im, (contests, targets) = extract_contest(f)
-        get = ballot_preprocess(i, f, im, contests, targets)
+        lang = lang_map[f] if f in lang_map else 'chi_sim'
+        get = ballot_preprocess(i, f, im, contests, targets, lang)
         ballots.append(get)
     return equ_class(ballots)
 
-#print do_grouping(["../a_election/orange/blanks/"+x for x in os.listdir("../a_election/orange/blanks/")])
+#print do_grouping("tmp", ["/home/nicholas/playaround/chi_small/"+x for x in os.listdir("/home/nicholas/playaround/chi_small/")])

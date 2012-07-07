@@ -162,12 +162,32 @@ class LabelContest(wx.Panel):
 
         button1 = wx.Button(self, label='Previous Contest')
         button2 = wx.Button(self, label='Next Contest')
-        button1.Bind(wx.EVT_BUTTON, lambda x: self.doadd(-1))
         button2.Bind(wx.EVT_BUTTON, lambda x: self.doadd(1))
+        button22 = wx.Button(self, label='Next Unfilled Contest')
+        button1.Bind(wx.EVT_BUTTON, lambda x: self.doadd(-1))
+        def nextunfilled(x):
+            aftertext = [x[0] for x in self.text.items() if x[1] == []]
+            aftertext = [(t,self.contest_order[t].index(c)) for t,c in aftertext]
+            aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
+            #print 'a', aftertext
+            #print self.text
+            #print "MIN", aftertext
+            temp,cont = min(aftertext)
+            #cont = self.contest_order[temp].index(cont)
+            #print "ORDER", self.contest_order[temp]
+            #print "GOING TO CONT", cont
+            #cont = self.contest_order[temp][cont]
+            #print "TRANSLATE TO", cont
+            #print "PICK", temp, cont
+            if temp != self.templatenum:
+                self.nexttemplate(temp-self.templatenum)
+            self.doadd(cont)
+        button22.Bind(wx.EVT_BUTTON, nextunfilled)
 
         textbox.Add(self.textarea)
         textbox.Add(button1)
         textbox.Add(button2)
+        textbox.Add(button22)
 
         self.remainingText = wx.StaticText(self, style=wx.TE_READONLY, size=(150,30))
         textbox.Add(self.remainingText)
@@ -206,7 +226,8 @@ class LabelContest(wx.Panel):
             button5.Bind(wx.EVT_BUTTON, declareReady)
             template.Add(button5)
             def equiv(x):
-                gr = do_grouping(self.proj.ocr_tmp_dir, self.dirList)
+                languages = {}
+                gr = do_grouping(self.proj.ocr_tmp_dir, self.dirList, languages)
                 gr = [[(b[0],b[1]) for b in a] for a in gr]
                 print gr
                 mapping = {}
@@ -424,7 +445,7 @@ class LabelContest(wx.Panel):
         # Save the image corresponding to this template
         self.imgo = Image.open(self.dirList[self.templatenum])
         
-        for ct,cid in enumerate(self.contest_order[self.templatenum]):
+        for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
             self.currentcontests.append((self.templatenum,cid))
 
