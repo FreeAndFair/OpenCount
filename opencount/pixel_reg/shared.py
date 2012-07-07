@@ -17,8 +17,10 @@ LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
 def prepOpenCV(I):
+    I = I + np.float32((np.random.random(I.shape) - .5)*.05)
     I[I>.99]=.99
     I[I<.01]=.01
+    return I
 
 def fastResize(I,rszFac,sig=-1):
     if rszFac==1:
@@ -63,7 +65,7 @@ Output:
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding=.75):
     matchList = [] # (filename, left,right,up,down)
-    prepOpenCV(I);
+    I=prepOpenCV(I);
     I = np.round(fastResize(I,rszFac)*255.)/255;
 
     bb[0] = bb[0]*rszFac
@@ -82,7 +84,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
 
     for imP in imList:
         I1 = standardImread(imP,flatten=True)
-        prepOpenCV(I1)
+        I1=prepOpenCV(I1)
         I1 = np.round(fastResize(I1,rszFac)*255.)/255.
 
         # crop to region if specified
@@ -105,8 +107,9 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
             YX=np.unravel_index(Iout.argmax(),Iout.shape)
             i1=YX[0]; i2=YX[0]+patch.shape[0]
             j1=YX[1]; j2=YX[1]+patch.shape[1]
-            Iout[i1-patch.shape[0]/2:i2+patch.shape[0]/2,
-                 j1-patch.shape[1]/2:j2+patch.shape[1]/2]=0
+
+            Iout[i1-patch.shape[0]/2:i1+patch.shape[0]/2,
+                 j1-patch.shape[1]/2:j1+patch.shape[1]/2]=0
             I1c = I1[i1:i2,j1:j2]
             IO=lk.imagesAlign(I1c,patch,type='rigid')
             Ireg = IO[1]
