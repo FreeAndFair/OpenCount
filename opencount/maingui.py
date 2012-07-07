@@ -500,9 +500,9 @@ class MainFrame(wx.Frame):
     PROJECTS = 0
     CONFIG = 1
     SELECT_TARGETS = 2
-    LABEL_CONTESTS = 3
-    DEFINE_ATTRIBUTES = 4
-    LABEL_ATTRS = 5
+    DEFINE_ATTRIBUTES = 3
+    LABEL_ATTRS = 4
+    LABEL_CONTESTS = 5
     CORRECT_GROUPING = 6
     RUN = 7
     SET_THRESHOLD = 8
@@ -522,10 +522,12 @@ class MainFrame(wx.Frame):
                                                   'cpu' : 'Sanity-check Images Computation'},
                                MainFrame.SELECT_TARGETS: {'user': 'Select/Group Voting Targets',
                                                           'cpu' : 'TemplateMatch Targets Computation'},
-                               MainFrame.LABEL_CONTESTS: {'user': 'Label Contests data entry',
-                                                          'cpu' : 'Label Contests data entry'},
+                               MainFrame.DEFINE_ATTRIBUTES: {'user': 'Label Ballot Attributes',
+                                                           'cpu' : 'Label Ballot Attributes'},
                                MainFrame.LABEL_ATTRS: {'user': 'Label Ballot Attributes',
                                                            'cpu' : 'Label Ballot Attributes'},
+                               MainFrame.LABEL_CONTESTS: {'user': 'Label Contests data entry',
+                                                          'cpu' : 'Label Contests data entry'},
                                MainFrame.CORRECT_GROUPING: {'user': 'Verify Ballot Grouping',
                                                             'cpu' : 'Group Ballots Computation'},
                                MainFrame.RUN: {'user': 'Target Extraction',
@@ -617,9 +619,9 @@ class MainFrame(wx.Frame):
         self.pages = [(self.panel_projects, "Projects"),
                       (self.panel_config, "Import Files"), 
                       (self.panel_specify_voting_targets, "Select and Group Targets"), 
-                      (self.panel_label_contests, "Label Contests"),
                       (self.panel_define_attrs, "Define Ballot Attributes"),
                       (self.panel_label_attrs, "Label Ballot Attributes"),
+                      (self.panel_label_contests, "Label Contests"),
                       (self.panel_correct_grouping, "Correct Grouping"),
                       (self.panel_run, "Run"),
                       (self.panel_set_threshold, "Set Threshold"),
@@ -1303,6 +1305,7 @@ class Project(object):
                      'projdir_path': projdir_path,
                      'config_path': pathjoin(projdir_path, 'project.config'),
                      'is_multipage': False,
+                     'ocr_tmp_dir': pathjoin(projdir_path, 'ocr_tmp_dir'),
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
                      'contest_text': pathjoin(projdir_path, 'contest_text.csv'),
                      'contest_internal': pathjoin(projdir_path, 'contest_internal.p'),
@@ -1471,7 +1474,7 @@ def is_step_finished(project, stepnum):
                 and os.path.exists(project.raw_samplesdir))
     elif stepnum == MainFrame.SELECT_TARGETS:
         # Must have at least one voting target selected, and
-        # all contests must have more than one target.
+        # all contests must have more than one targyet.
         pass
 
 def get_max_dimensions(imgsdir):

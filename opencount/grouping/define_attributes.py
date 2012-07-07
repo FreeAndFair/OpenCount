@@ -549,6 +549,7 @@ class DefineAttributesPanel(wx.Panel):
         #pickle.dump(output, open(self.project.ballot_attributesfile, 'wb'))
         #common.dump_iworldstate(self.world, self.project.ballot_attributesfile)
         m_boxes = [b.marshall() for b in self.world.get_attrboxes()]
+        print 'export', m_boxes
         pickle.dump(m_boxes, open(self.project.ballot_attributesfile, 'wb'))
 
     def import_attribute_patches(self):
