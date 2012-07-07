@@ -60,9 +60,6 @@ Output:
   Example:
   I1cropped=I1[i1:i2,j1:j2]
 
-TODOS(kai)
-  - return multiple matches on same image
-  - seems to be weird behavior when rszFac is .75
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding=.75):
     matchList = [] # (filename, left,right,up,down)
@@ -73,9 +70,9 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
     bb[1] = bb[1]*rszFac
     bb[2] = bb[2]*rszFac
     bb[3] = bb[3]*rszFac
-    [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],.25)
+    [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],0.0)
     patch = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
-    patch0 = I[bb[0]:bb[1],bb[2]:bb[3]]
+    patch0 = patch[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
 
     if len(bbSearch)>0:
         bbSearch[0] = bbSearch[0]*rszFac
@@ -101,27 +98,24 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
 
-        Iout[Iout==1.0]=0;
+        Iout[Iout==1.0]=0; # opencv bug
 
-        if Iout.max() < threshold:
-            continue
-
-        score1 = Iout.max()
-
-        YX=np.unravel_index(Iout.argmax(),Iout.shape)
-        i1=YX[0]; i2=YX[0]+patch.shape[0]
-        j1=YX[1]; j2=YX[1]+patch.shape[1]
-        I1c = I1[i1:i2,j1:j2]
-        IO=lk.imagesAlign(I1c,patch,type='rigid')
-        Ireg = IO[1]
-        Ireg = Ireg[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
-
-        diff=np.abs(Ireg-patch0);
-        err=np.sum(diff[np.nonzero(diff>.25)])
-
-        score2 = err / diff.size
-
-        matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
+        while Iout.max() > threshold:
+            score1 = Iout.max() # NCC score
+            YX=np.unravel_index(Iout.argmax(),Iout.shape)
+            i1=YX[0]; i2=YX[0]+patch.shape[0]
+            j1=YX[1]; j2=YX[1]+patch.shape[1]
+            Iout[i1-patch.shape[0]/2:i2+patch.shape[0]/2,
+                 j1-patch.shape[1]/2:j2+patch.shape[1]/2]=0
+            I1c = I1[i1:i2,j1:j2]
+            IO=lk.imagesAlign(I1c,patch,type='rigid')
+            Ireg = IO[1]
+            Ireg = Ireg[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
+            diff=np.abs(Ireg-patch0);
+            diff=diff[5:diff.shape[0]-5,5:diff.shape[1]-5];
+            err=np.sum(diff[np.nonzero(diff>.25)])
+            score2 = err / diff.size # pixel reg score
+            matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
 
     return matchList
 
@@ -384,7 +378,8 @@ def arraySlice(A,inds):
     return out
 
 def standardImread(fNm,flatten=False):
-    I=np.float32(misc.imread(fNm)/255.0)
+    Icv=cv.LoadImage(fNm);
+    I=np.float32(np.asarray(Icv[:,:])/255.0)
     if flatten:
         I=rgb2gray(I)
     return I
