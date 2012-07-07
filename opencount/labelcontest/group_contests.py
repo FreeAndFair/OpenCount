@@ -5,8 +5,8 @@ from collections import Counter
 
 black = 200
 
-do_save = True
-export = True
+do_save = False
+export = False
 
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
@@ -417,13 +417,14 @@ def compare_preprocess(lang, path, image, contest, targets):
         name = os.path.join(path, str(upper)+".tif")
         img.save(name)
         os.popen("tesseract %s %s -l %s"%(name, name, lang))
+        istarget = (upper != 0)
         if os.path.exists(name+".txt"):
-            blocks.append(open(name+".txt").read().decode('utf8'))
+            blocks.append((istarget, open(name+".txt").read().decode('utf8')))
         else:
             print "-"*40
             print "OCR FAILED"
             print "-"*40
-            blocks.append("")
+            blocks.append((istarget, ""))
             
     
     print blocks
@@ -449,22 +450,40 @@ def row_dist(a, b):
 
 count = 0
 def compare(otexts1, otexts2):
-    texts1 = dict((x, len(x)) for x in otexts1)
-    texts2 = dict((x, len(x)) for x in otexts2)
+    print 'running with1', otexts1
+    print 'running with2', otexts2
+    # text -> length
+    texts1 = dict((y, len(y)) for x,y in otexts1)
+    texts2 = dict((y, len(y)) for x,y in otexts2)
+    # text -> target true/false
+    istargs1 = dict((y,x) for x,y in otexts1)
+    istargs2 = dict((y,x) for x,y in otexts2)
+    # Text associated with targets only
+    targtext1 = [y for x,y in otexts1 if x]
+    targtext2 = [y for x,y in otexts2 if x]
     size = sum(texts1.values())+sum(texts2.values())
     weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
+
+    print "11111"
+    for each in enumerate(targtext1): print each
+    print "22222"
+    for each in enumerate(targtext2): print each
 
     val = 0
     matching = []
     while texts1 != {} and texts2 != {}:
         for weight,a,b in weights:
-            if a in texts1 and b in texts2:
-                matching.append((otexts1.index(a), otexts2.index(b)))
+            if a in texts1 and b in texts2 and istargs1[a] == istargs2[b]:
+                if istargs1[a] == True:
+                    print 'together', targtext1.index(a), targtext2.index(b)
+                    matching.append((targtext1.index(a),
+                                     targtext2.index(b)))
                 val += weight
                 del texts1[a]
                 del texts2[b]
                 break
-    return float(val+sum(texts1.values())+sum(texts1.values()))/size#, matching
+    print "MATCHING", matching
+    return float(val+sum(texts1.values())+sum(texts1.values()))/size, matching
 
 def first_pass(contests):
     ht = {}
@@ -482,16 +501,16 @@ def merge_equal(contests):
         found = False
         for s in sets:
             # get a representitive, then get the non-matching part, then the text
-            #score, matching = compare(s[0][0][2], each[2])
-            score = compare(s[0][2], each[2])
+            score, matching = compare(s[0][0][2], each[2])
+            #score = compare(s[0][2], each[2])
             if score < .2:
-                #s.append((each, matching))
-                s.append(each)
+                s.append((each, matching))
+                #s.append(each)
                 found = True
                 break
         if not found:
-            #sets.append([(each, list(zip(range(len(each)), range(len(each)))))])
-            sets.append([each])
+            sets.append([(each, list(zip(range(len(each[2])), range(len(each[2])))))])
+            #sets.append([each])
     return sets
     for s in sets:
         print '='*80
@@ -511,10 +530,12 @@ def equ_class(contests):
     result = []
     for group in groups:
         result += merge_equal(group)
+    print "RETURNING", result
     return result
     
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
+    print "ARGUMENTS", (t, paths, giventargets, lang_map)
     print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
@@ -532,3 +553,4 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
     return equ_class(ballots)
 
 #print do_grouping("tmp", ["/home/nicholas/playaround/chi_small/"+x for x in os.listdir("/home/nicholas/playaround/chi_small/")])
+#do_grouping('ocr_tmp_dir', ['/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3116_1_36_1.png', '/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3115_1_34_1.png'], [[(635, 366, 702, 404), (636, 469, 703, 507), (635, 573, 702, 611), (635, 678, 702, 716), (635, 781, 702, 819), (635, 886, 702, 924), (635, 989, 702, 1027), (635, 1093, 702, 1131), (635, 1196, 702, 1234), (635, 1301, 702, 1339), (637, 1403, 704, 1441), (635, 1508, 702, 1546), (636, 1611, 703, 1649), (636, 1715, 703, 1753), (636, 1819, 703, 1857), (636, 1923, 703, 1961), (636, 2027, 703, 2065), (636, 2130, 703, 2168), (636, 2234, 703, 2272), (637, 2337, 704, 2375), (636, 2442, 703, 2480), (638, 2544, 705, 2582), (1125, 304, 1192, 342), (1125, 407, 1192, 445), (1125, 511, 1192, 549), (1125, 701, 1192, 739), (1126, 805, 1193, 843), (1125, 911, 1192, 949), (1125, 1013, 1192, 1051), (1126, 1203, 1193, 1241), (1126, 1307, 1193, 1345), (1126, 1411, 1193, 1449), (1126, 1515, 1193, 1553), (1126, 1650, 1193, 1688), (1125, 1753, 1192, 1791), (1126, 2250, 1193, 2288), (1126, 2323, 1193, 2361), (1126, 2395, 1193, 2433)], [(635, 368, 702, 406), (636, 472, 703, 510), (634, 576, 701, 614), (635, 679, 702, 717), (635, 782, 702, 820), (634, 886, 701, 924), (634, 990, 701, 1028), (636, 1093, 703, 1131), (634, 1197, 701, 1235), (634, 1301, 701, 1339), (635, 1403, 702, 1441), (635, 1506, 702, 1544), (635, 1610, 702, 1648), (634, 1714, 701, 1752), (634, 1818, 701, 1856), (636, 1921, 703, 1959), (634, 2025, 701, 2063), (636, 2126, 703, 2164), (635, 2231, 702, 2269), (635, 2334, 702, 2372), (636, 2438, 703, 2476), (636, 2541, 703, 2579), (1124, 306, 1191, 344), (1124, 411, 1191, 449), (1124, 514, 1191, 552), (1124, 703, 1191, 741), (1124, 807, 1191, 845), (1123, 911, 1190, 949), (1124, 1014, 1191, 1052), (1123, 1205, 1190, 1243), (1124, 1308, 1191, 1346), (1124, 1412, 1191, 1450), (1123, 1602, 1190, 1640), (1124, 1705, 1191, 1743), (1123, 1809, 1190, 1847), (1124, 2303, 1191, 2341), (1123, 2376, 1190, 2414), (1124, 2449, 1191, 2487)]], {})

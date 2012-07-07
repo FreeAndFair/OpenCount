@@ -1373,6 +1373,7 @@ def get_projects(dir_projects):
     dir_projects/leon_election/<step>/*
     """
     projects = []
+
     dirpath, dirnames, filenames = next(os.walk(dir_projects))
     for proj_name in dirnames:
         projdir_path = pathjoin(dirpath, proj_name)
