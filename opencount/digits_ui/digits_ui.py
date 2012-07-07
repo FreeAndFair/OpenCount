@@ -77,9 +77,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         assert self._box
         if self._box.width < 4 or self._box.height < 4:
             self._box = None
-            return
-        self.boxes.append(self._box)
+            return None
+        tmp = self._box
         self._box = None
+        return tmp
     def _is_box(self):
         """ Returns True if I'm in the middle of creating a box """
         return self._box != None
@@ -98,13 +99,42 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def onLeftDown(self, evt):
         x,y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         i,j = self.xy2cell(x,y)
-        print "Looking at imgpath:", self.cell2imgID[(i,j)]
+        #print "Looking at imgpath:", self.cell2imgID[(i,j)]
         self._start_box(x, y)
         self.Refresh()
         
+    def extract_patch(self, x1, y1, x2, y2):
+        memory = wx.MemoryDC()
+        w, h = abs(x2-x1), abs(y2-y1)
+        bitmap = wx.EmptyBitmap(w, h, -1)
+        memory.SelectObject(bitmap)
+        memory.Blit(0, 0, w, h, self.bitmapdc, x1, y1)
+        memory.SelectObject(wx.NullBitmap)
+        # Having trouble converting the damn bitmap to a numpy
+        # array. Wtf. I'll just save it to a temp file, argh.
+        bitmap.SaveFile('patch_tmp.png', wx.BITMAP_TYPE_PNG)
+        '''
+        bitmap.SaveFile('foo.png', wx.BITMAP_TYPE_PNG)
+        foo = np.array((0,)*(w*h))
+        bitmap.CopyToBuffer(foo)
+        scipy.misc.imsave('fooarray.png', foo)
+        '''
+
     def onLeftUp(self, evt):
         x,y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        self._finish_box(x,y)
+        box = self._finish_box(x,y)
+        if box:
+            #npimg = self.extract_patch(box.x1, box.y1, box.x2, box.y2)
+            self.extract_patch(box.x1, box.y1, box.x2, box.y2)
+            npimg = scipy.ndimage.imread('patch_tmp.png', flatten=True)
+            
+            '''
+            x_img, y_img = int(x / self.cellw), int(y / self.cellh)
+            w, h = box.width, box.height
+            
+            im = scipy.misc.imread(
+            boxesmap = do_template_match(box, self.
+            '''
         self.Refresh()
 
     def onMotion(self, evt):
