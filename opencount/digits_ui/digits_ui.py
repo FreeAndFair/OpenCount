@@ -12,6 +12,7 @@ sys.path.append('..')
 import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
+from grouping import common
 
 """
 Assumes extracted_dir looks like:
@@ -37,11 +38,74 @@ class Box(object):
     def get_coords(self):
         return self.x1, self.y1, self.x2, self.y2
 
+    def __eq__(self, o):
+        return (o and issubclass(type(o), Box) and
+                self.x1 == o.x1 and self.y1 == o.y1 and
+                self.x2 == o.x2 and self.y2 == o.y2)
+
+    @staticmethod
+    def make_canonical(box):
+        """ Takes two arbitrary (x,y) points and re-arranges them
+        such that we get:
+            (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
+        """
+        xa, ya, xb, yb = box.get_coords()
+        w, h = abs(xa - xb), abs(ya - yb)
+        if xa < xb and ya < yb:
+            # UpperLeft, LowerRight
+            return (xa, ya, xb, yb)
+        elif xa < xb and ya > yb:
+            # LowerLeft, UpperRight
+            return (xa, ya - h, xa, ya + h)
+        elif xa > xb and ya < yb:
+            # UpperRight, LowerLeft
+            return (xa - w, ya, xb + w, yb)
+        else:
+            # LowerRight, UpperLeft
+            return (xb, yb, xa, ya)
+
+    @staticmethod
+    def is_overlap(box1, box2):
+        """
+        Returns True if any part of rect1 is contained within rect2.
+        Input:
+            rect1: Tuple of (x1,y1,x2,y2)
+            rect2: Tuple of (x1,y1,x2,y2)
+        """
+        def is_within_box(pt, box):
+            return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
+        x1, y1, x2, y2 = Box.make_canonical(box1)
+        w, h = abs(x2-x1), abs(y2-y1)
+        # Checks (in order): UL, UR, LR, LL corners
+        return (is_within_box((x1,y1), rect1) or
+                is_within_box((x1+w,y1), rect1) or 
+                is_within_box((x1+w,y1+h), rect1) or 
+                is_within_box((x1,y1+h), rect1))
+    @staticmethod
+    def too_close(box_a, box_b):
+        """
+        Input:
+            box_a, box_b
+        """
+        dist = util_gui.dist_euclidean
+        w, h = box_a.width, box_a.height
+        (x1_a, y1_a, x2_a, y2_a) = Box.make_canonical(box_a)
+        (x1_b, y1_b, x2_b, y2_b) = Box.make_canonical(box_b)
+        return ((abs(x1_a - x1_b) <= w / 2.0 and
+                 abs(y1_a - y1_b) <= h / 2.0) or
+                is_overlap(box_a, box_b) or 
+                is_overlap(box_b, box_a))
+        
+
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
     NUM_COLS = 4
 
     DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
+
+    # Temp image files that we currently use.
+    PATCH_TMP = '_patch_tmp.png'
+    REGION_TMP = '_region_tmp.png'
 
     def __init__(self, parent, extracted_dir, *args, **kwargs):
         """
@@ -95,6 +159,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         assert self._box
         self._box.x2, self._box.y2 = x, y
 
+    def add_box(self, box):
+        assert box not in self.boxes
+        self.boxes.append(box)
+
     def xy2cell(self, x, y):
         """Transforms (x,y) coord to (i,j) cell index."""
         return (int(y / self.cellh), int(x / self.cellw))
@@ -118,7 +186,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         memory.SelectObject(wx.NullBitmap)
         # Having trouble converting the damn bitmap to a numpy
         # array. Wtf. I'll just save it to a temp file, argh.
-        bitmap.SaveFile('patch_tmp.png', wx.BITMAP_TYPE_PNG)
+        bitmap.SaveFile(self.PATCH_TMP, wx.BITMAP_TYPE_PNG)
         '''
         bitmap.SaveFile('foo.png', wx.BITMAP_TYPE_PNG)
         foo = np.array((0,)*(w*h))
@@ -132,9 +200,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if box:
             #npimg = self.extract_patch(box.x1, box.y1, box.x2, box.y2)
             self.extract_patch(box.x1, box.y1, box.x2, box.y2)
-            PATCH_TMP = 'patch_tmp.png'
-            ALLPATCHES_TMP = 'allpatches_tmp.png'
-            npimg = scipy.ndimage.imread(PATCH_TMP, flatten=True)
+            npimg = scipy.ndimage.imread(self.PATCH_TMP, flatten=True)
             # Save self.bitmapdc to a tmp png file. Ugh.
             memdc = wx.MemoryDC()
             w, h = self.bitmapdc.GetSize()
@@ -142,17 +208,24 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             memdc.SelectObject(bitmap)
             memdc.Blit(0, 0, w, h, self.bitmapdc, 0, 0)
             memdc.SelectObject(wx.NullBitmap)
-            bitmap.SaveFile(ALLPATCHES_TMP, wx.BITMAP_TYPE_PNG)
+            bitmap.SaveFile(self.REGION_TMP, wx.BITMAP_TYPE_PNG)
             # End ugh.
             #nppatch = scipy.ndimage.imread(ALLPATCHES_TMP, flatten=True)
-            self.start_tempmatch(npimg, ALLPATCHES_TMP)
-            '''
-            x_img, y_img = int(x / self.cellw), int(y / self.cellh)
-            w, h = box.width, box.height
-            
-            im = scipy.misc.imread(
-            boxesmap = do_template_match(box, self.
-            '''
+
+            # == Now, have user label the selected-digit
+            dlg = LabelDigitDialog(self, caption="What digit is this?",
+                                   labels=("Digit?:",),
+                                   imgpath=self.PATCH_TMP)
+            self.Disable()
+            retstat = dlg.ShowModal()
+            self.Enable()
+            if retstat == wx.ID_CANCEL:
+                return
+            digitval = dlg.results["Digit?:"]
+            self.current_digit = digitval
+
+            # == Now, perform template matching across all patches
+            self.start_tempmatch(npimg, self.REGION_TMP)
         self.Refresh()
 
     def start_tempmatch(self, digitimg, allimgpath):
@@ -169,8 +242,51 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Called when the template-matching thread is finished. """
         print "TEMPMATCH DONE."
         queue = self.queue
+        exemplar_img = queue.get()
         matches = queue.get()
-        print "Num. Matches Found:", len(matches)
+
+        if not matches:
+            print "Couldn't find any matches."
+            return
+
+        print "Num. Matches Found:", len(matches)            
+        tmp_dir = '_tmp_overlays'
+        util_gui.create_dirs(tmp_dir)
+        self.overlaymaps = {} # maps {int matchID: (i,j)}
+        grouplabel = common.make_grouplabel(('digit', self.current_digit))
+        examples = []
+        for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
+            coords = map(lambda c:int(round(c*rszFac)),(x1,y1,x2,y2))
+            i, j = self.xy2cell(coords[0], coords[1])
+            self.overlaymaps[matchID] = (i,j)
+            patchpath = '{0}_match.png'.format(matchID)
+            scipy.misc.imsave(patchpath, Ireg)
+            examples.append((filename, (grouplabel,), patchpath))
+        group = common.GroupClass(examples)
+        exemplar_paths = {grouplabel: self.PATCH_TMP}
+
+        # == Now, verify the found-matches via overlay-verification
+        verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
+        self.Disable()
+        verifypanel.start(group, exemplar_paths, ondone=self.on_verifydone)
+
+    def on_verifydone(self, results):
+        """Invoked once the user has finished verifying the template
+        matching on the current digit. Add all 'correct' matches to
+        our self.boxes.
+        """
+        def dont_add(newbox):
+            for box in self.boxes:
+                if Box.too_close(newbox, box):
+                    return True
+            return False
+        self.Enable()
+        print "Verifying done."
+        for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+            coords = map(lambda c:int(round(c*rszFac)), (x1,y1,x2,y2))
+            newbox = Box(*(x1, y1, x2, y2))
+            if not dont_add(newbox):
+                self.add_box(self.boxes)
 
     def onMotion(self, evt):
         x,y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -245,33 +361,15 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def _draw_boxes(self, dc):
         """ Draws boxes """
-        def make_canonical(xa, ya, xb, yb):
-            """ Takes two arbitrary (x,y) points and re-arranges them
-            such that we get:
-                (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
-            """
-            w, h = abs(xa - xb), abs(ya - yb)
-            if xa < xb and ya < yb:
-                # UpperLeft, LowerRight
-                return (xa, ya, xb, yb)
-            elif xa < xb and ya > yb:
-                # LowerLeft, UpperRight
-                return (xa, ya - h, xa, ya + h)
-            elif xa > xb and ya < yb:
-                # UpperRight, LowerLeft
-                return (xa - w, ya, xb + w, yb)
-            else:
-                # LowerRight, UpperLeft
-                return (xb, yb, xa, ya)
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Green", 2))
         for box in self.boxes:
-            x1, y1, x2, y2 = make_canonical(*box.get_coords())
+            x1, y1, x2, y2 = Box.make_canonical(box)
             dc.DrawRectangle(x1, y1, box.width, box.height)
         # Draw box-in-progress
         if self._box:
             dc.SetPen(wx.Pen("Red", 2))
-            x1, y1, x2, y2 = make_canonical(*self._box.get_coords())
+            x1, y1, x2, y2 = Box.make_canonical(self._box)
             dc.DrawRectangle(x1, y1, self._box.width, self._box.height)
 
 class ThreadDoTempMatch(threading.Thread):
@@ -280,19 +378,36 @@ class ThreadDoTempMatch(threading.Thread):
         threading.Thread.__init__(self, *args, **kwargs)
         self.img1 = img1
         self.img2_path = img2_path
+
         self.queue = queue
         self.job_id = job_id
         
     def run(self):
         h, w =  self.img1.shape
         bb = [0, h-1, 0, w-1]
-        matches = shared.find_patch_matchesV1(self.img1, bb, (self.img2_path,))
-        print 'DONE with temp matching'
+        try:
+            matches = shared.find_patch_matchesV1(self.img1, bb, (self.img2_path,))
+        except Exception as e:
+            print e
+            print "ERROR"
+        print "DONE with temp matching. Found: {0} matches".format(len(matches))
+        self.queue.put(self.img1)
         self.queue.put(matches)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick",
                      (self.job_id,))
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
                      (self.job_id,))
+
+    def abort(self):
+        print "Sorry, abort not implemented yet. :("
+
+class LabelDigitDialog(common.TextInputDialog):
+    def __init__(self, parent, imgpath=None, *args, **kwargs):
+        common.TextInputDialog.__init__(self, parent, *args, **kwargs)
+        img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
+        staticbitmap = wx.StaticBitmap(self, bitmap=wx.BitmapFromImage(img))
+        self.sizer.Insert(1, staticbitmap, proportion=0)
+        self.Fit()
         
 class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
