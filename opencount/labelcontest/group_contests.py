@@ -406,7 +406,7 @@ def compare_preprocess(lang, path, image, contest, targets):
     targets = [x for x in targets if intersect(contest, x) == x]
     l,u,r,d = contest
     cont_area = load_num(pilimg=num2pil(image).crop((l+10,u+10,r-10,d-10)))
-    print contest
+    print "TEXT FOR", contest
     #print "bottom of box", d
     #print 'targets', targets
     tops = [0]+sorted([a[1]-u-10 for a in targets])+[d]
@@ -414,13 +414,14 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print "USING", tops
     blocks = []
     for upper,lower in zip(tops, tops[1:]):
-        print upper, lower
+        print "POS", upper, lower
         img = num2pil(cont_area[upper:lower])
         name = os.path.join(path, str(upper)+".tif")
         img.save(name)
         os.popen("tesseract %s %s -l %s"%(name, name, lang))
         istarget = (upper != 0)
         if os.path.exists(name+".txt"):
+            print "THIS BLOCK GOT", open(name+".txt").read().decode('utf8')
             blocks.append((istarget, open(name+".txt").read().decode('utf8')))
         else:
             print "-"*40
@@ -543,8 +544,11 @@ def merge_contests(ballot_data, fulltargets):
         for group in targets:
             print 'targs is', group
             equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
-            print 'add', list(set(equal))
-            merged = sum([ballot[x][2] for x in list(set(equal))],[])
+            equal_uniq = []
+            for e in equal:
+                if e not in equal_uniq: equal_uniq.append(e)
+            print 'add', equal_uniq
+            merged = sum([ballot[x][2] for x in equal_uniq],[])
             new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in list(set(equal))], merged))
         new_data.append(new_ballot)
     print new_data
@@ -571,4 +575,3 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
     print "WORKING ON", ballots
     ballots = merge_contests(ballots, giventargets)
     return equ_class(ballots)
-
