@@ -336,7 +336,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         #                    rate_x=self.cellw, rate_y=self.cellh,
         #                    scrollToTop=True)
         self.SetScrollbars(self.cellw, self.cellh,
-                           self.NUM_COLS - 1, self.i)
+                           self.NUM_COLS - 1, self.i - 1)
         self.Refresh()
 
     def _get_cur_loc(self):
@@ -415,7 +415,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             self.i_cur = pos
         self.update_cells()
         evt.Skip()
-        self.Refresh()
 
     def onScrollChanged(self, evt):
         print "on scroll chaaaaaaaannnggeedd"
@@ -473,8 +472,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             ii_cur += 1
         print "Should be {0} imgs displayed. (i,j) = {1}, (icur,jcur) = {2}".format(ct, (self.i,self.j),
                                                                                     (self.i_cur, self.j_cur))
-        print "bitmapdc.size:", self.bitmapdc.GetSize()
-        self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
+        #self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
         self.Refresh()
 
     def add_img(self, imgbitmap, imgID):
@@ -521,19 +519,24 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dc = wx.BufferedPaintDC(self)
         # You must do PrepareDC in order to force the dc to account
         # for scrolling.
-        #self.PrepareDC(dc)
+        self.PrepareDC(dc)
         w, h = dc.GetSize()
         if self.i_cur == None or self.j_cur == None or self.cellw == None or self.cellh == None:
             evt.Skip(); return
         #x, y = self.cell2xy(self.i_cur % self.NUM_ROWS, self.j_cur % self.NUM_COLS)
-        #j, i = self.GetViewStart()
+        j, i = self.GetViewStart()
+        print 'view start:', j, i
         #x, y = self.cell2xy(i
         #print 'drawing from:', x, y
         #print 'viewstart:', self.GetViewStart()
         #dc.Blit(0, 0, w, h, self.bitmapdc, x, y)
-        dc.Blit(0, 0, w, h, self.bitmapdc, 0, 0)
+        dc.SetBackground(wx.Brush("Grey"))
+        dc.Clear()
+        print 'dc size: {0}  bitmapdc size: {1}'.format(dc.GetSize(), self.bitmapdc.GetSize())
+        dc.Blit(0, 0, w, h, self.bitmapdc, (j * self.cellw), (i * self.cellh))
+        self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
         self._draw_boxes(dc)
-        evt.Skip()
+        #evt.Skip()
 
     def _draw_boxes(self, dc):
         """ Draws boxes """
