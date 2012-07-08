@@ -122,8 +122,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        #self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
-        #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
+        self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
         
@@ -142,10 +142,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         
         w, h = compute_dc_size()
 
-        self.sbitmap = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(w, h, -1))
-        self.sizer.Add(self.sbitmap)
+        self.staticbitmaps = []
 
-        self.bitmapdc = None
         self.i, self.j = 0, 0    # Keeps track of all boxes
         self.i_cur, self.j_cur = 0, 0  # Keeps track of currently
                                        # displayed boxes
@@ -162,16 +160,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_SIZE, self.onSize)
         
-        self.Bind(wx.EVT_SCROLLWIN_TOP, self.onScrollTop)
-        self.Bind(wx.EVT_SCROLLWIN_BOTTOM, self.onScrollBottom)
-        self.Bind(wx.EVT_SCROLLWIN, self.onScrollAll)
-
-        self.Bind(wx.EVT_SCROLLWIN_LINEUP, self.onScrollUp)
-        self.Bind(wx.EVT_SCROLLWIN_LINEDOWN, self.onScrollDown)
-        self.Bind(wx.EVT_SCROLLWIN_THUMBTRACK, self.onScrollThumbTrack)
-        self.Bind(wx.EVT_SCROLLWIN_THUMBRELEASE, self.onScrollThumbRelease)
-        self.Bind(wx.EVT_SCROLL_CHANGED, self.onScrollChanged)
-
     """ Box-Creation methods """
     def _start_box(self, x, y):
         """ Start creating a boundingbox at (x,y) """
@@ -213,6 +201,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Refresh()
         
     def extract_patch(self, x1, y1, x2, y2):
+        return
         memory = wx.MemoryDC()
         w, h = abs(x2-x1), abs(y2-y1)
         bitmap = wx.EmptyBitmap(w, h, -1)
@@ -335,141 +324,34 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         evt.Skip()
 
     def start(self):
-        def compute_dc_size():
-            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    imgpath = pathjoin(dirpath, imgname)
-                    pil_img = util_gui.open_as_grayscale(imgpath)
-                    w, h = pil_img.size
-                    c = float(w) / self.MAX_WIDTH
-                    w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                    if not self.cellh:
-                        self.cellh = h_scaled
-                    return self.cellw * self.NUM_COLS, self.cellh * self.NUM_ROWS
-            return None
-        
-        #wc, hc = self.GetVirtualSize()
-        w, h = compute_dc_size()
-        #self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(wc, hc, wx.BLACK)
-
-        self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(w, h, wx.BLACK)
-
         self.setup_grid()
         self.SetupScrolling(scroll_x=True, scroll_y=True, 
                             rate_x=self.cellw, rate_y=self.cellh,
                             scrollToTop=True)
-        #self.SetScrollbars(10, 10,
-        #                   self.NUM_COLS - 1, self.i - 1)
         self.Refresh()
 
     def _get_cur_loc(self):
         """Returns (x,y) of next cell location """
         return (self.j_cur * self.cellw, self.i_cur * self.cellh)
 
-    def onScrollUp(self, evt):
-        evt.Skip(); return
-    def onScrollDown(self, evt):
-        evt.Skip(); return
-    def onScrollThumbTrack(self, evt):
-        evt.Skip()
-        return
-    def onScrollThumbRelease(self, evt):
-        evt.Skip()
-        return
-    def onScrollTop(self, evt):
-        self.i_cur, self.j_cur = 0, 0
-        evt.Skip()
-    def onScrollBottom(self, evt):
-        self.i_cur = self.i, self.j_cur = self.j
-        evt.Skip()
-    def onScrollAll(self, evt):
-        print "ScrollAll", evt.GetOrientation(), evt.GetPosition()
-        orient = evt.GetOrientation()
-        pos = evt.GetPosition()
-        if orient == wx.HORIZONTAL:
-            self.j_cur = pos
-        else:
-            self.i_cur = pos
-        self.update_cells()
-        #evt.Skip()
-
-    def onScrollChanged(self, evt):
-        self.update_cells()
-        evt.Skip()
-
-    def update_cells(self):
-        """Redraws and updates self.bitmapdc. Might be called if
-        the user scrolled.
-        """
-        def does_imgcell_exist(i, j):
-            if i != self.i:
-                return True
-            else:
-                return j < self.j
-        def is_draw_blank(i,j):
-            if not does_imgcell_exist(i,j):
-                return True
-            else:
-                if i >= self.NUM_ROWS or j >= self.NUM_COLS:
-                    return True
-                else:
-                    return False
-        ct = 0
-        bitmap_row = 0
-        bitmap_col = 0
-        i, j = 0, 0
-        ii_cur, jj_cur = self.i_cur, self.j_cur
-        print 'self.i_cur, self.j_cur:', self.i_cur, self.j_cur
-        while i < (self.NUM_ROWS):
-            j = 0
-            while j < self.NUM_COLS:
-                if jj_cur == self.NUM_COLS or not does_imgcell_exist(ii_cur, jj_cur):
-                    b = util_gui.make_blank_bitmap((self.cellh, self.cellw), 200)
-                    x, y = self.cell2xy(i,j)
-                    self.bitmapdc.DrawBitmap(b, x, y)
-                    j += 1
-                    jj_cur += 1
-                    continue
-
-                imgID = self.cell2imgID[(ii_cur, jj_cur)]
-                pil_img = util_gui.open_as_grayscale(imgID)
-                pil_img.save('{0}_{1}.png'.format(i, j))
-                w, h = pil_img.size
-                c = float(w) / self.MAX_WIDTH
-                w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
-                b = util_gui.PilImageToWxBitmap(pil_img)
-                x,y = self.cell2xy(i, j)
-                print "Displaying image {0} at {1}".format((ii_cur, jj_cur), (x,y))
-                self.bitmapdc.DrawBitmap(b, x, y)
-                jj_cur += 1
-                j += 1
-                ct += 1
-            jj_cur = self.j_cur
-            i += 1
-            ii_cur += 1
-        print "Should be {0} imgs displayed. (i,j) = {1}, (icur,jcur) = {2}".format(ct, (self.i,self.j),
-                                                                                    (self.i_cur, self.j_cur))
-        self.ClearBackground()
-        self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
-        self.sbitmap.SetBitmap(self.bitmapdc.GetBitmap())
-        self.Refresh()
-
-    def add_img(self, imgbitmap, imgID):
+    def add_img(self, imgbitmap, imgID, pil_img):
         """Adds a new image to this grid. """
         #(x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
         assert (self.i, self.j) not in self.cell2imgID
         self.imgID2cell[imgID] = (self.i, self.j)
         self.cell2imgID[(self.i, self.j)] = imgID
-        #self.bitmapdc.DrawBitmap(imgbitmap, x, y)
+        x = self.j * self.cellw
+        y = self.i * self.cellh
         if self.j >= (DigitLabelPanel.NUM_COLS - 1):
             self.i += 1
             self.j = 0
         else:
             self.j += 1
         w, h = imgbitmap.GetSize()
-        #self.gridsizer.Add((w,h))
+        staticbitmap = MyStaticBitmap(self, self.i, self.j, bitmap=imgbitmap, pil_img=pil_img)
+        self.staticbitmaps.append(staticbitmap)
+        self.gridsizer.Add(staticbitmap)
 
     def setup_grid(self):
         """Reads in the digit patches (given by self.extracted_dir),
@@ -486,9 +368,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     self.cellh = h_scaled
                 pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
                 b = util_gui.PilImageToWxBitmap(pil_img)
-                self.add_img(b, imgpath)
+                self.add_img(b, imgpath, pil_img)
         print 'num images:', len(self.imgID2cell)
-        self.update_cells()
         self.Refresh()
                 
     def onPaint(self, evt):
@@ -503,20 +384,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         w, h = dc.GetSize()
         if self.i_cur == None or self.j_cur == None or self.cellw == None or self.cellh == None:
             evt.Skip(); return
-        #x, y = self.cell2xy(self.i_cur % self.NUM_ROWS, self.j_cur % self.NUM_COLS)
-        #j, i = self.GetViewStart()
-        #x, y = self.cell2xy(i
-        #print 'drawing from:', x, y
-        #print 'viewstart:', self.GetViewStart()
-        #dc.Blit(0, 0, w, h, self.bitmapdc, x, y)
-        #dc.SetBackground(wx.Brush("Grey"))
-        #dc.Clear()
-        #b = self.bitmapdc.GetBitmap()
-        #self.sbitmap.SetBitmap(b)
-        #dc.Blit(0, 0, w, h, self.bitmapdc, (j * self.cellw), (i * self.cellh))
-        #self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
         self._draw_boxes(dc)
-        #evt.Skip()
+        evt.Skip()
 
     def _draw_boxes(self, dc):
         """ Draws boxes """
@@ -530,6 +399,171 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dc.SetPen(wx.Pen("Red", 2))
             x1, y1, x2, y2 = Box.make_canonical(self._box)
             dc.DrawRectangle(x1, y1, self._box.width, self._box.height)
+
+class MyStaticBitmap(wx.Panel):
+    def __init__(self, parent, i, j, bitmap=None, pil_img=None, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        if not bitmap:
+            bitmap = wx.EmptyBitmap(50, 50, -1)
+        self.bitmap = bitmap
+        self.pil_img = pil_img
+        self.i, self.j = i, j
+        self.boxes = []
+        self._box = None
+
+        self.SetMinSize(bitmap.GetSize())
+
+        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
+        self.Bind(wx.EVT_LEFT_UP, self.onLeftUp)
+        self.Bind(wx.EVT_MOTION, self.onMotion)
+        self.Bind(wx.EVT_PAINT, self.onPaint)
+
+    def cell2xy(self, i, j):
+        return (self.parent.cellw * j, self.parent.cellh * i)
+
+    def _start_box(self, x, y):
+        assert not self._box
+        self._box = Box(x, y, x+1, y+1)
+    def _finish_box(self, x, y):
+        assert self._box
+        if self._box.width < 4 or self._box.height < 4:
+            self._box = None
+            return
+        tmp = self._box
+        self._box = None
+        return tmp
+    def _update_box(self, x, y):
+        assert self._box
+        self._box.x2, self._box.y2 = x, y
+
+    def add_box(self, box):
+        assert box not in self.boxes
+        self.boxes.append(box)
+
+    def start_tempmatch(self, img, regionpath):
+        self.queue = Queue.Queue()
+        t = ThreadDoTempMatch(img, regionpath, self.queue, self.parent.DIGITTEMPMATCH_JOB_ID)
+
+        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
+                             msg="Finding digit instances...",
+                             job_id=self.parent.DIGITTEMPMATCH_JOB_ID)
+        t.start()
+        gauge.Show()        
+
+    def on_tempmatchdone(self):
+        """Called when the template-matching thread is finished. """
+        queue = self.queue
+        exemplar_img = queue.get()
+        matches = queue.get()
+
+        if not matches:
+            print "Couldn't find any matches."
+            return
+
+        print "Num. Matches Found:", len(matches)            
+        tmp_dir = '_tmp_overlays'
+        util_gui.create_dirs(tmp_dir)
+        self.overlaymaps = {} # maps {int matchID: (i,j)}
+        grouplabel = common.make_grouplabel(('digit', self.current_digit))
+        examples = []
+        for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
+            coords = map(lambda c:int(round(c*rszFac)),(x1,y1,x2,y2))
+            patchpath = os.path.join(tmp_dir, '{0}_match.png'.format(matchID))
+            scipy.misc.imsave(patchpath, Ireg)
+            examples.append((filename, (grouplabel,), patchpath))
+        group = common.GroupClass(examples)
+        exemplar_paths = {grouplabel: self.parent.PATCH_TMP}
+
+        # == Now, verify the found-matches via overlay-verification
+        verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
+        self.Disable()
+        self.parent.Disable()
+        verifypanel.start((group,), exemplar_paths, ondone=self.on_verifydone)
+
+    def on_verifydone(self, results):
+        """Invoked once the user has finished verifying the template
+        matching on the current digit. Add all 'correct' matches to
+        our self.boxes.
+        """
+        def dont_add(newbox):
+            for box in self.boxes:
+                if Box.too_close(newbox, box):
+                    return True
+            return False
+        self.Enable()
+        self.parent.Enable()
+        print "Verifying done."
+        for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+            coords = map(lambda c:int(round(c*rszFac)), (x1,y1,x2,y2))
+            newbox = Box(*(x1, y1, x2, y2))
+            if not dont_add(newbox):
+                self.add_box(self.boxes)
+
+    def onLeftDown(self, evt):
+        print 'on left down'
+        x, y = evt.GetPosition()
+        self._start_box(x, y)
+        self.Refresh()
+    def onLeftUp(self, evt):
+        x, y = evt.GetPosition()
+        box = self._finish_box(x, y)
+        if box:
+            # do template matching
+            npimg = self.extract_region(box)
+            scipy.misc.imsave(self.parent.PATCH_TMP, npimg)
+            dlg = LabelDigitDialog(self, caption="What digit is this?",
+                                   labels=("Digit?:",),
+                                   imgpath=self.parent.PATCH_TMP)
+            self.Disable()
+            self.parent.Disable()
+            retstat = dlg.ShowModal()
+            self.Enable()
+            self.parent.Enable()
+            if retstat == wx.ID_CANCEL:
+                return
+            digitval = dlg.results["Digit?:"]
+            self.current_digit = digitval
+            # find_patch_matchesV1 currently takes in imgpaths for the
+            # region: for now, just save region to a tmp img.
+
+            self.pil_img.save(self.parent.REGION_TMP)
+            self.start_tempmatch(npimg, self.parent.REGION_TMP)
+        self.Refresh()
+    def onMotion(self, evt):
+        x, y = evt.GetPosition()
+        if self._box and evt.LeftIsDown():
+            self._update_box(x, y)
+            self.Refresh()
+
+    def extract_region(self, box):
+        """Extracts box from the currently-displayed image. """
+        x1, y1, x2, y2 = Box.make_canonical(box)
+        #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
+        npimg = np.array(self.pil_img)
+        return npimg[y1:y2, x1:x2]
+
+    def onPaint(self, evt):
+        """ Refresh screen. """
+        if self.IsDoubleBuffered():
+            dc = wx.PaintDC(self)
+        else:
+            dc = wx.BufferedPaintDC(self)
+        dc.DrawBitmap(self.bitmap, 0, 0)
+        self._draw_boxes(dc)
+        evt.Skip()
+        
+    def _draw_boxes(self, dc):
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        dc.SetPen(wx.Pen("Green", 2))
+        for box in self.boxes:
+            x1, y1, x2, y2 = Box.make_canonical(box)
+            dc.DrawRectangle(x1, y1, box.width, box.height)
+        # Draw box-in-progress
+        if self._box:
+            dc.SetPen(wx.Pen("Red", 2))
+            x1, y1, x2, y2 = Box.make_canonical(self._box)
+            dc.DrawRectangle(x1, y1, self._box.width, self._box.height)        
 
 class ThreadDoTempMatch(threading.Thread):
     def __init__(self, img1, img2_path, queue, job_id, *args, **kwargs):
