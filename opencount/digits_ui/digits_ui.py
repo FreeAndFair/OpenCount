@@ -99,7 +99,10 @@ class Box(object):
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
-    NUM_COLS = 4
+
+    # Per page
+    NUM_COLS = 3
+    NUM_ROWS = 2
 
     DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
 
@@ -119,11 +122,13 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        self.gridsizer = wx.GridSizer(rows=0, cols=DigitLabelPanel.NUM_COLS)
+        self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
         self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.bitmapdc = None
-        self.i, self.j = 0, 0
+        self.i, self.j = 0, 0    # Keeps track of all boxes
+        self.i_cur, self.j_cur = 0, 0  # Keeps track of currently
+                                       # displayed boxes
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
         self.imgID2cell = {} # Maps {str imgID: (i,j)}
         self.cell2imgID = {} # Maps {(i,j): str imgID}
@@ -137,6 +142,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_SIZE, self.onSize)
         
+        self.Bind(wx.EVT_SCROLLWIN_TOP, self.onScrollTop)
+        self.Bind(wx.EVT_SCROLLWIN_BOTTOM, self.onScrollBottom)
+        self.Bind(wx.EVT_SCROLLWIN, self.onScrollAll)
+
         self.Bind(wx.EVT_SCROLLWIN_LINEUP, self.onScrollUp)
         self.Bind(wx.EVT_SCROLLWIN_LINEDOWN, self.onScrollDown)
         self.Bind(wx.EVT_SCROLLWIN_THUMBTRACK, self.onScrollThumbTrack)
@@ -304,49 +313,178 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         evt.Skip()
 
     def start(self):
-        wc, hc = self.GetClientSize()
-        self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(wc, hc, wx.BLACK)
+        def compute_dc_size():
+            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    imgpath = pathjoin(dirpath, imgname)
+                    pil_img = util_gui.open_as_grayscale(imgpath)
+                    w, h = pil_img.size
+                    c = float(w) / self.MAX_WIDTH
+                    w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
+                    if not self.cellh:
+                        self.cellh = h_scaled
+                    return self.cellw * self.NUM_COLS, self.cellh * self.NUM_ROWS
+            return None
+        
+        #wc, hc = self.GetVirtualSize()
+        w, h = compute_dc_size()
+        #self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(wc, hc, wx.BLACK)
+        self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(w, h, wx.BLACK)
 
         self.setup_grid()
-        self.SetupScrolling(scroll_x=True, scroll_y=True, 
-                            rate_x=10, rate_y=10,
-                            scrollToTop=True)
+        #self.SetupScrolling(scroll_x=True, scroll_y=True, 
+        #                    rate_x=self.cellw, rate_y=self.cellh,
+        #                    scrollToTop=True)
+        self.SetScrollbars(self.cellw, self.cellh,
+                           self.NUM_COLS - 1, self.i)
+        self.Refresh()
 
     def _get_cur_loc(self):
         """Returns (x,y) of next cell location """
-        return (self.j * self.cellw, self.i * self.cellh)
+        return (self.j_cur * self.cellw, self.i_cur * self.cellh)
 
     def onScrollUp(self, evt):
-        orient = 'horiz' if evt.GetOrientation() == wx.HORIZONTAL else 'vert'
-        print evt.GetPosition(), orient, 'up'
-        print 'self.DoGetPosition():', self.DoGetPosition()
+        evt.Skip(); return
+        orient = 'horizontal' if evt.GetOrientation() == wx.HORIZONTAL else 'vertical'
+        if orient == 'horizontal' and self.j_cur < (self.NUM_COLS - 1):
+            self.j_cur += 1
+            print 'self.j_cur now is:', self.j_cur
+        elif orient == 'vertical' and self.i_cur > 0:
+            self.i_cur -= 1
+            print 'self.i_cur now is:', self.i_cur
+        else:
+            print "Not doing a ScrollUp."
+        self.update_cells()
         evt.Skip()
 
     def onScrollDown(self, evt):
-        orient = 'horiz' if evt.GetOrientation() == wx.HORIZONTAL else 'vert'
-        print evt.GetPosition(), orient, 'down'
-        print 'self.DoGetPosition():', self.DoGetPosition()
+        evt.Skip(); return
+        orient = 'horizontal' if evt.GetOrientation() == wx.HORIZONTAL else 'vertical'
+        if orient == 'horizontal' and self.j_cur > 0:
+            self.j_cur -= 1
+            print 'self.j_cur now is:', self.j_cur
+        elif orient == 'vertical' and self.i_cur < (self.NUM_ROWS - 1):
+            self.i_cur += 1
+            print 'self.i_cur now is:', self.i_cur
+        else:
+            print "Not doing a ScrollDown."
+        pos = evt.GetPosition()
+        self.update_cells()
         evt.Skip()
     
     def onScrollThumbTrack(self, evt):
-        print evt.GetPosition(), evt.GetOrientation()
+        evt.Skip()
+        return
+        orient = 'horizontal' if evt.GetOrientation() == wx.HORIZONTAL else 'vertical'
+        if orient == 'horizontal':
+            self.j_cur = evt.GetPosition()
+            print 'self.j_cur now is:', self.j_cur
+        elif orient == 'vertical' and self.i_cur > 0:
+            self.i_cur = evt.GetPosition()
+            print 'self.i_cur now is:', self.i_cur
+        self.update_cells()
         evt.Skip()
     def onScrollThumbRelease(self, evt):
-        print evt.GetPosition(), evt.GetOrientation()
+        evt.Skip()
+        return
+        orient = 'horizontal' if evt.GetOrientation() == wx.HORIZONTAL else 'vertical'
+        if orient == 'horizontal':
+            self.j_cur = evt.GetPosition() - 1
+            print 'self.j_cur now is:', self.j_cur
+        elif orient == 'vertical' and self.i_cur > 0:
+            self.i_cur = evt.GetPosition() - 1
+            print 'self.i_cur now is:', self.i_cur
+        self.update_cells()
         evt.Skip()
 
-    def onScrollChanged(self, evt):
-        print evt.GetPosition()
+    def onScrollTop(self, evt):
+        print "ScrollTop"
+        self.i_cur, self.j_cur = 0, 0
         evt.Skip()
+    def onScrollBottom(self, evt):
+        print "ScrollBottom"
+        self.i_cur = self.i, self.j_cur = self.j
+        evt.Skip()
+    def onScrollAll(self, evt):
+        print "ScrollAll", evt.GetOrientation(), evt.GetPosition()
+        orient = evt.GetOrientation()
+        pos = evt.GetPosition()
+        if orient == wx.HORIZONTAL:
+            self.j_cur = pos
+        else:
+            self.i_cur = pos
+        self.update_cells()
+        evt.Skip()
+        self.Refresh()
+
+    def onScrollChanged(self, evt):
+        print "on scroll chaaaaaaaannnggeedd"
+        orient = 'horizontal' if evt.GetOrientation() == wx.HORIZONTAL else 'vertical'
+        pos = evt.GetPosition()
+        self.update_cells()
+        evt.Skip()
+
+    def update_cells(self):
+        """Redraws and updates self.bitmapdc. Might be called if
+        the user scrolled.
+        """
+        def does_imgcell_exist(i, j):
+            if i != self.i:
+                return True
+            else:
+                return j < self.j
+        def is_draw_blank(i,j):
+            if not does_imgcell_exist(i,j):
+                return True
+            else:
+                if i >= self.NUM_ROWS or j >= self.NUM_COLS:
+                    return True
+                else:
+                    return False
+        ct = 0
+        bitmap_row = 0
+        bitmap_col = 0
+        i, j = 0, 0
+        ii_cur, jj_cur = self.i_cur, self.j_cur
+        while i < (self.NUM_ROWS):
+            j = 0
+            while j < self.NUM_COLS:
+                if jj_cur == self.NUM_COLS or not does_imgcell_exist(ii_cur, jj_cur):
+                    b = util_gui.make_blank_bitmap((self.cellh, self.cellw), 200)
+                    x, y = self.cell2xy(i,j)
+                    self.bitmapdc.DrawBitmap(b, x, y)
+                    j += 1
+                    jj_cur += 1
+                    continue
+                imgID = self.cell2imgID[(ii_cur, jj_cur)]
+                pil_img = util_gui.open_as_grayscale(imgID)
+                w, h = pil_img.size
+                c = float(w) / self.MAX_WIDTH
+                w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
+                pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
+                b = util_gui.PilImageToWxBitmap(pil_img)
+                x,y = self.cell2xy(i, j)
+                self.bitmapdc.DrawBitmap(b, x, y)
+                jj_cur += 1
+                j += 1
+                ct += 1
+            jj_cur = self.j_cur
+            i += 1
+            ii_cur += 1
+        print "Should be {0} imgs displayed. (i,j) = {1}, (icur,jcur) = {2}".format(ct, (self.i,self.j),
+                                                                                    (self.i_cur, self.j_cur))
+        print "bitmapdc.size:", self.bitmapdc.GetSize()
+        self.bitmapdc.GetBitmap().ConvertToImage().SaveFile('foobar.png', wx.BITMAP_TYPE_PNG)
+        self.Refresh()
 
     def add_img(self, imgbitmap, imgID):
         """Adds a new image to this grid. """
-        (x, y) = self._get_cur_loc()
+        #(x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
         assert (self.i, self.j) not in self.cell2imgID
         self.imgID2cell[imgID] = (self.i, self.j)
         self.cell2imgID[(self.i, self.j)] = imgID
-        self.bitmapdc.DrawBitmap(imgbitmap, x, y)
+        #self.bitmapdc.DrawBitmap(imgbitmap, x, y)
         if self.j >= (DigitLabelPanel.NUM_COLS - 1):
             self.i += 1
             self.j = 0
@@ -372,6 +510,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 b = util_gui.PilImageToWxBitmap(pil_img)
                 self.add_img(b, imgpath)
         print 'num images:', len(self.imgID2cell)
+        self.update_cells()
         self.Refresh()
                 
     def onPaint(self, evt):
@@ -382,8 +521,16 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dc = wx.BufferedPaintDC(self)
         # You must do PrepareDC in order to force the dc to account
         # for scrolling.
-        self.PrepareDC(dc)
+        #self.PrepareDC(dc)
         w, h = dc.GetSize()
+        if self.i_cur == None or self.j_cur == None or self.cellw == None or self.cellh == None:
+            evt.Skip(); return
+        #x, y = self.cell2xy(self.i_cur % self.NUM_ROWS, self.j_cur % self.NUM_COLS)
+        #j, i = self.GetViewStart()
+        #x, y = self.cell2xy(i
+        #print 'drawing from:', x, y
+        #print 'viewstart:', self.GetViewStart()
+        #dc.Blit(0, 0, w, h, self.bitmapdc, x, y)
         dc.Blit(0, 0, w, h, self.bitmapdc, 0, 0)
         self._draw_boxes(dc)
         evt.Skip()
