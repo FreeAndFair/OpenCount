@@ -12,7 +12,7 @@ sys.path.append('..')
 import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
-from grouping import common
+from grouping import common, verify_overlays
 
 """
 Assumes extracted_dir looks like:
@@ -136,6 +136,12 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Bind(wx.EVT_LEFT_UP, self.onLeftUp)
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_SIZE, self.onSize)
+        
+        self.Bind(wx.EVT_SCROLLWIN_LINEUP, self.onScrollUp)
+        self.Bind(wx.EVT_SCROLLWIN_LINEDOWN, self.onScrollDown)
+        self.Bind(wx.EVT_SCROLLWIN_THUMBTRACK, self.onScrollThumbTrack)
+        self.Bind(wx.EVT_SCROLLWIN_THUMBRELEASE, self.onScrollThumbRelease)
+        self.Bind(wx.EVT_SCROLL_CHANGED, self.onScrollChanged)
 
     """ Box-Creation methods """
     def _start_box(self, x, y):
@@ -240,7 +246,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         
     def on_tempmatchdone(self):
         """Called when the template-matching thread is finished. """
-        print "TEMPMATCH DONE."
         queue = self.queue
         exemplar_img = queue.get()
         matches = queue.get()
@@ -259,7 +264,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             coords = map(lambda c:int(round(c*rszFac)),(x1,y1,x2,y2))
             i, j = self.xy2cell(coords[0], coords[1])
             self.overlaymaps[matchID] = (i,j)
-            patchpath = '{0}_match.png'.format(matchID)
+            patchpath = os.path.join(tmp_dir, '{0}_match.png'.format(matchID))
             scipy.misc.imsave(patchpath, Ireg)
             examples.append((filename, (grouplabel,), patchpath))
         group = common.GroupClass(examples)
@@ -268,7 +273,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         # == Now, verify the found-matches via overlay-verification
         verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
         self.Disable()
-        verifypanel.start(group, exemplar_paths, ondone=self.on_verifydone)
+        verifypanel.start((group,), exemplar_paths, ondone=self.on_verifydone)
 
     def on_verifydone(self, results):
         """Invoked once the user has finished verifying the template
@@ -300,16 +305,39 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def start(self):
         wc, hc = self.GetClientSize()
-        print 'wc, hc:', wc, hc
         self.bitmapdc = wx.lib.colourchooser.canvas.BitmapBuffer(wc, hc, wx.BLACK)
 
         self.setup_grid()
-        self.SetVirtualSize((1000, 1000))
-        self.SetupScrolling()
+        self.SetupScrolling(scroll_x=True, scroll_y=True, 
+                            rate_x=10, rate_y=10,
+                            scrollToTop=True)
 
     def _get_cur_loc(self):
         """Returns (x,y) of next cell location """
         return (self.j * self.cellw, self.i * self.cellh)
+
+    def onScrollUp(self, evt):
+        orient = 'horiz' if evt.GetOrientation() == wx.HORIZONTAL else 'vert'
+        print evt.GetPosition(), orient, 'up'
+        print 'self.DoGetPosition():', self.DoGetPosition()
+        evt.Skip()
+
+    def onScrollDown(self, evt):
+        orient = 'horiz' if evt.GetOrientation() == wx.HORIZONTAL else 'vert'
+        print evt.GetPosition(), orient, 'down'
+        print 'self.DoGetPosition():', self.DoGetPosition()
+        evt.Skip()
+    
+    def onScrollThumbTrack(self, evt):
+        print evt.GetPosition(), evt.GetOrientation()
+        evt.Skip()
+    def onScrollThumbRelease(self, evt):
+        print evt.GetPosition(), evt.GetOrientation()
+        evt.Skip()
+
+    def onScrollChanged(self, evt):
+        print evt.GetPosition()
+        evt.Skip()
 
     def add_img(self, imgbitmap, imgID):
         """Adds a new image to this grid. """
@@ -343,6 +371,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
                 b = util_gui.PilImageToWxBitmap(pil_img)
                 self.add_img(b, imgpath)
+        print 'num images:', len(self.imgID2cell)
         self.Refresh()
                 
     def onPaint(self, evt):
