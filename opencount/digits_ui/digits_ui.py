@@ -56,6 +56,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
+
+        self.rszFac = None
         
         def compute_dc_size():
             for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
@@ -124,8 +126,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 w, h = pil_img.size
                 c = float(w) / self.MAX_WIDTH
                 w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                if not self.cellh:
+                if self.cellh == None:
                     self.cellh = h_scaled
+                if self.rszFac == None:
+                    self.rszFac = c
                 pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
                 b = util_gui.PilImageToWxBitmap(pil_img)
                 self.add_img(b, imgpath, pil_img, imgpath, c)
@@ -226,6 +230,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         for regionpath, stuff in self.matches.iteritems():
             for (patchpath, matchID, y1, y2, x1, x2, rszFac) in stuff:
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+                # Then, scale it by the resizing done in setup_grid
+                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
                 newbox = Box(*(x1, y1, x2, y2))
                 if not dont_add(newbox, regionpath):
                     added_matches += 1
@@ -258,9 +264,6 @@ class MyStaticBitmap(wx.Panel):
         self.boxes = []
         self._box = None
 
-        # maps {str regionpath: list of (patchpath, matchID, y1,y2,x1,x2, rszFac)
-        self.matches = {}   
-
         self.SetMinSize(bitmap.GetSize())
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
@@ -290,89 +293,6 @@ class MyStaticBitmap(wx.Panel):
         assert box not in self.boxes
         self.boxes.append(box)
 
-    def start_tempmatch(self, img, regionsdir):
-        self.queue = Queue.Queue()
-        t = ThreadDoTempMatch(img, regionsdir, self.queue, self.parent.DIGITTEMPMATCH_JOB_ID)
-
-        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
-                             msg="Finding digit instances...",
-                             job_id=self.parent.DIGITTEMPMATCH_JOB_ID)
-        t.start()
-        gauge.Show()        
-
-    def on_tempmatchdone(self):
-        """Called when the template-matching thread is finished. """
-        queue = self.queue
-        exemplar_img = queue.get()
-        matches = queue.get()
-
-        if not matches:
-            print "Couldn't find any matches."
-            return
-
-        print "Num. Matches Found:", len(matches)            
-        util_gui.create_dirs(self.OVERLAYS_TMP)
-        self.overlaymaps = {} # maps {int matchID: (i,j)}
-        grouplabel = common.make_grouplabel(('digit', self.current_digit))
-        examples = []
-        imgpatch = shared.standardImread(self.parent.PATCH_TMP, flatten=True)
-        h, w = imgpatch.shape
-        for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
-            patchpath = os.path.join(tmp_dir, '{0}_match.png'.format(matchID))
-            Ireg = np.nan_to_num(Ireg)
-            Ireg = shared.fastResize(Ireg, 1 / rszFac)
-            if Ireg.shape != (h, w):
-                newIreg = np.zeros((h,w))
-                newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
-                Ireg = newIreg
-            scipy.misc.imsave(patchpath, Ireg)
-            examples.append((filename, (grouplabel,), patchpath))
-            self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
-        group = common.GroupClass(examples)
-        exemplar_paths = {grouplabel: self.parent.PATCH_TMP}
-
-        # == Now, verify the found-matches via overlay-verification
-        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.on_verifydone)
-        self.f.Maximize()
-        self.Disable()
-        self.parent.Disable()
-        self.f.Show()
-
-    def on_verifydone(self, results):
-        """Invoked once the user has finished verifying the template
-        matching on the current digit. Add all 'correct' matches to
-        our self.boxes.
-        """
-        def dont_add(newbox):
-            for box in self.boxes:
-                if Box.too_close(newbox, box):
-                    return True
-            return False
-        self.f.Close()
-        self.Enable()
-        self.enable_cells()
-        # Remove all matches from self.matches that the user said
-        # was not relevant, during overlay verification
-        for grouplabel, groups in results.iteritems():
-            # groups is a list of GroupClasses
-            # group[i].elements[j] = (regionpath, rankedlist, patchpath)
-            if grouplabel == verify_overlays.VerifyPanel.GROUPLABEL_OTHER:
-                # The user said that these elements are not relevant
-                for groupclass in groups:
-                    assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
-                    for element in groupclass.elements:
-                        regionpath, rankedlist, patchpath = element
-                        stuff = self.matches[regionpath]
-                        # stuff[i] := (patchpath, matchID, y1,y2,x1,x2, rszFac)
-                        stuff = [t for t in stuff if t[0] != patchpath]
-                        self.matches[regionpath] = stuff
-
-        for regionpath, (patchpath, matchID, y1, y2, x1, x2, rszFac) in self.matches.iteritems():
-            x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
-            newbox = Box(*(x1, y1, x2, y2))
-            if not dont_add(newbox, regionpath):
-                self.add_box(newbox, regionpath)
-
     def onLeftDown(self, evt):
         x, y = evt.GetPosition()
         self._start_box(x, y)
@@ -384,25 +304,6 @@ class MyStaticBitmap(wx.Panel):
             # do template matching
             npimg = self.extract_region(box)
             self.parent.start_tempmatch(npimg, self)
-            return
-            scipy.misc.imsave(self.parent.PATCH_TMP, npimg)
-            dlg = LabelDigitDialog(self, caption="What digit is this?",
-                                   labels=("Digit?:",),
-                                   imgpath=self.parent.PATCH_TMP)
-            self.Disable()
-            self.parent.Disable()
-            retstat = dlg.ShowModal()
-            self.Enable()
-            self.parent.Enable()
-            if retstat == wx.ID_CANCEL:
-                return
-            digitval = dlg.results["Digit?:"]
-            self.current_digit = digitval
-            # find_patch_matchesV1 currently takes in imgpaths for the
-            # region: for now, just save region to a tmp img.
-
-            #self.pil_img.save(self.parent.REGION_TMP)
-            self.start_tempmatch(npimg, self.parent.extracted_dir)
         self.Refresh()
     def onMotion(self, evt):
         x, y = evt.GetPosition()
@@ -583,8 +484,13 @@ class TestFrame(wx.Frame):
         self.panel.start()
 
 def main():
+    args = sys.argv[1:]
+    if not args:
+        path = 'test_imgs/extracted_precincts'
+    else:
+        path = args[0]
     app = wx.App(False)
-    frame = TestFrame(None, 'test_imgs/extracted_precincts')
+    frame = TestFrame(None, path)
     app.MainLoop()
 
 if __name__ == '__main__':
