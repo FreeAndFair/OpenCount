@@ -19,83 +19,7 @@ Assumes extracted_dir looks like:
     <projdir>/extracted_attrs/precinct/*.png
 Where each *.png is the result of encodepath'ing a blank ballot
 id.
-"""
-
-class Box(object):
-    def __init__(self, x1, y1, x2, y2):
-        self.x1, self.y1 = x1, y1
-        self.x2, self.y2 = x2, y2
-
-    @property
-    def width(self):
-        return abs(self.x1 - self.x2)
-    @property
-    def height(self):
-        return abs(self.y1 - self.y2)
-    
-    def set_coords(self, pts):
-        self.x1, self.y1, self.x2, self.y2 = pts
-    def get_coords(self):
-        return self.x1, self.y1, self.x2, self.y2
-
-    def __eq__(self, o):
-        return (o and issubclass(type(o), Box) and
-                self.x1 == o.x1 and self.y1 == o.y1 and
-                self.x2 == o.x2 and self.y2 == o.y2)
-
-    @staticmethod
-    def make_canonical(box):
-        """ Takes two arbitrary (x,y) points and re-arranges them
-        such that we get:
-            (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
-        """
-        xa, ya, xb, yb = box.get_coords()
-        w, h = abs(xa - xb), abs(ya - yb)
-        if xa < xb and ya < yb:
-            # UpperLeft, LowerRight
-            return (xa, ya, xb, yb)
-        elif xa < xb and ya > yb:
-            # LowerLeft, UpperRight
-            return (xa, ya - h, xa, ya + h)
-        elif xa > xb and ya < yb:
-            # UpperRight, LowerLeft
-            return (xa - w, ya, xb + w, yb)
-        else:
-            # LowerRight, UpperLeft
-            return (xb, yb, xa, ya)
-
-    @staticmethod
-    def is_overlap(box1, box2):
-        """
-        Returns True if any part of rect1 is contained within rect2.
-        Input:
-            rect1: Tuple of (x1,y1,x2,y2)
-            rect2: Tuple of (x1,y1,x2,y2)
-        """
-        def is_within_box(pt, box):
-            return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
-        x1, y1, x2, y2 = Box.make_canonical(box1)
-        w, h = abs(x2-x1), abs(y2-y1)
-        # Checks (in order): UL, UR, LR, LL corners
-        return (is_within_box((x1,y1), rect1) or
-                is_within_box((x1+w,y1), rect1) or 
-                is_within_box((x1+w,y1+h), rect1) or 
-                is_within_box((x1,y1+h), rect1))
-    @staticmethod
-    def too_close(box_a, box_b):
-        """
-        Input:
-            box_a, box_b
-        """
-        dist = util_gui.dist_euclidean
-        w, h = box_a.width, box_a.height
-        (x1_a, y1_a, x2_a, y2_a) = Box.make_canonical(box_a)
-        (x1_b, y1_b, x2_b, y2_b) = Box.make_canonical(box_b)
-        return ((abs(x1_a - x1_b) <= w / 2.0 and
-                 abs(y1_a - y1_b) <= h / 2.0) or
-                is_overlap(box_a, box_b) or 
-                is_overlap(box_b, box_a))
-        
+"""        
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
@@ -404,6 +328,81 @@ class LabelDigitDialog(common.TextInputDialog):
         staticbitmap = wx.StaticBitmap(self, bitmap=wx.BitmapFromImage(img))
         self.sizer.Insert(1, staticbitmap, proportion=0)
         self.Fit()
+
+class Box(object):
+    def __init__(self, x1, y1, x2, y2):
+        self.x1, self.y1 = x1, y1
+        self.x2, self.y2 = x2, y2
+
+    @property
+    def width(self):
+        return abs(self.x1 - self.x2)
+    @property
+    def height(self):
+        return abs(self.y1 - self.y2)
+    
+    def set_coords(self, pts):
+        self.x1, self.y1, self.x2, self.y2 = pts
+    def get_coords(self):
+        return self.x1, self.y1, self.x2, self.y2
+
+    def __eq__(self, o):
+        return (o and issubclass(type(o), Box) and
+                self.x1 == o.x1 and self.y1 == o.y1 and
+                self.x2 == o.x2 and self.y2 == o.y2)
+
+    @staticmethod
+    def make_canonical(box):
+        """ Takes two arbitrary (x,y) points and re-arranges them
+        such that we get:
+            (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
+        """
+        xa, ya, xb, yb = box.get_coords()
+        w, h = abs(xa - xb), abs(ya - yb)
+        if xa < xb and ya < yb:
+            # UpperLeft, LowerRight
+            return (xa, ya, xb, yb)
+        elif xa < xb and ya > yb:
+            # LowerLeft, UpperRight
+            return (xa, ya - h, xa, ya + h)
+        elif xa > xb and ya < yb:
+            # UpperRight, LowerLeft
+            return (xa - w, ya, xb + w, yb)
+        else:
+            # LowerRight, UpperLeft
+            return (xb, yb, xa, ya)
+
+    @staticmethod
+    def is_overlap(box1, box2):
+        """
+        Returns True if any part of rect1 is contained within rect2.
+        Input:
+            rect1: Tuple of (x1,y1,x2,y2)
+            rect2: Tuple of (x1,y1,x2,y2)
+        """
+        def is_within_box(pt, box):
+            return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
+        x1, y1, x2, y2 = Box.make_canonical(box1)
+        w, h = abs(x2-x1), abs(y2-y1)
+        # Checks (in order): UL, UR, LR, LL corners
+        return (is_within_box((x1,y1), rect1) or
+                is_within_box((x1+w,y1), rect1) or 
+                is_within_box((x1+w,y1+h), rect1) or 
+                is_within_box((x1,y1+h), rect1))
+    @staticmethod
+    def too_close(box_a, box_b):
+        """
+        Input:
+            box_a, box_b
+        """
+        dist = util_gui.dist_euclidean
+        w, h = box_a.width, box_a.height
+        (x1_a, y1_a, x2_a, y2_a) = Box.make_canonical(box_a)
+        (x1_b, y1_b, x2_b, y2_b) = Box.make_canonical(box_b)
+        return ((abs(x1_a - x1_b) <= w / 2.0 and
+                 abs(y1_a - y1_b) <= h / 2.0) or
+                is_overlap(box_a, box_b) or 
+                is_overlap(box_b, box_a))
         
 class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
