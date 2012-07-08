@@ -279,9 +279,9 @@ def do_extract(name, img, squares, giventargets):
         if x == None: return 0
         return (x[2]-x[0])*(x[3]-x[1])
 
-    avg_targ_area = sum(map(area,giventargets))/len(giventargets)
-    squares = [x for x in squares if area(x) > avg_targ_area*2]
     targets = [x for x in giventargets]
+    avg_targ_area = sum(map(area,targets))/len(targets)
+    squares = [x for x in squares if area(x) > avg_targ_area*2]
     """
     ## Begin hack since I have to deal with my own targets
     bigest_box = max(squares, key=area)
@@ -304,7 +304,6 @@ def do_extract(name, img, squares, giventargets):
             del graph[k]
     #print 'after', targets
     """
-    oldtargets = [x for x in targets]
     contests = []
 
     #print "T", targets
@@ -312,7 +311,8 @@ def do_extract(name, img, squares, giventargets):
         if sq in targets: continue
         inside = [t for t in targets if area(intersect(sq, t)) == area(t)]
         if inside != []:
-            otherinside = [t for t in oldtargets if t not in inside and area(intersect(sq, t)) == area(t)]
+            # Check if there are other targets inside of this contest bounding box.
+            otherinside = [t for t in giventargets if t not in inside and area(intersect(sq, t)) == area(t)]
             if otherinside != []:
                 print "HAD AN ERROR ON", name
             contests.append(sq)
@@ -331,18 +331,18 @@ def do_extract(name, img, squares, giventargets):
         imd = ImageDraw.Draw(new)
         for box in contests:
             imd.rectangle(box, outline=(0,0,255))
-        for box in oldtargets:
+        for box in giventargets:
             imd.rectangle(box, fill=(255,0,0))
         new.save(tmp+"/qqq.png")
 
-    return contests, oldtargets
+    return contests
 
     #print targets, contests
     #os.popen("open tmp/*")
     #exit(0)
         
 
-def extract_contest(image_path, targets):
+def extract_contest(image_path, giventargets):
     #Image.open(image_path).save(tmp+"/"+image_path.split("/")[-1][:-4]+"-orig.png")
     data = load_num(image_path)
     lines = find_lines(data)
@@ -382,7 +382,7 @@ def extract_contest(image_path, targets):
         new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-box.png")
 
     return data, do_extract(image_path.split("/")[-1], 
-                            load_pil(image_path), squares, targets)
+                            load_pil(image_path), squares, giventargets)
 
 def ballot_preprocess(i, f, image, contests, targets, lang):
     print 'making', f, f.split("/")[-1].split(".")[0]
@@ -394,6 +394,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
         t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
                                image, c, targets)
         res.append((i, c, t))
+    print "RESULTING", res
     return res
 
 
@@ -532,7 +533,23 @@ def equ_class(contests):
         result += merge_equal(group)
     print "RETURNING", result
     return result
-    
+
+def merge_contests(ballot_data, fulltargets):
+    new_data = []
+    for ballot, targets in zip(ballot_data, fulltargets):
+        print 'next'
+        new_ballot = []
+        for group in targets:
+            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
+            print 'add', list(set(equal))
+            merged = sum([ballot[x][2] for x in list(set(equal))],[])
+            new_ballot.append((ballot[x][0], ballot[x][1], merged))
+        new_data.append(new_ballot)
+    print new_data
+    print new_data == ballot_data
+    return new_data
+            
+
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
     print "ARGUMENTS", (t, paths, giventargets, lang_map)
@@ -546,11 +563,16 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
     print "LEN", len(giventargets), len(paths)
     for i,f in enumerate(paths):
         print f
-        im, (contests, targets) = extract_contest(f, giventargets[i])
+        im, contests = extract_contest(f, sum(giventargets[i],[]))
         lang = lang_map[f] if f in lang_map else 'eng'
-        get = ballot_preprocess(i, f, im, contests, targets, lang)
+        get = ballot_preprocess(i, f, im, contests, sum(giventargets[i],[]), lang)
         ballots.append(get)
+    print "WORKING ON", ballots
+    ballots = merge_contests(ballots, giventargets)
     return equ_class(ballots)
 
 #print do_grouping("tmp", ["/home/nicholas/playaround/chi_small/"+x for x in os.listdir("/home/nicholas/playaround/chi_small/")])
-#do_grouping('ocr_tmp_dir', ['/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3116_1_36_1.png', '/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3115_1_34_1.png'], [[(635, 366, 702, 404), (636, 469, 703, 507), (635, 573, 702, 611), (635, 678, 702, 716), (635, 781, 702, 819), (635, 886, 702, 924), (635, 989, 702, 1027), (635, 1093, 702, 1131), (635, 1196, 702, 1234), (635, 1301, 702, 1339), (637, 1403, 704, 1441), (635, 1508, 702, 1546), (636, 1611, 703, 1649), (636, 1715, 703, 1753), (636, 1819, 703, 1857), (636, 1923, 703, 1961), (636, 2027, 703, 2065), (636, 2130, 703, 2168), (636, 2234, 703, 2272), (637, 2337, 704, 2375), (636, 2442, 703, 2480), (638, 2544, 705, 2582), (1125, 304, 1192, 342), (1125, 407, 1192, 445), (1125, 511, 1192, 549), (1125, 701, 1192, 739), (1126, 805, 1193, 843), (1125, 911, 1192, 949), (1125, 1013, 1192, 1051), (1126, 1203, 1193, 1241), (1126, 1307, 1193, 1345), (1126, 1411, 1193, 1449), (1126, 1515, 1193, 1553), (1126, 1650, 1193, 1688), (1125, 1753, 1192, 1791), (1126, 2250, 1193, 2288), (1126, 2323, 1193, 2361), (1126, 2395, 1193, 2433)], [(635, 368, 702, 406), (636, 472, 703, 510), (634, 576, 701, 614), (635, 679, 702, 717), (635, 782, 702, 820), (634, 886, 701, 924), (634, 990, 701, 1028), (636, 1093, 703, 1131), (634, 1197, 701, 1235), (634, 1301, 701, 1339), (635, 1403, 702, 1441), (635, 1506, 702, 1544), (635, 1610, 702, 1648), (634, 1714, 701, 1752), (634, 1818, 701, 1856), (636, 1921, 703, 1959), (634, 2025, 701, 2063), (636, 2126, 703, 2164), (635, 2231, 702, 2269), (635, 2334, 702, 2372), (636, 2438, 703, 2476), (636, 2541, 703, 2579), (1124, 306, 1191, 344), (1124, 411, 1191, 449), (1124, 514, 1191, 552), (1124, 703, 1191, 741), (1124, 807, 1191, 845), (1123, 911, 1190, 949), (1124, 1014, 1191, 1052), (1123, 1205, 1190, 1243), (1124, 1308, 1191, 1346), (1124, 1412, 1191, 1450), (1123, 1602, 1190, 1640), (1124, 1705, 1191, 1743), (1123, 1809, 1190, 1847), (1124, 2303, 1191, 2341), (1123, 2376, 1190, 2414), (1124, 2449, 1191, 2487)]], {})
+
+#equ_class(merge_contests([[(0, (1110, 281, 1600, 592), [(False, u'\n'), (True, u'Z DIANNE Fenwsrem\nParty Prelcrenoex Democraiic\nUnited States Senator\n\n'), (True, u'\xa4 c0u.EEN sum FERNALD\nParty Preference Democratic\nMctrxer/Co\u20221sn1|an\\/Artrsl\n\n'), (True, u'EI\n\n')]), (0, (1111, 2139, 1600, 2472), [(False, u'Judg\xa40|01\xa4Sn4>\xa4ri\xa4rO\xa411rt\nO|\u2018HceN0.1\nV0te|0rOne\n\n'), (True, u'E Eucmz .uz\u2022-mx\nGeneral Praciioe Atmmey\n\n'), (True, u'\xa4 \xa4Ea0RA\u2022-\u2022 .1. cv\xb7auANcs\nJudge OI me Superior Court\n\n'), (True, u'EI\n\n')]), (0, (1110, 586, 1600, 1095), [(False, u'UNITED STATES REPRESENTATIVE\n48th District\nVote lor One\n\n'), (True, u'\xa4 mm Roe-\u2022RABAcHER\nParty Prelerencex Republican\nLIS. Representative\n\n'), (True, u'\xa4 ALAN scr-num\nParty Prelerencez None\nMarkebng Sales Executive\n\n'), (True, u'D Ron vARAsTEH\nParty Preleaenoez Democratic\nEngineer/Small Businessman\n\n'), (True, u'III\n\n')]), (0, (1111, 1089, 1600, 1835), [(False, u'MEMBER OF THE STATE ASSEMBLY\n72nd District\nVote kx Ons\n\n'), (True, u'E \xb7rRAvns ALLEN\nParty Preluencez Republican\nSmall Business Owner\n\n'), (True, u'D ALBERT AvALA\nPany Prelerencec Democratic\nRetired Poiioe Commander\n\n'), (True, u'E Joe Dovmn\nParty Preference: Democratic\nCity C0mmissi0rverIBusinesspers0n\n\n'), (True, u'E LONG P1-uuva\nPaty Prelerence: Republican\nMember. Orange County Board 07\nEducation\n\n'), (True, u'\xa4 may EDGAR\nPany Preference Republican\nBusinessman/Mayor\n\n'), (True, u'EI\n\n')]), (0, (619, 282, 1116, 2650), [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'D ELIZABETH EMKEN\nParty Preierence Republican\nBusinessw0rnanINcnpr\xa4|it Executive\n\n'), (True, u'D \xbb<AanRu\xa4\xa4nN KARIM ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E Rncx w|LuAMs\nParty Prelerencer Republican\nBusiness Aticmey\n\n'), (True, u'E R0<sEu0 T. G\xa4.0R\xa4A\nPany Preierence: Republican\nGraduate Student/Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nParty Preference: American lndependen\nDoctor 01 Chiropractic\n\n'), (True, u'D Roazm LAUTEN\nParty Preference; Republican\n\n'), (True, u'E ami. K. ucv-m=00r\nParty Preference: Libertarian\nRetired Nurse\n\n'), (True, u'D \xa4Avn\xa4 ALEx Lsvnrr\nParty Prelerence; Democratic\nComputer S<:ientistlEngineer\n\n'), (True, u'\xa4 0RLY mrz\nParty Preference: Republi \xbb n\nDoctor/Attorney/Businessworrran\n\n'), (True, u'E AL RAMrREz\nParty Preference; Republican\nBusinessman\n\n'), (True, u'\xa4 DIRK ALLEN \u2022<0NOPn<\nParty Preference: Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republican\nRetired Administration Director\n\n'), (True, u'Q MIKE smnmuwc;\nParty Preference; Demouatic\nConsumer Rights Attomey\n\n'), (True, u'Q cum; srewmr\nParty Preference; Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'Q NAK sHA\xbb-1\nParty Prelevenoe; Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 mcnum sunmzm\nParty Preierence: Republican\nEducator/Author/Businessrr1an\n\n'), (True, u'E DENNIS JAc\u2022<s0N\nParty Prelererxce Republican\nAerospace General Manager\n\n'), (True, u'\xa4 DAN HUGHES\nParty Pralerence: Republican\nSmall Business Owner\n\n'), (True, u'E GREG <:0r~1L0N\nParty Preference: Republican\nBusmessman/CPA\n\n'), (True, u'E JOHN B0Rur=+=\nParty Preference, Republican\nBusinessman\n\n'), (True, u'D OSCAR ALEJANDRO BRAUN\nParty Preference: Republican\nBusinessman/Rancher\n\n'), (True, u'\xa4 MARSHA Fznwumn\nParty Prelerence: Peace and Freedom\nRehred Teacher\n\n')])], [(1, (1108, 282, 1599, 595), [(False, u'\n'), (True, u'\xa4 Rosem LAUTEN\nParty Preference: Repubiican\n\n'), (True, u'D GAIL K, i.icHTFOOT\nPariy Prelerencet Libertarian\nRetired Nurse\n\n'), (True, u'E\n\n')]), (1, (1108, 2187, 1599, 2531), [(False, u'Judq\xa4\xa41t!1sSup\u2022ricrCc\u2022:i\nO||icoN\xa4.1\nV\xa4t\xa4i\xa4r0n\xa4\n\n'), (True, u'\xa4 EUGENE Jrzr-1A\xbb<\nGeneral Practice Attorney\n\n'), (True, u'Z DEBORAH .1, co-\u2022uANc\nJudge 0i me Supenov Coun\n\n'), (True, u'III\n\n')]), (1, (1108, 1090, 1599, 1492), [(False, u'STATE SENATOR\n29lh Disirld\nVob br Ona\n\n'), (True, u"D GREG DIAMOND\nParty Preierence: Democratic\nW\xa4\u20221<ers' Rights Attorney\n\n"), (True, u'\xa4 R0BERT "BOB" \u2022-uur=r=\nParty Preference: Republican\nLawmaksrlBusiness Ouncv\n\n'), (True, u"IZ'!\n\n")]), (1, (1108, 1486, 1599, 1890), [(False, u'MEMBER OF THE STATE ASSEMBLY\n5501 Disirid\nVon kx Ons\n\n'), (True, u'\xa4 cum HAGMAN\nParty Prelerenca Republican\nBusmess Owner/Assemblyman\n\n'), (True, u'E GREGG 0 \u2022=RncH|.E\nPany Prelcvemez Democratic\nScual Worker\n\n'), (True, u'Z\n\n')]), (1, (1108, 589, 1599, 1096), [(False, u'UNITED STATES REPRESENTATIVE\n3901 Dlsidd\nVcts br Ons\n\n'), (True, u"Q D'MAR|E Mummenn\nParty Pvelarence None\nCommunity Volunteer\n\n"), (True, u'E .1Av cnen\nParty Prelerems: Democratic\nBusmessman/School Bcardmembev\n\n'), (True, u'\xa4 an Rovce\nParty Prelersncez Repustican\nU.S. Representative\n\n'), (True, u'IZ\n\n')]), (1, (619, 284, 1114, 2648), [(False, u'UNITED STATES SENATOR\nVote lor Ono\n\n'), (True, u'Z \xa4Av\u2022\xa4 ALEX uzvm\nParty Preference: Democratic\nComputer Scientist/Engineer\n\n'), (True, u'\xa4 0RLv mnz\nParty Preference; Republican\nD0c|0rIAtt\xa4rr\u2022ey/Busiruesswcrnarw\n\n'), (True, u'Q AL RAMIREZ\nParty Prelecenoe; Republican\nBusinessman\n\n'), (True, u'Z uma ALLEN \u2022<0N0r>n<\nParty Prelerence; Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference; Rcpmuimn\nRedred Adninisuation Directv!\n\n'), (True, u'\xa4 MIKE smnmuucs\nParty Preference: Democratic\nConsuner Rnghts Attorney\n\n'), (True, u'E DIANE sTEwART\nParty Preference: Democrauc\nBusinessuunan/Firnarxce Manager\n\n'), (True, u'E MAK sum\nParty Preterenoe; Democrats\nEnvironmental Health Consultant\n\n'), (True, u'E wacuum sr-unasw\nParty Preference: Republiwn\nEdu\xa22tonAulr\u2022\xa4vlBusirmessrnar\xa4\n\n'), (True, u'E uemms .1Ac\u2022<s0N\nParty Preference: Republican\nAerospace GQVEFBI Manager\n\n'), (True, u'E DAN Hucv-eas\nParty Preference: Republican\nSmall Busaness Owner\n\n'), (True, u'Z GREG c0N\xa4.0~\nParty Preference; Republkzn\nBusinessman/CPA\n\n'), (True, u'E ,10HN BORUFF\nParty Preference: Republi \xbb= n\nBusinessman\n\n'), (True, u'E oscm Aumuuno smuu\nParty Preference: Republican\nBusinessman/Rznd\u2022er\n\n'), (True, u'D MARsHA FEINLAND\nParty Prelerence; Peace and Freedom\nRetired Teadmer\n\n'), (True, u'Q DIANNE Femswsou\nParty Pvelyenoez Democratic\nUnited States Senator\n\n'), (True, u'\xa4 c01.Lea~ sum FERNAL0\nParty Prelerence; Dcmocrahc\nMoliner/C0r\u2022saa|taa\xb7\xa4\u2022/Artist\n\n'), (True, u'\xa4 EuzABErH EMKEN\nParty Prelerevmz Republican\nBusines$w<\xa4nar\xa4IN0r\\g1r0Iit Executive\n\n'), (True, u'E wxnnnunnnw manu ALI\nParty Prelerence: Peace and Freedom\nBusinessman\n\n'), (True, u'\xa4 Rncx wnLuAMs\nParty Preference: Republrwn\nBusmess Attorney\n\n'), (True, u'E Rocsuo T. cn.0mA\nParty Preference: Republican\nGraduate Studen\\l\u2018Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nPady Preference: American Independen\nDoctor of Chiropractic\n\n')])]], [[[(635, 366, 702, 404), (636, 469, 703, 507), (635, 573, 702, 611), (635, 678, 702, 716), (635, 781, 702, 819), (635, 886, 702, 924), (635, 989, 702, 1027), (635, 1093, 702, 1131), (635, 1196, 702, 1234), (635, 1301, 702, 1339), (637, 1403, 704, 1441), (635, 1508, 702, 1546), (636, 1611, 703, 1649), (636, 1715, 703, 1753), (636, 1819, 703, 1857), (636, 1923, 703, 1961), (636, 2027, 703, 2065), (636, 2130, 703, 2168), (636, 2234, 703, 2272), (637, 2337, 704, 2375), (636, 2442, 703, 2480), (638, 2544, 705, 2582), (1125, 304, 1192, 342), (1125, 407, 1192, 445), (1125, 511, 1192, 549)], [(1125, 701, 1192, 739), (1126, 805, 1193, 843), (1125, 911, 1192, 949), (1125, 1013, 1192, 1051)], [(1126, 1203, 1193, 1241), (1126, 1307, 1193, 1345), (1126, 1411, 1193, 1449), (1126, 1515, 1193, 1553)], [(1126, 1650, 1193, 1688), (1125, 1753, 1192, 1791)], [(1126, 2250, 1193, 2288), (1126, 2323, 1193, 2361), (1126, 2395, 1193, 2433)]], [[(635, 368, 702, 406), (636, 472, 703, 510), (634, 576, 701, 614), (635, 679, 702, 717), (635, 782, 702, 820), (634, 886, 701, 924), (634, 990, 701, 1028), (636, 1093, 703, 1131), (634, 1197, 701, 1235), (634, 1301, 701, 1339), (635, 1403, 702, 1441), (635, 1506, 702, 1544), (635, 1610, 702, 1648), (634, 1714, 701, 1752), (634, 1818, 701, 1856), (636, 1921, 703, 1959), (634, 2025, 701, 2063), (636, 2126, 703, 2164), (635, 2231, 702, 2269), (635, 2334, 702, 2372), (636, 2438, 703, 2476), (636, 2541, 703, 2579), (1124, 306, 1191, 344), (1124, 411, 1191, 449), (1124, 514, 1191, 552)], [(1124, 703, 1191, 741), (1124, 807, 1191, 845), (1123, 911, 1190, 949), (1124, 1014, 1191, 1052)], [(1123, 1205, 1190, 1243), (1124, 1308, 1191, 1346), (1124, 1412, 1191, 1450)], [(1123, 1602, 1190, 1640), (1124, 1705, 1191, 1743), (1123, 1809, 1190, 1847)], [(1124, 2303, 1191, 2341), (1123, 2376, 1190, 2414), (1124, 2449, 1191, 2487)]]]))
+
+#do_grouping('ocr_tmp_dir', ['/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3116_1_36_1.png', '/home/nicholas/googlecode/opencount/opencount/projects/orange/blankballots_straight/339_3115_1_34_1.png'], [[[(635, 366, 702, 404), (636, 469, 703, 507), (635, 573, 702, 611), (635, 678, 702, 716), (635, 781, 702, 819), (635, 886, 702, 924), (635, 989, 702, 1027), (635, 1093, 702, 1131), (635, 1196, 702, 1234), (635, 1301, 702, 1339), (637, 1403, 704, 1441), (635, 1508, 702, 1546), (636, 1611, 703, 1649), (636, 1715, 703, 1753), (636, 1819, 703, 1857), (636, 1923, 703, 1961), (636, 2027, 703, 2065), (636, 2130, 703, 2168), (636, 2234, 703, 2272), (637, 2337, 704, 2375), (636, 2442, 703, 2480), (638, 2544, 705, 2582)], [(1125, 304, 1192, 342), (1125, 407, 1192, 445), (1125, 511, 1192, 549)], [(1125, 701, 1192, 739), (1126, 805, 1193, 843), (1125, 911, 1192, 949), (1125, 1013, 1192, 1051)], [(1126, 1203, 1193, 1241), (1126, 1307, 1193, 1345), (1126, 1411, 1193, 1449), (1126, 1515, 1193, 1553)], [(1126, 1650, 1193, 1688), (1125, 1753, 1192, 1791)], [(1126, 2250, 1193, 2288), (1126, 2323, 1193, 2361), (1126, 2395, 1193, 2433)]], [[(635, 368, 702, 406), (636, 472, 703, 510), (634, 576, 701, 614), (635, 679, 702, 717), (635, 782, 702, 820), (634, 886, 701, 924), (634, 990, 701, 1028), (636, 1093, 703, 1131), (634, 1197, 701, 1235), (634, 1301, 701, 1339), (635, 1403, 702, 1441), (635, 1506, 702, 1544), (635, 1610, 702, 1648), (634, 1714, 701, 1752), (634, 1818, 701, 1856), (636, 1921, 703, 1959), (634, 2025, 701, 2063), (636, 2126, 703, 2164), (635, 2231, 702, 2269), (635, 2334, 702, 2372), (636, 2438, 703, 2476), (636, 2541, 703, 2579)], [(1124, 306, 1191, 344), (1124, 411, 1191, 449), (1124, 514, 1191, 552)], [(1124, 703, 1191, 741), (1124, 807, 1191, 845), (1123, 911, 1190, 949), (1124, 1014, 1191, 1052)], [(1123, 1205, 1190, 1243), (1124, 1308, 1191, 1346), (1124, 1412, 1191, 1450)], [(1123, 1602, 1190, 1640), (1124, 1705, 1191, 1743), (1123, 1809, 1190, 1847)], [(1124, 2303, 1191, 2341), (1123, 2376, 1190, 2414), (1124, 2449, 1191, 2487)]]], {})
