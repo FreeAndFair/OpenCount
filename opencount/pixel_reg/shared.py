@@ -63,7 +63,7 @@ Output:
   I1cropped=I1[i1:i2,j1:j2]
 
 '''
-def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding=.75):
+def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSearch=.75,padPatch=0.0):
     matchList = [] # (filename, left,right,up,down)
     I=prepOpenCV(I);
     I = np.round(fastResize(I,rszFac)*255.)/255;
@@ -72,7 +72,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
     bb[1] = bb[1]*rszFac
     bb[2] = bb[2]*rszFac
     bb[3] = bb[3]*rszFac
-    [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],0.0)
+    [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],padPatch)
     patch = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
     patch0 = patch[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
 
@@ -91,7 +91,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
         if len(bbSearch)>0:
             [bbOut1,bbOff1]=expand(bbSearch[0],bbSearch[1],
                                    bbSearch[2],bbSearch[3],
-                                   I1.shape[0],I1.shape[1],padding)
+                                   I1.shape[0],I1.shape[1],padSearch)
             I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
 
         patchCv=cv.fromarray(np.copy(patch))
@@ -108,8 +108,12 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padding
             i1=YX[0]; i2=YX[0]+patch.shape[0]
             j1=YX[1]; j2=YX[1]+patch.shape[1]
 
-            Iout[i1-patch.shape[0]/2:i1+patch.shape[0]/2,
-                 j1-patch.shape[1]/2:j1+patch.shape[1]/2]=0
+            i1mask = max(0,i1-patch.shape[0]/3)
+            i2mask = min(Iout.shape[0],i1+patch.shape[0]/3)
+            j1mask = max(0,j1-patch.shape[1]/3)
+            j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
+            
+            Iout[i1mask:i2mask,j1mask:j2mask]=0
             I1c = I1[i1:i2,j1:j2]
             IO=lk.imagesAlign(I1c,patch,type='rigid')
             Ireg = IO[1]
