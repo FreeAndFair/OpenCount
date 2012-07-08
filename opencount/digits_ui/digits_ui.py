@@ -23,13 +23,10 @@ id.
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
-
     # Per page
     NUM_COLS = 3
     NUM_ROWS = 2
-
     DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
-
     # Temp image files that we currently use.
     PATCH_TMP = '_patch_tmp.png'
     REGION_TMP = '_region_tmp.png'
@@ -89,7 +86,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Returns (x,y) of next cell location """
         return (self.j_cur * self.cellw, self.i_cur * self.cellh)
 
-    def add_img(self, imgbitmap, imgID, pil_img):
+    def add_img(self, imgbitmap, imgID, pil_img, imgpath, rszFac):
         """Adds a new image to this grid. """
         #(x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
@@ -104,7 +101,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         else:
             self.j += 1
         w, h = imgbitmap.GetSize()
-        staticbitmap = MyStaticBitmap(self, self.i, self.j, bitmap=imgbitmap, pil_img=pil_img)
+        staticbitmap = MyStaticBitmap(self, self.i, self.j, imgpath, bitmap=imgbitmap, pil_img=pil_img, rszFac=rszFac)
         self.staticbitmaps.append(staticbitmap)
         self.gridsizer.Add(staticbitmap)
 
@@ -123,14 +120,16 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     self.cellh = h_scaled
                 pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
                 b = util_gui.PilImageToWxBitmap(pil_img)
-                self.add_img(b, imgpath, pil_img)
+                self.add_img(b, imgpath, pil_img, imgpath, c)
         print 'num images:', len(self.imgID2cell)
         self.Refresh()
                 
 class MyStaticBitmap(wx.Panel):
-    def __init__(self, parent, i, j, bitmap=None, pil_img=None, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, rszFac=1.0, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        self.imgpath = imgpath
+        self.rszFac = rszFac
         if not bitmap:
             bitmap = wx.EmptyBitmap(50, 50, -1)
         self.bitmap = bitmap
@@ -138,6 +137,9 @@ class MyStaticBitmap(wx.Panel):
         self.i, self.j = i, j
         self.boxes = []
         self._box = None
+
+        # maps {str regionpath: list of (patchpath, matchID, y1,y2,x1,x2, rszFac)
+        self.matches = {}   
 
         self.SetMinSize(bitmap.GetSize())
 
@@ -168,9 +170,9 @@ class MyStaticBitmap(wx.Panel):
         assert box not in self.boxes
         self.boxes.append(box)
 
-    def start_tempmatch(self, img, regionpath):
+    def start_tempmatch(self, img, regionsdir):
         self.queue = Queue.Queue()
-        t = ThreadDoTempMatch(img, regionpath, self.queue, self.parent.DIGITTEMPMATCH_JOB_ID)
+        t = ThreadDoTempMatch(img, regionsdir, self.queue, self.parent.DIGITTEMPMATCH_JOB_ID)
 
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
                              msg="Finding digit instances...",
@@ -194,19 +196,28 @@ class MyStaticBitmap(wx.Panel):
         self.overlaymaps = {} # maps {int matchID: (i,j)}
         grouplabel = common.make_grouplabel(('digit', self.current_digit))
         examples = []
+        imgpatch = shared.standardImread(self.parent.PATCH_TMP, flatten=True)
+        h, w = imgpatch.shape
         for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
-            coords = map(lambda c:int(round(c*rszFac)),(x1,y1,x2,y2))
             patchpath = os.path.join(tmp_dir, '{0}_match.png'.format(matchID))
+            Ireg = np.nan_to_num(Ireg)
+            Ireg = shared.fastResize(Ireg, 1 / rszFac)
+            if Ireg.shape != (h, w):
+                newIreg = np.zeros((h,w))
+                newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
+                Ireg = newIreg
             scipy.misc.imsave(patchpath, Ireg)
             examples.append((filename, (grouplabel,), patchpath))
+            self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
         group = common.GroupClass(examples)
         exemplar_paths = {grouplabel: self.parent.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
-        verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
+        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.on_verifydone)
+        self.f.Maximize()
         self.Disable()
         self.parent.Disable()
-        verifypanel.start((group,), exemplar_paths, ondone=self.on_verifydone)
+        self.f.Show()
 
     def on_verifydone(self, results):
         """Invoked once the user has finished verifying the template
@@ -218,17 +229,34 @@ class MyStaticBitmap(wx.Panel):
                 if Box.too_close(newbox, box):
                     return True
             return False
+        self.f.Close()
         self.Enable()
         self.parent.Enable()
-        print "Verifying done."
-        for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
-            coords = map(lambda c:int(round(c*rszFac)), (x1,y1,x2,y2))
+        # Remove all matches from self.matches that the user said
+        # was not relevant, during overlay verification
+        for grouplabel, groups in results.iteritems():
+            # groups is a list of GroupClasses
+            # group[i].elements[j] = (regionpath, rankedlist, patchpath)
+            if grouplabel == verify_overlays.VerifyPanel.GROUPLABEL_OTHER:
+                # The user said that these elements are not relevant
+                for groupclass in groups:
+                    assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
+                    for element in groupclass.elements:
+                        regionpath, rankedlist, patchpath = element
+                        stuff = self.matches[regionpath]
+                        # stuff[i] := (patchpath, matchID, y1,y2,x1,x2, rszFac)
+                        stuff = [t for t in stuff if t[0] != patchpath]
+                        self.matches[regionpath] = stuff
+
+        for regionpath, (patchpath, matchID, y1, y2, x1, x2, rszFac) in self.matches.iteritems():
+            # TODO: Move logic to DigitUI, since it has to modify all
+            # child MyStaticBitmaps
+            x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
             newbox = Box(*(x1, y1, x2, y2))
-            if not dont_add(newbox):
-                self.add_box(self.boxes)
+            if not dont_add(newbox, regionpath):
+                self.add_box(newbox, regionpath)
 
     def onLeftDown(self, evt):
-        print 'on left down'
         x, y = evt.GetPosition()
         self._start_box(x, y)
         self.Refresh()
@@ -254,8 +282,8 @@ class MyStaticBitmap(wx.Panel):
             # find_patch_matchesV1 currently takes in imgpaths for the
             # region: for now, just save region to a tmp img.
 
-            self.pil_img.save(self.parent.REGION_TMP)
-            self.start_tempmatch(npimg, self.parent.REGION_TMP)
+            #self.pil_img.save(self.parent.REGION_TMP)
+            self.start_tempmatch(npimg, self.parent.extracted_dir)
         self.Refresh()
     def onMotion(self, evt):
         x, y = evt.GetPosition()
@@ -265,9 +293,10 @@ class MyStaticBitmap(wx.Panel):
 
     def extract_region(self, box):
         """Extracts box from the currently-displayed image. """
-        x1, y1, x2, y2 = Box.make_canonical(box)
+        coords = Box.make_canonical(box)
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
-        npimg = np.array(self.pil_img)
+        npimg = np.array(Image.open(self.imgpath).convert('L'))
+        x1,y1,x2,y2=map(lambda n:n*self.rszFac,coords)
         return npimg[y1:y2, x1:x2]
 
     def onPaint(self, evt):
@@ -293,11 +322,11 @@ class MyStaticBitmap(wx.Panel):
             dc.DrawRectangle(x1, y1, self._box.width, self._box.height)        
 
 class ThreadDoTempMatch(threading.Thread):
-    def __init__(self, img1, img2_path, queue, job_id, *args, **kwargs):
-        """ Search for img1 within img2. """
+    def __init__(self, img1, regionsdir, queue, job_id, *args, **kwargs):
+        """ Search for img1 within images in regionsdir. """
         threading.Thread.__init__(self, *args, **kwargs)
         self.img1 = img1
-        self.img2_path = img2_path
+        self.regionsdir = regionsdir
 
         self.queue = queue
         self.job_id = job_id
@@ -305,8 +334,12 @@ class ThreadDoTempMatch(threading.Thread):
     def run(self):
         h, w =  self.img1.shape
         bb = [0, h-1, 0, w-1]
+        regions = []
+        for dirpath, dirnames, filenames in os.walk(self.regionsdir):
+            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb, (self.img2_path,))
+            matches = shared.find_patch_matchesV1(self.img1, bb, regions, rszFac=1.0, threshold=0.6)
         except Exception as e:
             print e
             print "ERROR"
@@ -403,6 +436,17 @@ class Box(object):
                  abs(y1_a - y1_b) <= h / 2.0) or
                 is_overlap(box_a, box_b) or 
                 is_overlap(box_b, box_a))
+
+class VerifyOverlayFrame(wx.Frame):
+    def __init__(self, parent, group, exemplar_paths, ondone):
+        wx.Frame.__init__(self, parent)
+        self.parent = parent
+        self.group = group
+        self.exemplar_paths = exemplar_paths
+        self.ondone = ondone
+
+        verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
+        verifypanel.start((group,), exemplar_paths, ondone=ondone)
         
 class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
