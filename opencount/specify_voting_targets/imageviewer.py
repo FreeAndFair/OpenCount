@@ -1619,7 +1619,8 @@ class ToolBar(wx.Panel):
         Publisher().sendMessage("signals.BallotScreen.set_splitmode", splitmode)
 
     def onButton_infercontests(self, event):
-        self.parent.ballotscreen.do_infer_contests()
+        # Call SpecifyTargetsPanel.do_infer_contests
+        self.parent.parent.do_infer_contests()
 
     def onEnter_zoomin(self, event):
         Publisher().sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
@@ -2490,48 +2491,6 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
             Publisher.sendMessage("signals.cancel_autodetect", None)
         event.Skip()
 
-    def do_infer_contests(self):
-        """ Use Nicholas' contest-region-inferring code, display the
-        results on the screen, and allow the user to adjust it. 
-        Repeated calls to this function will discard previous
-        contest-region-inferring results.
-        """
-        self.queue = Queue.queue()
-        t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID)
-
-        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,
-                             msg="Inferring Contest Regions...",
-                             self.INFERCONTESTS_JOB_ID)
-        t.start()
-        gauge.Show()
-
-    def on_infer_contests_done(self):
-        """ Display the inferring results to the screen, and allow the
-        user to manually change the bounds if necessary.
-        results will contain the bounding boxes of each contest, for
-        every ballot image:
-            {str blankpath: list of (x1, y1, x2, y2)}
-        """
-        results = self.queue.get()
-        for blankpath, contests in results.iteritems():
-            for (x1, y1, x2, y2) in contests:
-                # Set all contest bounding boxes to this
-                pass
-        
-class ThreadDoInferContests(threading.Thread):
-    def __init__(self, queue, job_id, *args, **kwargs):
-        threading.Thread.__init__(*args, **kwargs)
-        self.job_id = job_id
-        self.queue = queue
-        
-    def run(self):
-        # Do fancy contest-inferring computation
-        time.sleep(2)
-        # Computation done!
-        result = "fancy results"
-        queue.put(result)
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
-                     (self.job_id,))
 
 class Autodetect_Confirm(wx.Panel):
     def __init__(self, parent, target_candidates, *args, **kwargs):
