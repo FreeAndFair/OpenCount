@@ -18,6 +18,7 @@ import time
 import random
 from util import get_filename, encodepath
 
+
 def doWrite(finalOrder, Ip, err, attrName, patchDir, metaDir, origfullpath):
     fullpath = encodepath(origfullpath)
 
@@ -125,8 +126,8 @@ def createPatchTuples(I,attr2pat,R,flip=False):
 
     if not(flip):
         return patchTuples
-
-    Ifl=fastFlip(I)
+    print "ARG", I, I.shape
+    Ifl=sh.fastFlip(I)
     Ifl1=Ifl[rOut[0]:rOut[1],rOut[2]:rOut[3]]
 
     for key in attr2pat.keys():
@@ -150,13 +151,14 @@ def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
             patchTuples.append((I1,attr2pat[key],key,idx,0))
 
         if flip:
-            Ifl=fastFlip(I)
+            Ifl=sh.fastFlip(I)
             Ifl1=Ifl[rOut[0]:rOut[1],rOut[2]:rOut[3]]
             for key in attr2pat.keys():
                 # key := (str temppath, str attrval)
                 patchTuples.append((Ifl1,attr2pat[key],key,idx,1))
 
     return patchTuples
+
 
 def templateSSWorker(job):
     (attr2pat, attr2tem, key, superRegion, sStep, minSc, fOut) = job
@@ -196,6 +198,7 @@ def templateSSWorker(job):
     file = open(fOut, "wb")
     pickle.dump(toWrite, file)
     file.close()
+
 
 def groupImagesWorkerMAP(job):
     (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job

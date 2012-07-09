@@ -1492,6 +1492,7 @@ def get_max_dimensions(imgsdir):
             img = cv.LoadImage(imgpath)
             imgsize = img.width, img.height
             w_img, h_img = imgsize[0], imgsize[1]
+
             w = max(w, w_img)
             h = max(h, h_img)
             counter += 1
