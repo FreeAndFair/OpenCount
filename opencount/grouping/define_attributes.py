@@ -95,7 +95,7 @@ class IBallotScreen(imageviewer.BallotScreen):
         try:
             new_rows = {}
             fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 
-                      'attr_type', 'attr_val', 'side', 'is_digitbased')
+                      'attr_type', 'attr_val', 'side', 'is_digitbased', 'is_tabulationonly')
             notebook = self.parent.parent
             project = notebook.GetParent().project
             for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
@@ -766,7 +766,7 @@ def delete_attr_type(attrvalsdir, attrtype):
     attrvalsdir is the project.patch_loc_dir, i.e. the output directory
     of 'Label Ballot Attributes'. It may or may not exist, btw.
     """
-    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'attr_type', 'attr_val', 'side','is_digitbased')
+    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'attr_type', 'attr_val', 'side','is_digitbased','is_tabulationonly')
     for dirpath, dirnames, filenames in os.walk(attrvalsdir):
         for filename in [f for f in filenames if f.lower().endswith('.csv')]:
             filepath = pathjoin(dirpath, filename)
