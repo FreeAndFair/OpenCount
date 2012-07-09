@@ -867,7 +867,7 @@ single voting target, which violates assumptions."
 
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,
                              msg="Inferring Contest Regions...",
-                             self.INFERCONTESTS_JOB_ID)
+                             job_id=self.INFERCONTESTS_JOB_ID)
         t.start()
         gauge.Show()
 

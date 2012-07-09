@@ -738,6 +738,8 @@ this patch be only used for tabulation (and not for grouping)?")
         history = set()
         if self.chkbox_is_digitbased.GetValue() == True:
             self.is_digitbased = True
+        if self.chkbox_is_tabulationonly.GetValue() == True:
+            self.is_tabulationonly = True
         for txt, input_ctrl in self.input_pairs:
             val = input_ctrl.GetValue()
             if val in history:

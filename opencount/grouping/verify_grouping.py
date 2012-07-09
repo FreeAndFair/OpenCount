@@ -368,12 +368,14 @@ class RunGroupingPanel(wx.Panel):
             result = {}
             for temppath, patchtriple in patches.iteritems():
                 for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    if is_tabulationonly:
+                    if is_tabulationonly == 'True':
                         continue
                     for attrtype in attrtypes:
                         if common.get_propval(grouplabel, attrtype):
                             attrval = common.get_propval(grouplabel, attrtype)
-                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
+                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased))
+            if not len(result) == len(patches):
+                pdb.set_trace()
             assert len(result) == len(patches)
             return result
         munged = munge_patches(self.patches, all_attrtypes)

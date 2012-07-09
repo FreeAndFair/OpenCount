@@ -268,14 +268,14 @@ def get_imagepaths(dir):
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns
-    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased)}
+    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased, is_tabulationonly)}
     """
     if not project or not project.patch_loc_dir:
         return
     def is_csvfile(p):
         return os.path.splitext(p)[1].lower() == '.csv'
     fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
-              'attr_type', 'attr_val', 'side', 'is_digitbased')
+              'attr_type', 'attr_val', 'side', 'is_digitbased', 'is_tabulationonly')
     boxes = {}
     for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
         for csvfilepath in [f for f in filenames if is_csvfile(f)]:
@@ -294,6 +294,7 @@ def importPatches(project):
                     y2 = y1 + int(row['height'])
                     side = row['side']
                     is_digitbased = row['is_digitbased']
+                    is_tabulationonly = row['is_tabulationonly']
                     if not(boxes.has_key(imgpath)):
                         boxes[imgpath]=[]
                     # Currently, we don't create an exemplar attrpatch
@@ -305,7 +306,7 @@ def importPatches(project):
                                                          ('imageorder', imgorder))
                             boxes[imgpath].append(((y1, y2, x1, x2), 
                                                    grouplabel,
-                                                   side, is_digitbased))
+                                                   side, is_digitbased, is_tabulationonly))
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes

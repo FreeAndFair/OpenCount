@@ -153,7 +153,7 @@ class LabelAttributesPanel(LabelContest):
                 out.writerow([os.path.abspath(self.dirList[ballot]),
                               uid, pos[2], pos[3],
                               pos[4]-pos[2], pos[5]-pos[3],
-                              self.types[uid], value, self.sides[uid], self.is_digitbased[uid], self.is_tabulationbased[uid]])
+                              self.types[uid], value, self.sides[uid], self.is_digitbased[uid], self.is_tabulationonly[uid]])
     def validate_outputs(self):
         return True
     def stop(sefl):
