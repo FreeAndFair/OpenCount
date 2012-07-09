@@ -28,6 +28,22 @@ def load_num(path="", pilimg=None):
     return data
 
 def find_lines(data):
+    """
+    Find all the lines we can on the image.
+
+    For each pixel, if it is black:
+        (1) Extend up and down as far as possible. Call those
+              pixels part of one line.
+        (2) Extend left and right as far as possible. Call those
+              pixels part of one line.
+        (3) Mark the lined pixels as 'used'.
+    
+    When extending, first move to the middle of the line. Then,
+    do a DFS search going in the direction of the line, but only
+    in the given direction.
+
+    In order to improve efficiency, only test the black pixels on a grid.
+    """
     height, width = len(data), len(data[0])
     def extend_ud(point):
         y, x = point
@@ -177,15 +193,9 @@ def find_lines(data):
 
 
 def intersect(line1, line2):
-    top = max(line1[1], line2[1])
-    bottom = min(line1[3], line2[3])
-    left = max(line1[0], line2[0])
-    right = min(line1[2], line2[2])
-    if bottom > top and right > left:
-        return left, top, right, bottom
-    else:
-        return None
-def intersect1(line1, line2):
+    """
+    Compute the intersection of two bounding boxes.
+    """
     top = max(line1[1], line2[1])
     bottom = min(line1[3], line2[3])
     left = max(line1[0], line2[0])
@@ -195,6 +205,9 @@ def intersect1(line1, line2):
     else:
         return None
 def union(line1, line2):
+    """
+    Compute the union of two bounding boxes.
+    """
     top = min(line1[1], line2[1])
     bottom = max(line1[3], line2[3])
     left = min(line1[0], line2[0])
@@ -202,6 +215,10 @@ def union(line1, line2):
     return left, top, right, bottom
 
 def dfs(graph, start):
+    """
+    Run a DFS search on a graph starting at a given vertex.
+    Return the list of seen graphs.
+    """
     s = [start]
     seen = {}
     while s != []:
@@ -212,6 +229,25 @@ def dfs(graph, start):
     return seen.keys()
 
 def to_graph(lines, width, height):
+    """
+    Convert a set of lines to graph where lines are vertexes, and
+    there is an edge between two lines when they intersect. This
+    prepares for finding all rectangles.
+
+    First, we need to find lines which were accidentally split in to
+    pieces, and merge them together. That is, if there are two
+    horizontal lines which intersect, or two vertical lines which
+    intersect, then merge them in to one line of the union of the two.
+    
+    We do this by making another graph of all horizontal lines and 
+    adding edges between the lines when they touch. Then we run a
+    connnected components algorithm over it and take the union.
+    This is done by creating an width*height array, storing where all
+    of the lines are, and finding when they touch.
+
+    Then it is easy to do an all-pairs algorithm to find the intersecting
+    vertical and horizontal lines.
+    """
     print width, height
     table = [[None]*(width+20) for _ in range(height+20)]
     equal = []
@@ -259,6 +295,12 @@ def to_graph(lines, width, height):
     return boxes,dict((k,v) for k,v in vertexes.items() if v != [])
 
 def find_squares(graph):
+    """
+    Given a graph (vertexes are lines, edges when they intersect),
+    return the squares that are in the graph.
+    A square is when the DFS finds a back-edge where the difference in
+    the preorders of the two nodes is 4.
+    """
     def dfs_square(stack, debug=False):
         if debug:
             print ".  "*len(stack), stack[-1]
@@ -275,6 +317,22 @@ def find_squares(graph):
     return list(set([x for x in sum([dfs_square([start]) for start in graph], []) if x]))
 
 def do_extract(name, img, squares, giventargets):
+    """
+    Find all contests and extract them.
+    
+    Start with the smallest sized bounding box, and check if it
+    contains any voting targets. 
+
+    If it does, it's a contest. Remove it and the targets that
+    are inside of it. Move on to next biggest.
+    
+    If not, then remove it and move on to the next biggest.
+
+    For each contest, see if there are any previously-identified
+    voting targets that were removed by a smaller bounding box,
+    if there are, warn the operator. This means one contest
+    encloses another.
+    """
     def area(x): 
         if x == None: return 0
         return (x[2]-x[0])*(x[3]-x[1])
@@ -282,28 +340,7 @@ def do_extract(name, img, squares, giventargets):
     targets = [x for x in giventargets]
     avg_targ_area = sum(map(area,targets))/len(targets)
     squares = [x for x in squares if area(x) > avg_targ_area*2]
-    """
-    ## Begin hack since I have to deal with my own targets
-    bigest_box = max(squares, key=area)
-    squares = [x for x in squares if intersect(x, bigest_box) == x]
-    print len(squares), 'remain'
-    ## End hack
-    
-    targets = [x for x in squares if area(x) < 10000 and 20 < x[3]-x[1] < 80 and 40 < x[2]-x[0] < 80]
-    
-    lgraph = [(x,y) for x in targets for y in targets if intersect(x,y) != None]
-    #print lgraph
-    graph = reduce(lambda p,c: p[c[0]].append(c[1]) or p, lgraph, dict((x,[]) for x in targets))
-    #print graph
-    #print 'before', targets
-    targets = []
-    while graph != {}:
-        tounion = dfs(graph, graph.keys()[0])
-        targets.append(reduce(union,tounion))
-        for k in tounion:
-            del graph[k]
-    #print 'after', targets
-    """
+
     contests = []
 
     #print "T", targets
@@ -386,6 +423,11 @@ def extract_contest(image_path, giventargets):
                             load_pil(image_path), squares, giventargets)
 
 def ballot_preprocess(i, f, image, contests, targets, lang):
+    """
+    Preprocess a ballot and turn it in to its corresponding data.
+    For each contest, record the ballot ID, the contest bounding box,
+    as well as the text associated with the contest.
+    """
     print 'making', f, f.split("/")[-1].split(".")[0]
     sub = os.path.join(tmp+"", f.split("/")[-1].split(".")[0]+"-dir")
     os.mkdir(sub)
@@ -400,6 +442,12 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
 
 
 def compare_preprocess(lang, path, image, contest, targets):
+    """
+    Identifies the text associated with the contest.
+
+    Split the contest in to "stripes", one for each voting target,
+    and one for the title. OCR the text and record it.
+    """
     #print contest, targets
     #print [intersect(contest, x) for x in targets]
     #print 'all', targets
@@ -435,6 +483,9 @@ def compare_preprocess(lang, path, image, contest, targets):
 
 memo = {}
 def row_dist(a, b):
+    """
+    Compute the edit distance between two strings.
+    """
     global memo
     if a == b: return 0
     if (a,b) in memo: 
@@ -453,6 +504,19 @@ def row_dist(a, b):
 
 count = 0
 def compare(otexts1, otexts2):
+    """
+    Compute the distance between two contests.
+    
+    This distance allows the order of the targets to shuffle,
+    but does not allow the text within a target to reorder.
+    
+    We do this with an approximation of the weighted disjoint
+    set cover problem. We sort the edges by weight, and take the
+    minimum weight one, remove the corresponding nodes, and recurse.
+    
+    The distance is sum of the edges picked, as well as the sum
+    of the unused vertexes.
+    """
     print 'running with1', otexts1
     print 'running with2', otexts2
     # text -> length
@@ -489,13 +553,23 @@ def compare(otexts1, otexts2):
     return float(val+sum(texts1.values())+sum(texts1.values()))/size, matching
 
 def first_pass(contests):
+    """
+    Split a set of contests in to a set of sets, where each
+    set contains the same number of voting targets.
+    """
     ht = {}
     for each in contests:
         if len(each[2]) not in ht: ht[len(each[2])] = []
         ht[len(each[2])].append(each)
     return ht.values()
 
-def merge_equal(contests):
+def split_to_equal(contests):
+    """
+    Split a set of contests in to a set of those which are 
+    truly equal. Create a set of known equiv-classes, and for
+    each target, compare with every class. If it's not in any,
+    put it in a class of its own.
+    """
     sets = []
     print len(contests)
     print "CONTS", contests
@@ -532,11 +606,15 @@ def equ_class(contests):
     # Each group is known to be different.
     result = []
     for group in groups:
-        result += merge_equal(group)
+        result += split_to_equal(group)
     print "RETURNING", result
     return result
 
 def merge_contests(ballot_data, fulltargets):
+    """
+    Given a set of bounding boxes, merge together those which
+    are different boundingboxes but are, in reality, the same contest.
+    """
     new_data = []
     for ballot, targets in zip(ballot_data, fulltargets):
         print 'next'
