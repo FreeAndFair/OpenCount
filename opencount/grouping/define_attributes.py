@@ -198,6 +198,7 @@ the same name.""".format(attrtype), style=wx.OK)
             new_box.add_attrtypes(attr_types)
             new_box.side = page
             new_box.is_digitbased = dlg.is_digitbased
+            new_box.is_tabulationonly = dlg.is_tabulationonly
             self.world.add_box(self.current_imgpath, new_box)
             self._limbobox = None
             self.Refresh()
@@ -608,11 +609,14 @@ class AttributeContextMenu(wx.Menu):
                                     can_add_more=True)
         if self.attrbox.is_digitbased == True:
             dlg.chkbox_is_digitbased.SetValue(True)
+        if self.attrbox.is_tabulationonly == True:
+            dlg.chkbox_is_tabulationonly.SetValue(True)
         
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             new_attrtypes = dlg.results
             self.attrbox.is_digitbased = dlg.is_digitbased
+            self.attrbox.is_tabulationonly = dlg.is_tabulationonly
             for i, new_attrtype in enumerate(new_attrtypes):
                 if i < len(old_attrtypes):
                     old_attrtype = old_attrtypes[i]
@@ -646,6 +650,7 @@ class DefineAttributeDialog(wx.Dialog):
         self._panel_btn = None
         self.btn_ok = None
         self.is_digitbased = False
+        self.is_tabulationonly = False
 
         self.input_pairs = []
         for idx, val in enumerate(vals):
@@ -682,9 +687,11 @@ class DefineAttributeDialog(wx.Dialog):
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
         
-        
         self.chkbox_is_digitbased = wx.CheckBox(self, label="Is this a digit-based precinct patch?")
+        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
+this patch be only used for tabulation (and not for grouping)?")
         self.sizer.Add(self.chkbox_is_digitbased, proportion=0)
+        self.sizer.Add(self.chkbox_is_tabulationonly, proportion=0)
 
         self._add_btn_panel(self.sizer)
         self.SetSizer(self.sizer)
