@@ -1364,6 +1364,7 @@ class ToolBar(wx.Panel):
         self.btn_undo.Bind(wx.EVT_BUTTON, self.onButton_undo)
         self.btn_addcontest.Bind(wx.EVT_BUTTON, self.onButton_addcontest)
         self.btn_splitcontest.Bind(wx.EVT_BUTTON, self.onButton_splitcontest)
+        self.btn_infercontests.Bind(wx.EVT_BUTTON, self.onButton_infercontests)
         
     def _resize_icons(self, iconpaths):
         """ Rescale all icon images to have height Toolbar.SIZE_ICON """
@@ -1394,6 +1395,8 @@ class ToolBar(wx.Panel):
         addcontest_sel = bitmaps['addcontest_sel']
         splitcontest_unsel = bitmaps['splitcontest_unsel']
         splitcontest_sel = bitmaps['splitcontest_sel']
+        infercontest_unsel = bitmaps['infercontest_unsel']
+        infercontest_sel = bitmaps['infercontest_sel']
 
         panel_zoomin = wx.Panel(self)
         panel_zoomout = wx.Panel(self)
@@ -1402,6 +1405,7 @@ class ToolBar(wx.Panel):
         panel_addcontest = wx.Panel(self)
         panel_splitcontest = wx.Panel(self)
         panel_select = wx.Panel(self)
+        panel_infercontest = wx.Panel(self)
         self.btn_zoomin = wx.BitmapButton(panel_zoomin, bitmap=zoomin_unsel,
                                            id=wx.ID_ZOOM_IN,
                                            size=(zoomin_unsel.GetWidth()+8,
@@ -1439,6 +1443,11 @@ class ToolBar(wx.Panel):
                                         size=(undo.GetWidth()+8,
                                               undo.GetHeight()+8),
                                         name='btn_undo')
+        self.btn_infercontests = wx.BitmapButton(panel_infercontest, bitmap=infercontest_unsel,
+                                                id=wx.ID_ANY,
+                                                size=(infercontest_unsel.GetWidth()+8,
+                                                      infercontest_unsel.GetHeight()+8),
+                                                name='btn_infercontest')
 
         font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         sizer_zoomin = wx.BoxSizer(wx.VERTICAL)
@@ -1490,6 +1499,13 @@ class ToolBar(wx.Panel):
         sizer_select.Add(self.btn_select)
         sizer_select.Add(txt7, flag=wx.ALIGN_CENTER)
 
+        sizer_infercontest = wx.BoxSizer(wx.VERTICAL)
+        panel_infercontest.SetSizer(sizer_infercontest)
+        txt8 = wx.StaticText(panel_infercontest, label="Infer Contests", style=wx.ALIGN_CENTER)
+        txt8.SetFont(font)
+        sizer_infercontest.Add(self.btn_infercontests)
+        sizer_infercontest.Add(txt8, flag=wx.ALIGN_CENTER)
+
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(panel_zoomin)
         self.sizer.Add(panel_zoomout)
@@ -1498,6 +1514,7 @@ class ToolBar(wx.Panel):
         self.sizer.Add(panel_splitcontest)
         self.sizer.Add(panel_undo)
         self.sizer.Add(panel_select)
+        self.sizer.Add(panel_infercontest)
         self.SetSizer(self.sizer)
         self.SetAutoLayout(1)
                           
@@ -1515,6 +1532,7 @@ class ToolBar(wx.Panel):
         self.btn_select.SetBitmapLabel(self.bitmaps['select_unsel'])
         self.btn_addcontest.SetBitmapLabel(self.bitmaps['addcontest_unsel'])
         self.btn_splitcontest.SetBitmapLabel(self.bitmaps['splitcontest_unsel'])
+        self.btn_infercontests.SetBitmapLabel(self.bitmaps['infercontest_unsel'])
         
     #### PubSub Callbacks
     def _enter_autodetect(self, msg):
@@ -1532,7 +1550,8 @@ class ToolBar(wx.Panel):
                    'zoomin': self.btn_zoomin,
                    'zoomout': self.btn_zoomout,
                    'addcontest': self.btn_addcontest,
-                   'splitcontest': self.btn_splitcontest}
+                   'splitcontest': self.btn_splitcontest,
+                   'infercontest': self.btn_infercontests}
         sel_bitmap = self.bitmaps[name+"_sel"]
         mapping[name].SetBitmapLabel(sel_bitmap)
         
@@ -1543,6 +1562,7 @@ class ToolBar(wx.Panel):
         self.btn_select.Enable()
         self.btn_addcontest.Enable()
         self.btn_splitcontest.Enable()
+        self.btn_infercontests.Enable()
     def disable_buttons(self, flag=None):
         if flag != "allow_zoom":
             self.btn_zoomin.Disable()
@@ -1551,6 +1571,7 @@ class ToolBar(wx.Panel):
         self.btn_select.Disable()
         self.btn_addcontest.Disable()
         self.btn_splitcontest.Disable()
+        self.btn_infercontests.Disable()
         
     #### Event handling
     def onButton_zoomin(self, event):
@@ -1596,6 +1617,9 @@ class ToolBar(wx.Panel):
         splitmode = dlg.get_splitmode()
         Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_SPLIT_CONTEST)
         Publisher().sendMessage("signals.BallotScreen.set_splitmode", splitmode)
+
+    def onButton_infercontests(self, event):
+        self.parent.ballotscreen.do_infer_contests()
 
     def onEnter_zoomin(self, event):
         Publisher().sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
@@ -2465,6 +2489,49 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         if self._did_i_destroy != True:
             Publisher.sendMessage("signals.cancel_autodetect", None)
         event.Skip()
+
+    def do_infer_contests(self):
+        """ Use Nicholas' contest-region-inferring code, display the
+        results on the screen, and allow the user to adjust it. 
+        Repeated calls to this function will discard previous
+        contest-region-inferring results.
+        """
+        self.queue = Queue.queue()
+        t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID)
+
+        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,
+                             msg="Inferring Contest Regions...",
+                             self.INFERCONTESTS_JOB_ID)
+        t.start()
+        gauge.Show()
+
+    def on_infer_contests_done(self):
+        """ Display the inferring results to the screen, and allow the
+        user to manually change the bounds if necessary.
+        results will contain the bounding boxes of each contest, for
+        every ballot image:
+            {str blankpath: list of (x1, y1, x2, y2)}
+        """
+        results = self.queue.get()
+        for blankpath, contests in results.iteritems():
+            for (x1, y1, x2, y2) in contests:
+                # Set all contest bounding boxes to this
+                pass
+        
+class ThreadDoInferContests(threading.Thread):
+    def __init__(self, queue, job_id, *args, **kwargs):
+        threading.Thread.__init__(*args, **kwargs)
+        self.job_id = job_id
+        self.queue = queue
+        
+    def run(self):
+        # Do fancy contest-inferring computation
+        time.sleep(2)
+        # Computation done!
+        result = "fancy results"
+        queue.put(result)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
+                     (self.job_id,))
 
 class Autodetect_Confirm(wx.Panel):
     def __init__(self, parent, target_candidates, *args, **kwargs):

@@ -583,6 +583,7 @@ class IToolBar(ToolBar):
         self.btn_addcontest.GetParent().Hide()
         self.btn_splitcontest.GetParent().Hide()
         self.btn_undo.GetParent().Hide()
+        self.btn_infercontests.GetParent().Hide()
 
 class AttributeContextMenu(wx.Menu):
     """
