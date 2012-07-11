@@ -23,10 +23,13 @@ class AttributeBox(BoundingBox):
                  target_id=None,
                  line_width=None, children=None,
                  is_new=False, is_selected=False,
-                 attrs=None, side='front', is_digitbased=False):
+                 attrs=None, side='front', is_digitbased=False,
+                 is_tabulationonly=False):
         """
         attrs is a dict mapping:
             {str attrtype: str attrval}
+        is_tabulationonly: True if this Attribute is not used for grouping
+                           purposes, i.e. is only for tabulation purposes.
         """
         BoundingBox.__init__(self, x1, y1, x2, y2, label=label, color=color,
                              id=id, is_contest=is_contest, contest_id=contest_id,
@@ -36,6 +39,7 @@ class AttributeBox(BoundingBox):
         self.attrs = attrs if attrs else {}
         self.side = side
         self.is_digitbased = is_digitbased
+        self.is_tabulationonly = is_tabulationonly
 
     def has_attrtype(self, attrtype):
         return attrtype in self.attrs
@@ -80,7 +84,8 @@ self.attrs: {1}".format(oldname, self.attrs)
                            is_selected=self.is_selected,
                            target_id=self.target_id,
                             attrs=self.attrs,
-                            side=self.side, is_digitbased=self.is_digitbased)
+                            side=self.side, is_digitbased=self.is_digitbased,
+                            is_tabulationonly=self.is_tabulationonly)
 
     def marshall(self):
         """
@@ -90,6 +95,7 @@ self.attrs: {1}".format(oldname, self.attrs)
         data['attrs'] = self.attrs
         data['side'] = self.side
         data['is_digitbased'] = self.is_digitbased
+        data['is_tabulationonly'] = self.is_tabulationonly
         return data
 
     @staticmethod
@@ -103,11 +109,12 @@ self.attrs: {1}".format(oldname, self.attrs)
         return (a and self.x1 == a.x1 and self.y1 == a.y1 and self.x2 == a.x2
                 and self.y2 == a.y2 and self.is_contest == a.is_contest
                 and self.label == a.label and self.attrs == a.attrs 
-                and self.side == a.side and self.is_digitbased == a.is_digitbased)
+                and self.side == a.side and self.is_digitbased == a.is_digitbased
+                and self.is_tabulationonly == a.is_tabulationonly)
     def __repr__(self):
-        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased)
+        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6},is_tabonly{7})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased, self.is_tabulationonly)
     def __str___(self):
-        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased)
+        return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6},is_tabonly{7})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased, self.is_tabulationonly)
 
 class IWorldState(WorldState):
     def __init__(self, box_locations=None):
@@ -261,14 +268,14 @@ def get_imagepaths(dir):
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns
-    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased)}
+    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased, is_tabulationonly)}
     """
     if not project or not project.patch_loc_dir:
         return
     def is_csvfile(p):
         return os.path.splitext(p)[1].lower() == '.csv'
     fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
-              'attr_type', 'attr_val', 'side', 'is_digitbased')
+              'attr_type', 'attr_val', 'side', 'is_digitbased', 'is_tabulationonly')
     boxes = {}
     for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
         for csvfilepath in [f for f in filenames if is_csvfile(f)]:
@@ -287,6 +294,7 @@ def importPatches(project):
                     y2 = y1 + int(row['height'])
                     side = row['side']
                     is_digitbased = row['is_digitbased']
+                    is_tabulationonly = row['is_tabulationonly']
                     if not(boxes.has_key(imgpath)):
                         boxes[imgpath]=[]
                     # Currently, we don't create an exemplar attrpatch
@@ -298,7 +306,7 @@ def importPatches(project):
                                                          ('imageorder', imgorder))
                             boxes[imgpath].append(((y1, y2, x1, x2), 
                                                    grouplabel,
-                                                   side, is_digitbased))
+                                                   side, is_digitbased, is_tabulationonly))
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes

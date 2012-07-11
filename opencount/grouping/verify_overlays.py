@@ -49,6 +49,10 @@ class VerifyPanel(wx.Panel):
     YES_IDX = 0
     OTHER_IDX = 1
 
+    # Create the 'dummy' grouplabels used in other modes
+    GROUPLABEL_OTHER = common.make_grouplabel(('othertype', 'otherval'))
+    GROUPLABEL_MANUAL = common.make_grouplabel(('manualtype', 'manualval'))
+
     def __init__(self, parent, verifymode=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -89,6 +93,8 @@ class VerifyPanel(wx.Panel):
 
         self.initLayout()
         self.initBindings()
+
+
         
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
 
@@ -261,7 +267,8 @@ class VerifyPanel(wx.Panel):
         within a data set.
         exemplar_paths is a dict that maps each grouplabel to an
         exemplar image patch. This is the set of possible labels
-        for each example in the data set:
+        for each example in the data set. Only used for MODE_NORMAL
+        and MODE_YESNO
           {grouplabel: str imgpath}
         outfilepath is an optional file to store the grouping results.
         ondone is an optional function to call when grouping is done:
@@ -339,7 +346,7 @@ class VerifyPanel(wx.Panel):
                 break
             for group in self.queue:
                 for element in group.elements:
-                    element[1].append(((type, val),) + (('dummy',None),)*num_descs)
+                    element[1].append(common.make_grouplabel(*((type, val),) + (('dummy',None),)*num_descs))
             
         if self.queue:
             self.select_group(self.queue[0])
@@ -522,7 +529,7 @@ class VerifyPanel(wx.Panel):
         # First populate results
         print "DONE Verifying!"
         self.Disable()
-        results = {} # {grouplabel: groups}
+        results = {} # {grouplabel: list of GroupClasses}
         if self.mode == VerifyPanel.MODE_YESNO2:
             # Hack: Treat each GroupClass as separate categories,
             # instead of trying to merge them.

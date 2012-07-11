@@ -261,7 +261,7 @@ def listAttributesNEW(patchesH):
     attrMap = {}
     for k in patchesH.keys():
         val=patchesH[k]
-        for (bb,attrName,attrVal,side,is_digitbased) in val:
+        for (bb,attrName,attrVal,side,is_digitbased,is_tabulationonly) in val:
             # check if type is in attrMap, if not, create
             if attrMap.has_key(attrName):
                 attrMap[attrName][attrVal]=(bb,side,k)
@@ -407,7 +407,7 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
     """
     Input:
       patchesH: A dict mapping:
-                  {str imgpath: List of [(y1,y2,x1,x2), str attrtype, str attrval, str side]},
+                  {str imgpath: List of [(y1,y2,x1,x2), str attrtype, str attrval, str side, is_digit, is_tabulationonly]},
                 where 'side' is either 'front' or 'back'.
       ballotD:
       destDir:

@@ -1,4 +1,4 @@
-import os, sys, math, csv, copy, random, threading, time, traceback, pickle, datetime, pdb
+import os, sys, math, csv, copy, random, threading, time, traceback, pickle, datetime, pdb, Queue
 import numpy as np
 import scipy
 import scipy.misc
@@ -127,6 +127,7 @@ class SpecifyTargetsPanel(wx.Panel):
     NUM_ITERS = 0
     # Default 'confidence' parameter value for Template Matching
     TEMPMATCH_DEFAULT_PARAM = 0.85
+    INFERCONTESTS_JOB_ID = util.GaugeID("InferContestsJobId")
 
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
@@ -490,7 +491,13 @@ voting bubbles were missed.".format(ctr)
         templatepath. Keeps all contest bounding boxes though.
         """
         self.world.remove_voting_targets(templatepath)
-    
+    def set_contests(self, templatepath, contests):
+        """ For a given templatepath, set its list of contest bounding
+        boxes to contests.
+        """
+        self.remove_contests(templatepath)
+        self.world.add_boxes(templatepath, contests)
+
     def export_bounding_boxes(self):
         """ 
         Export box locations to csv files. Also, returns the BoundingBox
@@ -848,6 +855,60 @@ single voting target, which violates assumptions."
         Triggered when a change is made to the Project.
         """
         pass
+
+    def do_infer_contests(self):
+        """ Use Nicholas' contest-region-inferring code, display the
+        results on the screen, and allow the user to adjust it. 
+        Repeated calls to this function will discard previous
+        contest-region-inferring results.
+        """
+        self.queue = Queue.queue()
+        t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID)
+
+        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,
+                             msg="Inferring Contest Regions...",
+                             job_id=self.INFERCONTESTS_JOB_ID)
+        t.start()
+        gauge.Show()
+
+    def on_infer_contests_done(self):
+        """ Display the inferring results to the screen, and allow the
+        user to manually change the bounds if necessary.
+        results will contain the bounding boxes of each contest, for
+        every ballot image:
+            {str blankpath: list of (x1, y1, x2, y2)}
+        """
+        results = self.queue.get()
+        w_img, h_img = self.project.imgsize
+        w_img, h_img = float(w_img), float(h_img)
+        for blankpath, contests in results.iteritems():
+            contestboxes = []
+            for (x1, y1, x2, y2) in contests:
+                # Set all contest bounding boxes to this
+                x1a = x1 / w_img
+                y1a = y1 / h_img
+                x2a = x2 / w_img
+                y2a = y2 / h_img
+                box = BoundingBox(x1a, y1a, x2a, y2a, is_contest=True)
+                contestboxes.append(box)
+            self.remove_contests(blankpath)
+            
+                
+class ThreadDoInferContests(threading.Thread):
+    def __init__(self, queue, job_id, *args, **kwargs):
+        threading.Thread.__init__(*args, **kwargs)
+        self.job_id = job_id
+        self.queue = queue
+        
+    def run(self):
+        # Do fancy contest-inferring computation
+        time.sleep(2)
+        # Computation done!
+        result = "fancy results"
+        queue.put(result)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
+                     (self.job_id,))
+
         
 def import_worldstate(csvdir, imgsize):
     """
