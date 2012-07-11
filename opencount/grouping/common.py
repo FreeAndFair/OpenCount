@@ -14,10 +14,15 @@ import specify_voting_targets.util_gui as util_gui
 
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
+# Special ID's used for Attributes
+TABULATION_ONLY_ID = 1
+DIGIT_BASED_ID = 2
+
 class AttributeBox(BoundingBox):
     """
     Represents a bounding box around a ballot attribute.
     """
+
     def __init__(self, x1, y1, x2, y2, label='', color=None, 
                  id=None, is_contest=False, contest_id=None, 
                  target_id=None,
@@ -237,6 +242,33 @@ def get_attrtypes(project):
                     attr_types.add(row['attr_type'])
             csvfile.close()
     return tuple(attr_types)
+
+def is_tabulationonly(project, attrtype):
+    """ Returns True if the attrtype is for tabulationonly. """
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, filename), 'r')
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['attr_type'] == attrtype:
+                    return True if row['is_tabulationonly'] == 'True' else False
+            csvfile.close()
+    # Means we can't find attrtype anywhere.
+    assert False, "Can't find attrtype: {0}".format(attrtype)
+
+def is_digitbased(project, attrtype):
+    """ Returns True if the attrtype is digit-based. """
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, filename), 'r')
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['attr_type'] == attrtype:
+                    return True if row['is_digitbased'] == 'True' else False
+            csvfile.close()
+    # Means we can't find attrtype anywhere.
+    assert False, "Can't find attrtype: {0}".format(attrtype)
+    
 
 def num_common_prefix(*args):
     """
