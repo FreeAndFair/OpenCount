@@ -48,6 +48,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # maps {str regionpath: MyStaticBitmap obj}
         self.cells = {}
+        # maps {str regionpath: StaticText txt}
+        self.precinct_txts = {}
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
@@ -119,10 +121,17 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         else:
             self.j += 1
         w, h = imgbitmap.GetSize()
+        s = wx.BoxSizer(wx.VERTICAL)
+        txt = wx.StaticText(self, label="Precinct Number:")
         staticbitmap = MyStaticBitmap(self, self.i, self.j, imgpath, bitmap=imgbitmap, pil_img=pil_img, rszFac=rszFac)
+        s.Add(txt)
+        s.Add(staticbitmap, proportion=1, flag=wx.EXPAND)
         assert imgpath not in self.cells
+        assert imgpath not in self.precinct_txts
         self.cells[imgpath] = staticbitmap
-        self.gridsizer.Add(staticbitmap)
+        self.precinct_txts[imgpath] = txt
+        #self.gridsizer.Add(staticbitmap)
+        self.gridsizer.Add(s, border=10, flag=wx.ALL)
 
     def setup_grid(self):
         """Reads in the digit patches (given by self.extracted_dir),
@@ -144,6 +153,12 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 self.add_img(b, imgpath, pil_img, imgpath, c)
         print 'num images:', len(self.imgID2cell)
         self.Refresh()
+
+    def update_precinct_txt(self, imgpath):
+        """ Updates the 'Precinct Num:' StaticText. """
+        txt = self.precinct_txts[imgpath]
+        cell = self.cells[imgpath]
+        txt.SetLabel("Precinct Number: {0}".format(cell.get_digits()))
 
     def start_tempmatch(self, imgpatch, cell):
         """ The user has selected a digit (imgpatch). Now we want to
@@ -210,7 +225,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def on_verifydone(self, results):
         """Invoked once the user has finished verifying the template
         matching on the current digit. Add all 'correct' matches to
-        our self.boxes.
+        the relevant cell's boxes.
         """
         def dont_add(newbox, regionpath):
             for box in self.cells[regionpath].boxes:
@@ -241,10 +256,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
                 # Then, scale it by the resizing done in setup_grid
                 x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
-                newbox = Box(*(x1, y1, x2, y2))
+                newbox = Box(x1, y1, x2, y2, digit=self.current_digit)
                 if not dont_add(newbox, regionpath):
                     added_matches += 1
-                    self.add_box(newbox, regionpath)        
+                    self.add_box(newbox, regionpath)
+            self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
                 
     def add_box(self, box, regionpath):
@@ -282,6 +298,17 @@ class MyStaticBitmap(wx.Panel):
 
     def cell2xy(self, i, j):
         return (self.parent.cellw * j, self.parent.cellh * i)
+
+    def get_digits(self):
+        """ Returns (in L-R order) the digits of all currently-labeled
+        boxes.
+        """
+        sortedboxes = sorted(self.boxes, key=lambda b: b.x1)
+        digits = ''
+        for box in sortedboxes:
+            if box.digit:
+                digits += box.digit
+        return digits
 
     def _start_box(self, x, y):
         assert not self._box
@@ -364,6 +391,7 @@ class ThreadDoTempMatch(threading.Thread):
         h, w =  self.img1.shape
         bb = [0, h-1, 0, w-1]
         regions = []
+        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 regions.append(pathjoin(dirpath, imgname))
@@ -392,9 +420,10 @@ class LabelDigitDialog(common.TextInputDialog):
         self.Fit()
 
 class Box(object):
-    def __init__(self, x1, y1, x2, y2):
+    def __init__(self, x1, y1, x2, y2, digit=None):
         self.x1, self.y1 = x1, y1
         self.x2, self.y2 = x2, y2
+        self.digit = digit
 
     @property
     def width(self):
@@ -411,7 +440,8 @@ class Box(object):
     def __eq__(self, o):
         return (o and issubclass(type(o), Box) and
                 self.x1 == o.x1 and self.y1 == o.y1 and
-                self.x2 == o.x2 and self.y2 == o.y2)
+                self.x2 == o.x2 and self.y2 == o.y2 and
+                self.digit == o.digit)
 
     @staticmethod
     def make_canonical(box):
