@@ -24,8 +24,8 @@ id.
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
     # Per page
-    NUM_COLS = 3
-    NUM_ROWS = 2
+    NUM_COLS = 4
+    NUM_ROWS = 3
     DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
     # Temp image files that we currently use.
     PATCH_TMP = '_patch_tmp.png'
@@ -83,6 +83,15 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.boxes = [] 
         self._box = None # A Box that is being created
+
+        self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
+
+    def onChildFocus(self, evt):
+        # If I don't override this child focus event, then wx will
+        # reset the scrollbars at extremely annoying times. Weird.
+        # For inspiration, see:
+        #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
+        pass
 
     def start(self):
         self.setup_grid()
