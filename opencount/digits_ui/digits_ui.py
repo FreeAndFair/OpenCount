@@ -352,7 +352,10 @@ class MyStaticBitmap(wx.Panel):
         if box:
             # do template matching
             npimg = self.extract_region(box)
-            self.parent.start_tempmatch(npimg, self)
+            npimg_crop = autocrop_img(npimg)
+            #scipy.misc.imsave('before_crop.png', npimg)
+            #scipy.misc.imsave('after_crop.png', npimg_crop)
+            self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
     def onMotion(self, evt):
         x, y = evt.GetPosition()
@@ -402,7 +405,7 @@ class ThreadDoTempMatch(threading.Thread):
         
     def run(self):
         h, w =  self.img1.shape
-        bb = [0, h-1, 0, w-1]
+        bb = [0, h, 0, w]
         regions = []
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):
@@ -519,6 +522,26 @@ class VerifyOverlayFrame(wx.Frame):
 
         verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
         verifypanel.start((group,), exemplar_paths, ondone=ondone)
+
+def autocrop_img(img):
+    """ Given an image, try to find the bounding box. """
+    def new_argwhere(a):
+        """ Given an array, do what argwhere does but for 255, since
+        np.argwhere does it for non-zero values instead.
+        """
+        b = a.copy()
+        for i in range(b.shape[0]):
+            for j in range(b.shape[1]):
+                val = a[i,j]
+                if val == 255:
+                    b[i,j] = 0
+                else:
+                    b[i,j] = 1
+        return np.argwhere(b)
+    thresholded = util_gui.autothreshold_numpy(img, method='otsu')
+    B = new_argwhere(thresholded)
+    (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
+    return img[ystart:ystop, xstart:xstop]
         
 class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
