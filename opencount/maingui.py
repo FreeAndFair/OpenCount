@@ -1355,7 +1355,8 @@ class Project(object):
                      'blankballots_straightdir': pathjoin(projdir_path, 'blankballots_straight'),
                      'are_blankballots_straightened': False,
                      'are_votedballots_straightened': False,
-                     'frontback_map': pathjoin(projdir_path, 'frontback_map.p')}
+                     'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
+                     'digit_exemplars': pathjoin(projdir_path, 'digit_exemplars')}
         self.createFields()
 
     def addCloseEvent(self, func):

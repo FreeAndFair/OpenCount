@@ -30,16 +30,18 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     # Temp image files that we currently use.
     PATCH_TMP = '_patch_tmp.png'
     REGION_TMP = '_region_tmp.png'
-    OVERLAYS_TMP = '_tmp_overlays'
 
-    def __init__(self, parent, extracted_dir, *args, **kwargs):
+    def __init__(self, parent, extracted_dir, digit_exemplars_outdir='digit_exemplars', *args, **kwargs):
         """
         str extracted_dir: Directory containing extracted patches
                            for each blank ballot.
+        str digit_exemplars_outdir: Directory in which we'll save each
+                                    digit exemplar patch.
         """
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.extracted_dir = extracted_dir
+        self.digit_exemplars_outdir = digit_exemplars_outdir
 
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
@@ -195,14 +197,15 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             return
         print "Num. Matches Found:", len(matches)
 
-        util_gui.create_dirs(self.OVERLAYS_TMP)
         self.overlaymaps = {} # maps {int matchID: (i,j)}
         grouplabel = common.make_grouplabel(('digit', self.current_digit))
         examples = []
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
         for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
-            patchpath = os.path.join(self.OVERLAYS_TMP, '{0}_match.png'.format(matchID))
+            rootdir = os.path.join(self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
+            util_gui.create_dirs(rootdir)
+            patchpath = os.path.join(rootdir, '{0}_match.png'.format(matchID))
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
             if Ireg.shape != (h, w):
@@ -263,6 +266,16 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
                 
+    def on_done(self):
+        """When the user decides that he/she has indeed finished
+        labeling all digits. Export the results, such as the
+        mapping from precinct-patch to precinct number.
+        """
+        self.export_precinct_nums()
+
+    def export_precinct_nums(self):
+        pass
+
     def add_box(self, box, regionpath):
         assert regionpath in self.matches
         assert regionpath in self.cells
