@@ -19,7 +19,7 @@ from labelcontest.labelcontest import LabelContest
 from runtargets.runtargets import RunTargets
 from grouping.define_attributes import DefineAttributesPanel
 from grouping.define_attributes import AttributeBox
-from grouping.label_attributes import LabelAttributesPanel
+from grouping.label_attributes import LabelAttributesPanel, GroupAttrsFrame
 from grouping.verify_grouping import GroupingMasterPanel
 from post_processing.postprocess import ResultsPanel
 from quarantine.quarantinepanel import QuarantinePanel
@@ -1109,7 +1109,13 @@ because the current election has only one template. Skipping ahead to 'Run'."
                 self.panel_define_attrs.SendSizeEvent()
                 self.SendSizeEvent()
         elif new == self.LABEL_ATTRS:
-            self.panel_label_attrs.start(self.GetSize())
+            def start_labelattrs(groupresults):
+                self.panel_label_attrs.start(self.GetSize())
+                self.panel_label_attrs.start()
+                self.panel_label_attrs.SendSizeEvent()
+                self.SendSizeEvent()
+                TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
+
             if self.get_num_template_ballots() == 1:
                 msg = "The step 'Specify Precinct Paches' (along with \
 'Correct Grouping') is unnecessary because the current election only has \
@@ -1119,11 +1125,12 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.ChangeSelection(self.RUN)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
+            elif is_any_digitattrs(self.project):
+                f = GroupAttrsFrame(self, self.project, start_labelattrs)
+                f.Show()
+                f.Maximize()
             else:
-                self.panel_label_attrs.start()
-            self.panel_label_attrs.SendSizeEvent()
-            self.SendSizeEvent()
-            TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
+                start_labelattrs(None)
         elif new == self.CORRECT_GROUPING:
             # Note: This panel includes both the 'Run Grouping'
             # CPU computation, in addition to the 'Verify Grouping'
@@ -1348,7 +1355,8 @@ class Project(object):
                      'blankballots_straightdir': pathjoin(projdir_path, 'blankballots_straight'),
                      'are_blankballots_straightened': False,
                      'are_votedballots_straightened': False,
-                     'frontback_map': pathjoin(projdir_path, 'frontback_map.p')}
+                     'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
+                     'digit_exemplars': pathjoin(projdir_path, 'digit_exemplars')}
         self.createFields()
 
     def addCloseEvent(self, func):
@@ -1497,6 +1505,18 @@ def get_max_dimensions(imgsdir):
             h = max(h, h_img)
             counter += 1
     return (w, h), counter
+
+def is_any_digitattrs(project):
+    """ Returns True if any attribute is a digits patch """
+    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
+        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, filename), 'r')
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['is_digitbased'] == 'True':
+                    return True
+            csvfile.close()
+    return False
 
 def is_valid_projectname(name):
     """

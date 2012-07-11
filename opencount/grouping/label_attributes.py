@@ -1,4 +1,5 @@
-import os, sys, pdb, wx
+import os, sys, pdb, wx, threading, Queue
+from wx.lib.pubsub import Publisher
 from labelcontest.labelcontest import LabelContest
 from PIL import Image
 import scipy
@@ -16,23 +17,52 @@ import group_attrs
 
 DUMMY_ROW_ID = -42
 
-class TestFrame(wx.Frame):
-    def __init__(self, parent, project, *args, **kwargs):
+class GroupAttributesThread(threading.Thread):
+    def __init__(self, attrdata, project, job_id, queue):
+        threading.Thread.__init__(self)
+        self.attrdata = attrdata
+        self.project = project
+        self.job_id = job_id
+        self.queue = queue
+
+    def run(self):
+        groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
+                                              self.project.projdir_path,
+                                              self.project.template_to_images,
+                                              job_id=self.job_id)
+        self.queue.put(groups)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
+
+class GroupAttrsFrame(wx.Frame):
+    """ Frame that both groups attribute patches, and allows the
+    user to verify the grouping.
+    """
+
+    GROUP_ATTRS_JOB_ID = util.GaugeID("Group_Attrs_Job_ID")
+
+    def __init__(self, parent, project, ondone,*args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = project
+        self.ondone = ondone
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.panel = verify_overlays.VerifyPanel(self, verifymode=verify_overlays.VerifyPanel.MODE_YESNO2)
-        self.Show()
-        self.Maximize()
-        self.Fit()
+        self.sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
         
         attrdata = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
-        groups = group_attrs.group_attributes(attrdata, self.project.imgsize,
-                                              self.project.projdir_path,
-                                              self.project.template_to_images)
+        self.queue = Queue.Queue()
+        t = GroupAttributesThread(attrdata, self.project, self.GROUP_ATTRS_JOB_ID, self.queue)
+        gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_groupattrs_done,
+                             msg="Grouping Attribute Patches...",
+                             job_id=self.GROUP_ATTRS_JOB_ID)
+        t.start()
+        gauge.Show()
 
+    def on_groupattrs_done(self):
+        groups = self.queue.get()
         self.panel.start(groups, None, ondone=self.verify_done)
+        self.Fit()
         
     def verify_done(self, results):
         """ Called when the user finished verifying the auto-grouping of
@@ -70,20 +100,20 @@ together."
         print "== Reduction in effort: ({0} / {1}) = {2}".format(len(sum(results.values(), [])),
                                                                  num_elements,
                                                                  reduction)
+        self.Close()
+        self.ondone(results)
 
 class LabelAttributesPanel(LabelContest):
     """
     This class is one big giant hack of a monkey-patch.
     """
     def gatherData(self):
+ 
         self.groupedtargets = []
-        self.dirList = []
     
         # attrdata is a list of dicts (marshall'd AttributeBoxes)
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
         frontback = pickle.load(open(self.proj.frontback_map))
-
-        #frame = TestFrame(self, self.proj)
 
         self.sides = [x['side'] for x in attrdata]
         self.types = [x['attrs'].keys()[0] for x in attrdata]
@@ -91,7 +121,10 @@ class LabelAttributesPanel(LabelContest):
         self.is_tabulationonly = [x['is_tabulationonly'] for x in attrdata]
 
         width, height = self.proj.imgsize
-        self.dirList = [os.path.join(self.proj.blankballots_straightdir,x) for x in os.listdir(self.proj.blankballots_straightdir)]
+        self.dirList = []
+        for dirpath, dirnames, filenames in os.walk(self.proj.blankballots_straightdir):
+            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                self.dirList.append(os.path.join(dirpath, imgname))
         for i,f in enumerate(self.dirList):
             thisballot = [[(at['id'], 0,
                           int(at['x1']*width), int(at['y1']*height), 

@@ -10,6 +10,8 @@ from specify_voting_targets.util_gui import *
 from verify_overlays import VerifyPanel
 import label_attributes, util, common
 
+from common import TABULATION_ONLY_ID, DIGIT_BASED_ID
+
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
 from pixel_reg.doGrouping import  groupImagesMAP, encodepath
@@ -221,7 +223,6 @@ class GroupingMasterPanel(wx.Panel):
         # _rows is a list of rows, used in exportResults
         self._rows = []
         hosed_bals = []
-
         munged_patches = munge_patches(self.run_grouping.patches,
                                        self.project,
                                        util.is_multipage(self.project),
@@ -235,7 +236,7 @@ class GroupingMasterPanel(wx.Panel):
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
             
-            templateid = determine_template(attrdict, munged_patches)
+            templateid = determine_template(attrdict, munged_patches, self.project)
             if not templateid:
                 hosed_bals.append((samplepath, attrdict, munged_patches))
                 continue
@@ -667,7 +668,7 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
         return correctedflips
 
-def determine_template(sample_attrs, template_attrs):
+def determine_template(sample_attrs, template_attrs, project):
     """
     Given a sample image's attrtype->attrval mappings, return the
     template that has the same attrtype->attrval mapping.
@@ -676,6 +677,7 @@ def determine_template(sample_attrs, template_attrs):
     Input:
       dict sample_attrs: {str attrtype: (str attrval, int flip, int imageorder)}
       dict template_attrs: {str temppath: {str attrtype: str attrval, int side}}
+      project
     """
     for temppath, temp_attrdict in template_attrs.iteritems():
         flag = True
@@ -683,6 +685,8 @@ def determine_template(sample_attrs, template_attrs):
             if attrtype not in sample_attrs:
                 # I.e. an attr on the back of a Template will not be found
                 # on a sample image of a Front side.
+                continue
+            elif common.is_tabulationonly(project, attrtype):
                 continue
             sample_attrval, flip, imageorder = sample_attrs[attrtype]
             if sample_attrval != temp_attrval:
