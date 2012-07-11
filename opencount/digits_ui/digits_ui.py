@@ -31,17 +31,26 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     PATCH_TMP = '_patch_tmp.png'
     REGION_TMP = '_region_tmp.png'
 
-    def __init__(self, parent, extracted_dir, digit_exemplars_outdir='digit_exemplars', *args, **kwargs):
+    def __init__(self, parent,
+                 extracted_dir, 
+                 digit_exemplars_outdir='digit_exemplars',
+                 precinctnums_outpath='precinct_nums.txt',
+                 ondone=None, *args, **kwargs):
         """
         str extracted_dir: Directory containing extracted patches
                            for each blank ballot.
         str digit_exemplars_outdir: Directory in which we'll save each
                                     digit exemplar patch.
+        fn ondone: A callback function to call when the digit-labeling is
+                   finished. It should accept the results, which is a dict:
+                       {str patchpath: str precinct number}
         """
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.extracted_dir = extracted_dir
         self.digit_exemplars_outdir = digit_exemplars_outdir
+        self.precinctnums_outpath = precinctnums_outpath
+        self.ondone = ondone
 
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
@@ -271,10 +280,31 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        self.export_precinct_nums()
+        self.export_precinct_nums(self.precinctnums_outpath)
+        result = self.get_patch2precinct()
+        if self.ondone:
+            self.ondone(result)
+        self.Disable()
 
-    def export_precinct_nums(self):
-        pass
+    def get_patch2precinct(self):
+        """ Called by on_done. Computes the result dictionary:
+            {str patchpath: str precinct number},
+        where patchpath is the path to the precinct patch of
+        some blank ballot.
+        """
+        result = {}
+        for patchpath, txt in self.precinct_txts.iteritems():
+            assert patchpath not in result
+            result[patchpath] = txt.GetLabel()
+        return result
+
+    def export_precinct_nums(self, outpath):
+        """ Export precinct nums to a specified text file. """
+        f = open(outpath, 'w')
+        for imgpath, txt in self.precinct_txts.iteritems():
+            precinct_num = txt.GetLabel()
+            print >>f, precinct_num
+        f.close()
 
     def add_box(self, box, regionpath):
         assert regionpath in self.matches
@@ -547,16 +577,26 @@ class TestFrame(wx.Frame):
     def __init__(self, parent, extracted_dir, *args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.panel = DigitLabelPanel(self, extracted_dir)
+        self.panel = DigitLabelPanel(self, extracted_dir, ondone=self.ondone)
         self.button = wx.Button(self, label="Click me")
+        self.button_done = wx.Button(self, label="I'm done.")
         self.button.Bind(wx.EVT_BUTTON, self.onbutton)
+        self.button_done.Bind(wx.EVT_BUTTON, self.onbutton_done)
         self.sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
         self.sizer.Add(self.button, proportion=0)
+        self.sizer.Add(self.button_done, proportion=0)
         self.SetSizer(self.sizer)
         self.Show()
 
     def onbutton(self, evt):
         self.panel.start()
+
+    def onbutton_done(self, evt):
+        self.panel.on_done()
+
+    def ondone(self, results):
+        print "Digit Labeling Done!"
+        print results
 
 def main():
     args = sys.argv[1:]
