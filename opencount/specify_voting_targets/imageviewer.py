@@ -1395,8 +1395,8 @@ class ToolBar(wx.Panel):
         addcontest_sel = bitmaps['addcontest_sel']
         splitcontest_unsel = bitmaps['splitcontest_unsel']
         splitcontest_sel = bitmaps['splitcontest_sel']
-        infercontest_unsel = bitmaps['splitcontest_unsel']
-        infercontest_sel = bitmaps['splitcontest_sel']
+        infercontest_unsel = bitmaps['infercontest_unsel']
+        infercontest_sel = bitmaps['infercontest_sel']
 
         panel_zoomin = wx.Panel(self)
         panel_zoomout = wx.Panel(self)
