@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import csv
 import pickle
 
-from group_contests import do_grouping, final_grouping, intersect
+from group_contests import do_grouping, final_grouping, extend_multibox, intersect
 
 sys.path.append('..')
 from util import ImageManipulate, pil2wxb
@@ -213,8 +213,14 @@ class LabelContest(wx.Panel):
 
         
         def addmultibox(x):
-            self.multiboxcontests_enter.append([(self.templatenum, self.count),
-                                                (self.templatenum, self.count+1)])
+            print self.inverse_mapping
+            
+            extension = extend_multibox(self.grouping_cached,
+                                        self.inverse_mapping[(self.templatenum, self.contest_order[self.templatenum][self.count])],
+                                        self.inverse_mapping[(self.templatenum, self.contest_order[self.templatenum][self.count+1])])
+            print "EXTENSION", extension
+            self.multiboxcontests_enter += [tuple([(self.mapping[x][0], self.contest_order[self.mapping[x][0]].index(self.mapping[x][1])) for x in pair]) for pair in extension]
+            
             print "MULTIBOX"
             print self.multiboxcontests_enter
             self.equiv(None)
@@ -319,6 +325,8 @@ class LabelContest(wx.Panel):
                     mapping[ballot_count, bbox] = (ballot_count, targetlist[0][1])
         print 
         print mapping
+        self.mapping = mapping
+        self.inverse_mapping = dict((v,k) for k,v in mapping.items())
 
         reorder = {}
         reorder_inverse = {}
