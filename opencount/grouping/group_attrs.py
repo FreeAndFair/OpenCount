@@ -11,7 +11,7 @@ from pixel_reg import shared
 
 _i = 0
 
-def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
+def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator
     effort.
       attrdata: A list of dicts (marshall'd AttributeBoxes)
@@ -117,6 +117,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path):
             x2, y2 = w-3, h-3
             bb = [y1, y2, x1, x2]
             matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.6)
+            
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,

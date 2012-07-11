@@ -436,10 +436,10 @@ class GroupClass(object):
         """
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
         weightedAttrVals = {}
-        # self.elements is a list of the form [(imgpath_i, attrlist_i, patchpath_i), ...]
-        # where each attrlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
+        # self.elements is a list of the form [(imgpath_i, rankedlist_i, patchpath_i), ...]
+        # where each rankedlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
         for element in self.elements:
-            # element := (imgpath, attrlist, patchpath)
+            # element := (imgpath, rankedlist, patchpath)
             """
             Overlays
             """

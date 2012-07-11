@@ -344,9 +344,11 @@ class VerifyPanel(wx.Panel):
                     num_descs = len(element[1][0]) - 1
                     break
                 break
+            dummy_grouplabel = common.make_grouplabel(*((type, val),) + (('dummy',None),)*num_descs)
             for group in self.queue:
+                group.orderedAttrVals.append(dummy_grouplabel)
                 for element in group.elements:
-                    element[1].append(common.make_grouplabel(*((type, val),) + (('dummy',None),)*num_descs))
+                    element[1].append(dummy_grouplabel)
             
         if self.queue:
             self.select_group(self.queue[0])
@@ -532,10 +534,13 @@ class VerifyPanel(wx.Panel):
         results = {} # {grouplabel: list of GroupClasses}
         if self.mode == VerifyPanel.MODE_YESNO2:
             # Hack: Treat each GroupClass as separate categories,
-            # instead of trying to merge them.
+            # instead of trying to merge them. However, we do
+            # merge the GROUPLABEL_MANUAL ones.
             for group in self.finished:
                 grouplabel = group.orderedAttrVals[0]
-                assert grouplabel not in results
+                if grouplabel in results:
+                    pdb.set_trace()
+                assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel))
                 results[grouplabel] = [group]
         else:
             for group in self.finished:
@@ -557,10 +562,13 @@ class VerifyPanel(wx.Panel):
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
 
             for group in groups:
-                foo = list(group.getcurrentgrouplabel())
-                k = tuple(sorted([t[0] for t in foo]))
+                # In MODE_YESNO2, foo is a list of the form:
+                #    ((<attrtype>,), ID)
+                #foo = list(group.getcurrentgrouplabel())
+                foo = list(group.orderedAttrVals[0])
+                attrtype = tuple(sorted([t[0] for t in foo]))
                 id = foo[0][1]
-                ids.setdefault(k, []).append(id)
+                ids.setdefault(attrtype, []).append(id)
             return ids
         def assign_new_id(group, ids):
             """ Given a new GroupClass, and a previous IDS mapping,
