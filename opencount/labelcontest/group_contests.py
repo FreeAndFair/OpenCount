@@ -631,7 +631,16 @@ def merge_contests(ballot_data, fulltargets):
         new_data.append(new_ballot)
     print new_data
     return new_data
-            
+
+def extend_multibox(ballots, box1, box2):
+    ballot = ballots[box1[0]]
+    txt1 = [x for x in ballot if x[:2] == box1][0]
+    txt2 = [x for x in ballot if x[:2] == box2][0]
+    print "ARGS", box1, box2
+    print txt1
+    print txt2
+
+    return [[box1, box2]]
 
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
