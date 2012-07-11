@@ -178,29 +178,34 @@ class GroupingMasterPanel(wx.Panel):
         """
         Called when the user is finished with grouping verification.
         results is a dict of the form:
-            {grouplabel: elements}
+            {grouplabel: list of GroupClasses}
         """
         attr_types = set(common.get_attrtypes(self.project))
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
-        for grouplabel, elements in results.iteritems():
-            # elements := list of (samplepath, rankedlist, patchpath)
-            if not elements:
+        for grouplabel, groups in results.iteritems():
+            # groups := list of GroupClass objects
+            if not groups:
                 # This grouplabel never got assigned any samples
                 continue
+            ad = {} # maps {str attrtype: str attrval}
+            # Gather up all attrtype->attrval mappings into ad
             for attrtype in attr_types:
                 attrval = common.get_propval(grouplabel, attrtype)
                 if attrval:
-                    break
-            assert attrval != None
+                    ad[attrtype] = attrval
+            assert ad != {}
             flip = common.get_propval(grouplabel, 'flip')
             imgorder = common.get_propval(grouplabel, 'imageorder')
             assert flip != None
             assert imgorder != None
-            for (samplepath, rankedlist, patchpath) in elements:
-                results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
-                                                                    flip,
-                                                                    imgorder)
+            #for (samplepath, rankedlist, patchpath) in groups:
+            for group in groups:
+                for (samplepath, rankedlist, patchpath) in group.elements:
+                    for attrtype, attrval in ad.iteritems():
+                        results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
+                                                                            flip,
+                                                                            imgorder)
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
         # maps {str ballotid: {str attrtype: int imageorder}}
         # this is useful because we can then infer which 
@@ -368,12 +373,12 @@ class RunGroupingPanel(wx.Panel):
             result = {}
             for temppath, patchtriple in patches.iteritems():
                 for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    if is_tabulationonly == 'True':
-                        continue
+                    #if is_tabulationonly == 'True':
+                    #    continue
                     for attrtype in attrtypes:
                         if common.get_propval(grouplabel, attrtype):
                             attrval = common.get_propval(grouplabel, attrtype)
-                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased))
+                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
             if not len(result) == len(patches):
                 pdb.set_trace()
             assert len(result) == len(patches)
@@ -714,12 +719,12 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     attrtypes = common.get_attrtypes(project)
     if not is_multipage:
         for temppath, tuples in patches.iteritems():
-            for (r, grouplabel, side) in tuples:
+            for (r, grouplabel, side, is_digitbased, is_tabulationonly) in tuples:
                 attrtype, attrval = get_attrtypeval(grouplabel, attrtypes)
                 result.setdefault(temppath, {})[attrtype] = (attrval, 'front')
     else:
         for temppath, tuples in patches.iteritems():
-            for (r, grouplabel, side) in tuples:
+            for (r, grouplabel, side, is_digitbased, is_tabulationonly) in tuples:
                 attrtype, attrval = get_attrtypeval(grouplabel, attrtypes)
                 result.setdefault(img2tmp[temppath], {})[attrtype] = (attrval, side)
 
