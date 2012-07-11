@@ -110,10 +110,9 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 # we've grouped every blank ballot.
                 continue
             global _i
-            scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
+            #scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
 
             _i += 1
-            #patchpaths = extract_temp_patches(d, temppaths)
             patchpaths = get_temp_patches(d, temppaths)
             _t = time.time()
             h, w = patch.shape
