@@ -21,6 +21,51 @@ Where each *.png is the result of encodepath'ing a blank ballot
 id.
 """        
 
+class DigitMainFrame(wx.Frame):
+    """A frame that contains both the DigitLabelPanel, and a simple
+    button toolbar.
+    """
+    def __init__(self, parent, extracted_dir,
+                 digit_exemplars_outdir='digit_exemplars',
+                 precinctnums_outpath='precinct_nums.txt',
+                 ondone=None,
+                 *args, **kwargs):
+        wx.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+        self.button_sort = wx.Button(self, label="Sort")
+        self.button_sort.Bind(wx.EVT_BUTTON, self.onButton_sort)
+        self.button_done = wx.Button(self, label="I'm Done.")
+        self.button_done.Bind(wx.EVT_BUTTON, self.onButton_done)
+
+        self.digitpanel = DigitLabelPanel(self, extracted_dir,
+                                          digit_exemplars_outdir,
+                                          precinctnums_outpath,
+                                          ondone)
+
+        sizerbtns = wx.BoxSizer(wx.HORIZONTAL)
+        sizerbtns.Add(self.button_sort)
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(self.button_done)
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(sizerbtns, border=10, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+
+    def start(self):
+        self.Maximize()
+        self.Show()
+        self.Fit()
+        self.digitpanel.start()
+
+    def onButton_sort(self, evt):
+        self.digitpanel.sort_cells()
+
+    def onButton_done(self, evt):
+        self.digitpanel.on_done()
+        self.Close()
+
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
     # Per page
@@ -274,6 +319,14 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     self.add_box(newbox, regionpath)
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
+
+    def sort_cells(self):
+        """ Sorts cells by average intensity (most-intense cells
+        at the beginning of the grid). This is to allow the UI to
+        present only the cells that probably still have digits-to-be-
+        labeled.
+        """
+        pass
                 
     def on_done(self):
         """When the user decides that he/she has indeed finished
@@ -572,31 +625,6 @@ def autocrop_img(img):
     B = new_argwhere(thresholded)
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
-        
-class TestFrame(wx.Frame):
-    def __init__(self, parent, extracted_dir, *args, **kwargs):
-        wx.Frame.__init__(self, parent, *args, **kwargs)
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.panel = DigitLabelPanel(self, extracted_dir, ondone=self.ondone)
-        self.button = wx.Button(self, label="Click me")
-        self.button_done = wx.Button(self, label="I'm done.")
-        self.button.Bind(wx.EVT_BUTTON, self.onbutton)
-        self.button_done.Bind(wx.EVT_BUTTON, self.onbutton_done)
-        self.sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
-        self.sizer.Add(self.button, proportion=0)
-        self.sizer.Add(self.button_done, proportion=0)
-        self.SetSizer(self.sizer)
-        self.Show()
-
-    def onbutton(self, evt):
-        self.panel.start()
-
-    def onbutton_done(self, evt):
-        self.panel.on_done()
-
-    def ondone(self, results):
-        print "Digit Labeling Done!"
-        print results
 
 def main():
     args = sys.argv[1:]
@@ -605,7 +633,8 @@ def main():
     else:
         path = args[0]
     app = wx.App(False)
-    frame = TestFrame(None, path)
+    frame = DigitMainFrame(None, path)
+    frame.start()
     app.MainLoop()
 
 if __name__ == '__main__':
