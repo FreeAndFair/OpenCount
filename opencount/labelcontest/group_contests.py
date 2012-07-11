@@ -651,5 +651,8 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
         get = ballot_preprocess(i, f, im, contests, sum(giventargets[i],[]), lang)
         ballots.append(get)
     print "WORKING ON", ballots
+    return ballots, final_grouping(ballots, giventargets)
+
+def final_grouping(ballots, giventargets):
     ballots = merge_contests(ballots, giventargets)
     return equ_class(ballots)
