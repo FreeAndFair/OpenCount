@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, wx, time
+import sys, os, pickle, pdb, wx, time, shutil
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
@@ -17,6 +17,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
       attrdata: A list of dicts (marshall'd AttributeBoxes)
       project: A Project.
     """
+    OUTDIR_ATTRPATCHES = pathjoin(projdir_path, 'extract_attrs_templates')
     def munge_matches(matches, grouplabel, patchpaths, d, outdir='extract_attrs_templates'):
         """ Given matches from find_patch_matches, convert it to
         a format that GroupClass likes:
@@ -65,6 +66,9 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             if temppath not in history:
                 result.append(temppath)
         return result
+
+    if os.path.isdir(OUTDIR_ATTRPATCHES):
+        shutil.rmtree(OUTDIR_ATTRPATCHES)
         
     tmp2imgs = pickle.load(open(tmp2imgs_path, 'rb'))
     groups = []
@@ -106,7 +110,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 # we've grouped every blank ballot.
                 continue
             global _i
-            #scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
+            scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
 
             _i += 1
             #patchpaths = extract_temp_patches(d, temppaths)
@@ -116,7 +120,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             x1, y1 = 0, 0
             x2, y2 = w-3, h-3
             bb = [y1, y2, x1, x2]
-            matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.6)
+            matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.7)
             
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
@@ -139,6 +143,10 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
     print "== Total Time:", time.time() - _starttime
     return groups
     
+def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
+    """ Alternative grouping algorithm. """
+    pass
+
 def inc_counter(ctr, k):
     if k not in ctr:
         ctr[k] = 1
