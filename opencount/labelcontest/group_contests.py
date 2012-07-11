@@ -632,15 +632,28 @@ def merge_contests(ballot_data, fulltargets):
     print new_data
     return new_data
 
-def extend_multibox(ballots, box1, box2):
+def extend_multibox(ballots, box1, box2, orders):
     ballot = ballots[box1[0]]
     txt1 = [x for x in ballot if x[:2] == box1][0]
     txt2 = [x for x in ballot if x[:2] == box2][0]
-    print "ARGS", box1, box2
-    print txt1
-    print txt2
+    txt = txt1[2]+txt2[2]
+    res = []
+    for bid,order in enumerate(orders):
+        print 'BID IS', bid
+        for c1,c2 in order:
+            t1 = [x for x in ballots[bid] if x[:2] == c1][0]
+            t2 = [x for x in ballots[bid] if x[:2] == c2][0]
+            if len(t1[2])+len(t2[2]) != len(txt1[2])+len(txt2[2]):
+                continue
+            print '-'*30
+            print 'consec', c1, c2
+            score, _ = compare(txt, t1[2]+t2[2])
+            if score < .2:
+                print "THEY ARE EQUAL"
+                res.append((c1, c2))
+    print "RESULT", res
 
-    return [[box1, box2]]
+    return res
 
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp

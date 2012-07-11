@@ -100,7 +100,6 @@ class LabelAttributesPanel(LabelContest):
             self.groupedtargets.append(thisballot)
         self.groupedtargets_back = self.groupedtargets
 
-        #self.template_width, self.template_height = Image.open(self.dirList[0]).size
         self.template_width, self.template_height = self.proj.imgsize
 
     def unsubscribe_pubsubs(self):
