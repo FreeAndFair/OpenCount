@@ -272,9 +272,32 @@ class LabelContest(wx.Panel):
  
         self.Show()
 
+
+    def load_languages(self):
+        result = {}
+        for f in os.listdir(self.proj.patch_loc_dir):
+            print "AND I GET", f, f[-4:]
+            if f[-4:] == '.csv':
+                print 'test', f
+                take = 0
+                for i,row in enumerate(csv.reader(open(os.path.join(self.proj.patch_loc_dir, f)))):
+                    if i == 0:
+                        if 'attr_type' in row:
+                            take = row.index('attr_type')
+                        else:
+                            break
+                    else:
+                        if row[take] == 'language':
+                            print 'found with lang', row[take+1]
+                            result[row[0]] = row[take+1]
+                            break
+                        
+        return result
+        
+
     def compute_equivs(self, x):
         self.has_equiv_classes = True
-        languages = {}
+        languages = self.load_languages()
 
         # Regroup the targets so that equal contests are merged.
         targets = []
@@ -639,7 +662,7 @@ class LabelContest(wx.Panel):
         try:
             # Test if it's defined
             x = self.contest_order
-        else:
+        except:
             equclass = [x for x in self.equivs if cur[0] in x][0]
             for each in equclass:
                 self.text[each] = [title]
