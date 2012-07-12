@@ -862,7 +862,7 @@ single voting target, which violates assumptions."
         Repeated calls to this function will discard previous
         contest-region-inferring results.
         """
-        self.queue = Queue.queue()
+        self.queue = Queue.Queue()
         t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID)
 
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,

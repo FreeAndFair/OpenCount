@@ -20,6 +20,7 @@ from runtargets.runtargets import RunTargets
 from grouping.define_attributes import DefineAttributesPanel
 from grouping.define_attributes import AttributeBox
 from grouping.label_attributes import LabelAttributesPanel, GroupAttrsFrame
+from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.verify_grouping import GroupingMasterPanel
 from post_processing.postprocess import ResultsPanel
 from quarantine.quarantinepanel import QuarantinePanel
@@ -502,12 +503,13 @@ class MainFrame(wx.Frame):
     SELECT_TARGETS = 2
     DEFINE_ATTRIBUTES = 3
     LABEL_ATTRS = 4
-    LABEL_CONTESTS = 5
-    CORRECT_GROUPING = 6
-    RUN = 7
-    SET_THRESHOLD = 8
-    QUARANTINE = 9
-    PROCESS = 10
+    LABEL_DIGIT_ATTRS = 5
+    LABEL_CONTESTS = 6
+    CORRECT_GROUPING = 7
+    RUN = 8
+    SET_THRESHOLD = 9
+    QUARANTINE = 10
+    PROCESS = 11
 
     map_pages = {}
 
@@ -526,6 +528,8 @@ class MainFrame(wx.Frame):
                                                            'cpu' : 'Label Ballot Attributes'},
                                MainFrame.LABEL_ATTRS: {'user': 'Label Ballot Attributes',
                                                            'cpu' : 'Label Ballot Attributes'},
+                               MainFrame.LABEL_DIGIT_ATTRS: {'user': 'Label Digit-Attributes',
+                                                             'cpu': 'Label Digit-Attributes'},
                                MainFrame.LABEL_CONTESTS: {'user': 'Label Contests data entry',
                                                           'cpu' : 'Label Contests data entry'},
                                MainFrame.CORRECT_GROUPING: {'user': 'Verify Ballot Grouping',
@@ -611,6 +615,7 @@ class MainFrame(wx.Frame):
         self.panel_define_attrs.unsubscribe_pubsubs()
         self.panel_label_attrs = tab_wrap(LabelAttributesPanel)(notebook)
         self.panel_label_attrs.unsubscribe_pubsubs()
+        self.panel_label_digitattrs = tab_wrap(LabelDigitsPanel)(notebook)
         self.panel_correct_grouping = GroupingMasterPanel(notebook)
         self.panel_run = RunTargets(notebook)
         self.panel_set_threshold = tab_wrap(ThresholdPanel)(notebook)
@@ -621,6 +626,7 @@ class MainFrame(wx.Frame):
                       (self.panel_specify_voting_targets, "Select and Group Targets"), 
                       (self.panel_define_attrs, "Define Ballot Attributes"),
                       (self.panel_label_attrs, "Label Ballot Attributes"),
+                      (self.panel_label_digitattrs, "Label Digit-Based Attributes"),
                       (self.panel_label_contests, "Label Contests"),
                       (self.panel_correct_grouping, "Correct Grouping"),
                       (self.panel_run, "Run"),
@@ -630,7 +636,6 @@ class MainFrame(wx.Frame):
 
         for panel, text in self.pages[1:]:
             notebook.AddPage(panel, text)
-
 
         imglist = wx.ImageList(16, 16)
         self.notebook.imglist = imglist
@@ -1052,6 +1057,9 @@ and active in order to access this.",
                 dlg.ShowModal()
                 self.notebook.ChangeSelection(self.LABEL_ATTRS)
                 return            
+        elif old == self.LABEL_DIGIT_ATTRS:
+            # Should sanity-check the results
+            pass
         elif old == self.CORRECT_GROUPING:
             TIMER.stop_task(('user', map_pages[self.CORRECT_GROUPING]['user']))
             self.panel_correct_grouping.exportResults()
@@ -1131,6 +1139,25 @@ one template. \nSkipping ahead to 'Run'."
                 f.Maximize()
             else:
                 start_labelattrs(None)
+        elif new == self.LABEL_DIGIT_ATTRS:
+            def is_any_digitspatches(project):
+                all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+                for attrbox_dict in all_attrtypes:
+                    if attrbox_dict['is_digitbased']:
+                        return True
+                return False
+            if is_any_digitspatches(self.project):
+                self.panel_label_digitattrs.start(self.project)
+            else:
+                msg = "There are no digit-based attribute patches, \
+so this step is unnecessary. Skipping ahead."
+                dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                dlg.ShowModal()
+                self.notebook.ChangeSelection(self.LABEL_CONTESTS)
+                self.notebook.SendPageChangedEvent(self.LABEL_DIGIT_ATTRS, self.LABEL_CONTESTS)
+                self.SendSizeEvent()
+                return
+            self.SendSizeEvent()
         elif new == self.CORRECT_GROUPING:
             # Note: This panel includes both the 'Run Grouping'
             # CPU computation, in addition to the 'Verify Grouping'
@@ -1356,7 +1383,9 @@ class Project(object):
                      'are_blankballots_straightened': False,
                      'are_votedballots_straightened': False,
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
-                     'digit_exemplars': pathjoin(projdir_path, 'digit_exemplars')}
+                     'extracted_digitpatch_dir': 'extracted_digitpatches',
+                     'digit_exemplars_outdir': 'digit_exemplars',
+                     'precinctnums_outpath': 'precinctnums.txt'}
         self.createFields()
 
     def addCloseEvent(self, func):
