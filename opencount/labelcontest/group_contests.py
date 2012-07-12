@@ -529,6 +529,9 @@ def compare(otexts1, otexts2):
     targtext1 = [y for x,y in otexts1 if x]
     targtext2 = [y for x,y in otexts2 if x]
     size = sum(texts1.values())+sum(texts2.values())
+    if size == 0:
+        print "Possible Error: A contest has no text associated with it"
+        return 0, []
     weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
 
     print "11111"

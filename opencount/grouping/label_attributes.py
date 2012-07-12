@@ -175,8 +175,8 @@ class LabelAttributesPanel(LabelContest):
             name = os.path.join(self.proj.patch_loc_dir, name)
             print "MAKING", name
             out = csv.writer(open(name, "w"))
-            out.writerow(["imgpath","id","x","y","width",
-                          "height","attr_type","attr_val","side","is_digitbased","is_tabulationonly"])
+            out.writerow(["imgpath","id","x","y","width","height","attr_type",
+                          "attr_val","side","is_digitbased","is_tabulationonly"])
             out.writerow([os.path.abspath(self.dirList[ballot]), DUMMY_ROW_ID,0,0,0,0,"_dummy_","_dummy_","_dummy_","_dummy_"])
             for uid,each in enumerate(vals):
                 pos = self.groupedtargets_back[ballot][uid][0]
