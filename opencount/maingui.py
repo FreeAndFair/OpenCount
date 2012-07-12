@@ -1140,7 +1140,23 @@ one template. \nSkipping ahead to 'Run'."
             else:
                 start_labelattrs(None)
         elif new == self.LABEL_DIGIT_ATTRS:
-            self.panel_label_digitattrs.start(self.project)
+            def is_any_digitspatches(project):
+                all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+                for attrbox_dict in all_attrtypes:
+                    if attrbox_dict['is_digitbased']:
+                        return True
+                return False
+            if is_any_digitspatches(self.project):
+                self.panel_label_digitattrs.start(self.project)
+            else:
+                msg = "There are no digit-based attribute patches, \
+so this step is unnecessary. Skipping ahead."
+                dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                dlg.ShowModal()
+                self.notebook.ChangeSelection(self.LABEL_CONTESTS)
+                self.notebook.SendPageChangedEvent(self.LABEL_DIGIT_ATTRS, self.LABEL_CONTESTS)
+                self.SendSizeEvent()
+                return
             self.SendSizeEvent()
         elif new == self.CORRECT_GROUPING:
             # Note: This panel includes both the 'Run Grouping'

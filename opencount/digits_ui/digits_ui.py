@@ -103,6 +103,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         attributes.
         """
         print "Done Labeling Digit-Based Attributes"
+        print results
 
 class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
