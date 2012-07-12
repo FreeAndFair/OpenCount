@@ -42,6 +42,33 @@ def fastFlip(I):
     Iout=np.asarray(I1cv)
     return Iout
 
+'''
+expand patch by pixPad with nans
+
+TODO(kai): handle borders
+
+'''
+def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
+
+    #pixPad = max(i1-pixPad0,0)
+    #pixPad = min(i2+pixPad0,I.shape[0])
+    #pixPad = max(j1-pixPad0,0)
+    #pixPad = min(j2+pixPad0,I.shape[1])
+ 
+    patchPad = np.empty((patch.shape[0]+2*pixPad,
+                         patch.shape[1]+2*pixPad))
+
+    patchPad[:] = np.nan
+    patchPad[pixPad:patch.shape[0]+pixPad,
+             pixPad:patch.shape[1]+pixPad] = patch
+    Ic = I[i1-pixPad:i2+pixPad,j1-pixPad:j2+pixPad]
+    IO=lk.imagesAlign(Ic,patchPad,type='rigid')
+    Ireg = IO[1]
+    Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
+                pixPad:patch.shape[1]+pixPad]
+    diff=np.abs(Ireg-patch);
+    err=np.sum(diff[np.nonzero(diff>.25)])
+    return (err,diff,Ireg)
 
 ''' 
 Input: 
@@ -73,8 +100,9 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
     bb[2] = bb[2]*rszFac
     bb[3] = bb[3]*rszFac
     [bbOut,bbOff]=expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],padPatch)
-    patch = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
-    patch0 = patch[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
+    patchFoo = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
+
+    patch = patchFoo[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
 
     if len(bbSearch)>0:
         bbSearch[0] = bbSearch[0]*rszFac
@@ -108,88 +136,17 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
             i1=YX[0]; i2=YX[0]+patch.shape[0]
             j1=YX[1]; j2=YX[1]+patch.shape[1]
 
+            (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
+            score2 = err / diff.size # pixel reg score
+            matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
+
+            # mask out detected region
             i1mask = max(0,i1-patch.shape[0]/3)
             i2mask = min(Iout.shape[0],i1+patch.shape[0]/3)
             j1mask = max(0,j1-patch.shape[1]/3)
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
-            
             Iout[i1mask:i2mask,j1mask:j2mask]=0
-            I1c = I1[i1:i2,j1:j2]
-            IO=lk.imagesAlign(I1c,patch,type='rigid')
-            Ireg = IO[1]
-            Ireg = Ireg[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
-            diff=np.abs(Ireg-patch0);
-            diff=diff[5:diff.shape[0]-5,5:diff.shape[1]-5];
-            err=np.sum(diff[np.nonzero(diff>.25)])
-            score2 = err / diff.size # pixel reg score
-            matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
 
-    return matchList
-
-
-''' 
-Input: 
-  patch: image patch to find
-  imList: list of full filenames for images to search
-  threshold: only return matches above this value
-  rszFac: downsampling factor for speed
-  region: bounding box to limit search for speed (TODO)
-
-Output:
-  list of tuples, one for every match
-  ((filename, score, rszFac, left, right, up, down), (...) )
-
-  Example:
-  I1cropped=I1[i1:i2,j1:j2]
-
-TODOS(kai)
-  - implement the region input
-  - return multiple matches on same image
-  - seems to be weird behavior when rszFac is .75
-'''
-def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[],padding=.75):
-    matchList = [] # (filename, left,right,up,down)
-
-    patch1 = np.round(fastResize(patch,rszFac)*255.)/255;
-    prepOpenCV(patch)
-    #patch[patch>.99]=.99; patch[patch<.01]=.01
-    for imP in imList:
-        I = standardImread(imP,flatten=True)
-        prepOpenCV(I)
-        #I[I>.99]=.99; I[I==0.0]=.001
-        I = np.round(fastResize(I,rszFac)*255.)/255.
-
-        # crop to region if specified
-        if len(region)>0:
-            i1 = region[0]*rszFac
-            i2 = region[1]*rszFac
-            j1 = region[2]*rszFac
-            j2 = region[3]*rszFac
-            [bbOut,bbOff]=expand(i1,i2,j1,j2,I.shape[0],I.shape[1],padding)
-            I1=I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
-        else:
-            I1=I;
-
-        patchCv=cv.fromarray(np.copy(patch1))
-        ICv=cv.fromarray(np.copy(I1))
-        outCv=cv.CreateMat(I1.shape[0]-patch1.shape[0]+1,I1.shape[1]-patch1.shape[1]+1,patchCv.type)
-        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
-        Iout=np.asarray(outCv)
-        Iout[Iout==1.0]=0;
-        # TODO: nonmax suppression
-
-        if Iout.max() < threshold:
-            continue
-
-        YX=np.unravel_index(Iout.argmax(),Iout.shape)
-        i1=YX[0]; i2=YX[0]+patch1.shape[0]
-        j1=YX[1]; j2=YX[1]+patch1.shape[1]
-        if len(region)>0:
-            i1 = i1 + bbOut[0]
-            i2 = i2 + bbOut[0]
-            j1 = j1 + bbOut[2]
-            j2 = j2 + bbOut[2]
-        matchList.append((imP,Iout.max(),rszFac,i1,i2,j1,j2))
 
     return matchList
 
@@ -208,7 +165,6 @@ def matchAll(digit_hash,I):
     return result_hash
 
 def stackMax(result_hash):
-
     maxSurf=np.zeros(1); symmax=-1;
     for key in result_hash.keys():
         out=result_hash[key]
@@ -249,26 +205,28 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
             i1=YX[0]; i2=YX[0]+patchExample.shape[0]
             j1=YX[1]; j2=YX[1]+patchExample.shape[1]
 
+            patch = digit_hash[sym]
+            #(err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)            
+            Ireg = I1[i1:i2,j1:j2]
+            result_meta.append((i1,i2,j1,j2,sym,Ireg,Iout.max()))
+            
+            # mask out detected region
             i1mask = max(0,i1-patchExample.shape[0]/3)
             i2mask = min(Iout.shape[0],i1+patchExample.shape[0]/3)
             j1mask = max(0,j1-patchExample.shape[1]/3)
             j2mask = min(Iout.shape[1],j1+patchExample.shape[1]/3)
-
             stackDel(match_hash,i1mask,i2mask,j1mask,j2mask)
-            result_meta.append((i1,i2,j1,j2,sym,Iout.max()))
-            
 
         # Sort resutl_list and crop out the digits
         result_meta=sorted(result_meta,key=lambda result_meta:result_meta[2])
 
         # crop out digits
-        found_patches=[]
         ocr_str=""
         for r in result_meta:
-            found_patches.append((I1[r[0]:r[1],r[2]:r[3]]))
             ocr_str += r[4]
             
-        results.append((imP,ocr_str,found_patches,result_meta))
+        pdb.set_trace()
+        results.append((imP,ocr_str,result_meta))
 
     return results
 
