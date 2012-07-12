@@ -193,6 +193,85 @@ def find_patch_matches(patch,imList,threshold=.8,rszFac=.75,region=[],padding=.7
 
     return matchList
 
+def matchAll(digit_hash,I):
+    result_hash = {}
+    for key in digit_hash.keys():
+        patch = prepOpenCV(digit_hash[key]);
+        patchCv=cv.fromarray(np.copy(patch))
+        ICv=cv.fromarray(np.copy(I))
+        outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
+        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+        Iout=np.asarray(outCv)
+        Iout[Iout==1.0]=0; # opencv bug
+        result_hash[key]=Iout
+
+    return result_hash
+
+def stackMax(result_hash):
+
+    maxSurf=np.zeros(1); symmax=-1;
+    for key in result_hash.keys():
+        out=result_hash[key]
+        if out.max() > maxSurf.max():
+            maxSurf = out
+            symmax = key
+            
+    return (maxSurf,symmax)
+
+def stackDel(match_hash,i1,i2,j1,j2):
+    for key in match_hash.keys():
+        out=match_hash[key]
+        out[i1:i2,j1:j2]=0
+
+def digitParse(digit_hash,imList,bbSearch,nDigits):
+
+    digitList = digit_hash.values();
+    patchExample = digitList[0]
+
+    results = []
+
+    for imP in imList:
+        I1 = standardImread(imP,flatten=True)
+        I1=prepOpenCV(I1)
+        I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+
+        # perform matching for all digits
+        # return best matching digit
+        # mask out 
+        match_hash = matchAll(digit_hash,I1);
+        result_meta = []
+
+        while len(result_meta) < nDigits:
+            res=stackMax(match_hash)
+            Iout=res[0]
+            sym=res[1]
+            YX=np.unravel_index(Iout.argmax(),Iout.shape)
+            i1=YX[0]; i2=YX[0]+patchExample.shape[0]
+            j1=YX[1]; j2=YX[1]+patchExample.shape[1]
+
+            i1mask = max(0,i1-patchExample.shape[0]/3)
+            i2mask = min(Iout.shape[0],i1+patchExample.shape[0]/3)
+            j1mask = max(0,j1-patchExample.shape[1]/3)
+            j2mask = min(Iout.shape[1],j1+patchExample.shape[1]/3)
+
+            stackDel(match_hash,i1mask,i2mask,j1mask,j2mask)
+            result_meta.append((i1,i2,j1,j2,sym,Iout.max()))
+            
+
+        # Sort resutl_list and crop out the digits
+        result_meta=sorted(result_meta,key=lambda result_meta:result_meta[2])
+
+        # crop out digits
+        found_patches=[]
+        ocr_str=""
+        for r in result_meta:
+            found_patches.append((I1[r[0]:r[1],r[2]:r[3]]))
+            ocr_str += r[4]
+            
+        results.append((imP,ocr_str,found_patches,result_meta))
+
+    return results
+
 def numProcs():
     nProc=mp.cpu_count() 
     return nProc

@@ -317,7 +317,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
     scale=min(max(sList)+4*sStep,rszFac)
     return scale
 
-def groupByAttrMAP(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=False, deleteall=True):
+def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=False, deleteall=True):
     """
     options:
         bool deleteall: if True, this will first remove all output files
@@ -430,7 +430,7 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
     attrMap=listAttributesNEW(patchesH)
 
     for attrName in attrMap.keys():
-        groupByAttrMAP(bal2imgs,attrName,attrMap,destDir,metaDir,stopped,verbose=verbose,deleteall=deleteall)
+        groupByAttr(bal2imgs,attrName,attrMap,destDir,metaDir,stopped,verbose=verbose,deleteall=deleteall)
 
 def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
