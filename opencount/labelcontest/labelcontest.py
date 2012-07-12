@@ -99,11 +99,9 @@ class LabelContest(wx.Panel):
         self.proj.removeCloseEvent(self.save)
     
     def reset_data(self):
-        print "DO IT"
         for f in [self.proj.contest_id, 
                   self.proj.contest_internal, 
                   self.proj.contest_text]:
-            print "ON", f
             if os.path.exists(f):
                 print "UNLINK", f
                 os.unlink(f)
@@ -213,7 +211,6 @@ class LabelContest(wx.Panel):
 
         
         def addmultibox(x):
-            print self.inverse_mapping
             orders = []
             for bid in range(len(self.grouping_cached)):
                 order = []
@@ -386,17 +383,11 @@ class LabelContest(wx.Panel):
 
         mapping = {}
         for num,group in enumerate(equal):
-            print "-----ON", num
             for item in group:
                 mapping[item] = num
                 # We need to get the contest ID in the new list
-                print "Know that targets are at", self.groupedtargets[item[0]]
                 targets = [x for x in self.groupedtargets[item[0]] if x[0][1] == item[1]][0]
-                #print "The id is", item[1]
-                #targets = self.groupedtargets[item[0]][cont]
-                print "so targets is", targets
                 ids = [str(x[0]) for x in targets]
-                print "ids", ids
                 c_id.writerow([self.dirList[item[0]],item[1],num]+ids)
 
         # We write out the result as a mapping from Contest ID to text
@@ -643,6 +634,16 @@ class LabelContest(wx.Panel):
         
         print 'txt', self.text
         title = self.text[cur[0]][0]
+        
+        # This is a temporary hack.
+        try:
+            # Test if it's defined
+            x = self.contest_order
+        else:
+            equclass = [x for x in self.equivs if cur[0] in x][0]
+            for each in equclass:
+                self.text[each] = [title]
+
         text = [self.text[x][1:] if self.text[x] != [] else ['']*len(self.groupedtargets[x[0]][self.contest_order[x[0]].index(x[1])]) for x in cur]
         text = sum(text, [])
         print 'this', text
@@ -875,7 +876,6 @@ class LabelContest(wx.Panel):
                                                 min = 1, max=len(self.text_targets))
         self.text_upto.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None))
         def enter_upto(x):
-            print 'aaa'
             self.focusIsOn = -2
             enterPushed(x)
         self.text_upto.Bind(wx.EVT_TEXT_ENTER, enterPushed)
