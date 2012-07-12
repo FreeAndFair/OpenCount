@@ -21,38 +21,88 @@ Where each *.png is the result of encodepath'ing a blank ballot
 id.
 """        
 
-class DigitMainFrame(wx.Frame):
-    """A frame that contains both the DigitLabelPanel, and a simple
-    button toolbar.
+class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
+    """ A wrapper-class of DigitMainPanel that is meant to be
+    integrated into OpenCount itself.
     """
-    def __init__(self, parent, extracted_dir,
-                 digit_exemplars_outdir='digit_exemplars',
-                 precinctnums_outpath='precinct_nums.txt',
-                 ondone=None,
-                 *args, **kwargs):
-        wx.Frame.__init__(self, parent, *args, **kwargs)
+    def __init__(self, parent, *args, **kwargs):
+        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        self.project = None
 
-        if not ondone:
-            ondone = self.on_done
-
-        self.mainpanel = DigitMainPanel(self, extracted_dir,
-                                        digit_exemplars_outdir,
-                                        precinctnums_outpath,
-                                        ondone)
-        
+    def start(self, project):
+        """ First, extract all digit-patches into 
+        self.project.extracted_digitpatch_dir. Then, run the 
+        Digit-Labeling UI.
+        """
+        self.project = project
+        extracted_digitpatches_fulldir = pathjoin(project.projdir_path,
+                                                  project.extracted_digitpatch_dir)
+        digit_ex_fulldir = pathjoin(project.projdir_path, project.digit_exemplars_outdir)
+        precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
+        self.extract_digitbased_patches(extracted_digitpatches_fulldir)
+        self.mainpanel = DigitMainPanel(self, extracted_digitpatches_fulldir,
+                                        digit_ex_fulldir,
+                                        precinctnums_fullpath,
+                                        ondone=self.ondone)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.mainpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.mainpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
-
-    def start(self):
-        self.Maximize()
-        self.Show()
         self.Fit()
         self.mainpanel.start()
 
-    def on_done(self, results):
-        self.Close()
+    def extract_digitbased_patches(self, outdir):
+        """ Extract all digit-based attributes into the outdir. This
+        will be the input to the Digit-Labeling UI.
+        str outdir: This directory will look like:
+            <outdir>/attr_i/*.png
+        """
+        # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
+        all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        digit_attrtypes = []  # list of (attrs,x1,y1,x2,y2,side)
+        for attrbox_dict in all_attrtypes:
+            if attrbox_dict['is_digitbased']:
+                attrs = attrbox_dict['attrs']
+                x1 = attrbox_dict['x1']
+                y1 = attrbox_dict['y1']
+                x2 = attrbox_dict['x2']
+                y2 = attrbox_dict['y2']
+                side = attrbox_dict['side']
+                digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
+        tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
+        i = 0
+        w_img, h_img = self.project.imgsize
+        for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
+            x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
+            y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
+            for templateid, path in tmp2imgs.iteritems():
+                # Grab the correct image...
+                if self.project.is_multipage:
+                    frontpath, backpath = path
+                    if side == 'front':
+                        img = shared.standardImread(frontpath, flatten=True)
+                    else:
+                        img = shared.standardImread(backpath, flatten=True)
+                else:
+                    img = shared.standardImread(path[0], flatten=True)
+                patch = img[y1:y2, x1:x2]
+                attrs_sorted = sorted(attrs.keys())
+                attrs_sortedstr = '_'.join(attrs_sorted)
+                util_gui.create_dirs(pathjoin(outdir,
+                                              attrs_sortedstr))
+                outfilename = '{0}_exemplar.png'.format(i)
+                scipy.misc.imsave(pathjoin(outdir, 
+                                           attrs_sortedstr,
+                                           outfilename),
+                                  patch)
+                i += 1
+        print "Finished extracting patch dirs."
+
+    def ondone(self, results):
+        """ Called when the user is finished labeling digit-based
+        attributes.
+        """
+        print "Done Labeling Digit-Based Attributes"
 
 class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
@@ -468,6 +518,7 @@ class MyStaticBitmap(wx.Panel):
             npimg_crop = autocrop_img(npimg)
             #scipy.misc.imsave('before_crop.png', npimg)
             #scipy.misc.imsave('after_crop.png', npimg_crop)
+            npimg_crop = np.float32(npimg_crop / 255.0)
             self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
     def onMotion(self, evt):
@@ -523,9 +574,10 @@ class ThreadDoTempMatch(threading.Thread):
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                print 'template matching over:', pathjoin(dirpath, imgname)
                 regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb, regions, rszFac=1.0, threshold=0.6)
+            matches = shared.find_patch_matchesV1(self.img1, bb, regions, threshold=0.7)
         except Exception as e:
             print e
             print "ERROR"
@@ -635,6 +687,39 @@ class VerifyOverlayFrame(wx.Frame):
 
         verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
         verifypanel.start((group,), exemplar_paths, ondone=ondone)
+
+class DigitMainFrame(wx.Frame):
+    """A frame that contains both the DigitLabelPanel, and a simple
+    button toolbar.
+    """
+    def __init__(self, parent, extracted_dir,
+                 digit_exemplars_outdir='digit_exemplars',
+                 precinctnums_outpath='precinct_nums.txt',
+                 ondone=None,
+                 *args, **kwargs):
+        wx.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+        if not ondone:
+            ondone = self.on_done
+
+        self.mainpanel = DigitMainPanel(self, extracted_dir,
+                                        digit_exemplars_outdir,
+                                        precinctnums_outpath,
+                                        ondone)
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.mainpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+
+    def start(self):
+        self.Maximize()
+        self.Show()
+        self.Fit()
+        self.mainpanel.start()
+
+    def on_done(self, results):
+        self.Close()
 
 def autocrop_img(img):
     """ Given an image, try to find the bounding box. """

@@ -268,7 +268,6 @@ def is_digitbased(project, attrtype):
             csvfile.close()
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
-    
 
 def num_common_prefix(*args):
     """
