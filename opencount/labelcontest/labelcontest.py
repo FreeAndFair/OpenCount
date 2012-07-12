@@ -99,11 +99,9 @@ class LabelContest(wx.Panel):
         self.proj.removeCloseEvent(self.save)
     
     def reset_data(self):
-        print "DO IT"
         for f in [self.proj.contest_id, 
                   self.proj.contest_internal, 
                   self.proj.contest_text]:
-            print "ON", f
             if os.path.exists(f):
                 print "UNLINK", f
                 os.unlink(f)
@@ -204,26 +202,34 @@ class LabelContest(wx.Panel):
         self.has_equiv_classes = False
         self.multiboxcontests = []
         self.multiboxcontests_enter = []
-        #self.grouping_cached = None
-        self.grouping_cached = [[(0, (1110, 281, 1600, 592), [(False, u'\n'), (True, u'Z DIANNE Fenwsrem\nParty Prelcrenoex Democraiic\nUnited States Senator\n\n'), (True, u'\xa4 c0u.EEN sum FERNALD\nParty Preference Democratic\nMctrxer/Co\u20221sn1|an\\/Artrsl\n\n'), (True, u'EI\n\n')]), (0, (1111, 2139, 1600, 2472), [(False, u'Judg\xa40|01\xa4Sn4>\xa4ri\xa4rO\xa411rt\nO|\u2018HceN0.1\nV0te|0rOne\n\n'), (True, u'E Eucmz .uz\u2022-mx\nGeneral Praciioe Atmmey\n\n'), (True, u'\xa4 \xa4Ea0RA\u2022-\u2022 .1. cv\xb7auANcs\nJudge OI me Superior Court\n\n'), (True, u'EI\n\n')]), (0, (1110, 586, 1600, 1095), [(False, u'UNITED STATES REPRESENTATIVE\n48th District\nVote lor One\n\n'), (True, u'\xa4 mm Roe-\u2022RABAcHER\nParty Prelerencex Republican\nLIS. Representative\n\n'), (True, u'\xa4 ALAN scr-num\nParty Prelerencez None\nMarkebng Sales Executive\n\n'), (True, u'D Ron vARAsTEH\nParty Preleaenoez Democratic\nEngineer/Small Businessman\n\n'), (True, u'III\n\n')]), (0, (1111, 1089, 1600, 1835), [(False, u'MEMBER OF THE STATE ASSEMBLY\n72nd District\nVote kx Ons\n\n'), (True, u'E \xb7rRAvns ALLEN\nParty Preluencez Republican\nSmall Business Owner\n\n'), (True, u'D ALBERT AvALA\nPany Prelerencec Democratic\nRetired Poiioe Commander\n\n'), (True, u'E Joe Dovmn\nParty Preference: Democratic\nCity C0mmissi0rverIBusinesspers0n\n\n'), (True, u'E LONG P1-uuva\nPaty Prelerence: Republican\nMember. Orange County Board 07\nEducation\n\n'), (True, u'\xa4 may EDGAR\nPany Preference Republican\nBusinessman/Mayor\n\n'), (True, u'EI\n\n')]), (0, (619, 282, 1116, 2650), [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'D ELIZABETH EMKEN\nParty Preierence Republican\nBusinessw0rnanINcnpr\xa4|it Executive\n\n'), (True, u'D \xbb<AanRu\xa4\xa4nN KARIM ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E Rncx w|LuAMs\nParty Prelerencer Republican\nBusiness Aticmey\n\n'), (True, u'E R0<sEu0 T. G\xa4.0R\xa4A\nPany Preierence: Republican\nGraduate Student/Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nParty Preference: American lndependen\nDoctor 01 Chiropractic\n\n'), (True, u'D Roazm LAUTEN\nParty Preference; Republican\n\n'), (True, u'E ami. K. ucv-m=00r\nParty Preference: Libertarian\nRetired Nurse\n\n'), (True, u'D \xa4Avn\xa4 ALEx Lsvnrr\nParty Prelerence; Democratic\nComputer S<:ientistlEngineer\n\n'), (True, u'\xa4 0RLY mrz\nParty Preference: Republi \xbb n\nDoctor/Attorney/Businessworrran\n\n'), (True, u'E AL RAMrREz\nParty Preference; Republican\nBusinessman\n\n'), (True, u'\xa4 DIRK ALLEN \u2022<0NOPn<\nParty Preference: Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republican\nRetired Administration Director\n\n'), (True, u'Q MIKE smnmuwc;\nParty Preference; Demouatic\nConsumer Rights Attomey\n\n'), (True, u'Q cum; srewmr\nParty Preference; Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'Q NAK sHA\xbb-1\nParty Prelevenoe; Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 mcnum sunmzm\nParty Preierence: Republican\nEducator/Author/Businessrr1an\n\n'), (True, u'E DENNIS JAc\u2022<s0N\nParty Prelererxce Republican\nAerospace General Manager\n\n'), (True, u'\xa4 DAN HUGHES\nParty Pralerence: Republican\nSmall Business Owner\n\n'), (True, u'E GREG <:0r~1L0N\nParty Preference: Republican\nBusmessman/CPA\n\n'), (True, u'E JOHN B0Rur=+=\nParty Preference, Republican\nBusinessman\n\n'), (True, u'D OSCAR ALEJANDRO BRAUN\nParty Preference: Republican\nBusinessman/Rancher\n\n'), (True, u'\xa4 MARSHA Fznwumn\nParty Prelerence: Peace and Freedom\nRehred Teacher\n\n')])], [(1, (1108, 282, 1599, 595), [(False, u'\n'), (True, u'\xa4 Rosem LAUTEN\nParty Preference: Repubiican\n\n'), (True, u'D GAIL K, i.icHTFOOT\nPariy Prelerencet Libertarian\nRetired Nurse\n\n'), (True, u'E\n\n')]), (1, (1108, 2187, 1599, 2531), [(False, u'Judq\xa4\xa41t!1sSup\u2022ricrCc\u2022:i\nO||icoN\xa4.1\nV\xa4t\xa4i\xa4r0n\xa4\n\n'), (True, u'\xa4 EUGENE Jrzr-1A\xbb<\nGeneral Practice Attorney\n\n'), (True, u'Z DEBORAH .1, co-\u2022uANc\nJudge 0i me Supenov Coun\n\n'), (True, u'III\n\n')]), (1, (1108, 1090, 1599, 1492), [(False, u'STATE SENATOR\n29lh Disirld\nVob br Ona\n\n'), (True, u"D GREG DIAMOND\nParty Preierence: Democratic\nW\xa4\u20221<ers' Rights Attorney\n\n"), (True, u'\xa4 R0BERT "BOB" \u2022-uur=r=\nParty Preference: Republican\nLawmaksrlBusiness Ouncv\n\n'), (True, u"IZ'!\n\n")]), (1, (1108, 1486, 1599, 1890), [(False, u'MEMBER OF THE STATE ASSEMBLY\n5501 Disirid\nVon kx Ons\n\n'), (True, u'\xa4 cum HAGMAN\nParty Prelerenca Republican\nBusmess Owner/Assemblyman\n\n'), (True, u'E GREGG 0 \u2022=RncH|.E\nPany Prelcvemez Democratic\nScual Worker\n\n'), (True, u'Z\n\n')]), (1, (1108, 589, 1599, 1096), [(False, u'UNITED STATES REPRESENTATIVE\n3901 Dlsidd\nVcts br Ons\n\n'), (True, u"Q D'MAR|E Mummenn\nParty Pvelarence None\nCommunity Volunteer\n\n"), (True, u'E .1Av cnen\nParty Prelerems: Democratic\nBusmessman/School Bcardmembev\n\n'), (True, u'\xa4 an Rovce\nParty Prelersncez Repustican\nU.S. Representative\n\n'), (True, u'IZ\n\n')]), (1, (619, 284, 1114, 2648), [(False, u'UNITED STATES SENATOR\nVote lor Ono\n\n'), (True, u'Z \xa4Av\u2022\xa4 ALEX uzvm\nParty Preference: Democratic\nComputer Scientist/Engineer\n\n'), (True, u'\xa4 0RLv mnz\nParty Preference; Republican\nD0c|0rIAtt\xa4rr\u2022ey/Busiruesswcrnarw\n\n'), (True, u'Q AL RAMIREZ\nParty Prelecenoe; Republican\nBusinessman\n\n'), (True, u'Z uma ALLEN \u2022<0N0r>n<\nParty Prelerence; Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference; Rcpmuimn\nRedred Adninisuation Directv!\n\n'), (True, u'\xa4 MIKE smnmuucs\nParty Preference: Democratic\nConsuner Rnghts Attorney\n\n'), (True, u'E DIANE sTEwART\nParty Preference: Democrauc\nBusinessuunan/Firnarxce Manager\n\n'), (True, u'E MAK sum\nParty Preterenoe; Democrats\nEnvironmental Health Consultant\n\n'), (True, u'E wacuum sr-unasw\nParty Preference: Republiwn\nEdu\xa22tonAulr\u2022\xa4vlBusirmessrnar\xa4\n\n'), (True, u'E uemms .1Ac\u2022<s0N\nParty Preference: Republican\nAerospace GQVEFBI Manager\n\n'), (True, u'E DAN Hucv-eas\nParty Preference: Republican\nSmall Busaness Owner\n\n'), (True, u'Z GREG c0N\xa4.0~\nParty Preference; Republkzn\nBusinessman/CPA\n\n'), (True, u'E ,10HN BORUFF\nParty Preference: Republi \xbb= n\nBusinessman\n\n'), (True, u'E oscm Aumuuno smuu\nParty Preference: Republican\nBusinessman/Rznd\u2022er\n\n'), (True, u'D MARsHA FEINLAND\nParty Prelerence; Peace and Freedom\nRetired Teadmer\n\n'), (True, u'Q DIANNE Femswsou\nParty Pvelyenoez Democratic\nUnited States Senator\n\n'), (True, u'\xa4 c01.Lea~ sum FERNAL0\nParty Prelerence; Dcmocrahc\nMoliner/C0r\u2022saa|taa\xb7\xa4\u2022/Artist\n\n'), (True, u'\xa4 EuzABErH EMKEN\nParty Prelerevmz Republican\nBusines$w<\xa4nar\xa4IN0r\\g1r0Iit Executive\n\n'), (True, u'E wxnnnunnnw manu ALI\nParty Prelerence: Peace and Freedom\nBusinessman\n\n'), (True, u'\xa4 Rncx wnLuAMs\nParty Preference: Republrwn\nBusmess Attorney\n\n'), (True, u'E Rocsuo T. cn.0mA\nParty Preference: Republican\nGraduate Studen\\l\u2018Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nPady Preference: American Independen\nDoctor of Chiropractic\n\n')])]]
+        self.grouping_cached = None
+        #self.grouping_cached = [[(0, (1110, 281, 1600, 592), [(False, u'\n'), (True, u'Z DIANNE Fenwsrem\nParty Prelcrenoex Democraiic\nUnited States Senator\n\n'), (True, u'\xa4 c0u.EEN sum FERNALD\nParty Preference Democratic\nMctrxer/Co\u20221sn1|an\\/Artrsl\n\n'), (True, u'EI\n\n')]), (0, (1111, 2139, 1600, 2472), [(False, u'Judg\xa40|01\xa4Sn4>\xa4ri\xa4rO\xa411rt\nO|\u2018HceN0.1\nV0te|0rOne\n\n'), (True, u'E Eucmz .uz\u2022-mx\nGeneral Praciioe Atmmey\n\n'), (True, u'\xa4 \xa4Ea0RA\u2022-\u2022 .1. cv\xb7auANcs\nJudge OI me Superior Court\n\n'), (True, u'EI\n\n')]), (0, (1110, 586, 1600, 1095), [(False, u'UNITED STATES REPRESENTATIVE\n48th District\nVote lor One\n\n'), (True, u'\xa4 mm Roe-\u2022RABAcHER\nParty Prelerencex Republican\nLIS. Representative\n\n'), (True, u'\xa4 ALAN scr-num\nParty Prelerencez None\nMarkebng Sales Executive\n\n'), (True, u'D Ron vARAsTEH\nParty Preleaenoez Democratic\nEngineer/Small Businessman\n\n'), (True, u'III\n\n')]), (0, (1111, 1089, 1600, 1835), [(False, u'MEMBER OF THE STATE ASSEMBLY\n72nd District\nVote kx Ons\n\n'), (True, u'E \xb7rRAvns ALLEN\nParty Preluencez Republican\nSmall Business Owner\n\n'), (True, u'D ALBERT AvALA\nPany Prelerencec Democratic\nRetired Poiioe Commander\n\n'), (True, u'E Joe Dovmn\nParty Preference: Democratic\nCity C0mmissi0rverIBusinesspers0n\n\n'), (True, u'E LONG P1-uuva\nPaty Prelerence: Republican\nMember. Orange County Board 07\nEducation\n\n'), (True, u'\xa4 may EDGAR\nPany Preference Republican\nBusinessman/Mayor\n\n'), (True, u'EI\n\n')]), (0, (619, 282, 1116, 2650), [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'D ELIZABETH EMKEN\nParty Preierence Republican\nBusinessw0rnanINcnpr\xa4|it Executive\n\n'), (True, u'D \xbb<AanRu\xa4\xa4nN KARIM ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E Rncx w|LuAMs\nParty Prelerencer Republican\nBusiness Aticmey\n\n'), (True, u'E R0<sEu0 T. G\xa4.0R\xa4A\nPany Preierence: Republican\nGraduate Student/Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nParty Preference: American lndependen\nDoctor 01 Chiropractic\n\n'), (True, u'D Roazm LAUTEN\nParty Preference; Republican\n\n'), (True, u'E ami. K. ucv-m=00r\nParty Preference: Libertarian\nRetired Nurse\n\n'), (True, u'D \xa4Avn\xa4 ALEx Lsvnrr\nParty Prelerence; Democratic\nComputer S<:ientistlEngineer\n\n'), (True, u'\xa4 0RLY mrz\nParty Preference: Republi \xbb n\nDoctor/Attorney/Businessworrran\n\n'), (True, u'E AL RAMrREz\nParty Preference; Republican\nBusinessman\n\n'), (True, u'\xa4 DIRK ALLEN \u2022<0NOPn<\nParty Preference: Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republican\nRetired Administration Director\n\n'), (True, u'Q MIKE smnmuwc;\nParty Preference; Demouatic\nConsumer Rights Attomey\n\n'), (True, u'Q cum; srewmr\nParty Preference; Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'Q NAK sHA\xbb-1\nParty Prelevenoe; Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 mcnum sunmzm\nParty Preierence: Republican\nEducator/Author/Businessrr1an\n\n'), (True, u'E DENNIS JAc\u2022<s0N\nParty Prelererxce Republican\nAerospace General Manager\n\n'), (True, u'\xa4 DAN HUGHES\nParty Pralerence: Republican\nSmall Business Owner\n\n'), (True, u'E GREG <:0r~1L0N\nParty Preference: Republican\nBusmessman/CPA\n\n'), (True, u'E JOHN B0Rur=+=\nParty Preference, Republican\nBusinessman\n\n'), (True, u'D OSCAR ALEJANDRO BRAUN\nParty Preference: Republican\nBusinessman/Rancher\n\n'), (True, u'\xa4 MARSHA Fznwumn\nParty Prelerence: Peace and Freedom\nRehred Teacher\n\n')])], [(1, (1108, 282, 1599, 595), [(False, u'\n'), (True, u'\xa4 Rosem LAUTEN\nParty Preference: Repubiican\n\n'), (True, u'D GAIL K, i.icHTFOOT\nPariy Prelerencet Libertarian\nRetired Nurse\n\n'), (True, u'E\n\n')]), (1, (1108, 2187, 1599, 2531), [(False, u'Judq\xa4\xa41t!1sSup\u2022ricrCc\u2022:i\nO||icoN\xa4.1\nV\xa4t\xa4i\xa4r0n\xa4\n\n'), (True, u'\xa4 EUGENE Jrzr-1A\xbb<\nGeneral Practice Attorney\n\n'), (True, u'Z DEBORAH .1, co-\u2022uANc\nJudge 0i me Supenov Coun\n\n'), (True, u'III\n\n')]), (1, (1108, 1090, 1599, 1492), [(False, u'STATE SENATOR\n29lh Disirld\nVob br Ona\n\n'), (True, u"D GREG DIAMOND\nParty Preierence: Democratic\nW\xa4\u20221<ers' Rights Attorney\n\n"), (True, u'\xa4 R0BERT "BOB" \u2022-uur=r=\nParty Preference: Republican\nLawmaksrlBusiness Ouncv\n\n'), (True, u"IZ'!\n\n")]), (1, (1108, 1486, 1599, 1890), [(False, u'MEMBER OF THE STATE ASSEMBLY\n5501 Disirid\nVon kx Ons\n\n'), (True, u'\xa4 cum HAGMAN\nParty Prelerenca Republican\nBusmess Owner/Assemblyman\n\n'), (True, u'E GREGG 0 \u2022=RncH|.E\nPany Prelcvemez Democratic\nScual Worker\n\n'), (True, u'Z\n\n')]), (1, (1108, 589, 1599, 1096), [(False, u'UNITED STATES REPRESENTATIVE\n3901 Dlsidd\nVcts br Ons\n\n'), (True, u"Q D'MAR|E Mummenn\nParty Pvelarence None\nCommunity Volunteer\n\n"), (True, u'E .1Av cnen\nParty Prelerems: Democratic\nBusmessman/School Bcardmembev\n\n'), (True, u'\xa4 an Rovce\nParty Prelersncez Repustican\nU.S. Representative\n\n'), (True, u'IZ\n\n')]), (1, (619, 284, 1114, 2648), [(False, u'UNITED STATES SENATOR\nVote lor Ono\n\n'), (True, u'Z \xa4Av\u2022\xa4 ALEX uzvm\nParty Preference: Democratic\nComputer Scientist/Engineer\n\n'), (True, u'\xa4 0RLv mnz\nParty Preference; Republican\nD0c|0rIAtt\xa4rr\u2022ey/Busiruesswcrnarw\n\n'), (True, u'Q AL RAMIREZ\nParty Prelecenoe; Republican\nBusinessman\n\n'), (True, u'Z uma ALLEN \u2022<0N0r>n<\nParty Prelerence; Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference; Rcpmuimn\nRedred Adninisuation Directv!\n\n'), (True, u'\xa4 MIKE smnmuucs\nParty Preference: Democratic\nConsuner Rnghts Attorney\n\n'), (True, u'E DIANE sTEwART\nParty Preference: Democrauc\nBusinessuunan/Firnarxce Manager\n\n'), (True, u'E MAK sum\nParty Preterenoe; Democrats\nEnvironmental Health Consultant\n\n'), (True, u'E wacuum sr-unasw\nParty Preference: Republiwn\nEdu\xa22tonAulr\u2022\xa4vlBusirmessrnar\xa4\n\n'), (True, u'E uemms .1Ac\u2022<s0N\nParty Preference: Republican\nAerospace GQVEFBI Manager\n\n'), (True, u'E DAN Hucv-eas\nParty Preference: Republican\nSmall Busaness Owner\n\n'), (True, u'Z GREG c0N\xa4.0~\nParty Preference; Republkzn\nBusinessman/CPA\n\n'), (True, u'E ,10HN BORUFF\nParty Preference: Republi \xbb= n\nBusinessman\n\n'), (True, u'E oscm Aumuuno smuu\nParty Preference: Republican\nBusinessman/Rznd\u2022er\n\n'), (True, u'D MARsHA FEINLAND\nParty Prelerence; Peace and Freedom\nRetired Teadmer\n\n'), (True, u'Q DIANNE Femswsou\nParty Pvelyenoez Democratic\nUnited States Senator\n\n'), (True, u'\xa4 c01.Lea~ sum FERNAL0\nParty Prelerence; Dcmocrahc\nMoliner/C0r\u2022saa|taa\xb7\xa4\u2022/Artist\n\n'), (True, u'\xa4 EuzABErH EMKEN\nParty Prelerevmz Republican\nBusines$w<\xa4nar\xa4IN0r\\g1r0Iit Executive\n\n'), (True, u'E wxnnnunnnw manu ALI\nParty Prelerence: Peace and Freedom\nBusinessman\n\n'), (True, u'\xa4 Rncx wnLuAMs\nParty Preference: Republrwn\nBusmess Attorney\n\n'), (True, u'E Rocsuo T. cn.0mA\nParty Preference: Republican\nGraduate Studen\\l\u2018Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nPady Preference: American Independen\nDoctor of Chiropractic\n\n')])]]
 
         button6 = wx.Button(self, label="Compute Equiv Classes")
-        button6.Bind(wx.EVT_BUTTON, self.equiv)
+        button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
 
         
         def addmultibox(x):
-            print self.inverse_mapping
-            
+            orders = []
+            for bid in range(len(self.grouping_cached)):
+                order = []
+                for cid in range(len(self.grouping_cached[bid])-1):
+                    m1 = self.inverse_mapping[(bid,self.contest_order[bid][cid])]
+                    m2 = self.inverse_mapping[(bid,self.contest_order[bid][cid+1])]
+                    order.append((m1,m2))
+                orders.append(order)
+            print "ORDS", orders
             extension = extend_multibox(self.grouping_cached,
                                         self.inverse_mapping[(self.templatenum, self.contest_order[self.templatenum][self.count])],
-                                        self.inverse_mapping[(self.templatenum, self.contest_order[self.templatenum][self.count+1])])
+                                        self.inverse_mapping[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
+                                        orders)
             print "EXTENSION", extension
             self.multiboxcontests_enter += [tuple([(self.mapping[x][0], self.contest_order[self.mapping[x][0]].index(self.mapping[x][1])) for x in pair]) for pair in extension]
             
             print "MULTIBOX"
             print self.multiboxcontests_enter
-            self.equiv(None)
+            self.compute_equivs(None)
         button6 = wx.Button(self, label="Mark as Multi-Box")
         button6.Bind(wx.EVT_BUTTON, addmultibox)
         template.Add(button6)
@@ -266,9 +272,32 @@ class LabelContest(wx.Panel):
  
         self.Show()
 
-    def equiv(self, x):
+
+    def load_languages(self):
+        result = {}
+        for f in os.listdir(self.proj.patch_loc_dir):
+            print "AND I GET", f, f[-4:]
+            if f[-4:] == '.csv':
+                print 'test', f
+                take = 0
+                for i,row in enumerate(csv.reader(open(os.path.join(self.proj.patch_loc_dir, f)))):
+                    if i == 0:
+                        if 'attr_type' in row:
+                            take = row.index('attr_type')
+                        else:
+                            break
+                    else:
+                        if row[take] == 'language':
+                            print 'found with lang', row[take+1]
+                            result[row[0]] = row[take+1]
+                            break
+                        
+        return result
+        
+
+    def compute_equivs(self, x):
         self.has_equiv_classes = True
-        languages = {}
+        languages = self.load_languages()
 
         # Regroup the targets so that equal contests are merged.
         targets = []
@@ -377,17 +406,11 @@ class LabelContest(wx.Panel):
 
         mapping = {}
         for num,group in enumerate(equal):
-            print "-----ON", num
             for item in group:
                 mapping[item] = num
                 # We need to get the contest ID in the new list
-                print "Know that targets are at", self.groupedtargets[item[0]]
                 targets = [x for x in self.groupedtargets[item[0]] if x[0][1] == item[1]][0]
-                #print "The id is", item[1]
-                #targets = self.groupedtargets[item[0]][cont]
-                print "so targets is", targets
                 ids = [str(x[0]) for x in targets]
-                print "ids", ids
                 c_id.writerow([self.dirList[item[0]],item[1],num]+ids)
 
         # We write out the result as a mapping from Contest ID to text
@@ -634,6 +657,16 @@ class LabelContest(wx.Panel):
         
         print 'txt', self.text
         title = self.text[cur[0]][0]
+        
+        # This is a temporary hack.
+        try:
+            # Test if it's defined
+            x = self.contest_order
+        except:
+            equclass = [x for x in self.equivs if cur[0] in x][0]
+            for each in equclass:
+                self.text[each] = [title]
+
         text = [self.text[x][1:] if self.text[x] != [] else ['']*len(self.groupedtargets[x[0]][self.contest_order[x[0]].index(x[1])]) for x in cur]
         text = sum(text, [])
         print 'this', text
@@ -866,7 +899,6 @@ class LabelContest(wx.Panel):
                                                 min = 1, max=len(self.text_targets))
         self.text_upto.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None))
         def enter_upto(x):
-            print 'aaa'
             self.focusIsOn = -2
             enterPushed(x)
         self.text_upto.Bind(wx.EVT_TEXT_ENTER, enterPushed)
