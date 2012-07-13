@@ -225,7 +225,6 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
         for r in result_meta:
             ocr_str += r[4]
             
-        pdb.set_trace()
         results.append((imP,ocr_str,result_meta))
 
     return results

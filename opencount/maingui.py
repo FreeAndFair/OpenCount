@@ -1133,7 +1133,7 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.ChangeSelection(self.RUN)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
-            elif is_any_digitattrs(self.project):
+            else:
                 f = GroupAttrsFrame(self, self.project, start_labelattrs)
                 f.Show()
                 f.Maximize()
