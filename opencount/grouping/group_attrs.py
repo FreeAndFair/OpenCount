@@ -120,19 +120,30 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             x2, y2 = w-3, h-3
             bb = [y1, y2, x1, x2]
             matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.7)
-            
-            _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,
                                                                      _endt / len(temppaths))
+            _endt = time.time() - _t
             if matches:
                 flag = True
-                # First handle 'found' templates
-                for (filename, _, _, _,  _, _, _, _, rszFac) in matches:
+                # Discard worst-scoring duplicates
+                bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
+                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
+                    key = (attrtype, filename)
+                    if key not in bestmatches:
+                        bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                    else:
+                        tup = bestmatches.get(key, None)
+                        sc = tup[2]
+                        if sc and sc2 > sc:
+                            bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                bestmatches_lst = bestmatches.values()
+                # Now handle 'found' templates
+                for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
                     history.add((attrtype, filename))
                 inc_counter(attrtype_ctr, attrtype)
                 grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
-                elements = munge_matches(matches, grouplabel, patchpaths, d)
+                elements = munge_matches(bestmatches_lst, grouplabel, patchpaths, d)
                 in_group = common.GroupClass(elements)
                 groups.append(in_group)
         if not flag:

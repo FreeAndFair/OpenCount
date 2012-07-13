@@ -109,16 +109,26 @@ class LabelAttributesPanel(LabelContest):
     """
     def set_attrgroup_results(self, groupresults):
         """ Given the result of grouping the attribute patches, update
-        my self.equiv data structures. groupresults is a dict:
+        my self.equivs data structures. groupresults is a dict:
             {grouplabel: list of GroupClass objects}
         """
+        def get_cid(blankpath, patchpath):
+            """Determine the c_id of this attribute patch. """
+            # Assumes that patchpath is of the form:
+            #    <projdir_path>/extract_attrs_templates/<ATTR_STR>/*.png
+            attrs_str = os.path.basename(os.path.split(patchpath)[0])
+            return self.cid_map[(blankpath, attrs_str)]
+        maps = {} # maps {grouplabel: list of (bid, cid)}
         for grouplabel, groups in groupresults.iteritems():
-            equiv_class = []
             for group in groups:
-                for element in group.elements:
-                    pdb.set_trace()
-
-        self.equivs = []
+                for (blankpath, rankedlist, patchpath) in group.elements:
+                    bid = self.bid_map[blankpath]
+                    cid = get_cid(blankpath, patchpath)
+                    maps.setdefault(grouplabel, []).append((bid, cid))
+        for grouplabel, tups in maps.iteritems():
+            self.equivs.append(tups)
+        self.multibox_contests = []
+        self.has_equiv_classes = True
 
     def gatherData(self):
  
@@ -136,7 +146,8 @@ class LabelAttributesPanel(LabelContest):
         width, height = self.proj.imgsize
         self.dirList = []
         curbid = 0
-        bid_map = {}  # maps {str ballotpath: int b_id (ballot id)}
+        # bid -> ballot id
+        bid_map = {}  # maps {str ballotpath: int b_id}
         for dirpath, dirnames, filenames in os.walk(self.proj.blankballots_straightdir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 ballotpath = os.path.join(dirpath, imgname)
@@ -144,13 +155,36 @@ class LabelAttributesPanel(LabelContest):
                 assert ballotpath not in bid_map
                 bid_map[ballotpath] = curbid
                 curbid += 1
+        self.bid_map = bid_map
+        # cid -> contest id
+        cid_map = {} # maps {(str ballotpath, str attrs): int c_id}
+        curcid = 0
         for i,f in enumerate(self.dirList):
-            thisballot = [[(at['id'], 0,
-                          int(at['x1']*width), int(at['y1']*height), 
-                          int(at['x2']*width), int(at['y2']*height))] for at in attrdata if at['side'] == frontback[os.path.abspath(f)]]
-    
+            thisballot = []
+            for at in attrdata:
+                if at['side'] == frontback[os.path.abspath(f)]:
+                    assert f not in cid_map
+                    attrs = tuple(sorted(at['attrs'].keys()))
+                    attrs_str = '_'.join(attrs)
+                    cid_map[(f, attrs_str)] = curcid
+                    thisballot.append([(curcid, 0,
+                                        int(round(at['x1']*width)),
+                                        int(round(at['y1']*height)),
+                                        int(round(at['x2']*width)),
+                                        int(round(at['y2']*height)))])
+                    curcid += 1
+                    #cid_map[(f, attrs_str)] = at['id']
+                    #thisballot.append([(at['id'], 0,
+                    #                    int(round(at['x1']*width)),
+                    #                    int(round(at['y1']*height)),
+                    #                    int(round(at['x2']*width)),
+                    #                    int(round(at['y2']*height)))])
+            #thisballot = [[(at['id'], 0,
+            #              int(at['x1']*width), int(at['y1']*height), 
+            #              int(at['x2']*width), int(at['y2']*height))] for at in attrdata if at['side'] == frontback[os.path.abspath(f)]]
             self.groupedtargets.append(thisballot)
         self.groupedtargets_back = self.groupedtargets
+        self.cid_map = cid_map
 
         self.template_width, self.template_height = self.proj.imgsize
 

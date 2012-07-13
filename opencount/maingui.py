@@ -1124,7 +1124,7 @@ because the current election has only one template. Skipping ahead to 'Run'."
                 """
                 self.panel_label_attrs.start(self.GetSize())
                 self.panel_label_attrs.start()
-                #self.panel_label_attrs.set_attrgroup_results(groupresults)
+                self.panel_label_attrs.set_attrgroup_results(groupresults)
                 self.panel_label_attrs.SendSizeEvent()
                 self.SendSizeEvent()
                 TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
