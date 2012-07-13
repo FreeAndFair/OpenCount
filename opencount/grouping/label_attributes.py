@@ -119,6 +119,7 @@ class LabelAttributesPanel(LabelContest):
             attrs_str = os.path.basename(os.path.split(patchpath)[0])
             return self.cid_map[(blankpath, attrs_str)]
         maps = {} # maps {grouplabel: list of (bid, cid)}
+        # First, merge each group in groupresults into maps
         for grouplabel, groups in groupresults.iteritems():
             for group in groups:
                 for (blankpath, rankedlist, patchpath) in group.elements:
