@@ -107,6 +107,19 @@ class LabelAttributesPanel(LabelContest):
     """
     This class is one big giant hack of a monkey-patch.
     """
+    def set_attrgroup_results(self, groupresults):
+        """ Given the result of grouping the attribute patches, update
+        my self.equiv data structures. groupresults is a dict:
+            {grouplabel: list of GroupClass objects}
+        """
+        for grouplabel, groups in groupresults.iteritems():
+            equiv_class = []
+            for group in groups:
+                for element in group.elements:
+                    pdb.set_trace()
+
+        self.equivs = []
+
     def gatherData(self):
  
         self.groupedtargets = []
@@ -122,9 +135,15 @@ class LabelAttributesPanel(LabelContest):
 
         width, height = self.proj.imgsize
         self.dirList = []
+        curbid = 0
+        bid_map = {}  # maps {str ballotpath: int b_id (ballot id)}
         for dirpath, dirnames, filenames in os.walk(self.proj.blankballots_straightdir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                self.dirList.append(os.path.join(dirpath, imgname))
+                ballotpath = os.path.join(dirpath, imgname)
+                self.dirList.append(ballotpath)
+                assert ballotpath not in bid_map
+                bid_map[ballotpath] = curbid
+                curbid += 1
         for i,f in enumerate(self.dirList):
             thisballot = [[(at['id'], 0,
                           int(at['x1']*width), int(at['y1']*height), 

@@ -1118,8 +1118,13 @@ because the current election has only one template. Skipping ahead to 'Run'."
                 self.SendSizeEvent()
         elif new == self.LABEL_ATTRS:
             def start_labelattrs(groupresults):
+                """ Invoked when user has finished verifying the
+                attr grouping. groupresults is a dict:
+                    {grouplabel: list of GroupClass objects}
+                """
                 self.panel_label_attrs.start(self.GetSize())
                 self.panel_label_attrs.start()
+                #self.panel_label_attrs.set_attrgroup_results(groupresults)
                 self.panel_label_attrs.SendSizeEvent()
                 self.SendSizeEvent()
                 TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
@@ -1133,7 +1138,7 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.ChangeSelection(self.RUN)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
-            else:
+            elif True:
                 f = GroupAttrsFrame(self, self.project, start_labelattrs)
                 f.Show()
                 f.Maximize()
