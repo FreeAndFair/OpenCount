@@ -120,10 +120,11 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             x2, y2 = w-3, h-3
             bb = [y1, y2, x1, x2]
             matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.7)
+            _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,
                                                                      _endt / len(temppaths))
-            _endt = time.time() - _t
+
             if matches:
                 flag = True
                 # Discard worst-scoring duplicates
