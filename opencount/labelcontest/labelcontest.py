@@ -620,7 +620,6 @@ class LabelContest(wx.Panel):
         """
         I hope I don't have to explain what this does.
         """
-        #print "SAVING", self.count
         print "SAVING", self.templatenum, self.count
         try:
             self.text_title.GetValue()
@@ -636,8 +635,6 @@ class LabelContest(wx.Panel):
         self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
 
         if not self.has_equiv_classes:
-            return
-        if self.text[self.currentcontests[self.count]][1:] == []:
             return
 
         def continued_contest(item):
@@ -656,16 +653,20 @@ class LabelContest(wx.Panel):
         print 'and now it is', cur
         
         print 'txt', self.text
+
+        if self.text[cur[0]] == []: return
+
         title = self.text[cur[0]][0]
         
         # This is a temporary hack.
         try:
             # Test if it's defined
-            x = self.contest_order
+            x = self.reorder_inverse
         except:
             equclass = [x for x in self.equivs if cur[0] in x][0]
             for each in equclass:
                 self.text[each] = [title]
+            return
 
         text = [self.text[x][1:] if self.text[x] != [] else ['']*len(self.groupedtargets[x[0]][self.contest_order[x[0]].index(x[1])]) for x in cur]
         text = sum(text, [])
@@ -724,46 +725,6 @@ class LabelContest(wx.Panel):
             
         print 'txtnow', self.text
         return
-        exit(0)
-
-        print "GOING WITH", choose
-        for each in choose:
-            print "SETTING", each
-            self.text[each] = self.text[cur]
-            self.voteupto[each] = self.voteupto[cur]
-                
-        #exit(0)
-        return
-        set_repr = self.reorder_inverse[self.currentcontests[self.count]]
-        print 'set repr', set_repr
-        reorder = self.reorder[set_repr][self.currentcontests[self.count]]
-        print "reorder", reorder
-        adjusted = {}
-        for i,t in enumerate(self.text[self.currentcontests[self.count]][1:]):
-            print 'sending', i, 'to', [x for x,y in reorder if y == i][0]
-            adjusted[[x for x,y in reorder if y == i][0]] = t
-        print adjusted
-        adjusted = [x[1] for x in sorted(adjusted.items())]
-        print 'compare'
-        print adjusted 
-        print self.text[self.currentcontests[self.count]][1:]
-
-        for equiv in self.equivs:
-            if self.currentcontests[self.count] in equiv:
-                print "FOUND IT", equiv
-                for each in equiv:
-                    print 'working', each
-                    reorder = self.reorder[set_repr][each]
-                    print 'new reorder', reorder
-                    twiceadjusted = {}
-                    for i,t in enumerate(adjusted):
-                        print i, [y for x,y in reorder if x == i]
-                        twiceadjusted[[y for x,y in reorder if x == i][0]] = t
-                    print 'setting', each, twiceadjusted
-                    self.text[each] = [self.text[self.currentcontests[self.count]][0]]+[x[1] for x in sorted(twiceadjusted.items())]
-                    print 'is now', self.text[each]
-                    self.voteupto[each] = self.voteupto[self.currentcontests[self.count]]
-        print 'text now', self.text
 
         if removeit:
             for each in self.text_targets:

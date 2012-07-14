@@ -121,18 +121,22 @@ class LabelAttributesPanel(LabelContest):
         maps = {} # maps {grouplabel: list of (bid, cid)}
         # First, merge each group in groupresults into maps
         for grouplabel, groups in groupresults.iteritems():
+            print "A", grouplabel, groups
             for group in groups:
+                print "GR", group
                 for (blankpath, rankedlist, patchpath) in group.elements:
+                    print "bp, rl, pp", blankpath, rankedlist, patchpath
                     bid = self.bid_map[blankpath]
                     cid = get_cid(blankpath, patchpath)
                     maps.setdefault(grouplabel, []).append((bid, cid))
+        print "MAPS IS", maps
         for grouplabel, tups in maps.iteritems():
             self.equivs.append(tups)
+        print "AND SETTING EQUIV TO", self.equivs
         self.multibox_contests = []
         self.has_equiv_classes = True
 
     def gatherData(self):
- 
         self.groupedtargets = []
     
         # attrdata is a list of dicts (marshall'd AttributeBoxes)
@@ -159,10 +163,9 @@ class LabelAttributesPanel(LabelContest):
         self.bid_map = bid_map
         # cid -> contest id
         cid_map = {} # maps {(str ballotpath, str attrs): int c_id}
-        curcid = 0
         for i,f in enumerate(self.dirList):
             thisballot = []
-            for at in attrdata:
+            for curcid,at in enumerate(attrdata):
                 if at['side'] == frontback[os.path.abspath(f)]:
                     assert f not in cid_map
                     attrs = tuple(sorted(at['attrs'].keys()))
@@ -173,17 +176,8 @@ class LabelAttributesPanel(LabelContest):
                                         int(round(at['y1']*height)),
                                         int(round(at['x2']*width)),
                                         int(round(at['y2']*height)))])
-                    curcid += 1
-                    #cid_map[(f, attrs_str)] = at['id']
-                    #thisballot.append([(at['id'], 0,
-                    #                    int(round(at['x1']*width)),
-                    #                    int(round(at['y1']*height)),
-                    #                    int(round(at['x2']*width)),
-                    #                    int(round(at['y2']*height)))])
-            #thisballot = [[(at['id'], 0,
-            #              int(at['x1']*width), int(at['y1']*height), 
-            #              int(at['x2']*width), int(at['y2']*height))] for at in attrdata if at['side'] == frontback[os.path.abspath(f)]]
             self.groupedtargets.append(thisballot)
+        print "CID_MAP", cid_map
         self.groupedtargets_back = self.groupedtargets
         self.cid_map = cid_map
 
@@ -206,8 +200,10 @@ class LabelAttributesPanel(LabelContest):
         self.text = {}
         for i,each in enumerate(self.boxes):
             for x in each:
+                print "SETTING TEXT", i, x[0]
                 self.text[i,x[0]] = []
                 self.voteupto[i,x[0]] = 1
+        print self.text
         if os.path.exists(self.proj.attr_internal):
             self.text = pickle.load(open(self.proj.attr_internal))
         # </hack>
