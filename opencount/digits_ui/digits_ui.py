@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, Queue, threading, time
+import sys, os, pickle, pdb, Queue, threading, time, traceback
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
@@ -578,10 +578,15 @@ class ThreadDoTempMatch(threading.Thread):
                 print 'template matching over:', pathjoin(dirpath, imgname)
                 regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb, regions, threshold=0.7)
+            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.7)
         except Exception as e:
-            print e
-            print "ERROR"
+            scipy.misc.imsave('_err_img1.png', self.img1)
+            errf = open('_err_findpatchmatches.log', 'w')
+            print >>errf, bb
+            print >>errf, regions
+            errf.close()
+            traceback.print_exc()
+            raise e
         print "DONE with temp matching. Found: {0} matches".format(len(matches))
         self.queue.put(self.img1)
         self.queue.put(matches)
