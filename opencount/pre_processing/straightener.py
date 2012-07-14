@@ -254,17 +254,54 @@ def straighten_image(imgpath, outputpath, resize=2.0, maxAngle=4.0, imgsize=None
         print "Angle1: {0}, angle2: {1}".format(angle1, angle2)
     img = fixRotation(imgpath, angle2)
     if imgsize:
-        img = size_image(img, imgsize)
+        w, h = imgsize
+        img = size_image(img, (h,w))
     cv.SaveImage(outputpath, img)
 
+#def size_image(img, imgsize):
+#    """
+#    Given an image and an image size, add padding/cropping such that
+#    the return image is of size imgsize.
+#    """
+#    new_img = cv.CreateMat(imgsize[1], imgsize[0], cv.CV_8UC3)
+#    cv.Resize(img, new_img)  # Resizes the image, bad!
+#    return new_img
+
 def size_image(img, imgsize):
-    """
-    Given an image and an image size, add padding/cropping such that
-    the return image is of size imgsize.
-    """
-    new_img = cv.CreateMat(imgsize[1], imgsize[0], cv.CV_8UC3)
-    cv.Resize(img, new_img)
-    return new_img
+    # check if we need to crop out ROI
+    roiWidth = img.width
+    roiHeight = img.height
+    if (img.width > imgsize[1]):
+        roiWidth = imgsize[1]
+
+    if (img.height > imgsize[0]):
+        roiHeight = imgsize[0]
+        
+    roi = (0,0,roiWidth,roiHeight)
+    cv.SetImageROI(img,roi)
+    imgTrim=cv.CreateImage((roi[2],roi[3]),img.depth,img.nChannels)
+    cv.Copy(img,imgTrim)
+
+    # check if we need to pad
+    padSize=0
+    padSize=max(padSize,imgsize[0]-imgTrim.height)
+    padSize=max(padSize,imgsize[1]-imgTrim.width)
+
+    if padSize==0: # no padding needed
+        return imgTrim
+    else:
+        padSize = int(round((padSize+.5)/2.))
+        # copy make border 
+        imgPad=cv.CreateImage((imgTrim.width+2*padSize,
+                               imgTrim.height+2*padSize),
+                              img.depth,
+                              img.nChannels)
+        cv.CopyMakeBorder(imgTrim,imgPad,(0,0),0)
+        roi = (0,0,imgsize[1],imgsize[0])
+        cv.SetImageROI(imgPad,roi)
+        imgFinal=cv.CreateImage((roi[2],roi[3]),img.depth,img.nChannels)
+        cv.Copy(imgPad,imgFinal)
+        return imgFinal
 
 def main():
     global GRAPH, DEBUG
