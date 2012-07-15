@@ -189,7 +189,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
         A list of results of the form:
             [(imgpath_i, ocr_str_i, res_meta_i), ...)
         where res_meta_i is a tuple of len nDigits, containing:
-            (y1,y2,x1,x2, str digit, obj digitimg)
+            (y1,y2,x1,x2, str digit, obj digitimg, float score)
     """
     digitList = digit_hash.values();
     patchExample = digitList[0]

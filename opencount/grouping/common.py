@@ -228,6 +228,24 @@ def dump_iworldstate(iworld, filepath):
     pickle.dump(marshall_iworldstate(iworld), f)
     f.close()
 
+def resize_img_norescale(img, size):
+    """ Resizes img to be a given size without rescaling - it only
+    pads/crops if necessary.
+    """
+    w, h = size
+    newimg = np.zeros((h,w), dtype='float32')
+    h_img, w_img = img.shape
+    if w_img > w:
+        w_new = w
+    else:
+        w_new = w_img
+    if h_img > h:
+        h_new = h
+    else:
+        h_new = h_img
+    newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
+    return newimg
+
 def get_attrtypes(project):
     """
     Returns all attribute types in this election.
@@ -268,6 +286,10 @@ def is_digitbased(project, attrtype):
             csvfile.close()
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
+
+def get_digitbased_attrs(project):
+    allattrs = get_attrtypes(project)
+    return [attr for attr in allattrs if is_digitbased(project, attr)]
 
 def num_common_prefix(*args):
     """
@@ -406,7 +428,11 @@ class GroupClass(object):
 
         # The label that will be displayed in the ListBoxes to 
         # the user, i.e. a public name for this GroupClass.
-        self.label = str(self.getcurrentgrouplabel())
+        try:
+            self.label = str(self.getcurrentgrouplabel())
+        except Exception as e:
+            print e
+            pdb.set_trace()
                      
         if self.label not in GroupClass.ctrs:
             GroupClass.ctrs[self.label] = 1
@@ -433,6 +459,25 @@ class GroupClass(object):
         Go through the elements generating overlays and compiling an ordered list
         of candidate templates
         """
+        def sanitycheck_rankedlists(elements):
+            """Make sure that the first grouplabel for each rankedlist
+            are all the same grouplabel.
+            """
+            grouplabel = None
+            for (elementid, rankedlist, patchpath) in elements:
+                if grouplabel == None:
+                    if rankedlist:
+                        grouplabel = rankedlist[0]
+                        continue
+                    else:
+                        print 'wat, no rankedlist?!'
+                        pdb.set_trace()
+                elif rankedlist[0] != grouplabel:
+                    print "Error, first element of all rankedlists are \
+not equal."
+                    pdb.set_trace()
+            return True
+        sanitycheck_rankedlists(self.elements)
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
         weightedAttrVals = {}
         # self.elements is a list of the form [(imgpath_i, rankedlist_i, patchpath_i), ...]
@@ -448,13 +493,21 @@ class GroupClass(object):
                 if (self.overlayMin == None):
                     self.overlayMin = img
                 else:
+                    if self.overlayMin.shape != img.shape:
+                        h, w = self.overlayMin.shape
+                        img = resize_img_norescale(img, (w,h))
                     self.overlayMin = np.fmin(self.overlayMin, img)
                 if (self.overlayMax == None):
                     self.overlayMax = img
                 else:
+                    if self.overlayMax.shape != img.shape:
+                        h, w = self.overlayMax.shape
+                        img = resize_img_norescale(img, (w,h))
                     self.overlayMax = np.fmax(self.overlayMax, img)
-            except:
+            except Exception as e:
+                print e
                 print "Cannot open patch @ {0}".format(path)
+                pdb.set_trace()
             """
             Ordered templates
             """

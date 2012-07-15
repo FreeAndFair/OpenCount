@@ -570,7 +570,7 @@ class ThreadDoTempMatch(threading.Thread):
         
     def run(self):
         h, w =  self.img1.shape
-        bb = [0, h-1, 0, w-1]
+        bb = [0, h, 0, w]
         regions = []
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):

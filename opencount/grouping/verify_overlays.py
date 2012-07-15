@@ -380,9 +380,15 @@ class VerifyPanel(wx.Panel):
 
         idx = self.templateChoice.GetSelection()
         curgrouplabel = self.currentGroup.orderedAttrVals[idx]
-        attrpatch_img = self.templates[curgrouplabel]
+        try:
+            attrpatch_img = self.templates[curgrouplabel]
+        except Exception as e:
+            print e
+            pdb.set_trace()
         
-        height, width = attrpatch_img.shape
+        h_overlay, w_overlay = overlayMax.shape
+        if attrpatch_img.shape != overlayMax.shape:
+            attrpatch_img = common.resize_img_norescale(attrpatch_img, (w_overlay, h_overlay))
         IO = imagesAlign(overlayMax, attrpatch_img)
         Dabs=np.abs(IO[1]-attrpatch_img)
         diffImg = np.vectorize(lambda x: x * 255.0 if x >= THRESHOLD else 0.0)(Dabs)
@@ -457,7 +463,11 @@ class VerifyPanel(wx.Panel):
         for grouplabel in ordered_attrvals:
             if grouplabel not in history:
                 #display_string = str(grouplabel)
-                display_string = common.str_grouplabel(grouplabel)
+                try:
+                    display_string = common.str_grouplabel(grouplabel)
+                except Exception as e:
+                    print e
+                    pdb.set_trace()
                 self.templateChoice.Append(display_string)
                 history.add(grouplabel)
         
