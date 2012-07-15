@@ -1393,8 +1393,7 @@ class Project(object):
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
-                     'voteddigits_dir': 'voteddigits_dir',
-                     'tmp2digitpatch': 'tmp2digitpatch.p'}
+                     'voteddigits_dir': 'voteddigits_dir'}
         self.createFields()
 
     def addCloseEvent(self, func):
@@ -1546,14 +1545,10 @@ def get_max_dimensions(imgsdir):
 
 def is_any_digitattrs(project):
     """ Returns True if any attribute is a digits patch """
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['is_digitbased'] == 'True':
-                    return True
-            csvfile.close()
+    attr_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in attr_dicts:
+        if attrdict['is_digitbased']:
+            return True
     return False
 
 def is_valid_projectname(name):

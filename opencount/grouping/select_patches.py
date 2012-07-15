@@ -253,6 +253,7 @@ project."
             self.attributes = {}
             project.ballot_attributesfile = os.path.join(project.projdir_path, 'ballot_attributes.p')
             attrs_file = open(project.ballot_attributesfile, 'wb')
+            pdb.set_trace()
             pickle.dump(self.attributes, attrs_file)
             attrs_file.close()
         self.ballotviewer.ballotscreen.attributes = self.attributes

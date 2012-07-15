@@ -250,46 +250,46 @@ def get_attrtypes(project):
     """
     Returns all attribute types in this election.
     """
-    attr_types = set()
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] != '_dummy_':
-                    attr_types.add(row['attr_type'])
-            csvfile.close()
-    return tuple(attr_types)
+    attrtypes = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    result = set()
+    for attrdict in attrtypes:
+        attrs_str = '_'.join(attrdict['attrs'])
+        result.add(attrs_str)
+    return result
 
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] == attrtype:
-                    return True if row['is_tabulationonly'] == 'True' else False
-            csvfile.close()
+    attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in attrtypes_dicts:
+        attrs_str = '_'.join(attrdict['attrs'])
+        if attrs_str == attrtype:
+            return attrdict['is_tabulationonly']
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
 def is_digitbased(project, attrtype):
     """ Returns True if the attrtype is digit-based. """
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] == attrtype:
-                    return True if row['is_digitbased'] == 'True' else False
-            csvfile.close()
+    attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in attrtypes_dicts:
+        attrs_str = '_'.join(attrdict['attrs'])
+        if attrs_str == attrtype:
+            return attrdict['is_digitbased']
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
 def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
+
+def is_digit_grouplabel(grouplabel, project):
+    """ Return True if this grouplabel is digit-based. """
+    attrtypes = get_attrtypes(project)
+    for attrtype in attrtypes:
+        if get_propval(grouplabel, attrtype):
+            if is_digitbased(project, attrtype):
+                return True
+    return False
+
 
 def num_common_prefix(*args):
     """

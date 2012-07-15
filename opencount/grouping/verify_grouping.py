@@ -204,12 +204,6 @@ class GroupingMasterPanel(wx.Panel):
         results is a dict of the form:
             {grouplabel: list of GroupClasses}
         """
-        def is_digit_grouplabel(grouplabel, project, attrtypes):
-            for attrtype in attrtypes:
-                if common.get_propval(grouplabel, attrtype):
-                    if common.is_digitbased(project, attrtype):
-                        return True
-            return False
         attr_types = set(common.get_attrtypes(self.project))
         # 0.) munge digit-grouping-results into results
         results = munge_digit_results(results, attr_types, self.project)
@@ -231,7 +225,7 @@ class GroupingMasterPanel(wx.Panel):
             if ad == {}:
                 pdb.set_trace()
             assert ad != {}
-            if is_digit_grouplabel(grouplabel, self.project, attr_types):
+            if common.is_digit_grouplabel(grouplabel, self.project):
                 # Temporary hack for digit patches :\
                 # For real, we need to do at least imgorder
                 flip = 0
@@ -412,30 +406,37 @@ class RunGroupingPanel(wx.Panel):
 
         # munge patches into format that groupImagesMAP wants
         all_attrtypes = common.get_attrtypes(self.project)
-        def munge_patches(patches, attrtypes):
+        def munge_patches(patches, attrtypes, project):
             """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
             to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
             """
             result = {}
             digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
+            # patches won't have digit-based attributes
             for temppath, patchtriple in patches.iteritems():
                 for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    # TODO: digitbased assumes that each attr patch has only
-                    # one attribute. Not sure if the non-digitbased
-                    # correctly-handles multi-attribute pathces.
-                    if is_digitbased == 'True':
-                        for attrtype in attrtypes:
-                            if common.get_propval(grouplabel, attrtype):
-                                if attrtype not in digitsresult:
-                                    # Only add each patch once to digitsresult
-                                    digitsresult[attrtype] = (bb, side)
-                        continue
                     for attrtype in attrtypes:
                         if common.get_propval(grouplabel, attrtype):
                             attrval = common.get_propval(grouplabel, attrtype)
                             result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
+            # Handle digit-based attributes
+            for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
+                w_img, h_img = project.imgsize
+                if attrdict['is_digitbased']:
+                    # TODO: digitbased assumes that each attr patch has only
+                    # one attribute. Not sure if the non-digitbased
+                    # correctly-handles multi-attribute pathces.
+                    for attrtype in attrtypes:
+                        if attrtype in attrdict['attrs']:
+                            if attrtype not in digitsresult:
+                                # Only add attrtype once into digitsresult
+                                bb = [int(round(attrdict['y1']*h_img)),
+                                      int(round(attrdict['y2']*h_img)),
+                                      int(round(attrdict['x1']*w_img)),
+                                      int(round(attrdict['x2']*w_img))]
+                                digitsresult[attrtype] = (bb, attrdict['side'])
             return result, digitsresult
-        munged,digitmunged = munge_patches(self.patches, all_attrtypes)
+        munged,digitmunged = munge_patches(self.patches, all_attrtypes, self.project)
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
                        munged,

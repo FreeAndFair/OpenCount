@@ -33,6 +33,13 @@ class GroupAttributesThread(threading.Thread):
         self.queue.put(groups)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
 
+def no_digitattrs(attrdata):
+    res = []
+    for attrdict in attrdata:
+        if not attrdict['is_digitbased']:
+            res.append(attrdict)
+    return res
+
 class GroupAttrsFrame(wx.Frame):
     """ Frame that both groups attribute patches, and allows the
     user to verify the grouping.
@@ -41,6 +48,7 @@ class GroupAttrsFrame(wx.Frame):
     GROUP_ATTRS_JOB_ID = util.GaugeID("Group_Attrs_Job_ID")
 
     def __init__(self, parent, project, ondone,*args, **kwargs):
+
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = project
@@ -51,8 +59,9 @@ class GroupAttrsFrame(wx.Frame):
         self.sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
         
         attrdata = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        attrdata_nodigits = no_digitattrs(attrdata)
         self.queue = Queue.Queue()
-        t = GroupAttributesThread(attrdata, self.project, self.GROUP_ATTRS_JOB_ID, self.queue)
+        t = GroupAttributesThread(attrdata_nodigits, self.project, self.GROUP_ATTRS_JOB_ID, self.queue)
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_groupattrs_done,
                              msg="Grouping Attribute Patches...",
                              job_id=self.GROUP_ATTRS_JOB_ID)
@@ -121,18 +130,15 @@ class LabelAttributesPanel(LabelContest):
         maps = {} # maps {grouplabel: list of (bid, cid)}
         # First, merge each group in groupresults into maps
         for grouplabel, groups in groupresults.iteritems():
-            print "A", grouplabel, groups
+            if common.is_digit_grouplabel(grouplabel, self.proj):
+                continue
             for group in groups:
-                print "GR", group
                 for (blankpath, rankedlist, patchpath) in group.elements:
-                    print "bp, rl, pp", blankpath, rankedlist, patchpath
                     bid = self.bid_map[blankpath]
                     cid = get_cid(blankpath, patchpath)
                     maps.setdefault(grouplabel, []).append((bid, cid))
-        print "MAPS IS", maps
         for grouplabel, tups in maps.iteritems():
             self.equivs.append(tups)
-        print "AND SETTING EQUIV TO", self.equivs
         self.multibox_contests = []
         self.has_equiv_classes = True
 
@@ -141,6 +147,7 @@ class LabelAttributesPanel(LabelContest):
     
         # attrdata is a list of dicts (marshall'd AttributeBoxes)
         attrdata = pickle.load(open(self.proj.ballot_attributesfile))
+        attrdata = no_digitattrs(attrdata)
         frontback = pickle.load(open(self.proj.frontback_map))
 
         self.sides = [x['side'] for x in attrdata]
