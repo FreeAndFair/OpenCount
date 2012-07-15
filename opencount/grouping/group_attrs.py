@@ -116,10 +116,10 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             patchpaths = get_temp_patches(d, temppaths)
             _t = time.time()
             h, w = patch.shape
-            x1, y1 = 0, 0
-            x2, y2 = w-3, h-3
-            bb = [y1, y2, x1, x2]
-            matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.7)
+            x1_bb, y1_bb = 0, 0
+            x2_bb, y2_bb = w-1, h-1
+            bb = [y1_bb, y2_bb, x1_bb, x2_bb]
+            matches = shared.find_patch_matchesV1(patch, bb, temppaths, bbSearch=[y1, y2, x1, x2], threshold=0.7)
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,
@@ -213,7 +213,8 @@ def main():
     rootdir = args[0]
     attrdata = pickle.load(open(pathjoin(rootdir, 'ballot_attributes.p'), 'rb'))
     #imgsize = (1460, 2100)
-    imgsize = (1715, 2847)
+    #imgsize = (1715, 2847)
+    imgsize = (1459, 2099)    # alameda
     projdir_path = rootdir
     tmp2imgs_path = pathjoin(rootdir, 'template_to_images.p')
     groups = group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path)
