@@ -159,7 +159,7 @@ Ballot Attributes' yet."
             imageviewer.BallotScreen.onLeftDown(self, event)
 
     def onLeftUp(self, event):
-        """ Drop the voting target box at the current mouse location. """
+        """ Drop the voting target box at the current mouse location. """            
         mousepos = self.CalcUnscrolledPosition(event.GetPositionTuple())
         page = 'front' if self.parent.parent.GetSelection() == 0 else 'back'
         if ((self.curstate == IBallotScreen.STATE_ADD_TARGET)
@@ -198,6 +198,9 @@ the same name.""".format(attrtype), style=wx.OK)
             new_box.add_attrtypes(attr_types)
             new_box.side = page
             new_box.is_digitbased = dlg.is_digitbased
+            if new_box.is_digitbased:
+                attrtypes_str = '_'.join(attr_types)
+                update_numdigits_dict(attrtypes_str, dlg.num_digits, self.parent.parent.GetParent().project)
             new_box.is_tabulationonly = dlg.is_tabulationonly
             self.world.add_box(self.current_imgpath, new_box)
             self._limbobox = None
@@ -228,7 +231,7 @@ the same name.""".format(attrtype), style=wx.OK)
         attrbox = self.get_closest_target((x,y), mode="interior")
         if attrbox:
             # Display a context menu, to allow relabel/delete
-            self.PopupMenu(AttributeContextMenu(self, attrbox), (x,y))
+            self.PopupMenu(AttributeContextMenu(self, attrbox, self.parent.parent.GetParent().project), (x,y))
         else:
             imageviewer.BallotScreen.onRightDown(self, event)
         
@@ -550,7 +553,6 @@ class DefineAttributesPanel(wx.Panel):
         #pickle.dump(output, open(self.project.ballot_attributesfile, 'wb'))
         #common.dump_iworldstate(self.world, self.project.ballot_attributesfile)
         m_boxes = [b.marshall() for b in self.world.get_attrboxes()]
-        print 'export', m_boxes
         pickle.dump(m_boxes, open(self.project.ballot_attributesfile, 'wb'))
 
     def import_attribute_patches(self):
@@ -591,9 +593,10 @@ class AttributeContextMenu(wx.Menu):
     Context Menu to display when user right-clicks on a Ballot Attribute.
     Allow user to either re-label a box, or delete it.
     """
-    def __init__(self, parent, attrbox, *args, **kwargs):
+    def __init__(self, parent, attrbox, project, *args, **kwargs):
         wx.Menu.__init__(self, *args, **kwargs)
         self.parent = parent
+        self.project = project
         self.attrbox = attrbox
         relabel_mi = wx.MenuItem(self, wx.NewId(), text="Re-Label")
         self.AppendItem(relabel_mi)
@@ -611,12 +614,16 @@ class AttributeContextMenu(wx.Menu):
             dlg.chkbox_is_digitbased.SetValue(True)
         if self.attrbox.is_tabulationonly == True:
             dlg.chkbox_is_tabulationonly.SetValue(True)
+        # TODO: Restore previous value in num_digitsmap.p
         
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             new_attrtypes = dlg.results
             self.attrbox.is_digitbased = dlg.is_digitbased
             self.attrbox.is_tabulationonly = dlg.is_tabulationonly
+            if self.attrbox.is_digitbased:
+                attrtypes_str = '_'.join(new_attrtypes)
+                update_numdigits_dict(attrtypes_str, dlg.num_digits, self.project)
             for i, new_attrtype in enumerate(new_attrtypes):
                 if i < len(old_attrtypes):
                     old_attrtype = old_attrtypes[i]
@@ -650,6 +657,7 @@ class DefineAttributeDialog(wx.Dialog):
         self._panel_btn = None
         self.btn_ok = None
         self.is_digitbased = False
+        self.num_digits = None
         self.is_tabulationonly = False
 
         self.input_pairs = []
@@ -690,7 +698,13 @@ class DefineAttributeDialog(wx.Dialog):
         self.chkbox_is_digitbased = wx.CheckBox(self, label="Is this a digit-based precinct patch?")
         self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
 this patch be only used for tabulation (and not for grouping)?")
-        self.sizer.Add(self.chkbox_is_digitbased, proportion=0)
+        numdigits_label = wx.StaticText(self, label="Number of Digits:")
+        self.num_digits = wx.TextCtrl(self, value='')
+        digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        digit_sizer.Add(self.chkbox_is_digitbased, proportion=0)
+        digit_sizer.Add(numdigits_label, proportion=0)
+        digit_sizer.Add(self.num_digits, proportion=0)
+        self.sizer.Add(digit_sizer, proportion=0)
         self.sizer.Add(self.chkbox_is_tabulationonly, proportion=0)
 
         self._add_btn_panel(self.sizer)
@@ -738,6 +752,7 @@ this patch be only used for tabulation (and not for grouping)?")
         history = set()
         if self.chkbox_is_digitbased.GetValue() == True:
             self.is_digitbased = True
+            self.num_digits = int(self.num_digits.GetValue())
         if self.chkbox_is_tabulationonly.GetValue() == True:
             self.is_tabulationonly = True
         for txt, input_ctrl in self.input_pairs:
@@ -793,6 +808,22 @@ def delete_attr_type(attrvalsdir, attrtype):
             csvfile = open(filepath, 'wb')
             writer = csv.DictWriter(csvfile, fields)
             writer.writerows(rows)
+
+def update_numdigits_dict(attrtype, numdigits, project):
+    """Updates the num_digitsmap dictionary. """
+    num_digitsmappath = os.path.join(project.projdir_path,
+                                     project.num_digitsmap)
+    if os.path.exists(num_digitsmappath):
+        f = open(num_digitsmappath, 'rb')
+        num_digitsmap = pickle.load(f)
+        f.close()
+    else:
+        num_digitsmap = {}
+    num_digitsmap[attrtype] = numdigits
+    outf = open(num_digitsmappath, 'wb')
+    pickle.dump(num_digitsmap, outf)
+    outf.close()
+    return num_digitsmap
 
 def domain():
     class MyFrame(wx.Frame):

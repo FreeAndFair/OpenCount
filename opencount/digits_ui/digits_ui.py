@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, Queue, threading, time
+import sys, os, pickle, pdb, Queue, threading, time, traceback
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
@@ -80,10 +80,13 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 if self.project.is_multipage:
                     frontpath, backpath = path
                     if side == 'front':
+                        imgpath = frontpath
                         img = shared.standardImread(frontpath, flatten=True)
                     else:
+                        imgpath = backpath
                         img = shared.standardImread(backpath, flatten=True)
                 else:
+                    imgpath = path[0]
                     img = shared.standardImread(path[0], flatten=True)
                 patch = img[y1:y2, x1:x2]
                 attrs_sorted = sorted(attrs.keys())
@@ -91,10 +94,10 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 util_gui.create_dirs(pathjoin(outdir,
                                               attrs_sortedstr))
                 outfilename = '{0}_exemplar.png'.format(i)
-                scipy.misc.imsave(pathjoin(outdir, 
-                                           attrs_sortedstr,
-                                           outfilename),
-                                  patch)
+                outfilepath = pathjoin(outdir,
+                                       attrs_sortedstr,
+                                       outfilename)
+                scipy.misc.imsave(outfilepath, patch)
                 i += 1
         print "Finished extracting patch dirs."
 
@@ -384,6 +387,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
                     for element in groupclass.elements:
                         regionpath, rankedlist, patchpath = element
+                        os.remove(patchpath)
                         stuff = self.matches[regionpath]
                         # stuff[i] := (patchpath, matchID, y1,y2,x1,x2, rszFac)
                         stuff = [t for t in stuff if t[0] != patchpath]
@@ -578,10 +582,15 @@ class ThreadDoTempMatch(threading.Thread):
                 print 'template matching over:', pathjoin(dirpath, imgname)
                 regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb, regions, threshold=0.7)
+            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.7)
         except Exception as e:
-            print e
-            print "ERROR"
+            scipy.misc.imsave('_err_img1.png', self.img1)
+            errf = open('_err_findpatchmatches.log', 'w')
+            print >>errf, bb
+            print >>errf, regions
+            errf.close()
+            traceback.print_exc()
+            raise e
         print "DONE with temp matching. Found: {0} matches".format(len(matches))
         self.queue.put(self.img1)
         self.queue.put(matches)

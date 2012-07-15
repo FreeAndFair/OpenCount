@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import pdb
+import pdb, os
 import numpy as np
 import cv
 import csv
@@ -44,24 +44,22 @@ def fastFlip(I):
 
 '''
 expand patch by pixPad with nans
-
-TODO(kai): handle borders
-
 '''
 def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
-
-    #pixPad = max(i1-pixPad0,0)
-    #pixPad = min(i2+pixPad0,I.shape[0])
-    #pixPad = max(j1-pixPad0,0)
-    #pixPad = min(j2+pixPad0,I.shape[1])
- 
     patchPad = np.empty((patch.shape[0]+2*pixPad,
                          patch.shape[1]+2*pixPad))
 
     patchPad[:] = np.nan
     patchPad[pixPad:patch.shape[0]+pixPad,
              pixPad:patch.shape[1]+pixPad] = patch
-    Ic = I[i1-pixPad:i2+pixPad,j1-pixPad:j2+pixPad]
+
+    IPad = np.zeros((I.shape[0]+2*pixPad,
+                     I.shape[1]+2*pixPad))
+
+    IPad[pixPad:I.shape[0]+pixPad,
+         pixPad:I.shape[1]+pixPad] = I
+    
+    Ic = IPad[i1:i2+2*pixPad,j1:j2+2*pixPad]
     IO=lk.imagesAlign(Ic,patchPad,type='rigid')
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
@@ -131,6 +129,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
         Iout[Iout==1.0]=0; # opencv bug
 
         while Iout.max() > threshold:
+
             score1 = Iout.max() # NCC score
             YX=np.unravel_index(Iout.argmax(),Iout.shape)
             i1=YX[0]; i2=YX[0]+patch.shape[0]
@@ -180,7 +179,18 @@ def stackDel(match_hash,i1,i2,j1,j2):
         out[i1:i2,j1:j2]=0
 
 def digitParse(digit_hash,imList,bbSearch,nDigits):
-
+    """Runs NCC-based OCR on the images on imList.
+    Input:
+        dict digit_hash: maps {str digit: img digit_exemplar}
+        lst imList: list of imagepaths to search over
+        bbSearch: [y1,y2,x1,x2] coords to search on
+        nDigits: an integer that specifies how many digits there are.
+    Output:
+        A list of results of the form:
+            [(imgpath_i, ocr_str_i, res_meta_i), ...)
+        where res_meta_i is a tuple of len nDigits, containing:
+            (y1,y2,x1,x2, str digit, obj digitimg, float score)
+    """
     digitList = digit_hash.values();
     patchExample = digitList[0]
 
@@ -190,7 +200,6 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
         I1 = standardImread(imP,flatten=True)
         I1=prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
-
         # perform matching for all digits
         # return best matching digit
         # mask out 

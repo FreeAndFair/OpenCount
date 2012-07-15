@@ -228,46 +228,68 @@ def dump_iworldstate(iworld, filepath):
     pickle.dump(marshall_iworldstate(iworld), f)
     f.close()
 
+def resize_img_norescale(img, size):
+    """ Resizes img to be a given size without rescaling - it only
+    pads/crops if necessary.
+    """
+    w, h = size
+    newimg = np.zeros((h,w), dtype='float32')
+    h_img, w_img = img.shape
+    if w_img > w:
+        w_new = w
+    else:
+        w_new = w_img
+    if h_img > h:
+        h_new = h
+    else:
+        h_new = h_img
+    newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
+    return newimg
+
 def get_attrtypes(project):
     """
     Returns all attribute types in this election.
     """
-    attr_types = set()
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] != '_dummy_':
-                    attr_types.add(row['attr_type'])
-            csvfile.close()
-    return tuple(attr_types)
+    attrtypes = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    result = set()
+    for attrdict in attrtypes:
+        attrs_str = '_'.join(attrdict['attrs'])
+        result.add(attrs_str)
+    return result
 
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] == attrtype:
-                    return True if row['is_tabulationonly'] == 'True' else False
-            csvfile.close()
+    attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in attrtypes_dicts:
+        attrs_str = '_'.join(attrdict['attrs'])
+        if attrs_str == attrtype:
+            return attrdict['is_tabulationonly']
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
 def is_digitbased(project, attrtype):
     """ Returns True if the attrtype is digit-based. """
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for filename in [f for f in filenames if f.lower().endswith('.csv')]:
-            csvfile = open(pathjoin(dirpath, filename), 'r')
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row['attr_type'] == attrtype:
-                    return True if row['is_digitbased'] == 'True' else False
-            csvfile.close()
+    attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in attrtypes_dicts:
+        attrs_str = '_'.join(attrdict['attrs'])
+        if attrs_str == attrtype:
+            return attrdict['is_digitbased']
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
+
+def get_digitbased_attrs(project):
+    allattrs = get_attrtypes(project)
+    return [attr for attr in allattrs if is_digitbased(project, attr)]
+
+def is_digit_grouplabel(grouplabel, project):
+    """ Return True if this grouplabel is digit-based. """
+    attrtypes = get_attrtypes(project)
+    for attrtype in attrtypes:
+        if get_propval(grouplabel, attrtype):
+            if is_digitbased(project, attrtype):
+                return True
+    return False
+
 
 def num_common_prefix(*args):
     """
@@ -365,6 +387,10 @@ def get_propval(grouplabel, property):
             return v
     return None
 
+def grouplabel_keys(grouplabel):
+    """ Returns the keys of a grouplabel. """
+    return tuple([k for (k,v) in tuple(grouplabel)])
+
 def str_grouplabel(grouplabel):
     """ Returns a string-representation of the grouplabel. """
     kv_pairs = tuple(grouplabel)
@@ -379,7 +405,7 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, elements):
+    def __init__(self, elements, no_overlays=False):
         """
         elements: A list of (str sampleid, rankedlist, str imgpatch),
                  where sampleid is the ID for this data point. 
@@ -393,6 +419,7 @@ class GroupClass(object):
         for i in range(len(elements)):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
+        self.no_overlays=no_overlays
         self.overlayMax = None
         self.overlayMin = None
         # orderedAttrVals is a list of grouplabels
@@ -406,7 +433,11 @@ class GroupClass(object):
 
         # The label that will be displayed in the ListBoxes to 
         # the user, i.e. a public name for this GroupClass.
-        self.label = str(self.getcurrentgrouplabel())
+        try:
+            self.label = str(self.getcurrentgrouplabel())
+        except Exception as e:
+            print e
+            pdb.set_trace()
                      
         if self.label not in GroupClass.ctrs:
             GroupClass.ctrs[self.label] = 1
@@ -433,6 +464,25 @@ class GroupClass(object):
         Go through the elements generating overlays and compiling an ordered list
         of candidate templates
         """
+        def sanitycheck_rankedlists(elements):
+            """Make sure that the first grouplabel for each rankedlist
+            are all the same grouplabel.
+            """
+            grouplabel = None
+            for (elementid, rankedlist, patchpath) in elements:
+                if grouplabel == None:
+                    if rankedlist:
+                        grouplabel = rankedlist[0]
+                        continue
+                    else:
+                        print 'wat, no rankedlist?!'
+                        pdb.set_trace()
+                elif rankedlist[0] != grouplabel:
+                    print "Error, first element of all rankedlists are \
+not equal."
+                    pdb.set_trace()
+            return True
+        sanitycheck_rankedlists(self.elements)
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
         weightedAttrVals = {}
         # self.elements is a list of the form [(imgpath_i, rankedlist_i, patchpath_i), ...]
@@ -443,18 +493,27 @@ class GroupClass(object):
             Overlays
             """
             path = element[2]
-            try:
-                img = misc.imread(path, flatten=1)
-                if (self.overlayMin == None):
-                    self.overlayMin = img
-                else:
-                    self.overlayMin = np.fmin(self.overlayMin, img)
-                if (self.overlayMax == None):
-                    self.overlayMax = img
-                else:
-                    self.overlayMax = np.fmax(self.overlayMax, img)
-            except:
-                print "Cannot open patch @ {0}".format(path)
+            if not self.no_overlays:
+                try:
+                    img = misc.imread(path, flatten=1)
+                    if (self.overlayMin == None):
+                        self.overlayMin = img
+                    else:
+                        if self.overlayMin.shape != img.shape:
+                            h, w = self.overlayMin.shape
+                            img = resize_img_norescale(img, (w,h))
+                        self.overlayMin = np.fmin(self.overlayMin, img)
+                    if (self.overlayMax == None):
+                        self.overlayMax = img
+                    else:
+                        if self.overlayMax.shape != img.shape:
+                            h, w = self.overlayMax.shape
+                            img = resize_img_norescale(img, (w,h))
+                        self.overlayMax = np.fmax(self.overlayMax, img)
+                except Exception as e:
+                    print e
+                    print "Cannot open patch @ {0}".format(path)
+                    pdb.set_trace()
             """
             Ordered templates
             """
@@ -471,10 +530,10 @@ class GroupClass(object):
                                 for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
-
-        rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-        self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
-        self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
+        if not self.no_overlays:
+            rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+            self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
+            self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
         
     def split(self):
         groups = []
