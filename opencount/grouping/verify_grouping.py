@@ -399,8 +399,10 @@ class RunGroupingPanel(wx.Panel):
                        stopped,
                        deleteall=deleteall)
         if digitmunged:
-            do_digitocr_patches(bal2imgs, digitmunged, self.project)
-        
+            digitgroup_results = do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            outpath = os.path.join(self.project.projdir_path, 
+                                   self.project.digitgroup_results)
+            pickle.dump(digitgroup_results, outpath)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
     def start_grouping(self):
@@ -435,7 +437,15 @@ class RunGroupingPanel(wx.Panel):
             print "grouping can't output time to TIMER."
 
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
-        
+        digitgroupresultsP = pathjoin(self.project.projdir_path,
+                                      self.project.digitgroup_results)
+        if os.path.exists(digitgroupresultsP):
+            f = open(digitgroupresultsP, 'rb')
+            digitgroup_results = pickle.load(f)
+            f.close()
+        else:
+            digitgroup_results = None
+
         grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
         digits_results = {} # maps {str digit: list of extracted_digitpaths}
         attr_types = common.get_attrtypes(self.project)

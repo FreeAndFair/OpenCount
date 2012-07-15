@@ -37,3 +37,4 @@ results = sh.digitParse(digit_hash,imList,bbSearch,7)
 
 for r in results:
     print r[0], ",", r[1]
+

@@ -1391,7 +1391,8 @@ class Project(object):
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
                      'precinctnums_outpath': 'precinctnums.txt',
-                     'num_digitsmap': 'num_digitsmap.p'}
+                     'num_digitsmap': 'num_digitsmap.p',
+                     'digitgroup_results': 'digitgroup_results.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

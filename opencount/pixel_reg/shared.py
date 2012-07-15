@@ -179,7 +179,18 @@ def stackDel(match_hash,i1,i2,j1,j2):
         out[i1:i2,j1:j2]=0
 
 def digitParse(digit_hash,imList,bbSearch,nDigits):
-
+    """Runs NCC-based OCR on the images on imList.
+    Input:
+        dict digit_hash: maps {str digit: img digit_exemplar}
+        lst imList: list of imagepaths to search over
+        bbSearch: [y1,y2,x1,x2] coords to search on
+        nDigits: an integer that specifies how many digits there are.
+    Output:
+        A list of results of the form:
+            [(imgpath_i, ocr_str_i, res_meta_i), ...)
+        where res_meta_i is a tuple of len nDigits, containing:
+            (y1,y2,x1,x2, str digit, obj digitimg)
+    """
     digitList = digit_hash.values();
     patchExample = digitList[0]
 
