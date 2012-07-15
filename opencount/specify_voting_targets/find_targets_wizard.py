@@ -944,6 +944,7 @@ class ThreadDoInferContests(threading.Thread):
         bboxes = dict(zip(files,find_contests(self.proj.ocr_tmp_dir, files, data)))
         # Computation done!
         self.queue.put(bboxes)
+        self.proj.infer_bounding_boxes = True
         print "AND I SEND THE RESUTS", bboxes
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
                      (self.job_id,))
