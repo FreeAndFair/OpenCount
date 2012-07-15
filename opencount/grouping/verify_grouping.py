@@ -204,6 +204,11 @@ class GroupingMasterPanel(wx.Panel):
         results is a dict of the form:
             {grouplabel: list of GroupClasses}
         """
+        def is_digitbased_grouplabel(grouplabel):
+            """Assumes a digit-based grouplabel has a k,v with the
+            k being 'digit'. Lousy assumption.
+            """
+            return common.get_propval(grouplabel, 'digit') != None
         attr_types = set(common.get_attrtypes(self.project))
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
@@ -212,14 +217,20 @@ class GroupingMasterPanel(wx.Panel):
             if not groups:
                 # This grouplabel never got assigned any samples
                 continue
+            elif common.is_digitbased_grouplabel(grouplabel):
+                # do fancy digit things
+                
+                continue
             ad = {} # maps {str attrtype: str attrval}
             # Gather up all attrtype->attrval mappings into ad
             for attrtype in attr_types:
+                if common.is_digitbased(self.project, attrtype):
+                    # we handle digits differently
+                    ad[attrtype] = None
+                    continue
                 attrval = common.get_propval(grouplabel, attrtype)
                 if attrval:
                     ad[attrtype] = attrval
-            if ad == {}:
-                pdb.set_trace()
             assert ad != {}
             flip = common.get_propval(grouplabel, 'flip')
             imgorder = common.get_propval(grouplabel, 'imageorder')
@@ -508,7 +519,6 @@ class RunGroupingPanel(wx.Panel):
                         for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[ballotid]:
                             assert attrtype_i == attr_type
                             for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
-                                digit_grouplabel = common.make_grouplabel(('digit', digit))
                                 digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
                         continue
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
@@ -839,6 +849,9 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
                 result.setdefault(img2tmp[temppath], {})[attrtype] = (attrval, side)
 
     return result
+
+def foo():
+    pass
 
 def make_digits_rankedlist(d, digits):
     #intuition = {'0': ('8', '9', ''),

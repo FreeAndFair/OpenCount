@@ -384,6 +384,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
                     for element in groupclass.elements:
                         regionpath, rankedlist, patchpath = element
+                        os.remove(patchpath)
                         stuff = self.matches[regionpath]
                         # stuff[i] := (patchpath, matchID, y1,y2,x1,x2, rszFac)
                         stuff = [t for t in stuff if t[0] != patchpath]
