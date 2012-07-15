@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import pdb
+import pdb, os
 import numpy as np
 import cv
 import csv
@@ -200,7 +200,6 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
         I1 = standardImread(imP,flatten=True)
         I1=prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
-
         # perform matching for all digits
         # return best matching digit
         # mask out 

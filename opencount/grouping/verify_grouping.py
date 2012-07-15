@@ -999,9 +999,16 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
     ctr = 0
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
+        # add some border, for good measure
+        w, h = abs(x1-x2), abs(y1-y2)
+        c = 0.1
+        bb = [max(0, y1-int(round(h*c))),
+              y2+int(round(h*c)),
+              max(0, x1-int(round(w*c))),
+              x2+int(round(w*c))]
         results = sh.digitParse(digit_exs,
                                 all_ballotimgs_gen(bal2imgs, side),
-                                (y1,y2,x1,x2),
+                                bb,
                                 num_digits)
         for (imgpath, ocr_str, meta) in results:
             meta_out = []
