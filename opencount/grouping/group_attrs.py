@@ -98,9 +98,13 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 else:
                     path = paths[1]
                 if (attrtype, path) in history:
+                    # If we've already found attrtype in blankballot path
                     continue
                 temppaths.append(path)
                 if patch == None:
+                    # Grab the attrpatch from this blank ballot. This
+                    # patch could either be a new value (i.e. 'en'),
+                    # or it could be an old value we've seen before.
                     tempimg = shared.standardImread(path,flatten=True)
                     patch = tempimg[y1:y2, x1:x2]
                     patch[0,0] = 0.99
