@@ -204,36 +204,41 @@ class GroupingMasterPanel(wx.Panel):
         results is a dict of the form:
             {grouplabel: list of GroupClasses}
         """
-        def is_digitbased_grouplabel(grouplabel):
-            """Assumes a digit-based grouplabel has a k,v with the
-            k being 'digit'. Lousy assumption.
-            """
-            return common.get_propval(grouplabel, 'digit') != None
+        def is_digit_grouplabel(grouplabel, project, attrtypes):
+            for attrtype in attrtypes:
+                if common.get_propval(grouplabel, attrtype):
+                    if common.is_digitbased(project, attrtype):
+                        return True
+            return False
         attr_types = set(common.get_attrtypes(self.project))
+        # 0.) munge digit-grouping-results into results
+        results = munge_digit_results(results, attr_types, self.project)
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
+        
+        # 1.) First, handle non-digit patches
         for grouplabel, groups in results.iteritems():
             # groups := list of GroupClass objects
             if not groups:
-                # This grouplabel never got assigned any samples
-                continue
-            elif common.is_digitbased_grouplabel(grouplabel):
-                # do fancy digit things
-                
+                # Maybe never got assigned any samples.
                 continue
             ad = {} # maps {str attrtype: str attrval}
             # Gather up all attrtype->attrval mappings into ad
             for attrtype in attr_types:
-                if common.is_digitbased(self.project, attrtype):
-                    # we handle digits differently
-                    ad[attrtype] = None
-                    continue
                 attrval = common.get_propval(grouplabel, attrtype)
                 if attrval:
                     ad[attrtype] = attrval
+            if ad == {}:
+                pdb.set_trace()
             assert ad != {}
-            flip = common.get_propval(grouplabel, 'flip')
-            imgorder = common.get_propval(grouplabel, 'imageorder')
+            if is_digit_grouplabel(grouplabel, self.project, attr_types):
+                # Temporary hack for digit patches :\
+                # For real, we need to do at least imgorder
+                flip = 0
+                imgorder = 0
+            else:
+                flip = common.get_propval(grouplabel, 'flip')
+                imgorder = common.get_propval(grouplabel, 'imageorder')
             assert flip != None
             assert imgorder != None
             #for (samplepath, rankedlist, patchpath) in groups:
@@ -270,6 +275,11 @@ class GroupingMasterPanel(wx.Panel):
                 row[attrtype] = attrval
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
+            '''
+            digit_attrs = digit_labels[samplepath] # list of (attrtype_i, digitlabel_i)
+            for attrtype, digitval in digit_attrs:
+                row[attrtype] = digitval
+            '''    
             
             templateid = determine_template(attrdict, munged_patches, self.project)
             if not templateid:
@@ -850,8 +860,79 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
 
     return result
 
-def foo():
-    pass
+def munge_digit_results(results, all_attrtypes, project):
+    """Given the results of overlay-verification, take all digit-based
+    groups, and munge them back into the results (i.e. jump from
+    'digits' to 'precinct'.
+    Input:
+        dict results: maps {grouplabel: list of GroupClasses}
+        lst all_attrtypes: List of all attrtypes
+    Output:
+        dict that maps: {grouplabel: list of GroupClasses} but with
+        all digitattributes inside of the result.
+    """
+    def is_digitbased_grouplabel(grouplabel):
+        """Assumes a digit-based grouplabel has a k,v with the
+        k being 'digit'. Lousy assumption.
+        """
+        return common.get_propval(grouplabel, 'digit') != None
+    digitattrs = [a for a in all_attrtypes if common.is_digitbased(project, a)]
+    if len(digitattrs) != 1:
+        print "Sorry, ack, OpenCount only supports one digit-based \
+patch, sorry."
+        assert False
+    new_results = {} # maps {grouplabel: list of GroupClasses}
+    patchlabels = {} # maps {str digitpatchpath: str digit}
+    for grouplabel, groups in results.iteritems():
+        if not groups or not is_digitbased_grouplabel(grouplabel):
+            continue
+        curdigit = common.get_propval(grouplabel, 'digit')
+        for group in groups:
+            for (samplepath, rankedlist, patchpath) in group.elements:
+                patchlabels[patchpath] = curdigit
+    # a dict mapping {str samplepath: [(attrtype_i, correct_digitlabel_i), ...]
+    digit_labels = correct_digit_labels(project, patchlabels)
+    samples_map = {} # maps {grouplabel: list of samplepaths}
+    for samplepath, lst in digit_labels.iteritems():
+        for (attrtype, digitlabel) in lst:
+            grouplabel = common.make_grouplabel((attrtype, digitlabel))
+            samples_map.setdefault(grouplabel, []).append(samplepath)
+    for grouplabel, samplepaths in samples_map.iteritems():
+        elements = []
+        for samplepath in samplepaths:
+            elements.append((samplepath, (grouplabel,), None))
+        group = common.GroupClass(elements, no_overlays=True)
+        new_results.setdefault(grouplabel, []).append(group)
+    for grouplabel, groups in results.iteritems():
+        if not is_digitbased_grouplabel(grouplabel):
+            new_results.setdefault(grouplabel, []).extend(groups)
+    return new_results
+
+def correct_digit_labels(project, patchlabels):
+    """Given the correct labelings for each voted digit patch, return
+    the correct labeled numbers for each digitbased patch.
+    Input:
+        obj project
+        dict patchlabels: maps {str digitpatch: str digit}
+    Output:
+        A dict mapping {str imgpath: [(attrtype_i, correct_digitlabel_i), ...]}
+    """
+    p = pathjoin(project.projdir_path,
+                 project.digitgroup_results)
+    f = open(p, 'rb')
+    # maps {str votedpath: list of (attrtype, ocr_str, meta)} where
+    # each meta is numDigits-tuples of:
+    #    (y1,y2,x1,x2,digit, digitpatchpath, score)
+    digitgroup_results = pickle.load(f)
+    result = {}
+    for imgpath, lst in digitgroup_results.iteritems():
+        for attrtype, ocr_str, meta in lst:
+            correct_str = ''
+            for i, (y1,y2,x1,x2,digit,digitpatchpath,score) in enumerate(meta):
+                correct_digit = patchlabels[digitpatchpath]
+                correct_str += correct_digit
+            result.setdefault(imgpath, []).append((attrtype, correct_str))
+    return result
 
 def make_digits_rankedlist(d, digits):
     #intuition = {'0': ('8', '9', ''),

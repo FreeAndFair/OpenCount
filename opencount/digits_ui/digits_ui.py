@@ -72,6 +72,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
         i = 0
         w_img, h_img = self.project.imgsize
+        imgpath2patch = {}  # maps {(str imgpath, str attrtype): str extractedpatchpath}
         for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
             x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
             y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
@@ -80,10 +81,13 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 if self.project.is_multipage:
                     frontpath, backpath = path
                     if side == 'front':
+                        imgpath = frontpath
                         img = shared.standardImread(frontpath, flatten=True)
                     else:
+                        imgpath = backpath
                         img = shared.standardImread(backpath, flatten=True)
                 else:
+                    imgpath = path[0]
                     img = shared.standardImread(path[0], flatten=True)
                 patch = img[y1:y2, x1:x2]
                 attrs_sorted = sorted(attrs.keys())
@@ -91,11 +95,15 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 util_gui.create_dirs(pathjoin(outdir,
                                               attrs_sortedstr))
                 outfilename = '{0}_exemplar.png'.format(i)
-                scipy.misc.imsave(pathjoin(outdir, 
-                                           attrs_sortedstr,
-                                           outfilename),
-                                  patch)
+                outfilepath = pathjoin(outdir,
+                                       attrs_sortedstr,
+                                       outfilename)
+                imgspath2patch[(imgpath, attrs_sortedstr)] = outfilepath
+                scipy.misc.imsave(outfilepath, patch)
                 i += 1
+        pickle.dump(imgpath2patch, open(pathjoin(project.projdir_path,
+                                                 project.tmp2digitpatch),
+                                        'wb'))
         print "Finished extracting patch dirs."
 
     def ondone(self, results):

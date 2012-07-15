@@ -387,6 +387,10 @@ def get_propval(grouplabel, property):
             return v
     return None
 
+def grouplabel_keys(grouplabel):
+    """ Returns the keys of a grouplabel. """
+    return tuple([k for (k,v) in tuple(grouplabel)])
+
 def str_grouplabel(grouplabel):
     """ Returns a string-representation of the grouplabel. """
     kv_pairs = tuple(grouplabel)
@@ -401,7 +405,7 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, elements):
+    def __init__(self, elements, no_overlays=False):
         """
         elements: A list of (str sampleid, rankedlist, str imgpatch),
                  where sampleid is the ID for this data point. 
@@ -415,6 +419,7 @@ class GroupClass(object):
         for i in range(len(elements)):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
+        self.no_overlays=no_overlays
         self.overlayMax = None
         self.overlayMin = None
         # orderedAttrVals is a list of grouplabels
@@ -488,26 +493,27 @@ not equal."
             Overlays
             """
             path = element[2]
-            try:
-                img = misc.imread(path, flatten=1)
-                if (self.overlayMin == None):
-                    self.overlayMin = img
-                else:
-                    if self.overlayMin.shape != img.shape:
-                        h, w = self.overlayMin.shape
-                        img = resize_img_norescale(img, (w,h))
-                    self.overlayMin = np.fmin(self.overlayMin, img)
-                if (self.overlayMax == None):
-                    self.overlayMax = img
-                else:
-                    if self.overlayMax.shape != img.shape:
-                        h, w = self.overlayMax.shape
-                        img = resize_img_norescale(img, (w,h))
-                    self.overlayMax = np.fmax(self.overlayMax, img)
-            except Exception as e:
-                print e
-                print "Cannot open patch @ {0}".format(path)
-                pdb.set_trace()
+            if not self.no_overlays:
+                try:
+                    img = misc.imread(path, flatten=1)
+                    if (self.overlayMin == None):
+                        self.overlayMin = img
+                    else:
+                        if self.overlayMin.shape != img.shape:
+                            h, w = self.overlayMin.shape
+                            img = resize_img_norescale(img, (w,h))
+                        self.overlayMin = np.fmin(self.overlayMin, img)
+                    if (self.overlayMax == None):
+                        self.overlayMax = img
+                    else:
+                        if self.overlayMax.shape != img.shape:
+                            h, w = self.overlayMax.shape
+                            img = resize_img_norescale(img, (w,h))
+                        self.overlayMax = np.fmax(self.overlayMax, img)
+                except Exception as e:
+                    print e
+                    print "Cannot open patch @ {0}".format(path)
+                    pdb.set_trace()
             """
             Ordered templates
             """
@@ -524,10 +530,10 @@ not equal."
                                 for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
-
-        rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-        self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
-        self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
+        if not self.no_overlays:
+            rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+            self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
+            self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
         
     def split(self):
         groups = []

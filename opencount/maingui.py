@@ -1393,7 +1393,8 @@ class Project(object):
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
-                     'voteddigits_dir': 'voteddigits_dir'}
+                     'voteddigits_dir': 'voteddigits_dir',
+                     'tmp2digitpatch': 'tmp2digitpatch.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
