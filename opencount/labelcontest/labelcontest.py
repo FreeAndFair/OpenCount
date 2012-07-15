@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import csv
 import pickle
 
-from group_contests import do_grouping, final_grouping, extend_multibox, intersect
+from group_contests import do_grouping, final_grouping, extend_multibox, intersect, group_given_contests
 
 sys.path.append('..')
 from util import ImageManipulate, pil2wxb
@@ -273,6 +273,8 @@ class LabelContest(wx.Panel):
 
 
     def load_languages(self):
+        if not os.path.exists(self.proj.patch_loc_dir): return {}
+
         result = {}
         for f in os.listdir(self.proj.patch_loc_dir):
             print "AND I GET", f, f[-4:]
@@ -290,7 +292,6 @@ class LabelContest(wx.Panel):
                             print 'found with lang', row[take+1]
                             result[row[0]] = row[take+1]
                             break
-                        
         return result
         
 
@@ -322,8 +323,14 @@ class LabelContest(wx.Panel):
         if self.grouping_cached:
             groups = final_grouping(self.grouping_cached, targets)
         else:
-            ballots, groups = do_grouping(self.proj.ocr_tmp_dir,
-                                          self.dirList, targets, languages)
+            if not self.proj.infer_bounding_boxes:
+                dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
+                dlg.ShowModal()
+                return
+
+            ballots, groups = group_given_contests(self.proj.ocr_tmp_dir, 
+                                                   self.dirList, targets, 
+                                                   self.boxes, languages)
             self.grouping_cached = ballots
             print "CACHED", ballots
 

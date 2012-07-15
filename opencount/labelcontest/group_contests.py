@@ -428,11 +428,13 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
     For each contest, record the ballot ID, the contest bounding box,
     as well as the text associated with the contest.
     """
-    print 'making', f, f.split("/")[-1].split(".")[0]
     sub = os.path.join(tmp+"", f.split("/")[-1].split(".")[0]+"-dir")
+    print "SUB IS", sub
     os.mkdir(sub)
     res = []
+    print "CONTESTS", contests
     for c in contests:
+        print "TOMAKE", c
         os.mkdir(os.path.join(sub, "-".join(map(str,c))))
         t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
                                image, c, targets)
@@ -693,7 +695,25 @@ def find_contests(t, paths, giventargets):
     print "RETURNING", ballots
     return ballots
         
-    
+def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
+    global tmp
+    print "ARGUMENTS", (t, paths, giventargets, lang_map)
+    print 'giventargets', giventargets
+    if t[-1] != '/': t += '/'
+    tmp = t
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
+    os.popen("rm -r "+tmp+"*")
+    ballots = []
+    print "CONTESTARG", contests
+    for i,(f,conts) in enumerate(zip(paths,contests)):
+        print f
+        im = load_num(f)
+        lang = lang_map[f] if f in lang_map else 'eng'
+        get = ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
+        ballots.append(get)
+    print "WORKING ON", ballots
+    return ballots, final_grouping(ballots, giventargets)
     
 
 def final_grouping(ballots, giventargets):
