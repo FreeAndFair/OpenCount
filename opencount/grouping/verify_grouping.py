@@ -441,13 +441,16 @@ class RunGroupingPanel(wx.Panel):
                                       self.project.digitgroup_results)
         if os.path.exists(digitgroupresultsP):
             f = open(digitgroupresultsP, 'rb')
+            # maps {str digit: list of (attrtype_i, ocr_str_i, meta_i)},
+            # where meta_i is numDigits-tuples of the form:
+            #     (y1,y2,x1,x2, digit_i, digitimgpath_i)
             digitgroup_results = pickle.load(f)
             f.close()
         else:
             digitgroup_results = None
 
         grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
-        digits_results = {} # maps {str digit: list of extracted_digitpaths}
+        digits_results = {} # maps {str 
         attr_types = common.get_attrtypes(self.project)
         if not util.is_multipage(self.project):
             for attr_type in attr_types:
@@ -767,7 +770,9 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         obj project
     Output:
         A dict that maps:
-          {ballotid: ((attrtype_i, ocrresult_i), ...)
+          {ballotid: ((attrtype_i, ocrresult_i, meta_i), ...)
+        where meta_i is a tuple containing numDigits tuples:
+          (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i)
     """
     def make_digithashmap(project):
         digitmap = {} # maps {str digit: obj img}
@@ -799,15 +804,25 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
                                                  project.num_digitsmap),
                                     'rb'))
+    voteddigits_dir = os.path.join(project.projdir_path,
+                                     project.voteddigits_dir)
+    ctr = 0
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
-        print 'side is:', side
         results = sh.digitParse(digit_exs,
                                 all_ballotimgs_gen(bal2imgs, side),
                                 (y1,y2,x1,x2),
                                 num_digits)
         for (imgpath, ocr_str, meta) in results:
-            result.setdefault(imgpath, []).append((digitattr, ocr_str))
+            meta_out = []
+            for (y1,y2,x1,x2, digit, digitimg) in meta:
+                rootdir = os.path.join(voteddigits_dir, digit)
+                util.create_dirs(rootdir)
+                outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
+                scipy.misc.imsave(outpath, digitimg)
+                meta_out.append((y1,y2,x1,x2, digit, outpath))
+                ctr += 1
+            result.setdefault(imgpath, []).append((digitattr, ocr_str, meta_out))
     return result
     
     
