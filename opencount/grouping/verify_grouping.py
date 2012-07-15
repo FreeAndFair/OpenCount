@@ -369,22 +369,28 @@ class RunGroupingPanel(wx.Panel):
         all_attrtypes = common.get_attrtypes(self.project)
         def munge_patches(patches, attrtypes):
             """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
-            to: {str templatepath: ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
+            to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
             """
             result = {}
+            digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
             for temppath, patchtriple in patches.iteritems():
                 for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    #if is_tabulationonly == 'True':
-                    #    continue
+                    # TODO: digitbased assumes that each attr patch has only
+                    # one attribute. Not sure if the non-digitbased
+                    # correctly-handles multi-attribute pathces.
+                    if is_digitbased == 'True':
+                        for attrtype in attrtypes:
+                            if common.get_propval(grouplabel, attrtype):
+                                if attrtype not in digitsresult:
+                                    # Only add each patch once to digitsresult
+                                    digitsresult[attrtype] = (bb, side)
+                        continue
                     for attrtype in attrtypes:
                         if common.get_propval(grouplabel, attrtype):
                             attrval = common.get_propval(grouplabel, attrtype)
                             result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
-            if not len(result) == len(patches):
-                pdb.set_trace()
-            assert len(result) == len(patches)
-            return result
-        munged = munge_patches(self.patches, all_attrtypes)
+            return result, digitsresult
+        munged,digitmunged = munge_patches(self.patches, all_attrtypes)
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
                        munged,
@@ -392,6 +398,8 @@ class RunGroupingPanel(wx.Panel):
                        self.project.ballot_grouping_metadata, 
                        stopped,
                        deleteall=deleteall)
+        if digitmunged:
+            do_digitocr_patches(bal2imgs, digitmunged, self.project)
         
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
@@ -428,10 +436,14 @@ class RunGroupingPanel(wx.Panel):
 
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
         
-        grouping_results = {}
+        grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
+        digits_results = {} # maps {str digit: list of extracted_digitpaths}
         attr_types = common.get_attrtypes(self.project)
         if not util.is_multipage(self.project):
             for attr_type in attr_types:
+                if common.is_digitbased(self.project, attr_type):
+                    
+                    continue
                 for ballotid in bal2imgs:
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
                     path = os.path.join(metadata_dir, encodepath(ballotid))
@@ -452,6 +464,8 @@ class RunGroupingPanel(wx.Panel):
         else:
             # Multipage
             for attr_type in attr_types:
+                if common.is_digitbased(self.project, attr_type):
+                    continue
                 for ballotid in bal2imgs:
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
                     path = os.path.join(metadata_dir, encodepath(ballotid))
@@ -733,3 +747,58 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
                 result.setdefault(img2tmp[temppath], {})[attrtype] = (attrval, side)
 
     return result
+
+def do_digitocr_patches(bal2imgs, digitattrs, project):
+    """ For each digitbased attribute, run our NCC-OCR on the patch
+    (using our digit exemplars).
+    Input:
+        dict bal2imgs
+        dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
+        obj project
+    Output:
+        A dict that maps:
+          {ballotid: ((attrtype_i, ocrresult_i), ...)
+    """
+    def make_digithashmap(project):
+        digitmap = {} # maps {str digit: obj img}
+        digit_exemplarsdir = os.path.join(project.projdir_path,
+                                          project.digit_exemplars_outdir)
+        digitdirs = os.listdir(digit_exemplarsdir)
+        for digitdir in digitdirs:
+            # Assumes this has directories of the form:
+            #    0_examples/*.png
+            #    1_examples/*.png
+            #    ...
+            fullpath = os.path.join(digit_exemplarsdir, digitdir)
+            digit = digitdir.split('_')[0]
+            for dirpath, dirnames, filenames in os.walk(fullpath):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    imgpath = os.path.join(dirpath, imgname)
+                    img = sh.standardImread(imgpath, flatten=True)
+                    digitmap[digit] = img
+        return digitmap
+    def all_ballotimgs_gen(bal2imgs, side):
+        for ballotid, path in bal2imgs.iteritems():
+            if side == 'front':
+                yield path[0]
+            else:
+                yield path[1]
+        raise StopIteration
+    result = {}
+    digit_exs = make_digithashmap(project)
+    numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
+                                                 project.num_digitsmap),
+                                    'rb'))
+    for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
+        num_digits = numdigitsmap[digitattr]
+        print 'side is:', side
+        results = sh.digitParse(digit_exs,
+                                all_ballotimgs_gen(bal2imgs, side),
+                                (y1,y2,x1,x2),
+                                num_digits)
+        for (imgpath, ocr_str, meta) in results:
+            result.setdefault(imgpath, []).append((digitattr, ocr_str))
+    return result
+    
+    
+    

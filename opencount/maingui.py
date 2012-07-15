@@ -1390,7 +1390,8 @@ class Project(object):
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
-                     'precinctnums_outpath': 'precinctnums.txt'}
+                     'precinctnums_outpath': 'precinctnums.txt',
+                     'num_digitsmap': 'num_digitsmap.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
