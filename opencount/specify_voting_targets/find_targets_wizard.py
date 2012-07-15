@@ -6,12 +6,14 @@ import scipy.ndimage
 import cv
 
 from os.path import join as pathjoin
-from imageviewer import BallotViewer, BallotScreen, BoundingBox, Autodetect_Panel, Autodetect_Confirm, WorldState
 import util_gui
 import util_widgets
 import util
 import grouptargets
 import time
+
+from imageviewer import BallotViewer, BallotScreen, BoundingBox, Autodetect_Panel, Autodetect_Confirm, WorldState
+from labelcontest.group_contests import find_contests
 
 """
 UI intended for a user to denote all locations of voting targets, on
@@ -863,7 +865,9 @@ single voting target, which violates assumptions."
         contest-region-inferring results.
         """
         self.queue = Queue.Queue()
-        t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID)
+        self.export_bounding_boxes()
+        t = ThreadDoInferContests(self.queue, self.INFERCONTESTS_JOB_ID,
+                                  self.project)
 
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_infer_contests_done,
                              msg="Inferring Contest Regions...",
@@ -879,6 +883,7 @@ single voting target, which violates assumptions."
             {str blankpath: list of (x1, y1, x2, y2)}
         """
         results = self.queue.get()
+        print "AND I GET THE RESULTS", results
         w_img, h_img = self.project.imgsize
         w_img, h_img = float(w_img), float(h_img)
         for blankpath, contests in results.iteritems():
@@ -892,20 +897,54 @@ single voting target, which violates assumptions."
                 box = BoundingBox(x1a, y1a, x2a, y2a, is_contest=True)
                 contestboxes.append(box)
             self.remove_contests(blankpath)
+            self.world.add_boxes(blankpath, contestboxes)
             
                 
 class ThreadDoInferContests(threading.Thread):
-    def __init__(self, queue, job_id, *args, **kwargs):
-        threading.Thread.__init__(*args, **kwargs)
+    def __init__(self, queue, job_id, proj, *args, **kwargs):
+        threading.Thread.__init__(self)
         self.job_id = job_id
         self.queue = queue
+        self.proj = proj
+
+    def extract_data(self):
+        """
+        Stolen from labelcontest.py.
+
+        This should be removed in favor of taking the data from
+        this panel directly, instead of loading from the file.
+        """
+        res = []
+        dirList = []
+        for each in os.listdir(self.proj.target_locs_dir):
+            if each[-4:] != '.csv': continue
+            gr = {}
+            name = os.path.join(self.proj.target_locs_dir, each)
+            for i, row in enumerate(csv.reader(open(name))):
+                if i == 0:
+                    # skip the header row, to avoid adding header
+                    # information to our data structures
+                    continue
+                # If this one is a target, not a contest
+                if row[7] == '0':
+                    if row[8] not in gr:
+                        gr[row[8]] = []
+                    # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                    gr[row[8]].append((int(row[2]), int(row[3]), 
+                                       int(row[2])+int(row[4]), 
+                                       int(row[3])+int(row[5])))
+                if row[0] not in dirList:
+                    dirList.append(row[0])
+            res.append(gr.values())
+        return res, dirList
         
     def run(self):
         # Do fancy contest-inferring computation
-        time.sleep(2)
+        data, files = self.extract_data()
+        bboxes = dict(zip(files,find_contests(self.proj.ocr_tmp_dir, files, data)))
         # Computation done!
-        result = "fancy results"
-        queue.put(result)
+        self.queue.put(bboxes)
+        print "AND I SEND THE RESUTS", bboxes
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
                      (self.job_id,))
 

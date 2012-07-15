@@ -668,7 +668,6 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp+"*")
     ballots = []
-    print "LEN", len(giventargets), len(paths)
     for i,f in enumerate(paths):
         print f
         im, contests = extract_contest(f, sum(giventargets[i],[]))
@@ -677,6 +676,25 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
         ballots.append(get)
     print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
+
+def find_contests(t, paths, giventargets):
+    global tmp
+    if t[-1] != '/': t += '/'
+    tmp = t
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
+    os.popen("rm -r "+tmp+"*")
+    ballots = []
+    for i,f in enumerate(paths):
+        print f
+        im, contests = extract_contest(f, sum(giventargets[i],[]))
+        print "TMP RESULTS", contests
+        ballots.append(contests)
+    print "RETURNING", ballots
+    return ballots
+        
+    
+    
 
 def final_grouping(ballots, giventargets):
     ballots = merge_contests(ballots, giventargets)

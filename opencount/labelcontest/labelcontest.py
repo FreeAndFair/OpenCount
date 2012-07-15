@@ -323,7 +323,7 @@ class LabelContest(wx.Panel):
         if self.grouping_cached:
             groups = final_grouping(self.grouping_cached, targets)
         else:
-            ballots, groups = do_grouping(self.proj.ocr_tmp_dir, 
+            ballots, groups = do_grouping(self.proj.ocr_tmp_dir,
                                           self.dirList, targets, languages)
             self.grouping_cached = ballots
             print "CACHED", ballots
