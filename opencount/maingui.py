@@ -1126,10 +1126,10 @@ because the current election has only one template. Skipping ahead to 'Run'."
                                       self.project.attrgroup_results), 'wb')
                 pickle.dump(groupresults, f)
                 f.close()
-                pdb.set_trace()
                 self.panel_label_attrs.start(self.GetSize())
                 self.panel_label_attrs.start()
-                self.panel_label_attrs.set_attrgroup_results(groupresults)
+                # Skip attr grouping for now
+                #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
                 self.SendSizeEvent()
                 TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
@@ -1144,10 +1144,15 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
             elif not groupattrs_already_done(self.project):
-                f = GroupAttrsFrame(self, self.project, start_labelattrs)
-                f.SetSize((400, 500))
-                f.Show()
+                # Attr grouping is causing more problems than help,
+                # skipping it for now...
+                #f = GroupAttrsFrame(self, self.project, start_labelattrs)
+                #f.SetSize((400, 500))
+                #f.Show()
+                start_labelattrs(None)
             else:
+                start_labelattrs(None)    # Skip all attr grouping for now
+                '''
                 dlg = wx.MessageDialog(self, message="Attribute Grouping \
 has already been run in a previous session. Would you like to re-run \
 attribute grouping? ", style=wx.YES | wx.NO)
@@ -1160,6 +1165,7 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f = open(self.project.attrgroup_results, 'rb')
                     groupresults = pickle.load(f)
                     start_labelattrs(groupresults)
+                '''
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):
                 all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
