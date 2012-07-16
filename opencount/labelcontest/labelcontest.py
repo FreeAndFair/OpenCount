@@ -567,7 +567,7 @@ class LabelContest(wx.Panel):
         self.templatenum += ct
 
         # Save the image corresponding to this template
-        self.imgo = Image.open(self.dirList[self.templatenum])
+        self.imgo = Image.open(self.dirList[self.templatenum]).convert("RGB")
         
         for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
