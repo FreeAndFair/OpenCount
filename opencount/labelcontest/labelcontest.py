@@ -149,6 +149,7 @@ class LabelContest(wx.Panel):
         
         self.gatherData()
 
+        self.grouping_cached = None
         self.getValues()
 
         self.text_targets = []
@@ -202,12 +203,10 @@ class LabelContest(wx.Panel):
         self.has_equiv_classes = False
         self.multiboxcontests = []
         self.multiboxcontests_enter = []
-        self.grouping_cached = None
 
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
-
         
         def addmultibox(x):
             orders = []
@@ -434,7 +433,7 @@ class LabelContest(wx.Panel):
                 fout.writerow([mapping[k]]+v)
                 did[mapping[k]] = True
 
-        pickle.dump((self.text, self.voteupto), open(self.proj.contest_internal, "w"))
+        pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
                     
 
     def setupBoxes(self):
@@ -455,7 +454,18 @@ class LabelContest(wx.Panel):
                                            int(row[3])+int(row[5])))
                     res.append(ballot)
             print "LOADING", res
-            self.boxes = res
+            # When we load from select-and-group-targets, the order we
+            # get isn't the adjusted ordering. We need to correct the
+            # order so that we can work with it.
+            reorder = [[y[0][1] for y in x] for x in self.groupedtargets]
+            newres = []
+            for i in range(len(reorder)):
+                tmp = {}
+                for j in range(len(reorder[i])):
+                    tmp[reorder[i][j]] = res[i][j]
+                newres.append([x[1] for x in sorted(tmp.items())])
+            print "AND NOW", newres
+            self.boxes = newres
             return
 
         self.boxes = []
@@ -513,7 +523,7 @@ class LabelContest(wx.Panel):
             d = open(self.proj.contest_internal).read()
             if d:
                 restored = True
-                self.text, self.voteupto = pickle.load(open(self.proj.contest_internal))
+                self.text, self.voteupto, self.grouping_cached = pickle.load(open(self.proj.contest_internal))
 
         # The PIL image for the contest.
         # Keys are of the form templateid:(l,u,r,d)
@@ -637,8 +647,6 @@ class LabelContest(wx.Panel):
                 # NO OFF BY ONE ERROR FOR YOU!
                 each.SetValue(arr[i+1])
             print 'all is well'
-        else:
-            print 'something wrong', len(arr), len(self.text_targets)+1
         self.text_title.SetMark(0,0)
         self.text_title.SetInsertionPointEnd()
 

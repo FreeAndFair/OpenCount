@@ -909,26 +909,27 @@ class ThreadDoInferContests(threading.Thread):
         """
         res = []
         dirList = []
-        for each in os.listdir(self.proj.target_locs_dir):
-            if each[-4:] != '.csv': continue
-            gr = {}
-            name = os.path.join(self.proj.target_locs_dir, each)
-            for i, row in enumerate(csv.reader(open(name))):
-                if i == 0:
-                    # skip the header row, to avoid adding header
-                    # information to our data structures
-                    continue
-                # If this one is a target, not a contest
-                if row[7] == '0':
-                    if row[8] not in gr:
-                        gr[row[8]] = []
-                    # 2,3,4,5 are left,up,width,height but need left,up,right,down
-                    gr[row[8]].append((int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                if row[0] not in dirList:
-                    dirList.append(row[0])
-            res.append(gr.values())
+        for root,dirs,files in os.walk(self.proj.target_locs_dir):
+            for each in files:
+                if each[-4:] != '.csv': continue
+                gr = {}
+                name = os.path.join(root, each)
+                for i, row in enumerate(csv.reader(open(name))):
+                    if i == 0:
+                        # skip the header row, to avoid adding header
+                        # information to our data structures
+                        continue
+                    # If this one is a target, not a contest
+                    if row[7] == '0':
+                        if row[8] not in gr:
+                            gr[row[8]] = []
+                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                        gr[row[8]].append((int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    if row[0] not in dirList:
+                        dirList.append(row[0])
+                res.append(gr.values())
         return res, dirList
         
     def run(self):
