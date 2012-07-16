@@ -22,14 +22,26 @@ class ResultsPanel(wx.Panel):
         self.proj = msg.data
 
     def set_results(self):
+        """Processes cvr file, outputs results files."""
         cvr = self.process()
         self.human_readable_cvr(cvr)
-
         res = self.tally_by_precinct_and_mode(cvr)
         self.results.SetLabel(res)
         open(self.proj.election_results, "w").write(res)
+        
+        # If there are batches
+        if len([x[0] for x in os.walk(self.proj.samplesdir)]) > 1:
+            batches_res = self.tally_by_batch(cvr)
+            open(self.proj.election_results_batches, "w").write(batches_res)
 
     def load_grouping(self):
+        """Processes grouping_results.
+        
+        Returns dict with key-val pairs:
+        'header' -> header line
+        samplepath -> [templatepath,precinct,flipped_front,flipped_back]
+        
+        """
         if not os.path.exists(self.proj.grouping_results):
             return None
 
@@ -202,7 +214,9 @@ class ResultsPanel(wx.Panel):
 
             ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
             cvr.writerow([ballot]+sum(ballot_cvr,[]))
-        #print 'end', full_cvr
+        print 'end', full_cvr
+        
+       
         return full_cvr
 
     def human_readable_cvr(self, cvr):
@@ -227,6 +241,12 @@ class ResultsPanel(wx.Panel):
             out.close()
             
     def final_tally(self, cvr, name=None):
+        """Aggregrate tallies to form a final tally.
+        
+        Keyword args:
+        name -- Title of grouping, e.g. 'TOTAL', 'Precinct', 'Dirname'
+
+        """
         text, order = self.get_text()
 
         res = {}
@@ -261,6 +281,12 @@ class ResultsPanel(wx.Panel):
         return s+"\n"
 
     def tally_by_precinct_and_mode(self, cvr):
+        """ Tallies by groupings of precinct and mode
+        
+        Returns: dict containing key-value pairs of 
+        attribute -> cvr item
+        e.g. 'precinct 1' : cvr item
+        """
         attributes = self.load_grouping()
         quar = set(x[0] for x in csv.reader(open(self.proj.quarantine_res)))
         print attributes
@@ -291,3 +317,48 @@ class ResultsPanel(wx.Panel):
                             name = "Precinct, Mode: "+k+", "+k2
                             result += self.final_tally(v2, name)
         return result
+
+    def tally_by_batch(self, cvr):
+        """Tallies by batches rooted at voted/ directory.
+        e.g. /000, /000/Absentee, etc.
+
+        Takes in full_cvr as an input and creates dict
+        containing key-val pairs of batch-> cvr entry
+        
+        """
+        
+        result = ""
+        result += self.final_tally(cvr, name="TOTAL")
+               
+        batch_paths  = [x[0] for x in os.walk(self.proj.samplesdir)]
+        batch_paths  = batch_paths[1:]
+        
+        for batch in batch_paths:
+            batch_result = {}
+            for entry in cvr:
+                if batch not in batch_result:
+                    batch_result[batch] = []
+                if batch in entry[0]:
+                    batch_result[batch].append(entry)
+
+            for k,v in batch_result.items():
+                name = batch.replace(self.proj.samplesdir, '')
+                result += self.final_tally(v,name)
+
+        return result            
+    
+        
+            
+
+
+
+
+    
+
+                
+
+            
+
+        
+
+

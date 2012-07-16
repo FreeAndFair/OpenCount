@@ -1391,6 +1391,7 @@ class Project(object):
                      'image_to_ballot': pathjoin(projdir_path, 'image_to_ballot.p'),
                      'image_to_template': pathjoin(projdir_path, 'image_to_template.p'),
                      'election_results': pathjoin(projdir_path, 'election_results.txt'),
+                     'election_results_batches': pathjoin(projdir_path, 'election_results_batches.txt'),
                      'cvr_csv': pathjoin(projdir_path, 'cvr.csv'),
                      'cvr_dir': pathjoin(projdir_path, 'cvr'),
                      'quarantined': pathjoin(projdir_path, 'quarantined.csv'),
