@@ -185,6 +185,7 @@ class LabelAttributesPanel(LabelContest):
                                         int(round(at['y2']*height)))])
             self.groupedtargets.append(thisballot)
         print "CID_MAP", cid_map
+        print "GRTARGS", self.groupedtargets
         self.groupedtargets_back = self.groupedtargets
         self.cid_map = cid_map
 
