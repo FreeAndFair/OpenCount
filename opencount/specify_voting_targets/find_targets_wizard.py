@@ -545,10 +545,15 @@ voting bubbles were missed.".format(ctr)
         h_target = int(round(h_target * h_img))
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for imgpath in self.world.get_boxes_all():
-            tdir = self.project.templatesdir
-            if tdir[-1] != '/':
-                tdir += '/'
-            basedir = imgpath[len(tdir):]
+            ## Comment this out to avoid breaking things downstream,
+            ## but at some point this change will be necessary
+            ## to handle blank ballots that have the same filenames
+            ## (as in Napa)
+            #tdir = self.project.templatesdir
+            #if tdir[-1] != '/':
+            #    tdir += '/'
+            #basedir = imgpath[len(tdir):]
+            basedir = ''
             csvfilepath = pathjoin(self.project.target_locs_dir,
                                    basedir, 
                                    "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
