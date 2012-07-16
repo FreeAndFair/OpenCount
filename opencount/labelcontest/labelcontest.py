@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import csv
 import pickle
 
-from group_contests import do_grouping, final_grouping, extend_multibox, intersect
+from group_contests import do_grouping, final_grouping, extend_multibox, intersect, group_given_contests
 
 sys.path.append('..')
 from util import ImageManipulate, pil2wxb
@@ -44,55 +44,55 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets[a]) is the number of contests in template A
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
         self.groupedtargets = []
-        # os.listdir is okay here -- it's flat.
-        for each in os.listdir(self.proj.target_locs_dir):
-            if each[-4:] != '.csv': continue
-            gr = {}
-            name = os.path.join(self.proj.target_locs_dir, each)
-            for i, row in enumerate(csv.reader(open(name))):
-                if i == 0:
-                    # skip the header row, to avoid adding header
-                    # information to our data structures
-                    continue
-                # If this one is a target, not a contest
-                if row[7] == '0':
-                    if row[8] not in gr:
-                        gr[row[8]] = []
-                    # 2,3,4,5 are left,up,width,height but need left,up,right,down
-                    gr[row[8]].append((int(row[1]), int(row[8]),
-                                       int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                # Only add the row's imgpath once
-                if row[0] not in self.dirList:
-                    self.dirList.append(row[0])
-                    if thewidth == None:
-                        thewidth, theheight = Image.open(row[0]).size
-            lst = gr.values()
-
-            # Figure out where the columns are.
-            # We want to sort each group going left->right top->down
-            #   but only go left->right if we're on a new column,
-            #   not if we're only off by a few pixels to the left.
-            errorby = thewidth/100
-
-            cols = {}
-            for _,_,x,_,_,_ in sum(lst, []):
-                found = False
-                for c in cols:
-                    if abs(c-x) < errorby:
-                        found = True
-                        cols[x] = cols[c]
-                        break
-                if not found:
-                    cols[x] = x
-
-            # And sort by columns within each contest
-            lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
-            # And then sort each contest in the same way, globally
-            slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
-            
-            self.groupedtargets.append(slist)
+        for root,dirs,files in os.walk(self.proj.target_locs_dir):
+            for each in files:
+                if each[-4:] != '.csv': continue
+                gr = {}
+                name = os.path.join(root, each)
+                for i, row in enumerate(csv.reader(open(name))):
+                    if i == 0:
+                        # skip the header row, to avoid adding header
+                        # information to our data structures
+                        continue
+                    # If this one is a target, not a contest
+                    if row[7] == '0':
+                        if row[8] not in gr:
+                            gr[row[8]] = []
+                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                        gr[row[8]].append((int(row[1]), int(row[8]),
+                                           int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    # Only add the row's imgpath once
+                    if row[0] not in self.dirList:
+                        self.dirList.append(row[0])
+                        if thewidth == None:
+                            thewidth, theheight = Image.open(row[0]).size
+                lst = gr.values()
+    
+                # Figure out where the columns are.
+                # We want to sort each group going left->right top->down
+                #   but only go left->right if we're on a new column,
+                #   not if we're only off by a few pixels to the left.
+                errorby = thewidth/100
+    
+                cols = {}
+                for _,_,x,_,_,_ in sum(lst, []):
+                    found = False
+                    for c in cols:
+                        if abs(c-x) < errorby:
+                            found = True
+                            cols[x] = cols[c]
+                            break
+                    if not found:
+                        cols[x] = x
+    
+                # And sort by columns within each contest
+                lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
+                # And then sort each contest in the same way, globally
+                slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
+                
+                self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
 
     def reset_panel(self):
@@ -273,6 +273,8 @@ class LabelContest(wx.Panel):
 
 
     def load_languages(self):
+        if not os.path.exists(self.proj.patch_loc_dir): return {}
+
         result = {}
         for f in os.listdir(self.proj.patch_loc_dir):
             print "AND I GET", f, f[-4:]
@@ -290,7 +292,6 @@ class LabelContest(wx.Panel):
                             print 'found with lang', row[take+1]
                             result[row[0]] = row[take+1]
                             break
-                        
         return result
         
 
@@ -322,8 +323,14 @@ class LabelContest(wx.Panel):
         if self.grouping_cached:
             groups = final_grouping(self.grouping_cached, targets)
         else:
-            ballots, groups = do_grouping(self.proj.ocr_tmp_dir,
-                                          self.dirList, targets, languages)
+            if not self.proj.infer_bounding_boxes:
+                dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
+                dlg.ShowModal()
+                return
+
+            ballots, groups = group_given_contests(self.proj.ocr_tmp_dir, 
+                                                   self.dirList, targets, 
+                                                   self.boxes, languages)
             self.grouping_cached = ballots
             print "CACHED", ballots
 
@@ -433,20 +440,20 @@ class LabelContest(wx.Panel):
     def setupBoxes(self):
         if self.proj.infer_bounding_boxes:
             res = []
-            # os.listdir is okay here -- it's flat.
-            for each in os.listdir(self.proj.target_locs_dir):
-                if each[-4:] != '.csv': continue
-                name = os.path.join(self.proj.target_locs_dir, each)
-                ballot = []
-                for i, row in enumerate(csv.reader(open(name))):
-                    if i == 0:
-                        continue
-                    if row[7] == '1':
-                        ballot.append((int(row[1]),
-                                       int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                res.append(ballot)
+            for root,dirs,files in os.walk(self.proj.target_locs_dir):
+                for each in files:
+                    if each[-4:] != '.csv': continue
+                    name = os.path.join(root, each)
+                    ballot = []
+                    for i, row in enumerate(csv.reader(open(name))):
+                        if i == 0:
+                            continue
+                        if row[7] == '1':
+                            ballot.append((int(row[1]),
+                                           int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    res.append(ballot)
             print "LOADING", res
             self.boxes = res
             return
@@ -560,7 +567,7 @@ class LabelContest(wx.Panel):
         self.templatenum += ct
 
         # Save the image corresponding to this template
-        self.imgo = Image.open(self.dirList[self.templatenum])
+        self.imgo = Image.open(self.dirList[self.templatenum]).convert("RGB")
         
         for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
@@ -800,6 +807,17 @@ class LabelContest(wx.Panel):
             print "SET TO", k, self.text_upto
             self.text_upto.SetValue(self.voteupto[k])
 
+
+        if len(self.groupedtargets[self.templatenum]) == 0:
+            # There are no contests on this ballot.
+            print "A"*500
+            print self.templatenum, self.count
+            self.contesttitle = wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
+            self.text_title = wx.ComboBox(self.textarea, -1,
+                                          choices=[],
+                                          style=wx.CB_DROPDOWN, pos=(0,25))
+            return
+        
         #print "AND", self.text.values()
         print map(len,self.text.values())
         print len(self.text_targets)

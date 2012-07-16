@@ -7,7 +7,7 @@ from util import MyGauge
 from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
-import label_attributes, util, common
+import util, common
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh

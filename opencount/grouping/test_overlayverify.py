@@ -85,7 +85,7 @@ class MainFrame(wx.Frame):
         g2 = GroupClass(groups2)
         exemplar_paths = {g_one: 'test_imgs2/extracted_patches/patch_template_one.png',
                           g_two: 'test_imgs2/extracted_patches/patch_template_two.png'}
-        return (g1,g2), exemplar_paths
+        return (g2,g1), exemplar_paths
         
 
 if __name__ == '__main__':
