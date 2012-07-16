@@ -163,19 +163,20 @@ class GroupingMasterPanel(wx.Panel):
                                                                           ('imageorder', imageorder))] = pathjoin(dirpath, f)
             # Account for digits
             rootdir = pathjoin(self.project.projdir_path,
-                                    self.project.digit_exemplars_outdir)
-            digitdirs = os.listdir(rootdir)
-            for digitdir in digitdirs:
-                # Assumes digitdirs is of the form:
-                #    <digitdirs>/0_examples/
-                #    <digitdirs>/1_examples/
-                #    ...
-                digitfullpath = os.path.join(rootdir, digitdir)
-                digit = digitdir.split('_')[0]
-                digitgrouplabel = common.make_grouplabel(('digit', digit))
-                imgpath = get_example_digit(digitfullpath)
-                assert digitgrouplabel not in exemplar_paths
-                exemplar_paths[digitgrouplabel] = imgpath
+                               self.project.digit_exemplars_outdir)
+            if os.path.exists(rootdir):
+                digitdirs = os.listdir(rootdir)
+                for digitdir in digitdirs:
+                    # Assumes digitdirs is of the form:
+                    #    <digitdirs>/0_examples/
+                    #    <digitdirs>/1_examples/
+                    #    ...
+                    digitfullpath = os.path.join(rootdir, digitdir)
+                    digit = digitdir.split('_')[0]
+                    digitgrouplabel = common.make_grouplabel(('digit', digit))
+                    imgpath = get_example_digit(digitfullpath)
+                    assert digitgrouplabel not in exemplar_paths
+                    exemplar_paths[digitgrouplabel] = imgpath
             return exemplar_paths
 
         self.run_grouping.Hide()
@@ -223,6 +224,7 @@ class GroupingMasterPanel(wx.Panel):
                 if attrval:
                     ad[attrtype] = attrval
             if ad == {}:
+                print "Uhoh, an attribute type was not found in the grouplabel:", grouplabel
                 pdb.set_trace()
             assert ad != {}
             if common.is_digit_grouplabel(grouplabel, self.project):
@@ -235,7 +237,6 @@ class GroupingMasterPanel(wx.Panel):
                 imgorder = common.get_propval(grouplabel, 'imageorder')
             assert flip != None
             assert imgorder != None
-            #for (samplepath, rankedlist, patchpath) in groups:
             for group in groups:
                 for (samplepath, rankedlist, patchpath) in group.elements:
                     for attrtype, attrval in ad.iteritems():
@@ -269,12 +270,6 @@ class GroupingMasterPanel(wx.Panel):
                 row[attrtype] = attrval
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
-            '''
-            digit_attrs = digit_labels[samplepath] # list of (attrtype_i, digitlabel_i)
-            for attrtype, digitval in digit_attrs:
-                row[attrtype] = digitval
-            '''    
-            
             templateid = determine_template(attrdict, munged_patches, self.project)
             if not templateid:
                 hosed_bals.append((samplepath, attrdict, munged_patches))
@@ -878,6 +873,9 @@ def munge_digit_results(results, all_attrtypes, project):
         """
         return common.get_propval(grouplabel, 'digit') != None
     digitattrs = [a for a in all_attrtypes if common.is_digitbased(project, a)]
+    if not digitattrs:
+        print "No digit-based attributes in this election."
+        return results
     if len(digitattrs) != 1:
         print "Sorry, ack, OpenCount only supports one digit-based \
 patch, sorry."
