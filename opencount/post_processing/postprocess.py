@@ -330,20 +330,24 @@ class ResultsPanel(wx.Panel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths  = [x[0] for x in os.walk(self.proj.samplesdir)]
-        batch_paths  = batch_paths[1:]
+        batch_paths = [x[0] for x in os.walk(self.proj.raw_samplesdir)]
+        batch_paths = batch_paths[1:]
+
+        def dircontains(parent, path):
+            """Returns true if the path is a subdirectory of parent"""
+            path = os.path.normpath(os.path.abspath(path))
+            parent = os.path.normpath(os.path.abspath(parent)) + os.sep
+            return path in parent
         
         for batch in batch_paths:
-            batch_result = {}
+            matchingcvrs = []
             for entry in cvr:
-                if batch not in batch_result:
-                    batch_result[batch] = []
-                if batch in entry[0]:
-                    batch_result[batch].append(entry)
+                if dircontains(batch, entry[0]):
+                    print batch, entry[0]
+                    matchingcvrs.append(entry)
 
-            for k,v in batch_result.items():
-                name = batch.replace(self.proj.samplesdir, '')
-                result += self.final_tally(v,name)
+            name = batch.replace(self.proj.samplesdir + os.sep, '')
+            result += self.final_tally(matchingcvrs,name)
 
         return result            
     
