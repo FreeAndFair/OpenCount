@@ -81,8 +81,12 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
     w_img, h_img = imgsize
     n_iters = 0
     _starttime = time.time()
+    THRESHOLD = 0.7
     while tmp2imgs and not no_change:
         print '== Running iteration:', n_iters
+        if THRESHOLD < 0.0:
+            print "ERROR: Couldn't group all attributes."
+            exit(1)
         flag = False
         for d in attrdata:
             print 'Trying to group attribute:', d['attrs']
@@ -114,7 +118,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 # we've grouped every blank ballot.
                 continue
             global _i
-            #scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
+            scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
 
             _i += 1
             patchpaths = get_temp_patches(d, temppaths)
@@ -123,7 +127,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             x1_bb, y1_bb = 0, 0
             x2_bb, y2_bb = w-1, h-1
             bb = [y1_bb, y2_bb, x1_bb, x2_bb]
-            matches = shared.find_patch_matchesV1(patch, bb, temppaths, bbSearch=[y1, y2, x1, x2], threshold=0.7)
+            matches = shared.find_patch_matchesV1(patch, bb, temppaths, bbSearch=[y1, y2, x1, x2], threshold=THRESHOLD)
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
                                                                      _endt,
@@ -152,10 +156,13 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 in_group = common.GroupClass(elements)
                 groups.append(in_group)
         if not flag:
-            # Convergence achieved, stop iterating
-            no_change = True
+            # Something bad happened, if we still have blank
+            # ballots left to work over.
+            THRESHOLD -= 0.1
+            #no_change = True
         n_iters += 1
     print "== Total Time:", time.time() - _starttime
+    pdb.set_trace()
     return groups
     
 def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
@@ -218,7 +225,8 @@ def main():
     attrdata = pickle.load(open(pathjoin(rootdir, 'ballot_attributes.p'), 'rb'))
     #imgsize = (1460, 2100)
     #imgsize = (1715, 2847)
-    imgsize = (1459, 2099)    # alameda
+    #imgsize = (1459, 2099)    # alameda
+    imgsize = (1968, 3530)    # napa
     projdir_path = rootdir
     tmp2imgs_path = pathjoin(rootdir, 'template_to_images.p')
     groups = group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path)
