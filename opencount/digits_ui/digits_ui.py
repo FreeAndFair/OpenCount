@@ -520,6 +520,17 @@ class MyStaticBitmap(wx.Panel):
         if box:
             # do template matching
             npimg = self.extract_region(box)
+            if len(npimg.shape) == 1:
+                print "Degenerate array returned from extract_region. \
+Saving npimg as _errtmp_npimg_degenerate.png"
+                scipy.misc.imsave("_errtmp_npimg_degenerate.png", npimg)
+                return
+            h, w = npimg.shape
+            if w <= 2 or h <= 2:
+                print "Extracted region was too small for template \
+matching. Saving to: _errtmp_npimg.png"
+                scipy.misc.imsave("_errtmp_npimg.png", npimg)
+                return
             npimg_crop = autocrop_img(npimg)
             #scipy.misc.imsave('before_crop.png', npimg)
             #scipy.misc.imsave('after_crop.png', npimg_crop)
