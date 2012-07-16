@@ -1,4 +1,4 @@
-import random
+import random, pdb
 import math
 import cStringIO
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
@@ -804,11 +804,7 @@ class LabelContest(wx.Panel):
         print map(len,self.text.values())
         print len(self.text_targets)
         self.contesttitle = wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
-        try:
-            number_targets = len(self.groupedtargets[self.templatenum][self.count])
-        except Exception as e:
-            print e
-            pdb.set_trace()
+        number_targets = len(self.groupedtargets[self.templatenum][self.count])
         self.text_title = wx.ComboBox(self.textarea, -1,
                                       choices=list(Set([x[0] for x in self.text.values() if x and len(x)-1 == number_targets])),
                                       style=wx.CB_DROPDOWN, pos=(0,25))

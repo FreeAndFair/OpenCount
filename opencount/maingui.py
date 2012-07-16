@@ -474,7 +474,7 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
-        
+
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))
 

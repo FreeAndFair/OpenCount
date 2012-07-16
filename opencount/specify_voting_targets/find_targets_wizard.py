@@ -516,8 +516,6 @@ voting bubbles were missed.".format(ctr)
             return
         #util_gui.create_dirs(CSVFILES_DIR)
         util_gui.create_dirs(self.project.target_locs_dir)
-        # DOGFOOD: Delete me, and all secondary target_locations writes
-        #util_gui.create_dirs('target_locations')
         # First update contest ids for all boxes, since user might 
         # have changed bounding boxes
         updated_boxes = {}
@@ -547,19 +545,21 @@ voting bubbles were missed.".format(ctr)
         h_target = int(round(h_target * h_img))
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for imgpath in self.world.get_boxes_all():
-            csvfilepath = pathjoin(self.project.target_locs_dir, "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
-            #csvfilepath2 = pathjoin('target_locations', "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            tdir = self.project.templatesdir
+            if tdir[-1] != '/':
+                tdir += '/'
+            basedir = imgpath[len(tdir):]
+            csvfilepath = pathjoin(self.project.target_locs_dir,
+                                   basedir, 
+                                   "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            util_gui.create_dirs(os.path.split(csvfilepath)[0])
             csvfile = open(csvfilepath, 'wb')
-            #csvfile2 = open(csvfilepath2, 'wb')
             csvpath_map[csvfilepath] = os.path.abspath(imgpath)
             dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
-            #dictwriter2 = csv.DictWriter(csvfile2, fieldnames=fields)
             try:
                 dictwriter.writeheader()
-                #dictwriter2.writeheader()
             except AttributeError:
                 util_gui._dictwriter_writeheader(csvfile, fields)
-                #util_gui._dictwriter_writeheader(csvfile2, fields)
 
             for id, bounding_box in enumerate(self.world.get_boxes(imgpath)):
                 x1, y1, x2, y2 = bounding_box.get_coords()
@@ -582,9 +582,7 @@ voting bubbles were missed.".format(ctr)
                 row['is_contest'] = 1 if bounding_box.is_contest else 0
                 row['contest_id'] = bounding_box.contest_id
                 dictwriter.writerow(row)
-                #dictwriter2.writerow(row)
             csvfile.close()
-            #csvfile2.close()
         csvpath_map_filepath = pathjoin(self.project.target_locs_dir, 'csvpath_map.p')
         pickle.dump(csvpath_map, open(csvpath_map_filepath, 'wb'))
         val = copy.deepcopy(self.world.get_boxes_all())
