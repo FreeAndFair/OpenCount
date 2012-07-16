@@ -111,11 +111,7 @@ except NameError:
     # This script is being run directly - then, sys.path[0] contains
     # the path to this script.
     MYDIR = os.path.abspath(sys.path[0])
-    
-# This global var can be set by other modules/functions in order to
-# allow project separation.
-CSVFILES_DIR = "./target_locations"
-    
+
 CONSTANT_CLOSE_TO = 4.0 # Threshold pixel proximity for is_close_to(2)
 
 TIMER = None
@@ -342,7 +338,7 @@ function correctly.""".format(len(lonely_tmpls))
             self.world.box_locations = imgs_dict
         else:
             imgs_dict = self.world.get_boxes_all()
-
+            
         self.panel_mosaic.display_images(imgs_dict)
 
         # Display first template on BallotScreen
@@ -518,9 +514,10 @@ voting bubbles were missed.".format(ctr)
         elif len(self.world.get_boxes_all_list()) == 0:
             # No bounding boxes created
             return
-        util_gui.create_dirs(CSVFILES_DIR)
+        #util_gui.create_dirs(CSVFILES_DIR)
+        util_gui.create_dirs(self.project.target_locs_dir)
         # DOGFOOD: Delete me, and all secondary target_locations writes
-        util_gui.create_dirs('target_locations')
+        #util_gui.create_dirs('target_locations')
         # First update contest ids for all boxes, since user might 
         # have changed bounding boxes
         updated_boxes = {}
@@ -550,19 +547,19 @@ voting bubbles were missed.".format(ctr)
         h_target = int(round(h_target * h_img))
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for imgpath in self.world.get_boxes_all():
-            csvfilepath = pathjoin(CSVFILES_DIR, "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
-            csvfilepath2 = pathjoin('target_locations', "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            csvfilepath = pathjoin(self.project.target_locs_dir, "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
+            #csvfilepath2 = pathjoin('target_locations', "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
             csvfile = open(csvfilepath, 'wb')
-            csvfile2 = open(csvfilepath2, 'wb')
+            #csvfile2 = open(csvfilepath2, 'wb')
             csvpath_map[csvfilepath] = os.path.abspath(imgpath)
             dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
-            dictwriter2 = csv.DictWriter(csvfile2, fieldnames=fields)
+            #dictwriter2 = csv.DictWriter(csvfile2, fieldnames=fields)
             try:
                 dictwriter.writeheader()
-                dictwriter2.writeheader()
+                #dictwriter2.writeheader()
             except AttributeError:
                 util_gui._dictwriter_writeheader(csvfile, fields)
-                util_gui._dictwriter_writeheader(csvfile2, fields)
+                #util_gui._dictwriter_writeheader(csvfile2, fields)
 
             for id, bounding_box in enumerate(self.world.get_boxes(imgpath)):
                 x1, y1, x2, y2 = bounding_box.get_coords()
@@ -585,10 +582,10 @@ voting bubbles were missed.".format(ctr)
                 row['is_contest'] = 1 if bounding_box.is_contest else 0
                 row['contest_id'] = bounding_box.contest_id
                 dictwriter.writerow(row)
-                dictwriter2.writerow(row)
+                #dictwriter2.writerow(row)
             csvfile.close()
-            csvfile2.close()
-        csvpath_map_filepath = pathjoin(CSVFILES_DIR, 'csvpath_map.p')
+            #csvfile2.close()
+        csvpath_map_filepath = pathjoin(self.project.target_locs_dir, 'csvpath_map.p')
         pickle.dump(csvpath_map, open(csvpath_map_filepath, 'wb'))
         val = copy.deepcopy(self.world.get_boxes_all())
         return val
@@ -827,8 +824,6 @@ single voting target, which violates assumptions."
         print >>timelogfile, '================================'
         timelogfile.close()
 
-        global CSVFILES_DIR
-        CSVFILES_DIR = project.target_locs_dir
         self.project.addCloseEvent(self.export_bounding_boxes)
         self.project.addCloseEvent(self.export_frontback)
         if not project.templatesdir:
