@@ -520,7 +520,22 @@ class MyStaticBitmap(wx.Panel):
         if box:
             # do template matching
             npimg = self.extract_region(box)
+            if len(npimg.shape) == 1:
+                print "Degenerate array returned from extract_region. \
+Saving npimg as _errtmp_npimg_degenerate.png"
+                scipy.misc.imsave("_errtmp_npimg_degenerate.png", npimg)
+                return
+            h, w = npimg.shape
+            if w <= 2 or h <= 2:
+                print "Extracted region was too small for template \
+matching. Saving to: _errtmp_npimg.png"
+                scipy.misc.imsave("_errtmp_npimg.png", npimg)
+                return
             npimg_crop = autocrop_img(npimg)
+            if npimg_crop == None:
+                print "autocrop failed. saving to: _errtmp_npimg_failcrop.png"
+                scipy.misc.imsave("_errtmp_npimg_failcrop.png", npimg)
+                return
             #scipy.misc.imsave('before_crop.png', npimg)
             #scipy.misc.imsave('after_crop.png', npimg_crop)
             npimg_crop = np.float32(npimg_crop / 255.0)
@@ -748,6 +763,11 @@ def autocrop_img(img):
         return np.argwhere(b)
     thresholded = util_gui.autothreshold_numpy(img, method='otsu')
     B = new_argwhere(thresholded)
+    if len(B.shape) == 1:
+        return None
+    h, w = B.shape
+    if h <= 2 or w <= 2:
+        return None
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
 
