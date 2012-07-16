@@ -8,7 +8,7 @@ WHICH_DEMO := 0 -- Demo Normal N-class Verify Overlay UI
 WHICH_DEMO := 1 -- Demo Yes/No Verify Overlay UI
 """
 
-WHICH_DEMO = 0      # <-- Change this to switch modes
+WHICH_DEMO = 1      # <-- Change this to switch modes
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
@@ -74,7 +74,7 @@ class MainFrame(wx.Frame):
         g2 = GroupClass(groups2)
         exemplar_paths = {g_one: 'test_imgs2/extracted_patches/patch_template_one.png',
                           g_two: 'test_imgs2/extracted_patches/patch_template_two.png'}
-        return (g1,g2), exemplar_paths
+        return (g2,g1), exemplar_paths
         
 
 if __name__ == '__main__':

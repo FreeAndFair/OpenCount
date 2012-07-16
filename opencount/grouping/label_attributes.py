@@ -1,13 +1,13 @@
 import os, sys, pdb, wx, threading, Queue
 from wx.lib.pubsub import Publisher
-from labelcontest.labelcontest import LabelContest
 from PIL import Image
 import scipy
 import scipy.misc
 import pickle
 import csv
 
-sys.path.append('../')
+sys.path.append('..')
+from labelcontest.labelcontest import LabelContest
 import pixel_reg.shared as shared
 from specify_voting_targets import util_gui
 import common

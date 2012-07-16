@@ -714,7 +714,6 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
         ballots.append(get)
     print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
-    
 
 def final_grouping(ballots, giventargets):
     ballots = merge_contests(ballots, giventargets)
