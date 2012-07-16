@@ -1,4 +1,4 @@
-import random
+import random, pdb
 import math
 import cStringIO
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl

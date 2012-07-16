@@ -70,6 +70,7 @@ class GroupAttrsFrame(wx.Frame):
 
     def on_groupattrs_done(self):
         groups = self.queue.get()
+        self.Maximize()
         self.panel.start(groups, None, ondone=self.verify_done)
         self.Fit()
         
