@@ -44,55 +44,55 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets[a]) is the number of contests in template A
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
         self.groupedtargets = []
-        # os.listdir is okay here -- it's flat.
-        for each in os.listdir(self.proj.target_locs_dir):
-            if each[-4:] != '.csv': continue
-            gr = {}
-            name = os.path.join(self.proj.target_locs_dir, each)
-            for i, row in enumerate(csv.reader(open(name))):
-                if i == 0:
-                    # skip the header row, to avoid adding header
-                    # information to our data structures
-                    continue
-                # If this one is a target, not a contest
-                if row[7] == '0':
-                    if row[8] not in gr:
-                        gr[row[8]] = []
-                    # 2,3,4,5 are left,up,width,height but need left,up,right,down
-                    gr[row[8]].append((int(row[1]), int(row[8]),
-                                       int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                # Only add the row's imgpath once
-                if row[0] not in self.dirList:
-                    self.dirList.append(row[0])
-                    if thewidth == None:
-                        thewidth, theheight = Image.open(row[0]).size
-            lst = gr.values()
-
-            # Figure out where the columns are.
-            # We want to sort each group going left->right top->down
-            #   but only go left->right if we're on a new column,
-            #   not if we're only off by a few pixels to the left.
-            errorby = thewidth/100
-
-            cols = {}
-            for _,_,x,_,_,_ in sum(lst, []):
-                found = False
-                for c in cols:
-                    if abs(c-x) < errorby:
-                        found = True
-                        cols[x] = cols[c]
-                        break
-                if not found:
-                    cols[x] = x
-
-            # And sort by columns within each contest
-            lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
-            # And then sort each contest in the same way, globally
-            slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
-            
-            self.groupedtargets.append(slist)
+        for root,dirs,files in os.walk(self.proj.target_locs_dir):
+            for f1 in files:
+                if each[-4:] != '.csv': continue
+                gr = {}
+                name = os.path.join(self.proj.target_locs_dir, each)
+                for i, row in enumerate(csv.reader(open(name))):
+                    if i == 0:
+                        # skip the header row, to avoid adding header
+                        # information to our data structures
+                        continue
+                    # If this one is a target, not a contest
+                    if row[7] == '0':
+                        if row[8] not in gr:
+                            gr[row[8]] = []
+                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                        gr[row[8]].append((int(row[1]), int(row[8]),
+                                           int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    # Only add the row's imgpath once
+                    if row[0] not in self.dirList:
+                        self.dirList.append(row[0])
+                        if thewidth == None:
+                            thewidth, theheight = Image.open(row[0]).size
+                lst = gr.values()
+    
+                # Figure out where the columns are.
+                # We want to sort each group going left->right top->down
+                #   but only go left->right if we're on a new column,
+                #   not if we're only off by a few pixels to the left.
+                errorby = thewidth/100
+    
+                cols = {}
+                for _,_,x,_,_,_ in sum(lst, []):
+                    found = False
+                    for c in cols:
+                        if abs(c-x) < errorby:
+                            found = True
+                            cols[x] = cols[c]
+                            break
+                    if not found:
+                        cols[x] = x
+    
+                # And sort by columns within each contest
+                lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
+                # And then sort each contest in the same way, globally
+                slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
+                
+                self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
 
     def reset_panel(self):
@@ -440,20 +440,20 @@ class LabelContest(wx.Panel):
     def setupBoxes(self):
         if self.proj.infer_bounding_boxes:
             res = []
-            # os.listdir is okay here -- it's flat.
-            for each in os.listdir(self.proj.target_locs_dir):
-                if each[-4:] != '.csv': continue
-                name = os.path.join(self.proj.target_locs_dir, each)
-                ballot = []
-                for i, row in enumerate(csv.reader(open(name))):
-                    if i == 0:
-                        continue
-                    if row[7] == '1':
-                        ballot.append((int(row[1]),
-                                       int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                res.append(ballot)
+            for root,dirs,files in os.walk(self.proj.target_locs_dir):
+                for f1 in files:
+                    if each[-4:] != '.csv': continue
+                    name = os.path.join(self.proj.target_locs_dir, each)
+                    ballot = []
+                    for i, row in enumerate(csv.reader(open(name))):
+                        if i == 0:
+                            continue
+                        if row[7] == '1':
+                            ballot.append((int(row[1]),
+                                           int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    res.append(ballot)
             print "LOADING", res
             self.boxes = res
             return
