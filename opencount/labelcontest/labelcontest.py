@@ -807,6 +807,17 @@ class LabelContest(wx.Panel):
             print "SET TO", k, self.text_upto
             self.text_upto.SetValue(self.voteupto[k])
 
+
+        if len(self.groupedtargets[self.templatenum]) == 0:
+            # There are no contests on this ballot.
+            print "A"*500
+            print self.templatenum, self.count
+            self.contesttitle = wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
+            self.text_title = wx.ComboBox(self.textarea, -1,
+                                          choices=[],
+                                          style=wx.CB_DROPDOWN, pos=(0,25))
+            return
+        
         #print "AND", self.text.values()
         print map(len,self.text.values())
         print len(self.text_targets)
