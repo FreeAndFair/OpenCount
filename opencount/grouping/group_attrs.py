@@ -81,50 +81,45 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
     w_img, h_img = imgsize
     n_iters = 0
     _starttime = time.time()
-    while tmp2imgs and not no_change:
-        print '== Running iteration:', n_iters
-        flag = False
-        for d in attrdata:
-            print 'Trying to group attribute:', d['attrs']
-            x1, y1 = int(round(d['x1']*w_img)), int(round(d['y1']*h_img))
-            x2, y2 = int(round(d['x2']*w_img)), int(round(d['y2']*h_img))
-            side = d['side']
-            attrtype = tuple(sorted(d['attrs'].keys()))
-            temppaths = []
-            patch = None   # Current patch we're examining
-            for tempid, paths in tmp2imgs.iteritems():
-                if side == 'front':
-                    path = paths[0]
-                else:
-                    path = paths[1]
-                if (attrtype, path) in history:
-                    continue
-                temppaths.append(path)
-                if patch == None:
-                    tempimg = shared.standardImread(path,flatten=True)
-                    patch = tempimg[y1:y2, x1:x2]
-                    patch[0,0] = 0.99
-                                      
-            if patch == None:
-                # If we get here, then for the given attribute d,
-                # we've grouped every blank ballot.
-                continue
-            global _i
-            #scipy.misc.imsave("{0}_{1}.png".format(str(attrtype), _i), patch)
+    THRESHOLD = 0.7
+    unlabeled_blanks = tmp2imgs.copy()
+    def choose_blank(unlabeled_blanks, side):
+        for tempid, path in unlabeled_blanks.iteritems():
+            if side == 'front':
+                return path[0]
+            else:
+                return path[1]
+        print "wat"
+        pdb.set_trace()
+    def get_unlabeled_paths(unlabeled_blanks, side):
+        for tempid, path in unlabeled_blanks.iteritems():
+            if side == 'front':
+                yield path[0]
+            else:
+                yield path[1]
+        raise StopIteration
+    for attrdict in attrdata:
+        x1, y1 = int(round(attrdict['x1']*w_img)), int(round(attrdict['y1']*h_img))
+        x2, y2 = int(round(attrdict['x2']*w_img)), int(round(attrdict['y2']*h_img))
+        side = attrdict['side']
+        attrtype = tuple(sorted(attrdict['attrs'].keys()))
+        blankpath = choose_blank(unlabeled_blanks, side)
+        img = shared.standardImread(blankpath, flatten=True)
+        patch = img[y1:y2, x1:x2]
+        h, w = patch.shape
+        bb = [0, h, 0, w]
+        temppaths = get_unlabeled_paths(unlabeled_blanks, side)
+        _t = time.time()
+        matches = shared.find_patch_matchesV1(patch, bb, 
+                                              temppaths,
+                                              bbSearch=[y1, y2, x1, x2],
+                                              threshold=THRESHOLD)
+        _endt = time.time() - _t
+        print "len(matches): {0}  time: {1}".format(len(matches),_endt)
+        if matches:
+            pdb.set_trace()
 
-            _i += 1
-            patchpaths = get_temp_patches(d, temppaths)
-            _t = time.time()
-            h, w = patch.shape
-            x1, y1 = 0, 0
-            x2, y2 = w-3, h-3
-            bb = [y1, y2, x1, x2]
-            matches = shared.find_patch_matchesV1(patch, bb, temppaths, threshold=0.7)
-            _endt = time.time() - _t
-            print "len(matches): {0}  time: {1} avgtime per template: {2}".format(len(matches),
-                                                                     _endt,
-                                                                     _endt / len(temppaths))
-
+'''
             if matches:
                 flag = True
                 # Discard worst-scoring duplicates
@@ -148,12 +143,15 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
                 in_group = common.GroupClass(elements)
                 groups.append(in_group)
         if not flag:
-            # Convergence achieved, stop iterating
-            no_change = True
+            # Something bad happened, if we still have blank
+            # ballots left to work over.
+            THRESHOLD -= 0.1
+            #no_change = True
         n_iters += 1
     print "== Total Time:", time.time() - _starttime
+    pdb.set_trace()
     return groups
-    
+'''    
 def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
     """ Alternative grouping algorithm. """
     pass
@@ -213,7 +211,9 @@ def main():
     rootdir = args[0]
     attrdata = pickle.load(open(pathjoin(rootdir, 'ballot_attributes.p'), 'rb'))
     #imgsize = (1460, 2100)
-    imgsize = (1715, 2847)
+    #imgsize = (1715, 2847)
+    #imgsize = (1459, 2099)    # alameda
+    imgsize = (1968, 3530)    # napa
     projdir_path = rootdir
     tmp2imgs_path = pathjoin(rootdir, 'template_to_images.p')
     groups = group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path)

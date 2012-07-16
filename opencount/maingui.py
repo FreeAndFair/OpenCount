@@ -474,7 +474,7 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
-        
+
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))
 
@@ -1122,9 +1122,14 @@ because the current election has only one template. Skipping ahead to 'Run'."
                 attr grouping. groupresults is a dict:
                     {grouplabel: list of GroupClass objects}
                 """
+                f = open(os.path.join(self.project.projdir_path,
+                                      self.project.attrgroup_results), 'wb')
+                pickle.dump(groupresults, f)
+                f.close()
                 self.panel_label_attrs.start(self.GetSize())
                 self.panel_label_attrs.start()
-                self.panel_label_attrs.set_attrgroup_results(groupresults)
+                # Skip attr grouping for now
+                #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
                 self.SendSizeEvent()
                 TIMER.start_task(('user', map_pages[self.LABEL_ATTRS]['user']))
@@ -1138,12 +1143,29 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.ChangeSelection(self.RUN)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
-            elif True:
-                f = GroupAttrsFrame(self, self.project, start_labelattrs)
-                f.Show()
-                f.Maximize()
-            else:
+            elif not groupattrs_already_done(self.project):
+                # Attr grouping is causing more problems than help,
+                # skipping it for now...
+                #f = GroupAttrsFrame(self, self.project, start_labelattrs)
+                #f.SetSize((400, 500))
+                #f.Show()
                 start_labelattrs(None)
+            else:
+                start_labelattrs(None)    # Skip all attr grouping for now
+                '''
+                dlg = wx.MessageDialog(self, message="Attribute Grouping \
+has already been run in a previous session. Would you like to re-run \
+attribute grouping? ", style=wx.YES | wx.NO)
+                retstatus = dlg.ShowModal()
+                if retstatus == wx.ID_YES:
+                    f = GroupAttrsFrame(self, self.project, start_labelattrs)
+                    f.SetSize((400, 500))
+                    f.Show()
+                else:
+                    f = open(self.project.attrgroup_results, 'rb')
+                    groupresults = pickle.load(f)
+                    start_labelattrs(groupresults)
+                '''
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):
                 all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
@@ -1395,7 +1417,8 @@ class Project(object):
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
-                     'voteddigits_dir': 'voteddigits_dir'}
+                     'voteddigits_dir': 'voteddigits_dir',
+                     'attrgroup_results': 'attrgroup_results.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
@@ -1552,6 +1575,13 @@ def is_any_digitattrs(project):
         if attrdict['is_digitbased']:
             return True
     return False
+
+def groupattrs_already_done(project):
+    """ Returns True if we detect that Attribute Grouping computation
+    has already been done.
+    """
+    return os.path.exists(os.path.join(project.projdir_path,
+                                       project.attrgroup_results))
 
 def is_valid_projectname(name):
     """
