@@ -545,10 +545,15 @@ voting bubbles were missed.".format(ctr)
         h_target = int(round(h_target * h_img))
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for imgpath in self.world.get_boxes_all():
-            tdir = self.project.templatesdir
-            if tdir[-1] != '/':
-                tdir += '/'
-            basedir = imgpath[len(tdir):]
+            ## Comment this out to avoid breaking things downstream,
+            ## but at some point this change will be necessary
+            ## to handle blank ballots that have the same filenames
+            ## (as in Napa)
+            #tdir = self.project.templatesdir
+            #if tdir[-1] != '/':
+            #    tdir += '/'
+            #basedir = imgpath[len(tdir):]
+            basedir = ''
             csvfilepath = pathjoin(self.project.target_locs_dir,
                                    basedir, 
                                    "{0}_targetlocs.csv".format(os.path.splitext(os.path.split(imgpath)[1])[0]))
@@ -909,26 +914,27 @@ class ThreadDoInferContests(threading.Thread):
         """
         res = []
         dirList = []
-        for each in os.listdir(self.proj.target_locs_dir):
-            if each[-4:] != '.csv': continue
-            gr = {}
-            name = os.path.join(self.proj.target_locs_dir, each)
-            for i, row in enumerate(csv.reader(open(name))):
-                if i == 0:
-                    # skip the header row, to avoid adding header
-                    # information to our data structures
-                    continue
-                # If this one is a target, not a contest
-                if row[7] == '0':
-                    if row[8] not in gr:
-                        gr[row[8]] = []
-                    # 2,3,4,5 are left,up,width,height but need left,up,right,down
-                    gr[row[8]].append((int(row[2]), int(row[3]), 
-                                       int(row[2])+int(row[4]), 
-                                       int(row[3])+int(row[5])))
-                if row[0] not in dirList:
-                    dirList.append(row[0])
-            res.append(gr.values())
+        for root,dirs,files in os.walk(self.proj.target_locs_dir):
+            for each in files:
+                if each[-4:] != '.csv': continue
+                gr = {}
+                name = os.path.join(root, each)
+                for i, row in enumerate(csv.reader(open(name))):
+                    if i == 0:
+                        # skip the header row, to avoid adding header
+                        # information to our data structures
+                        continue
+                    # If this one is a target, not a contest
+                    if row[7] == '0':
+                        if row[8] not in gr:
+                            gr[row[8]] = []
+                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                        gr[row[8]].append((int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    if row[0] not in dirList:
+                        dirList.append(row[0])
+                res.append(gr.values())
         return res, dirList
         
     def run(self):
