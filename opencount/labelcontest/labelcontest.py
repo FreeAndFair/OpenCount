@@ -45,10 +45,10 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
         self.groupedtargets = []
         for root,dirs,files in os.walk(self.proj.target_locs_dir):
-            for f1 in files:
+            for each in files:
                 if each[-4:] != '.csv': continue
                 gr = {}
-                name = os.path.join(self.proj.target_locs_dir, each)
+                name = os.path.join(root, each)
                 for i, row in enumerate(csv.reader(open(name))):
                     if i == 0:
                         # skip the header row, to avoid adding header
@@ -441,9 +441,9 @@ class LabelContest(wx.Panel):
         if self.proj.infer_bounding_boxes:
             res = []
             for root,dirs,files in os.walk(self.proj.target_locs_dir):
-                for f1 in files:
+                for each in files:
                     if each[-4:] != '.csv': continue
-                    name = os.path.join(self.proj.target_locs_dir, each)
+                    name = os.path.join(root, each)
                     ballot = []
                     for i, row in enumerate(csv.reader(open(name))):
                         if i == 0:
