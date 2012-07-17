@@ -199,7 +199,7 @@ the same name.""".format(attrtype), style=wx.OK)
             new_box.side = page
             new_box.is_digitbased = dlg.is_digitbased
             if new_box.is_digitbased:
-                attrtypes_str = '_'.join(attr_types)
+                attrtypes_str = common.get_attrtype_str(attr_types)
                 update_numdigits_dict(attrtypes_str, dlg.num_digits, self.parent.parent.GetParent().project)
             new_box.is_tabulationonly = dlg.is_tabulationonly
             self.world.add_box(self.current_imgpath, new_box)
@@ -614,8 +614,9 @@ class AttributeContextMenu(wx.Menu):
             dlg.chkbox_is_digitbased.SetValue(True)
         if self.attrbox.is_tabulationonly == True:
             dlg.chkbox_is_tabulationonly.SetValue(True)
-        # TODO: Restore previous value in num_digitsmap.p
-        
+        attrs_str = common.get_attrtype_str(self.attrbox.get_attrtypes())
+        num_digits = common.get_numdigits(self.project, attrs_str)
+        dlg.num_digits.SetValue(str(num_digits))
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             new_attrtypes = dlg.results
@@ -820,7 +821,7 @@ def update_numdigits_dict(attrtype, numdigits, project):
         f.close()
     else:
         num_digitsmap = {}
-    num_digitsmap[attrtype] = numdigits
+    num_digitsmap[attrtype] = int(numdigits)
     outf = open(num_digitsmappath, 'wb')
     pickle.dump(num_digitsmap, outf)
     outf.close()

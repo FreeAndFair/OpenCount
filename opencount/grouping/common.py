@@ -53,7 +53,7 @@ class AttributeBox(BoundingBox):
         return self.attrs.get(attrtype, None)
 
     def get_attrtypes(self):
-        return self.attrs.keys()
+        return tuple(self.attrs.keys())
 
     def add_attrtypes(self, attrtypes, attrvals=None):
         if not attrvals:
@@ -277,6 +277,19 @@ def is_digitbased(project, attrtype):
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
+def get_numdigits(project, attr):
+    """Return the number of digits that this digit-based attribute
+    has.
+    """
+    numdigits_map = pickle.load(open(pathjoin(project.projdir_path,
+                                              project.num_digitsmap),
+                                     'rb'))
+    if attr not in numdigits_map:
+        print "Uhoh, {0} not in numdigits_map".format(attr)
+        pdb.set_trace()
+        return None
+    return int(numdigits_map[attr])
+
 def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
@@ -290,6 +303,15 @@ def is_digit_grouplabel(grouplabel, project):
                 return True
     return False
 
+def get_attrtype_str(attrtypes):
+    """Returns a 'canonical' string-representation of the attributes
+    of a ballot attribute.
+    Useful if an AttributeBox has multiple attribute defined within
+    it. The 'canonical' representation is:
+        each attribute sorted in alphabetical order, separated by
+        underscores '_'.
+    """
+    return '_'.join(sorted(attrtypes))
 
 def num_common_prefix(*args):
     """
