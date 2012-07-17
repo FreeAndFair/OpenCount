@@ -310,8 +310,25 @@ def get_attrtype_str(attrtypes):
     it. The 'canonical' representation is:
         each attribute sorted in alphabetical order, separated by
         underscores '_'.
+    Input:
+        lst attrtypes: List of strings
     """
     return '_'.join(sorted(attrtypes))
+
+def remove_common_pathpart(rootdir, path):
+    """ Given two paths, a root and a path, return just the part of
+    path that starts at root:
+    >>> remove_common_pathpart('/media/data1/election', 'election/blanks1/bar.png')
+    blanks1/bar.png
+    """
+    rootdir_abs = os.path.abspath(rootdir)
+    path_abs = os.path.abspath(path)
+    if not rootdir.endswith('/'):
+        rootdir += '/'
+    if not path_abs.startswith(rootdir_abs):
+        print "Wait, wat? Perhaps invalid arguments to remove_common_pathpart"
+        pdb.set_trace()
+    return path_abs[:len(rootdir_abs)]
 
 def num_common_prefix(*args):
     """
