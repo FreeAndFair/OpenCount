@@ -635,7 +635,8 @@ class AttributeContextMenu(wx.Menu):
             #self.parent.world.attributes[new_attrname] = self.attrbox, page
         
     def on_delete(self, evt):
-        self.parent.delete_attribute(self.attrbox.attr_type)
+        for attrtype in self.attrbox.get_attrtypes():
+            self.parent.delete_attribute(attrtype)
         
 class DefineAttributeDialog(wx.Dialog):
     """
