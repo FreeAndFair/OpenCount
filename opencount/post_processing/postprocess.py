@@ -76,9 +76,17 @@ class ResultsPanel(wx.Panel):
                 row = line.split(",")
                 if row[7] == '0':
                     # only map the targets -> contests
-                    glob = localid_to_globalid[(row[0],int(row[8]))]
-                    thismap[int(row[1])] = glob
+                    if (row[0],int(row[8])) in localid_to_globalid:
+                        # only do it if it's in the map
+                        # it might not be in the map if it's a multi-box
+                        # contest, and the other box is in the map.
+                        glob = localid_to_globalid[(row[0],int(row[8]))]
+                        thismap[int(row[1])] = glob
+                    else:
+                        exit(1)
+                        
             templatemap[row[0]] = thismap
+        print templatemap
         return templatemap
 
     def get_text(self):
@@ -111,12 +119,10 @@ class ResultsPanel(wx.Panel):
 
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
         
-
         #print "ORDER", order
         #print "TEXT", text
         #print "tempmap", templatemap
         #print 'isvoted', isvoted
-
 
         def processContest(template, cid, votedlist):
             #print 'process', cid, votedlist
