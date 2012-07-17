@@ -387,18 +387,30 @@ class LabelContest(wx.Panel):
     def save(self):
         self.saveText(removeit=False)
 
+
+        did = {}
+        groupedtext = {}
+        for k in self.text.keys():
+            if k in did: continue
+            t = []
+            for each in self.continued_contest(k):
+                did[each] = True
+                t += self.text[each][1:]
+            groupedtext[k] = [self.text[k][0]]+t
+
         # We want to figure out which contests are "equal"
         #  so that when we tally votes we report them together.
         # Equality is defined as having all the same text.
+
 
         # (bid,cid) tuples
         equal = []
         used = {}
 
-        for k1,v1 in self.text.items():
+        for k1,v1 in groupedtext.items():
             if k1 in used: continue
             eq = []
-            for k2,v2 in self.text.items():
+            for k2,v2 in groupedtext.items():
                 if k2 in used: continue
                 if v1 == v2:
                     it = self.contestID[k2]
@@ -412,15 +424,18 @@ class LabelContest(wx.Panel):
         mapping = {}
         for num,group in enumerate(equal):
             for item in group:
+                print "ITEM", item
                 mapping[item] = num
-                # We need to get the contest ID in the new list
-                targets = [x for x in self.groupedtargets[item[0]] if x[0][1] == item[1]][0]
-                ids = [str(x[0]) for x in targets]
+                ids = []
+                for each in self.continued_contest(item):
+                    # We need to get the contest ID in the new list
+                    targets = [x for x in self.groupedtargets[each[0]] if x[0][1] == each[1]][0]
+                    ids += [str(x[0]) for x in targets]
                 c_id.writerow([self.dirList[item[0]],item[1],num]+ids)
 
         # We write out the result as a mapping from Contest ID to text
         id_to_text = {}
-        for k,v in self.text.items():
+        for k,v in groupedtext.items():
             bid, cid = self.contestID[k]
             id_to_text[(bid, cid)] = [str(self.voteupto[k])]+v
 
@@ -650,9 +665,22 @@ class LabelContest(wx.Panel):
         self.text_title.SetMark(0,0)
         self.text_title.SetInsertionPointEnd()
 
+
+    def continued_contest(self, item):
+        if any(item in x for x in self.multiboxcontests):
+            return [x for x in self.multiboxcontests if item in x][0]
+        else:
+            return [item]
+
+
     def saveText(self, removeit=True):
         """
-        I hope I don't have to explain what this does.
+        Save the text associated with the current contest.
+
+        We also look to see if this contest is in an equiv-class, and, if it is,
+        then go ahead and automatically enter the text in the other contests.
+        We may need to update the candidate order, since the contest might
+        have randomized candidate ordering.
         """
         print "SAVING", self.templatenum, self.count
         try:
@@ -671,17 +699,11 @@ class LabelContest(wx.Panel):
         if not self.has_equiv_classes:
             return
 
-        def continued_contest(item):
-            if any(item in x for x in self.multiboxcontests):
-                return [x for x in self.multiboxcontests if item in x][0]
-            else:
-                return [item]
-
         print "EQUAL ARE", self.equivs
 
         cur = self.currentcontests[self.count]
         print 'This contest is', cur
-        cur = continued_contest(cur)
+        cur = self.continued_contest(cur)
 
         # TODO: SORT ME
         print 'and now it is', cur
@@ -733,7 +755,7 @@ class LabelContest(wx.Panel):
             # Get the different one
             for continuation in eqclass:
                 print 'WORKING ON CONT', continuation
-                continuation = continued_contest(continuation)
+                continuation = self.continued_contest(continuation)
                 
                 print 'assign to', continuation
                 index = 0

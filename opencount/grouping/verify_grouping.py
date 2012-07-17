@@ -139,6 +139,8 @@ class GroupingMasterPanel(wx.Panel):
                     imgpath = pathjoin(dirpath, imgname)
                     return imgpath
             # If we get here, uh oh, we couldn't find one...
+            print "Uhoh, we couldn't find a digit exemplar...?"
+            pdb.set_trace()
             return None
         def get_exemplar_paths():
             """ Return a dict {grouplabel: str imgpath} """
@@ -176,6 +178,7 @@ class GroupingMasterPanel(wx.Panel):
                     digitgrouplabel = common.make_grouplabel(('digit', digit))
                     imgpath = get_example_digit(digitfullpath)
                     assert digitgrouplabel not in exemplar_paths
+                    assert imgpath != None
                     exemplar_paths[digitgrouplabel] = imgpath
             return exemplar_paths
 

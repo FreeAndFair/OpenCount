@@ -378,7 +378,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     create_dirs(targetMetaDir)
     create_dirs(imageMetaDir)
 
-    nProc=sh.numProcs()
+    nProc=1#sh.numProcs()
     
 
     if nProc < 2:
