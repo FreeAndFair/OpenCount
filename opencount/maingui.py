@@ -439,8 +439,12 @@ class DoubleSided(wx.Frame):
     def finished(self, x=None):
         voteddir_raw = os.path.abspath(self.parent.project.raw_samplesdir)
         blankdir_raw = os.path.abspath(self.parent.project.raw_templatesdir)
-        voteddir = os.path.abspath(self.parent.project.votedballots_straightdir)
-        blankdir = os.path.abspath(self.parent.project.blankballots_straightdir)
+        #voteddir = os.path.abspath(self.parent.project.votedballots_straightdir)
+        #blankdir = os.path.abspath(self.parent.project.blankballots_straightdir)
+
+        voteddir = voteddir_raw
+        blankdir = blankdir_raw
+
         def get(from_dir, to_dir, load_dir):
             res = []
             for root,_,files in os.walk(load_dir):
