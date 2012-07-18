@@ -120,6 +120,8 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     A panel that allows you to, given a set of images I, give a text
     label to each image. Outputs to an output file.
     """
+    STATE_FILE = '_labelpanelstate.p'
+
     def __init__(self, parent, *args, **kwargs):
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -173,7 +175,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.display_img(self.cur_imgidx + 1)
 
     def onButton_next(self, evt):
-        if self.cur_imgidx >= len(self.imagepaths):
+        if (self.cur_imgidx+1) >= len(self.imagepaths):
             return
         else:
             self.display_img(self.cur_imgidx + 1)
@@ -189,6 +191,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         allow the user to start labeling things.
         Input:
             lst imageslist: list of image paths
+            outfile: Output file to write results to.
         """
         for imgpath in imageslist:
             assert imgpath not in self.imagelabels
@@ -200,27 +203,59 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.display_img(self.cur_imgidx)
         self.Fit()
 
-    def display_img(self, idx):
+    def restore_session(self, statefile=None):
+        """ Tries to restore the state of a previous session. If this
+        fails (say, the internal state file was deleted), then this
+        will return False. If this happens, then you should just call
+        self.start().
+        """
+        if statefile == None:
+            statefile = LabelPanel.STATE_FILE
+        if not os.path.exists(LabelPanel.STATE_FILE):
+            return False
+        state = pickle.load(open(LabelPanel.STATE_FILE, 'rb'))
+        imagelabels = state['imagelabels']
+        imagepaths = state['imagepaths']
+        self.imagelabels = imagelabels
+        self.imagepaths = imagepaths
+        self.cur_imgidx = 0
+        self.display_img(self.cur_imgidx, no_overwrite=True)
+        self.Fit()
+        return True
+
+    def save_session(self, statefile=None):
+        """ Saves the current state of the current session. """
+        if statefile == None:
+            statefile = LabelPanel.STATE_FILE
+        state = {}
+        state['imagelabels'] = self.imagelabels
+        state['imagepaths'] = self.imagepaths
+        f = open(LabelPanel.STATE_FILE, 'wb')
+        pickle.dump(state, f)
+        f.close()
+
+    def display_img(self, idx, no_overwrite=False):
         """Displays the image at idx, and allow the user to start labeling
         it.
         """
         if not (idx < len(self.imagepaths)):
             pdb.set_trace()
         assert idx < len(self.imagepaths)
-        # First, store current input into our dict
-        old_imgpath = self.imagepaths[self.cur_imgidx]
-        cur_input = self.inputctrl.GetValue()
-        self.imagelabels[old_imgpath] = cur_input
+        if not no_overwrite:
+            # First, store current input into our dict
+            old_imgpath = self.imagepaths[self.cur_imgidx]
+            cur_input = self.inputctrl.GetValue()
+            self.imagelabels[old_imgpath] = cur_input
 
         self.cur_imgidx = idx
         imgpath = self.imagepaths[self.cur_imgidx]
         bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
+
         self.inputctrl.SetValue(self.imagelabels[imgpath])
         
     def export_labels(self):
         """ Exports all labels to an output csvfile. """
-        
         f = open(self.outpath, 'w')
         header = ('imgpath', 'label')
         dictwriter = csv.DictWriter(f, header)
@@ -229,8 +264,6 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             row = {'imgpath': imgpath, 'label': label}
             dictwriter.write_row(row)
         f.close()
-
-
 
 class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """ A panel that will be integrated directly into OpenCount. """
@@ -308,14 +341,20 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         mapping, inv_mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
         self.mapping = mapping
         self.inv_mapping = inv_mapping
+        # outfilepath isn't used at the moment.
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
-        self.labelpanel.start(patchpaths, outfile=outfilepath)
+        statefilepath = pathjoin(self.project.projdir_path,
+                                 LabelPanel.STATE_FILE)
+        if not self.labelpanel.restore_session(statefile=statefilepath):
+            self.labelpanel.start(patchpaths, outfile=outfilepath)
         self.Fit()
         self.SetupScrolling()
 
     def stop(self):
-        pass
+        """ Saves some state. """
+        self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
+                                                        LabelPanel.STATE_FILE))
 
     def validate_outputs(self):
         """ Check to see if all outputs are complete -- issue warnings
