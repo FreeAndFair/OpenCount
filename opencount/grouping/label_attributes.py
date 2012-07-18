@@ -253,6 +253,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.imgpatch.SetBitmap(bitmap)
 
         self.inputctrl.SetValue(self.imagelabels[imgpath])
+        self.Fit()
         
     def export_labels(self):
         """ Exports all labels to an output csvfile. """
