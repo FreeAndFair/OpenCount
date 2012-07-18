@@ -1419,6 +1419,7 @@ class Project(object):
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
+                     'labeldigitstate': '_labeldigitstate.p',
                      'voteddigits_dir': 'voteddigits_dir',
                      'attrgroup_results': 'attrgroup_results.p',
                      'labelattrs_out': 'labelattrs_out.csv',

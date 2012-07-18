@@ -382,7 +382,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         state = {}
         state['imagelabels'] = self.imagelabels
         state['imagepaths'] = self.imagepaths
-        f = open(LabelPanel.STATE_FILE, 'wb')
+        f = open(statefile, 'wb')
         pickle.dump(state, f)
         f.close()
 
