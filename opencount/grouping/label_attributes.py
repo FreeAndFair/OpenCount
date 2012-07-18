@@ -149,6 +149,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     imgpath = pathjoin(dirpath, imgname)
                     imgpath_abs = os.path.abspath(imgpath)
                     for attrdict in ballot_attributes:
+                        if attrdict['is_digitbased']:
+                            continue
                         side = attrdict['side']
                         x1 = int(round(attrdict['x1']*w_img))
                         y1 = int(round(attrdict['y1']*h_img))
@@ -363,9 +365,9 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """
         if statefile == None:
             statefile = LabelPanel.STATE_FILE
-        if not os.path.exists(LabelPanel.STATE_FILE):
+        if not os.path.exists(statefile):
             return False
-        state = pickle.load(open(LabelPanel.STATE_FILE, 'rb'))
+        state = pickle.load(open(statefile, 'rb'))
         imagelabels = state['imagelabels']
         imagepaths = state['imagepaths']
         self.imagelabels = imagelabels
