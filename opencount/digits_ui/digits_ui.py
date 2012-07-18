@@ -764,9 +764,7 @@ def autocrop_img(img):
     thresholded = util_gui.autothreshold_numpy(img, method='otsu')
     B = new_argwhere(thresholded)
     if len(B.shape) == 1:
-        return None
-    h, w = B.shape
-    if h <= 2 or w <= 2:
+        pdb.set_trace()
         return None
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
