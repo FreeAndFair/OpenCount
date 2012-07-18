@@ -277,6 +277,31 @@ def is_digitbased(project, attrtype):
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
+def get_attr_side(project, attrtype):
+    """ Returns which side of the ballot this attrtype was defined
+    on.
+    """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in ballot_attrs:
+        attrstr = get_attrtype_str(attrdict['attrs'])
+        if attrstr == attrtype:
+            return attrdict['side']
+    print "Uhoh, couldn't find attribute:", attrtype
+    pdb.set_trace()
+    return None
+
+def get_attr_prop(project, attrtype, prop):
+    """ Returns the property of the given attrtype. """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in ballot_attrs:
+        attrstr = get_attrtype_str(attrdict['attrs'])
+        if attrstr == attrtype:
+            return attrdict[prop]
+    print "Uhoh, couldn't find attribute:", attrtype
+    pdb.set_trace()
+    return None
+    
+
 def get_numdigits(project, attr):
     """Return the number of digits that this digit-based attribute
     has.

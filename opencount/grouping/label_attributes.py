@@ -239,6 +239,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         self.project = None
 
+        self.mapping = None # maps {imgpath: {str attrtypestr: str patchPath}}
+        self.inv_mapping = None # maps {str patchPath: (imgpath, attrtypestr)}
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
@@ -256,6 +259,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             ballot_attributes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
             frontback_map = pickle.load(open(self.project.frontback_map, 'rb'))
             mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
+            inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
             patchpaths = set()
             for dirpath, dirnames, filenames in os.walk(templatesdir):
                 for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
@@ -296,11 +300,14 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                                                                     attrtype_str))
                             scipy.misc.imsave(patchoutP, patch)
                             mapping.setdefault(imgpath, {})[attrtype_str] = patchoutP
+                            inv_mapping[patchoutP] = (imgpath, attrtype_str)
                             assert patchoutP not in patchpaths
                             patchpaths.add(patchoutP)
-            return mapping, tuple(patchpaths)
+            return mapping, inv_mapping, tuple(patchpaths)
         self.project = project
-        mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
+        mapping, inv_mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
+        self.mapping = mapping
+        self.inv_mapping = inv_mapping
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
         self.labelpanel.start(patchpaths, outfile=outfilepath)
@@ -321,9 +328,52 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         all patchpath->label mappings to one .csv file, we want to save
         the blankballotpath->(attr labels) to multiple .csv files.
         """
+        print "Exporting results."
         patchlabels = self.labelpanel.imagelabels
+        ballot_attr_labels = {} # maps {imgpath: {attrstr: label}}
+        for patchPath, label in patchlabels.iteritems():
+            imgpath, attrtypestr = self.inv_mapping[patchPath]
+            ballot_attr_labels.setdefault(imgpath, {})[attrtypestr] = label
+        util_gui.create_dirs(self.project.patch_loc_dir)
+        header = ("imgpath", "id", "x", "y", "width", "height", "attr_type",
+                  "attr_val", "side", "is_digitbased", "is_tabulationonly")
+        ballot_attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        w_img, h_img = self.project.imgsize
+        uid = 0
+        for imgpath, attrlabels in ballot_attr_labels.iteritems():
+            imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
+            csvoutpath = pathjoin(self.project.patch_loc_dir,
+                                  "{0}_patchlocs.csv".format(imgname))
+            f = open(csvoutpath, 'w')
+            writer = csv.DictWriter(f, header)
+            util_gui._dictwriter_writeheader(f, header)
+            for attrtype, label in attrlabels.iteritems():
+                row = {}
+                row['imgpath'] = imgpath; row['id'] = uid
+                x1 = int(round(w_img*common.get_attr_prop(self.project,
+                                                          attrtype, 'x1')))
+                y1 = int(round(h_img*common.get_attr_prop(self.project,
+                                                          attrtype, 'y1')))
+                x2 = int(round(w_img*common.get_attr_prop(self.project,
+                                                          attrtype, 'x2')))
+                y2 = int(round(h_img*common.get_attr_prop(self.project,
+                                                          attrtype, 'y2')))
+                row['x'] = x1; row['y'] = y1
+                row['width'] = int(abs(x1-x2))
+                row['height'] = int(abs(y1-y2))
+                row['attr_type'] = attrtype
+                row['attr_val'] = label
+                row['side'] = common.get_attr_prop(self.project,
+                                                   attrtype, 'side')
+                row['is_digitbased'] = common.get_attr_prop(self.project,
+                                                            attrtype, 'is_digitbased')
+                row['is_tabulationonly'] = common.get_attr_prop(self.project,
+                                                                attrtype, 'is_tabulationonly')
+                writer.writerow(row)
+                uid += 1
+            f.close()
+        print "Done writing out LabelBallotAttributes stuff."
         
-    
     def checkCanMoveOn(self):
         """ Return True if the user can move on, False otherwise. """
         return True
