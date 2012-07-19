@@ -220,7 +220,7 @@ class ResultsPanel(wx.Panel):
 
             ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
             cvr.writerow([ballot]+sum(ballot_cvr,[]))
-        print 'end', full_cvr
+#        print 'end', full_cvr
         
        
         return full_cvr
@@ -336,21 +336,21 @@ class ResultsPanel(wx.Panel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths = [x[0] for x in os.walk(self.proj.raw_samplesdir)]
+        batch_paths = [x[0] for x in os.walk(self.proj.samplesdir)]
         batch_paths = batch_paths[1:]
 
         def dircontains(parent, path):
-            """Returns true if the path is a subdirectory of parent"""
+            """Returns true if the file is a subdirectory of parent"""
             path = os.path.normpath(os.path.abspath(path))
             parent = os.path.normpath(os.path.abspath(parent)) + os.sep
-            return path in parent
-        
+            return parent in path
+  
+
         for batch in batch_paths:
             matchingcvrs = []
             for entry in cvr:
                 if dircontains(batch, entry[0]):
-                    print batch, entry[0]
-                    matchingcvrs.append(entry)
+                     matchingcvrs.append(entry)
 
             name = batch.replace(self.proj.samplesdir + os.sep, '')
             result += self.final_tally(matchingcvrs,name)
