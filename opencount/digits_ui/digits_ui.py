@@ -49,7 +49,10 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer.Add(self.mainpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
         self.Fit()
-        self.mainpanel.start()
+        statefile = pathjoin(self.project.projdir_path,
+                             self.project.labeldigitstate)
+        self.mainpanel.start(statefile=statefile)
+        self.project.addCloseEvent(lambda: self.mainpanel.digitpanel.save_session(statefile=statefile))
 
     def extract_digitbased_patches(self, outdir):
         """ Extract all digit-based attributes into the outdir. This
@@ -72,9 +75,15 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
         i = 0
         w_img, h_img = self.project.imgsize
+        expand_x = int(round(abs(x1-x2)*0.25*w_img))
+        expand_y = int(round(abs(y1-y2)*0.25*h_img))
         for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
             x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
             y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
+            x1 = max(int(abs(x1 - expand_x)), 0)
+            x2 = min(int(abs(x2 + expand_x)), w_img-1)
+            y1 = max(int(abs(y1 - expand_y)), 0)
+            y2 = min(int(abs(y2 + expand_y)), h_img-1)
             for templateid, path in tmp2imgs.iteritems():
                 # Grab the correct image...
                 if self.project.is_multipage:
@@ -140,9 +149,10 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
 
-    def start(self):
+    def start(self, statefile=None):
         self.Fit()
-        self.digitpanel.start()
+        if not self.digitpanel.restore_session(statefile=statefile):
+            self.digitpanel.start()
 
     def onButton_sort(self, evt):
         self.digitpanel.sort_cells()
@@ -159,6 +169,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     # Temp image files that we currently use.
     PATCH_TMP = '_patch_tmp.png'
     REGION_TMP = '_region_tmp.png'
+
+    STATE_FILE = '_digitlabelstate.p'
 
     def __init__(self, parent,
                  extracted_dir, 
@@ -223,7 +235,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.imgID2cell = {} # Maps {str imgID: (i,j)}
         self.cell2imgID = {} # Maps {(i,j): str imgID}
 
-        self.boxes = [] 
         self._box = None # A Box that is being created
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
@@ -242,12 +253,53 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                             scrollToTop=True)
         self.Refresh()
 
+    def restore_session(self, statefile=None):
+        """ Tries to restore the state from a previous session If it
+        can't restore the state, then returns False. If this happens,
+        you should call set.start(). Otherwise, returns True.
+        """
+        if statefile == None:
+            statefile = DigitLabelPanel.STATE_FILE
+        if not os.path.exists(statefile):
+            return False
+
+        state = pickle.load(open(statefile, 'rb'))
+        self.matches = state['matches']
+        cell_boxes = state['cell_boxes']
+        digits = state['digits']
+        self.start()
+        for regionpath, digits_str in digits.iteritems():
+            self.precinct_txts[regionpath].SetLabel("Precinct Number:"+digits_str)
+        for regionpath, boxes in cell_boxes.iteritems():
+            self.cells[regionpath].boxes = boxes
+        return True
+
+    def save_session(self, statefile=None):
+        """ Saves the current session state. """
+        if statefile == None:
+            statefile = DigitLabelPanel.STATE_FILE
+        f = open(statefile, 'wb')
+        state = {}
+        state['matches'] = self.matches
+        cell_boxes = {}
+        digits = {} # maps regionpath to digits
+        for regionpath, cell in self.cells.iteritems():
+            cell_boxes[regionpath] = cell.boxes
+            digits[regionpath] = cell.get_digits()
+        state['cell_boxes'] = cell_boxes
+        state['digits'] = digits
+        pickle.dump(state, f)
+        f.close()
+
     def _get_cur_loc(self):
         """Returns (x,y) of next cell location """
         return (self.j_cur * self.cellw, self.i_cur * self.cellh)
 
     def add_img(self, imgbitmap, imgID, pil_img, imgpath, rszFac):
-        """Adds a new image to this grid. """
+        """Adds a new image to this grid. Populates the self.imgID2cell,
+        self.cell2imgID, self.i, self.j, self.cells, and 
+        self.precinct_txts instance variables.
+        """
         #(x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
         assert (self.i, self.j) not in self.cell2imgID
@@ -764,9 +816,7 @@ def autocrop_img(img):
     thresholded = util_gui.autothreshold_numpy(img, method='otsu')
     B = new_argwhere(thresholded)
     if len(B.shape) == 1:
-        return None
-    h, w = B.shape
-    if h <= 2 or w <= 2:
+        pdb.set_trace()
         return None
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]

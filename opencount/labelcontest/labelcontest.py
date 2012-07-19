@@ -21,6 +21,10 @@ class LabelContest(wx.Panel):
 
         self.parent = parent
         self.canMoveOn = False
+
+        # a dict mapping:
+        #  {(ballotid, contestid): 
+        self.text = {}
         
         Publisher().subscribe(self.getproj, "broadcast.project")
     
@@ -388,15 +392,19 @@ class LabelContest(wx.Panel):
         self.saveText(removeit=False)
 
 
-        did = {}
+        did_multibox = {}
         groupedtext = {}
         for k in self.text.keys():
-            if k in did: continue
+            if k in did_multibox: continue
             t = []
+            did_multibox[k] = []
             for each in self.continued_contest(k):
-                did[each] = True
+                did_multibox[k].append(each)
                 t += self.text[each][1:]
-            groupedtext[k] = [self.text[k][0]]+t
+            if self.text[k]:
+                groupedtext[k] = [self.text[k][0]]+t
+            
+        print did_multibox
 
         # We want to figure out which contests are "equal"
         #  so that when we tally votes we report them together.
@@ -431,7 +439,9 @@ class LabelContest(wx.Panel):
                     # We need to get the contest ID in the new list
                     targets = [x for x in self.groupedtargets[each[0]] if x[0][1] == each[1]][0]
                     ids += [str(x[0]) for x in targets]
-                c_id.writerow([self.dirList[item[0]],item[1],num]+ids)
+                for cont in did_multibox[each]:
+                    # Save it for all boxes in the contest.
+                    c_id.writerow([self.dirList[cont[0]],cont[1],num]+ids)
 
         # We write out the result as a mapping from Contest ID to text
         id_to_text = {}

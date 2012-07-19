@@ -441,6 +441,7 @@ class DoubleSided(wx.Frame):
         blankdir_raw = os.path.abspath(self.parent.project.raw_templatesdir)
         voteddir = os.path.abspath(self.parent.project.votedballots_straightdir)
         blankdir = os.path.abspath(self.parent.project.blankballots_straightdir)
+
         def get(from_dir, to_dir, load_dir):
             res = []
             for root,_,files in os.walk(load_dir):
@@ -614,7 +615,6 @@ class MainFrame(wx.Frame):
         self.panel_define_attrs = DefineAttributesPanel(notebook)
         self.panel_define_attrs.unsubscribe_pubsubs()
         self.panel_label_attrs = tab_wrap(LabelAttributesPanel)(notebook)
-        self.panel_label_attrs.unsubscribe_pubsubs()
         self.panel_label_digitattrs = tab_wrap(LabelDigitsPanel)(notebook)
         self.panel_correct_grouping = GroupingMasterPanel(notebook)
         self.panel_run = RunTargets(notebook)
@@ -1049,7 +1049,7 @@ and active in order to access this.",
                 return
             TIMER.stop_task(('user', map_pages[self.LABEL_ATTRS]['user']))
             self.panel_label_attrs.stop()
-            self.panel_label_attrs.export_bounding_boxes()
+            self.panel_label_attrs.export_results()
             if (not self.panel_label_attrs.checkCanMoveOn()) and new > old:
                 dlg = wx.MessageDialog(self,
                                        message="Can't move along yet.", 
@@ -1126,8 +1126,7 @@ because the current election has only one template. Skipping ahead to 'Run'."
                                       self.project.attrgroup_results), 'wb')
                 pickle.dump(groupresults, f)
                 f.close()
-                self.panel_label_attrs.start(self.GetSize())
-                self.panel_label_attrs.start()
+                self.panel_label_attrs.start(self.project)
                 # Skip attr grouping for now
                 #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
@@ -1417,8 +1416,11 @@ class Project(object):
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
+                     'labeldigitstate': '_labeldigitstate.p',
                      'voteddigits_dir': 'voteddigits_dir',
-                     'attrgroup_results': 'attrgroup_results.p'}
+                     'attrgroup_results': 'attrgroup_results.p',
+                     'labelattrs_out': 'labelattrs_out.csv',
+                     'labelattrs_patchesdir': 'labelattrs_patchesdir'}
         self.createFields()
 
     def addCloseEvent(self, func):

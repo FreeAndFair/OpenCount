@@ -446,7 +446,11 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
     for k in bal2imgs.keys():
         if k not in qfiles:
             baltpl = bal2tpl[k]
-            tplL=tpl2imgs[baltpl]
+            try:
+                tplL=tpl2imgs[baltpl]
+            except Exception as e:
+                print e
+                pdb.set_trace()
             balL=bal2imgs[k]
 
             bbsL=[]

@@ -277,6 +277,31 @@ def is_digitbased(project, attrtype):
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
+def get_attr_side(project, attrtype):
+    """ Returns which side of the ballot this attrtype was defined
+    on.
+    """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in ballot_attrs:
+        attrstr = get_attrtype_str(attrdict['attrs'])
+        if attrstr == attrtype:
+            return attrdict['side']
+    print "Uhoh, couldn't find attribute:", attrtype
+    pdb.set_trace()
+    return None
+
+def get_attr_prop(project, attrtype, prop):
+    """ Returns the property of the given attrtype. """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in ballot_attrs:
+        attrstr = get_attrtype_str(attrdict['attrs'])
+        if attrstr == attrtype:
+            return attrdict[prop]
+    print "Uhoh, couldn't find attribute:", attrtype
+    pdb.set_trace()
+    return None
+    
+
 def get_numdigits(project, attr):
     """Return the number of digits that this digit-based attribute
     has.
@@ -310,8 +335,25 @@ def get_attrtype_str(attrtypes):
     it. The 'canonical' representation is:
         each attribute sorted in alphabetical order, separated by
         underscores '_'.
+    Input:
+        lst attrtypes: List of strings
     """
     return '_'.join(sorted(attrtypes))
+
+def remove_common_pathpart(rootdir, path):
+    """ Given two paths, a root and a path, return just the part of
+    path that starts at root:
+    >>> remove_common_pathpart('/media/data1/election', 'election/blanks1/bar.png')
+    blanks1/bar.png
+    """
+    rootdir_abs = os.path.abspath(rootdir)
+    path_abs = os.path.abspath(path)
+    if not rootdir.endswith('/'):
+        rootdir += '/'
+    if not path_abs.startswith(rootdir_abs):
+        print "Wait, wat? Perhaps invalid arguments to remove_common_pathpart"
+        pdb.set_trace()
+    return path_abs[:len(rootdir_abs)]
 
 def num_common_prefix(*args):
     """
