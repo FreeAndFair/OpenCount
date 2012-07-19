@@ -1022,12 +1022,15 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                                       all_ballotimgs_gen(bal2imgs, 0),
                                       bb,
                                       num_digits)
+        '''
         if util.is_multipage(project):
             results_side1 = sh.digitParse(digit_exs,
                                           all_ballotimgs_gen(bal2imgs, 1),
                                           bb,
                                           num_digits)
-        for (imgpath, ocr_str, meta) in results:
+        '''
+        digitparse_results = results_side0
+        for (imgpath, ocr_str, meta) in digitparse_results:
             meta_out = []
             for (y1,y2,x1,x2, digit, digitimg, score) in meta:
                 rootdir = os.path.join(voteddigits_dir, digit)
