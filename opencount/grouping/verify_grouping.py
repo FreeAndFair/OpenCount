@@ -994,8 +994,9 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                     digitmap[digit] = img
         return digitmap
     def all_ballotimgs_gen(bal2imgs, side):
+        """ Generate all ballot images for either side 0 or 1. """
         for ballotid, path in bal2imgs.iteritems():
-            if side == 'front':
+            if side == 0:
                 yield path[0]
             else:
                 yield path[1]
@@ -1012,15 +1013,20 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
         w, h = abs(x1-x2), abs(y1-y2)
-        c = 0.1
+        c = 0.25
         bb = [max(0, y1-int(round(h*c))),
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),
               x2+int(round(w*c))]
-        results = sh.digitParse(digit_exs,
-                                all_ballotimgs_gen(bal2imgs, side),
-                                bb,
-                                num_digits)
+        results_side0 = sh.digitParse(digit_exs,
+                                      all_ballotimgs_gen(bal2imgs, 0),
+                                      bb,
+                                      num_digits)
+        if util.is_multipage(project):
+            results_side1 = sh.digitParse(digit_exs,
+                                          all_ballotimgs_gen(bal2imgs, 1),
+                                          bb,
+                                          num_digits)
         for (imgpath, ocr_str, meta) in results:
             meta_out = []
             for (y1,y2,x1,x2, digit, digitimg, score) in meta:
