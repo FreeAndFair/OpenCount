@@ -21,6 +21,10 @@ class LabelContest(wx.Panel):
 
         self.parent = parent
         self.canMoveOn = False
+
+        # a dict mapping:
+        #  {(ballotid, contestid): 
+        self.text = {}
         
         Publisher().subscribe(self.getproj, "broadcast.project")
     
@@ -397,8 +401,9 @@ class LabelContest(wx.Panel):
             for each in self.continued_contest(k):
                 did_multibox[k].append(each)
                 t += self.text[each][1:]
-            groupedtext[k] = [self.text[k][0]]+t
-
+            if self.text[k]:
+                groupedtext[k] = [self.text[k][0]]+t
+            
         print did_multibox
 
         # We want to figure out which contests are "equal"
