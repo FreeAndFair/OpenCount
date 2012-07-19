@@ -213,7 +213,6 @@ class GroupingMasterPanel(wx.Panel):
         results = munge_digit_results(results, attr_types, self.project)
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
-        
         # 1.) First, handle non-digit patches
         for grouplabel, groups in results.iteritems():
             # groups := list of GroupClass objects
@@ -253,7 +252,7 @@ class GroupingMasterPanel(wx.Panel):
         # to the temp2imgs, at which we know the correct ordering.
         sample_attrmap = {}
         bal2tmp = {}
-        sample_flips = {} # {str ballotid: [flip0, flip1]}
+        sample_flips = {} # {str samplepath: [flip0, flip1]}
         if util.is_multipage(self.project):
             img2tmp = pickle.load(open(self.project.image_to_template, 'rb'))
         else:
@@ -493,7 +492,7 @@ class RunGroupingPanel(wx.Panel):
             digitgroup_results = pickle.load(f)
             f.close()
         else:
-            digitgroup_results = None
+            digitgroup_results = {}
 
         grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
         digits_results = {} # maps {str digit: list of [ballotid, patchpath]}
@@ -521,14 +520,16 @@ class RunGroupingPanel(wx.Panel):
                 else:
                     history[grouplabel] = True
             return True
+        # Munge the grouping results into grouping_results, digit_results
         if not util.is_multipage(self.project):
             for attr_type in attr_types:
                 for ballotid in bal2imgs:
                     if common.is_digitbased(self.project, attr_type):
                         for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[ballotid]:
-                            assert attrtype_i == attr_type
-                            for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
-                                digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
+                            if attrtype_i == attr_type:
+                                for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
+                                    digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
+                                break
                         continue
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
                     path = os.path.join(metadata_dir, encodepath(ballotid))
@@ -549,27 +550,16 @@ class RunGroupingPanel(wx.Panel):
         else:
             # Multipage
             for attr_type in attr_types:
-                for ballotid in bal2imgs:
+                for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
                     if common.is_digitbased(self.project, attr_type):
                         ''' this is all wrong... '''
-                        sideidx, sidepath = None, None
-                        for sidx, spath in enumerate(bal2imgs[ballotid]):
-                            if spath in digitgroup_results:
-                                sideidx = sidx
-                                sidepath = spath
+                        attr_side = common.get_attr_prop(self.project, attr_type, 'side')
+                        path = frontpath if attr_side == 'front' else backpath
+                        for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[path]:
+                            if attrtype_i == attr_type:
+                                for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
+                                    digits_results.setdefault(digit, []).append((path, digitpatchpath))
                                 break
-                        assert sideidx != None
-                        for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[sidepath]:
-                            assert attrtype_i == attr_type
-                            rankedlist = []
-                            for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
-                                digit_grouplabel = common.make_grouplabel(('digit', digit))
-                                rankedlist.append(digit_grouplabel)
-                                digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
-                            assert ballotid not in digitrankedlist_map
-                            rankedlist = removedups_rankedlist(rankedlist)
-                            sanity_check_rankedlist(rankedlist)
-                            digitrankedlist_map[ballotid] = rankedlist[::-1]
                         continue
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
                     path = os.path.join(metadata_dir, encodepath(ballotid))
@@ -587,7 +577,7 @@ class RunGroupingPanel(wx.Panel):
                     bestAttr = bestMatch[0]
                     patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
                                     encodepath(ballotid)+'.png')
-                    grouping_results.setdefault(attr_type, {}).setdefault(bestAttr, []).append((ballotid, attrs_list, patchpath))
+                    grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
         
         groups = []
         # Seed initial set of groups
@@ -738,7 +728,11 @@ def add_flipinfo(project, correctedflips, fields, csvpath):
     csvfile = open(csvpath, 'r')
     for row in csv.DictReader(csvfile):
         sampleid = row['samplepath']
-        flipfront, flipback = correctedflips[sampleid]
+        try:
+            flipfront, flipback = correctedflips[sampleid]
+        except Exception as e:
+            print e
+            pdb.set_trace()
         row['flipped_front'] = flipfront if flipfront != None else 'None'
         row['flipped_back'] = flipback if flipback != None else 'None'
         newrows.append(row)
@@ -767,11 +761,19 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
     else:
         b2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
         tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
+        img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
         correctedflips = {}
         for ballotid, templateid in bal2tmp.iteritems():
+            frontpath, backpath = b2imgs[ballotid]
             side0, side1 = None, None
-            attr_tuples = patches[tmp2imgs[templateid][0]] + patches[tmp2imgs[templateid][1]]
-            for (r, attrtype, attrval, side) in attr_tuples:
+            attr_tuples = []
+            tmp_front, tmp_back = tmp2imgs[templateid]
+            if tmp_front in patches:
+                attr_tuples.extend(list(patches[tmp_front]))
+            if tmp_back in patches:
+                attr_tuples.extend(list(patches[tmp_back]))
+            for (r, grouplabel, side, is_digitbased, is_tabulationonly) in attr_tuples:
+                attrtype, attrval = common.get_attrpair_grouplabel(project, grouplabel)
                 imageorder = sample_attrmap[ballotid][attrtype]
                 if imageorder == 0:
                     side0 = side
@@ -787,7 +789,6 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
             else:
                 front = img1
                 back = img0
-                flip0, flip1 = sample_flips[ballotid]
                 correctedflips[ballotid] = flip1, flip0
             b2imgs[ballotid] = front, back
         pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
@@ -875,6 +876,7 @@ def munge_digit_results(results, all_attrtypes, project):
         k being 'digit'. Lousy assumption.
         """
         return common.get_propval(grouplabel, 'digit') != None
+    img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
     digitattrs = [a for a in all_attrtypes if common.is_digitbased(project, a)]
     if not digitattrs:
         print "No digit-based attributes in this election."
@@ -902,7 +904,8 @@ patch, sorry."
     for grouplabel, samplepaths in samples_map.iteritems():
         elements = []
         for samplepath in samplepaths:
-            elements.append((samplepath, (grouplabel,), None))
+            ballotid = img2bal[os.path.abspath(samplepath)]
+            elements.append((ballotid, (grouplabel,), None))
         group = common.GroupClass(elements, no_overlays=True)
         new_results.setdefault(grouplabel, []).append(group)
     for grouplabel, groups in results.iteritems():
@@ -928,10 +931,16 @@ def correct_digit_labels(project, patchlabels):
     digitgroup_results = pickle.load(f)
     result = {}
     for imgpath, lst in digitgroup_results.iteritems():
+        if common.is_quarantined(project, imgpath):
+            continue
         for attrtype, ocr_str, meta in lst:
             correct_str = ''
             for i, (y1,y2,x1,x2,digit,digitpatchpath,score) in enumerate(meta):
-                correct_digit = patchlabels[digitpatchpath]
+                try:
+                    correct_digit = patchlabels[digitpatchpath]
+                except Exception as e:
+                    print e
+                    pdb.set_trace()
                 correct_str += correct_digit
             result.setdefault(imgpath, []).append((attrtype, correct_str))
     return result
@@ -985,8 +994,9 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                     digitmap[digit] = img
         return digitmap
     def all_ballotimgs_gen(bal2imgs, side):
+        """ Generate all ballot images for either side 0 or 1. """
         for ballotid, path in bal2imgs.iteritems():
-            if side == 'front':
+            if side == 0:
                 yield path[0]
             else:
                 yield path[1]
@@ -1003,16 +1013,24 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
         w, h = abs(x1-x2), abs(y1-y2)
-        c = 0.1
+        c = 0.25
         bb = [max(0, y1-int(round(h*c))),
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),
               x2+int(round(w*c))]
-        results = sh.digitParse(digit_exs,
-                                all_ballotimgs_gen(bal2imgs, side),
-                                bb,
-                                num_digits)
-        for (imgpath, ocr_str, meta) in results:
+        results_side0 = sh.digitParse(digit_exs,
+                                      all_ballotimgs_gen(bal2imgs, 0),
+                                      bb,
+                                      num_digits)
+        '''
+        if util.is_multipage(project):
+            results_side1 = sh.digitParse(digit_exs,
+                                          all_ballotimgs_gen(bal2imgs, 1),
+                                          bb,
+                                          num_digits)
+        '''
+        digitparse_results = results_side0
+        for (imgpath, ocr_str, meta) in digitparse_results:
             meta_out = []
             for (y1,y2,x1,x2, digit, digitimg, score) in meta:
                 rootdir = os.path.join(voteddigits_dir, digit)

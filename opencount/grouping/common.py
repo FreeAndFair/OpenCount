@@ -253,7 +253,7 @@ def get_attrtypes(project):
     attrtypes = pickle.load(open(project.ballot_attributesfile, 'rb'))
     result = set()
     for attrdict in attrtypes:
-        attrs_str = '_'.join(attrdict['attrs'])
+        attrs_str = get_attrtype_str(attrdict['attrs'])
         result.add(attrs_str)
     return result
 
@@ -276,6 +276,30 @@ def is_digitbased(project, attrtype):
             return attrdict['is_digitbased']
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
+
+def is_quarantined(project, path):
+    """ Returns True if the image path was quarantined by the user. """
+    f = open(project.quarantined, 'r')
+    for line in f:
+        if line:
+            l = line.strip()
+            if os.path.abspath(l) == os.path.abspath(path):
+                return True
+    f.close()
+    return False
+
+def get_attrpair_grouplabel(project, grouplabel):
+    """ Given a grouplabel, return both the attrtype of the grouplabel
+    and the attrval.
+    """
+    ballot_attributes = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    for attrdict in ballot_attributes:
+        attrtype_str = get_attrtype_str(attrdict['attrs'])
+        if get_propval(grouplabel, attrtype_str):
+            return attrtype_str, get_propval(grouplabel, attrtype_str)
+    print "Uhoh, couldn't find an attrpair in this grouplabel:", str_grouplabel(grouplabel)
+    pdb.set_trace()
+    return None
 
 def get_attr_side(project, attrtype):
     """ Returns which side of the ballot this attrtype was defined
@@ -300,7 +324,6 @@ def get_attr_prop(project, attrtype, prop):
     print "Uhoh, couldn't find attribute:", attrtype
     pdb.set_trace()
     return None
-    
 
 def get_numdigits(project, attr):
     """Return the number of digits that this digit-based attribute

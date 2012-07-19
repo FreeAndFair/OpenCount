@@ -382,6 +382,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         queue = self.queue
         exemplar_img = queue.get()
         matches = queue.get()
+        matches_pruned = prune_matches(matches, self.matches)
+        
         if not matches:
             print "Couldn't find any matches."
             return
@@ -797,6 +799,37 @@ class DigitMainFrame(wx.Frame):
 
     def on_done(self, results):
         self.Close()
+
+def prune_matches(matches, prev_matches):
+    """ Discards matches that are already present within 'prev_matches'.
+    This is if a match within matches has a bounding box that partially
+    overlaps with a match in prev_matches.
+    Input:
+        lst matches: List of (regionpath,score1,score2,IReg,y1,y2,x1,x2,rszFac)
+        dict prev_matches: maps {str regionpath: lst of (patchpath,matchID,y1,y2,x1,x2,rszFac)}
+    Output:
+        A new list of matches.
+    """
+    def is_overlap(bb1, bb2, c=0.25):
+        """ Returns True if bb1 and bb2 share a certain amount of area.
+        Input:
+            bb1, bb2: tuple (y1, y2, x1, x2)
+        """
+        return False
+    def is_overlap_any(regionpath, bb, bb_lst, c=0.25):
+        for regionpath2, bb2 in bb_lst:
+            if regionpath == regionpath2 and is_overlap(bb, bb2, c=c):
+                return True
+        return False
+    pruned_matches = []
+    prev_bbs = []
+    for regionpath, tuples in prev_matches.iteritems():
+        for (patchpath, matchID, y1, y2, x1, x2, rszFac) in tuples:
+            prev_bbs.append((regionpath, (y1,y2,x1,x2)))
+    for (regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac) in matches:
+        if not is_overlap_any(regionpath, (y1,y2,x1,x2), prev_bbs):
+            pruned_matches.append((regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac))
+    return pruned_matches
 
 def autocrop_img(img):
     """ Given an image, try to find the bounding box. """
