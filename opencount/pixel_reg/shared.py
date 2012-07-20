@@ -215,7 +215,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
             j1=YX[1]; j2=YX[1]+patchExample.shape[1]
 
             patch = digit_hash[sym]
-            #(err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)            
+            #(err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             Ireg = I1[i1:i2,j1:j2]
             result_meta.append((i1,i2,j1,j2,sym,Ireg,Iout.max()))
             

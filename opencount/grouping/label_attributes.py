@@ -355,7 +355,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
-        self.Fit()
+        self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
 
     def restore_session(self, statefile=None):
@@ -408,7 +408,8 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.imgpatch.SetBitmap(bitmap)
 
         self.inputctrl.SetValue(self.imagelabels[imgpath])
-        self.Fit()
+        #self.Fit()
+        self.SetupScrolling()
         
     def export_labels(self):
         """ Exports all labels to an output csvfile. """

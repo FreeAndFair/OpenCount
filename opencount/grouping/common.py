@@ -439,6 +439,8 @@ def importPatches(project):
                         boxes[imgpath]=[]
                     # Currently, we don't create an exemplar attrpatch
                     # for flipped/wrong-imgorder. For now, just fake it.
+                    # QUESTION: Do we have to merge attrboxes if they're
+                    # at the same location? (I.e. multi-attr boxes)
                     for flip in (0,1):
                         for imgorder in (0,1):
                             grouplabel = make_grouplabel((row['attr_type'],row['attr_val']),

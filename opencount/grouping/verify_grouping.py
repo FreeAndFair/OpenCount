@@ -774,7 +774,11 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
                 attr_tuples.extend(list(patches[tmp_back]))
             for (r, grouplabel, side, is_digitbased, is_tabulationonly) in attr_tuples:
                 attrtype, attrval = common.get_attrpair_grouplabel(project, grouplabel)
-                imageorder = sample_attrmap[ballotid][attrtype]
+                try:
+                    imageorder = sample_attrmap[ballotid][attrtype]
+                except Exception as e:
+                    print e
+                    pdb.set_trace()
                 if imageorder == 0:
                     side0 = side
                 else:
@@ -843,6 +847,9 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
             v = common.get_propval(grouplabel, attrtype)
             if v:
                 break
+        if not v:
+            print "Uh oh, v wasn't found in this grouplabel:", common.str_grouplabel(grouplabel)
+            pdb.set_trace()
         assert v
         return attrtype, v
     result = {}
