@@ -166,8 +166,6 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                         assert side in ('front', 'back')
                         assert blankballot_side in ('front', 'back')
                         if frontback_map[imgpath_abs] == side:
-                            img = shared.standardImread(imgpath, flatten=True)
-                            patch = img[y1:y2,x1:x2]
                             # patchP: if outdir is: 'labelattrs_patchesdir',
                             # imgpath is: '/media/data1/election/blanks/foo/1.png',
                             # project.templatesdir is: '/media/data1/election/blanks/
@@ -183,7 +181,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                             util_gui.create_dirs(patchrootDir)
                             patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
                                                                                     attrtype_str))
-                            scipy.misc.imsave(patchoutP, patch)
+                            if not os.path.exists(patchoutP):
+                                img = shared.standardImread(imgpath, flatten=True)
+                                patch = img[y1:y2,x1:x2]
+                                scipy.misc.imsave(patchoutP, patch)
                             mapping.setdefault(imgpath, {})[attrtype_str] = patchoutP
                             inv_mapping[patchoutP] = (imgpath, attrtype_str)
                             assert patchoutP not in patchpaths
@@ -202,6 +203,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             self.labelpanel.start(patchpaths, outfile=outfilepath)
         self.Fit()
         self.SetupScrolling()
+        self.project.addCloseEvent(self.stop)
 
     def stop(self):
         """ Saves some state. """
@@ -330,12 +332,18 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def onButton_next(self, evt):
         if (self.cur_imgidx+1) >= len(self.imagepaths):
+            curimgpath = self.imagepaths[self.cur_imgidx]
+            cur_val = self.inputctrl.GetValue()
+            self.imagelabels[curimgpath] = cur_val
             return
         else:
             self.display_img(self.cur_imgidx + 1)
             
     def onButton_prev(self, evt):
         if self.cur_imgidx <= 0:
+            curimgpath = self.imagepaths[self.cur_imgidx]
+            cur_val = self.inputctrl.GetValue()
+            self.imagelabels[curimgpath] = cur_val
             return
         else:
             self.display_img(self.cur_imgidx - 1)
@@ -382,6 +390,10 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """ Saves the current state of the current session. """
         if statefile == None:
             statefile = LabelPanel.STATE_FILE
+        # Remember to store the currently-displayed label
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        cur_label = self.inputctrl.GetValue()
+        self.imagelabels[curimgpath] = cur_label
         state = {}
         state['imagelabels'] = self.imagelabels
         state['imagepaths'] = self.imagepaths
