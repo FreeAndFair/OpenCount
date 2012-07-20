@@ -299,7 +299,8 @@ class VerifyPanel(wx.Panel):
             d = {}
             q = list(self.queue)
             if self.currentGroup:
-                q.insert(0, self.currentGroup)
+                if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
+                    q.insert(0, self.currentGroup)
             q.extend(self.finished)
             d['todo'] = q
             #d['finished'] = self.finished
@@ -307,17 +308,24 @@ class VerifyPanel(wx.Panel):
             pickle.dump(d, fqueue)
         
     def load_state(self):
-        fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
-        d = pickle.load(fstate)
-        todo = d['todo']
-        todo.extend(d['finished'])
-        for group in todo:
-            self.add_group(group)
-        #self.queue = d['todo']
-        # Don't worry about keeping 'finished' separated from 'queue'
-        # for now.
-        #self.queue.extend(d['finished'])
-        self.finished = d['finished']
+        if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
+            try:
+                fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
+                d = pickle.load(fstate)
+                todo = d['todo']
+                todo.extend(d['finished'])
+                for group in todo:
+                    self.add_group(group)
+                #self.queue = d['todo']
+                # Don't worry about keeping 'finished' separated from 'queue'
+                # for now.
+                #self.queue.extend(d['finished'])
+                self.finished = d['finished']
+            except Exception as e:
+                # If you can't read in the state file, then just don't
+                # load in any state.
+                print e
+                return
  
     def start_verifygrouping(self):
         """
@@ -367,8 +375,7 @@ class VerifyPanel(wx.Panel):
         if self.mode == VerifyPanel.MODE_YESNO2:
             # We don't have exemplar patches
             return
-        overlayMin = self.currentGroup.overlayMin
-        overlayMax = self.currentGroup.overlayMax
+        overlayMin, overlayMax = self.currentGroup.get_overlays()
         templates = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
 
@@ -440,8 +447,7 @@ class VerifyPanel(wx.Panel):
         idx = self.queue.index(group)
         self.queueList.SetSelection(idx)
 
-        overlayMin = self.currentGroup.overlayMin
-        overlayMax = self.currentGroup.overlayMax
+        overlayMin, overlayMax = self.currentGroup.get_overlays()
         ordered_attrvals = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
         

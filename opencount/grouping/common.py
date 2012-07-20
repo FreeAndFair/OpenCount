@@ -509,8 +509,6 @@ class GroupClass(object):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
-        self.overlayMax = None
-        self.overlayMin = None
         # orderedAttrVals is a list of grouplabels
         self.orderedAttrVals = []
         
@@ -535,6 +533,39 @@ class GroupClass(object):
         self.label += '-{0}'.format(GroupClass.ctrs[self.label])
 
         self.is_manual = False # If this group should be labeled manually
+
+    def get_overlays(self):
+        """ Returns overlayMin, overlayMax """
+        overlayMin, overlayMax = None, None
+        for element in self.elements:
+            path = element[2]
+            if not self.no_overlays:
+                try:
+                    img = misc.imread(path, flatten=1)
+                    if (overlayMin == None):
+                        overlayMin = img
+                    else:
+                        if overlayMin.shape != img.shape:
+                            h, w = overlayMin.shape
+                            img = resize_img_norescale(img, (w,h))
+                        overlayMin = np.fmin(overlayMin, img)
+                    if (overlayMax == None):
+                        overlayMax = img
+                    else:
+                        if overlayMax.shape != img.shape:
+                            h, w = overlayMax.shape
+                            img = resize_img_norescale(img, (w,h))
+                        overlayMax = np.fmax(overlayMax, img)
+                except Exception as e:
+                    print e
+                    print "Cannot open patch @ {0}".format(path)
+                    pdb.set_trace()
+
+        rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+        overlayMax = sh.fastResize(overlayMax, rszFac) / 255.0
+        overlayMin = sh.fastResize(overlayMin, rszFac) / 255.0
+
+        return overlayMin, overlayMax
 
     def __eq__(self, o):
         return (o and issubclass(type(o), GroupClass) and
@@ -579,31 +610,6 @@ not equal."
         for element in self.elements:
             # element := (imgpath, rankedlist, patchpath)
             """
-            Overlays
-            """
-            path = element[2]
-            if not self.no_overlays:
-                try:
-                    img = misc.imread(path, flatten=1)
-                    if (self.overlayMin == None):
-                        self.overlayMin = img
-                    else:
-                        if self.overlayMin.shape != img.shape:
-                            h, w = self.overlayMin.shape
-                            img = resize_img_norescale(img, (w,h))
-                        self.overlayMin = np.fmin(self.overlayMin, img)
-                    if (self.overlayMax == None):
-                        self.overlayMax = img
-                    else:
-                        if self.overlayMax.shape != img.shape:
-                            h, w = self.overlayMax.shape
-                            img = resize_img_norescale(img, (w,h))
-                        self.overlayMax = np.fmax(self.overlayMax, img)
-                except Exception as e:
-                    print e
-                    print "Cannot open patch @ {0}".format(path)
-                    pdb.set_trace()
-            """
             Ordered templates
             """
             vote = 1.0
@@ -619,10 +625,6 @@ not equal."
                                 for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
-        if not self.no_overlays:
-            rszFac=sh.resizeOrNot(self.overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-            self.overlayMax = sh.fastResize(self.overlayMax, rszFac) / 255.0
-            self.overlayMin = sh.fastResize(self.overlayMin, rszFac) / 255.0
         
     def split(self):
         groups = []
