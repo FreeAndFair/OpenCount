@@ -1013,7 +1013,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
         w, h = abs(x1-x2), abs(y1-y2)
-        c = 0.25
+        c = 0.0
         bb = [max(0, y1-int(round(h*c))),
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),

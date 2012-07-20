@@ -75,8 +75,9 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
         i = 0
         w_img, h_img = self.project.imgsize
-        expand_x = int(round(abs(x1-x2)*0.1*w_img))
-        expand_y = int(round(abs(y1-y2)*0.1*h_img))
+        FACTOR = 0.0
+        expand_x = int(round(abs(x1-x2)*FACTOR*w_img))
+        expand_y = int(round(abs(y1-y2)*FACTOR*h_img))
         for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
             x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
             y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
@@ -815,6 +816,10 @@ def prune_matches(matches, prev_matches):
         Input:
             bb1, bb2: tuple (y1, y2, x1, x2)
         """
+        #if get_common_area(bb1, bb2) >= c:
+        #    return True
+        #else:
+        #    return False
         return False
     def is_overlap_any(regionpath, bb, bb_lst, c=0.25):
         for regionpath2, bb2 in bb_lst:
@@ -830,6 +835,85 @@ def prune_matches(matches, prev_matches):
         if not is_overlap_any(regionpath, (y1,y2,x1,x2), prev_bbs):
             pruned_matches.append((regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac))
     return pruned_matches
+
+def get_common_area(bb1, bb2):
+    """ Returns common area between bb1, bb2.
+    Input:
+        bb1: (y1,y2,x1,x2)
+        bb2: (y1,y2,x1,x2)
+    Output:
+        area.
+    """
+    if bb1[3] > bb2[3]:
+        # Make bb1 to the left of bb2
+        tmp = bb1
+        bb1 = bb2
+        bb2 = tmp
+    y1a,y2a,x1a,x2a = bb1
+    y1b,y2b,x1b,x2b = bb2
+    w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
+    w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
+    if x1b < (x1a+w_a):
+        x_segment = x1a+w_a - x1b
+    else:
+        x_segment = 0.0
+    pdb.set_trace()
+    if bb1[0] > bb2[0]:
+        # Make bb1 on top of bb2
+        tmp = bb1
+        bb1 = bb2
+        bb2 = tmp
+    y1a,y2a,x1a,x2a = bb1
+    y1b,y2b,x1b,x2b = bb2
+    w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
+    w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
+    pdb.set_trace()
+    if y1b < (y1a+h_a):
+        y_segment = y1a+h_a - y1a
+    else:
+        y_segment = 0.0
+    return x_segment * y_segment
+
+def _test_get_common_area():
+    bb1 = [2, 0, 0, 1]
+    bb2 = [1, 0, 0, 2]
+    print get_common_area(bb1, bb2)
+
+    bb1 = [3, 1, 1, 2]
+    bb2 = [2, 0, 3, 5]
+    print get_common_area(bb1, bb2)
+#_test_get_common_area()
+#pdb.set_trace()
+
+def is_overlap(rect1, rect2):
+    """
+    Returns True if any part of rect1 is contained within rect2.
+    Input:
+        rect1: Tuple of (x1,y1,x2,y2)
+        rect2: Tuple of (x1,y1,x2,y2)
+    """
+    def is_within_box(pt, box):
+        return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
+    x1, y1, x2, y2 = rect1
+    w, h = abs(x2-x1), abs(y2-y1)
+    # Checks (in order): UL, UR, LR, LL corners
+    return (is_within_box((x1,y1), rect2) or
+            is_within_box((x1+w,y1), rect2) or 
+            is_within_box((x1+w,y1+h), rect2) or 
+            is_within_box((x1,y1+h), rect2))
+def too_close(b1, b2):
+    """
+    Input:
+        b1: Tuple of (x1,y1,x2,y2)
+        b2: Tuple of (x1,y1,x2,y2)
+    """
+    dist = util_gui.dist_euclidean
+    w, h = abs(b1[0]-b1[2]), abs(b1[1]-b1[3])
+    return ((abs(b1[0] - b2[0]) <= w / 2.0 and
+             abs(b1[1] - b2[1]) <= h / 2.0) or
+            is_overlap(b1, b2) or 
+            is_overlap(b2, b1))
+
 
 def autocrop_img(img):
     """ Given an image, try to find the bounding box. """

@@ -356,6 +356,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
         self.Fit()
+        self.SetupScrolling()
 
     def restore_session(self, statefile=None):
         """ Tries to restore the state of a previous session. If this
