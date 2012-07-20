@@ -1,13 +1,15 @@
 import wx, pdb
 from wx.lib.pubsub import Publisher
+from wx.lib.scrolledpanel import ScrolledPanel
 import os
 import pickle
 import csv
 from util import encodepath
 
-class ResultsPanel(wx.Panel):
+
+class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
+        ScrolledPanel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
         
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.results = wx.StaticText(self, label="")
@@ -24,9 +26,11 @@ class ResultsPanel(wx.Panel):
     def set_results(self):
         """Processes cvr file, outputs results files."""
         cvr = self.process()
+
         self.human_readable_cvr(cvr)
         res = self.tally_by_precinct_and_mode(cvr)
         self.results.SetLabel(res)
+        self.SetupScrolling()
         open(self.proj.election_results, "w").write(res)
         
         # If there are batches
@@ -71,9 +75,12 @@ class ResultsPanel(wx.Panel):
         for template in os.listdir(self.proj.target_locs_dir):
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
-            for line in open(os.path.join(self.proj.target_locs_dir,template)):
+            for linenum, line in enumerate(open(os.path.join(self.proj.target_locs_dir,template))):
                 if line[0] == '#': continue
-                row = line.split(",")
+                ##if linenum == 0:    # Code I introduced due to 'magic' bug
+                ##    # Skip the header row
+                ##    continue
+                row = line.strip().split(",")
                 if row[7] == '0':
                     # only map the targets -> contests
                     if (row[0],int(row[8])) in localid_to_globalid:
@@ -84,9 +91,22 @@ class ResultsPanel(wx.Panel):
                         thismap[int(row[1])] = glob
                     else:
                         exit(1)
-                        
-            templatemap[row[0]] = thismap
-        print templatemap
+            if thismap == {}:
+                # Means that 'template' has no contests/targets on it
+                # (i.e. it's a totally-blank page), so, skip it.
+                continue
+            else:
+                templatemap[row[0]] = thismap
+        # If there are blank ballots where a side is completely blank
+        # (i.e. has no contests/targets at all, like in Napa), then it
+        # won't be found in self.proj.target_locs_dir. Add it manually
+        ## Code I introduced due to 'magic' bug
+        ##img2tmp = pickle.load(open(self.proj.image_to_template, 'rb'))
+        ##for blankpath in img2tmp:
+        ##    blank_abspath = os.path.abspath(blankpath)
+        ##    if blank_abspath not in templatemap:
+        ##        templatemap[blank_abspath] = {}
+
         return templatemap
 
     def get_text(self):
@@ -100,6 +120,7 @@ class ResultsPanel(wx.Panel):
         for row in csv.reader(open(self.proj.contest_id)):
             order[row[0],int(row[2])] = map(int,row[3:])
 
+        # pdb.set_trace()
         return text, order
 
     def process(self):
@@ -155,7 +176,11 @@ class ResultsPanel(wx.Panel):
                 for target in targets:
                     targetid = int(target.split(".")[1])
                     #print "t", target
-                    contest = templatemap[template][targetid]
+                    try:
+                        contest = templatemap[template][targetid]
+                    except Exception as e:
+                        print e
+                        pdb.set_trace()
                     #print 'c', contest, targetid
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
@@ -266,7 +291,11 @@ class ResultsPanel(wx.Panel):
                     overunder[cid] = [0,0]
                     total[cid] = 0
                 for i,each in enumerate(ballot_cvr[ocid][:-1]):
-                    res[cid][text[ocid][i+2]] += int(each)
+                    try:
+                        res[cid][text[ocid][i+2]] += int(each)
+                    except Exception as e:
+                        print e
+                        pdb.set_trace()
                 if ballot_cvr[ocid][-1] == 'OVERVOTED':
                     overunder[cid][0] += 1
                 elif ballot_cvr[ocid][-1] == 'UNDERVOTED':
