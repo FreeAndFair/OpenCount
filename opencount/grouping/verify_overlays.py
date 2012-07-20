@@ -83,9 +83,9 @@ class VerifyPanel(wx.Panel):
         self.resultsPath = None
         
         # templates is a dict mapping
-        #    {grouplabel: obj attrpatch_img}
-        # where attrpatch_img is the image patch on the template corresponding to the
-        # grouplabel
+        #    {grouplabel: str attrpatch_img}
+        # where attrpatch_img is the image patch on the template 
+        # corresponding to the grouplabel
         self.templates = None
         
         self.canMoveOn = False
@@ -94,8 +94,6 @@ class VerifyPanel(wx.Panel):
         self.initLayout()
         self.initBindings()
 
-
-        
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
 
     def fitPanel(self):
@@ -293,11 +291,7 @@ class VerifyPanel(wx.Panel):
         Load in all attribute patches for each attrtype->attrval pair.
         exemplar_paths: {grouplabel: str patchpath}
         """
-        self.templates = {}
-        for grouplabel, patchpath in exemplar_paths.iteritems():
-            imgpatch = misc.imread(patchpath, flatten=1)
-            rszFac = sh.resizeOrNot(imgpatch.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
-            self.templates[grouplabel] = sh.fastResize(imgpatch, rszFac)/255.0
+        self.templates = exemplar_paths
     
     def dump_state(self):
         if self.project:
@@ -380,8 +374,12 @@ class VerifyPanel(wx.Panel):
 
         idx = self.templateChoice.GetSelection()
         curgrouplabel = self.currentGroup.orderedAttrVals[idx]
+
         try:
-            attrpatch_img = self.templates[curgrouplabel]
+            attrpatch_imgpath = self.templates[curgrouplabel]
+            attrpatch_img = misc.imread(attrpatch_imgpath, flatten=1)
+            rszFac = sh.resizeOrNot(attrpatch_img.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
+            attrpatch_img = sh.fastResize(attrpatch_img, rszFac) / 255.0
         except Exception as e:
             print e
             pdb.set_trace()
