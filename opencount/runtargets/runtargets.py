@@ -147,7 +147,7 @@ class RunThread(threading.Thread):
         options = map(str,enumerate(possible))
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
-
+        print "Starting call to convertImagesSingleMAP"
         if self.rerun:
             bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
@@ -209,10 +209,13 @@ class RunThread(threading.Thread):
         dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        print "Doing a zip"
+
 
         tmp = zip(dirList, map(doandgetAvg, dirList))
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        print "Doing a find-longest-prefix thing"
 
         fulllst = sorted(tmp, key=lambda x: x[1])
         fulllst = [(x,int(y)) for x,y in fulllst]

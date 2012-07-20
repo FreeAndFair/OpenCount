@@ -143,9 +143,6 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, balP, tplP, flipped):
     fullpath = encodepath(balP)
-    _f = open('_writeMAP.txt', 'a')
-    print >>_f, balP
-    _f.close()
     targs = [fullpath+"."+str(uid)+".png" for uid,_,_,_ in imgs]
     to = os.path.join(imageMetaDir, fullpath)
     toWrite={"flipped": flipped, "targets":targs, "ballot": balP, "template": tplP}
