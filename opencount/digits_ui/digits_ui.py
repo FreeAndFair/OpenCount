@@ -586,7 +586,10 @@ Saving npimg as _errtmp_npimg_degenerate.png"
 matching. Saving to: _errtmp_npimg.png"
                 scipy.misc.imsave("_errtmp_npimg.png", npimg)
                 return
-            npimg_crop = autocrop_img(npimg)
+            #npimg_crop = autocrop_img(npimg)
+            # Let's try not cropping, since it might help with digit
+            # recognition.
+            npimg_crop = npimg 
             if npimg_crop == None:
                 print "autocrop failed. saving to: _errtmp_npimg_failcrop.png"
                 scipy.misc.imsave("_errtmp_npimg_failcrop.png", npimg)

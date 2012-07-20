@@ -309,13 +309,15 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         inputsizer = wx.BoxSizer(wx.HORIZONTAL)
         inputsizer.Add(labeltxt)
         inputsizer.Add(self.inputctrl)
-
+        self.progress_txt = wx.StaticText(self, label='')
         sizer3 = wx.BoxSizer(wx.VERTICAL)
         sizer3.Add(inputsizer)
         sizer3.Add(nextbtn)
         sizer3.Add(prevbtn)
+        sizer3.Add(self.progress_txt)
 
         self.sizer2.Add(self.imgpatch, proportion=0)
+        self.sizer2.Add((40, 40))
         self.sizer2.Add(sizer3, proportion=0)
         
         self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
@@ -403,7 +405,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def display_img(self, idx, no_overwrite=False):
         """Displays the image at idx, and allow the user to start labeling
-        it.
+        it. Also updates the progress_txt.
         """
         if not (idx < len(self.imagepaths)):
             pdb.set_trace()
@@ -418,7 +420,8 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         imgpath = self.imagepaths[self.cur_imgidx]
         bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
-
+        self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
+                                                                             len(self.imagepaths)))
         self.inputctrl.SetValue(self.imagelabels[imgpath])
         #self.Fit()
         self.SetupScrolling()
