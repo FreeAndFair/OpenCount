@@ -181,7 +181,8 @@ class RunThread(threading.Thread):
                                             self.proj.extracted_metadata,
                                             self.proj.ballot_metadata,
                                             self.proj.quarantined,
-                                            self.stopped)
+                                            self.stopped,
+                                            self.proj)
     
             if not res:
                 # Was told to abort everything.

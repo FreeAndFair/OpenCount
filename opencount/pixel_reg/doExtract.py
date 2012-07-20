@@ -143,6 +143,9 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, balP, tplP, flipped):
     fullpath = encodepath(balP)
+    _f = open('_writeMAP.txt', 'a')
+    print >>_f, balP
+    _f.close()
     targs = [fullpath+"."+str(uid)+".png" for uid,_,_,_ in imgs]
     to = os.path.join(imageMetaDir, fullpath)
     toWrite={"flipped": flipped, "targets":targs, "ballot": balP, "template": tplP}
@@ -205,7 +208,7 @@ def findOutliers(Errs,thr,N):
     return qFlag
 
 
-def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, imageMetaDir=[] ):
+def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir=[] ):
 
     # Algorithm.
     # Pick percentage p,e.g., .1%
@@ -232,8 +235,18 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, imageMetaDir=[] ):
             else:
                 ballot2targets[f3]=[]
                 ballot2targets[f3].append(f1)
-
+        
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+
+    # Voted ballots with no contests/voting targets will not be
+    # found within diffList - thus, we have to add them in and
+    # add dummy values
+    img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
+    for votedpath in img2bal:
+        voted_abspath = os.path.abspath(votedpath)
+        enc_path = encodepath(voted_abspath)
+        if enc_path not in ballot2targets:
+            ballot2targets[enc_path] = []
 
     print 'Done w/ hash.'
     wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
@@ -249,7 +262,11 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, imageMetaDir=[] ):
         for balP in balL:
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
-            targList=ballot2targets[encodepath(balP)]
+            try:
+                targList=ballot2targets[encodepath(balP)]
+            except Exception as e:
+                print e
+                pdb.set_trace()
             for f1 in targList:
                 (f2,npext)=os.path.splitext(f1)
                 (foo,idx)=os.path.splitext(f2)
@@ -412,7 +429,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     print 'done.'
     return True
 
-def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, verbose=False):
+def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, verbose=False):
 
     targetDiffDir=targetDir+'_diffs'
 
@@ -433,10 +450,10 @@ def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMeta
 
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,imageMetaDir=imageMetaDir)
+        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
     return worked
 
-def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, verbose=False):
+def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
     targetDiffDir=targetDir+'_diffs'
 
     jobs = []
@@ -462,7 +479,7 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
 
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,imageMetaDir=imageMetaDir)
+        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
     return worked
 
 # def convertImagesWorker(job):
