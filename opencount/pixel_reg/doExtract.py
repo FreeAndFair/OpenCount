@@ -395,8 +395,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     create_dirs(targetMetaDir)
     create_dirs(imageMetaDir)
 
-    nProc=1#sh.numProcs()
-    
+    nProc=sh.numProcs()
 
     if nProc < 2:
         print 'using only 1 processes'
