@@ -3,6 +3,7 @@ import math
 import cStringIO
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
 import os, sys
+from os.path import join as pathjoin
 from sets import Set
 from PIL import Image, ImageDraw
 import csv
@@ -38,7 +39,10 @@ class LabelContest(wx.Panel):
         how the targets are grouped together.
         """
         self.dirList = []
-
+        # Maps {csvfilepath: str template_imgpath}
+        csvpath_map = pickle.load(open(pathjoin(self.proj.target_locs_dir,
+                                                'csvpath_map.p'),
+                                       'rb'))
         thewidth = theheight = None
 
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
@@ -73,7 +77,12 @@ class LabelContest(wx.Panel):
                         if thewidth == None:
                             thewidth, theheight = Image.open(row[0]).size
                 lst = gr.values()
-    
+                if not lst:
+                    # Means this file had no contests, so, add dummy 
+                    # values to my data structures
+                    self.dirList.append(csvpath_map[pathjoin(root, each)])
+                    self.groupedtargets.append([])
+                    continue
                 # Figure out where the columns are.
                 # We want to sort each group going left->right top->down
                 #   but only go left->right if we're on a new column,
@@ -95,7 +104,7 @@ class LabelContest(wx.Panel):
                 lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
                 # And then sort each contest in the same way, globally
                 slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
-                
+
                 self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
 
@@ -515,6 +524,8 @@ class LabelContest(wx.Panel):
                         columns[target[2]] = True
             columns = sorted(columns.keys())
             if len(columns) == 0:
+                # We have a blank ballot with no contests
+                self.boxes.append([])
                 continue
             leftmargin = min(columns)
             # Interior space available
@@ -563,17 +574,21 @@ class LabelContest(wx.Panel):
         self.contestID = {}
 
         maxw,maxh = self.thesize
-
+        # self.boxes is
         for i,each in enumerate(self.boxes):
             for x in each:
                 if not restored:
                     self.text[i,x[0]] = []
                     self.voteupto[i,x[0]] = 1
                 factor = 1
-                self.crop[i,x[0]] = (self.dirList[i],
-                                     (x[1], x[2], 
-                                      int((x[3]-x[1])*factor+x[1]),
-                                      int((x[4]-x[2])*factor+x[2])))
+                try:
+                    self.crop[i,x[0]] = (self.dirList[i],
+                                         (x[1], x[2], 
+                                          int((x[3]-x[1])*factor+x[1]),
+                                          int((x[4]-x[2])*factor+x[2])))
+                except Exception as e:
+                    print e
+                    pdb.set_trace()
                 self.contestID[i,x[0]] = (i, x[0])
 
         self.contest_order = [[y[0] for y in x] for x in self.boxes]
@@ -600,6 +615,12 @@ class LabelContest(wx.Panel):
 
         self.currentcontests = []
         self.templatenum += ct
+
+        if len(self.groupedtargets[self.templatenum]) == 0:
+            # No contests, so skip it
+            print "Skipping the empty blank template:", self.templatenum
+            self.nexttemplate(1)
+            return
 
         # Save the image corresponding to this template
         self.imgo = Image.open(self.dirList[self.templatenum]).convert("RGB")
@@ -661,6 +682,8 @@ class LabelContest(wx.Panel):
         self.templatebox.img.Bind(wx.EVT_LEFT_DOWN, lambda x: foo(x))
 
     def restoreText(self):
+        if len(self.groupedtargets[self.templatenum]) == 0:
+            return
         arr = self.text[self.currentcontests[self.count]]
         print "RESTORE", self.currentcontests[self.count], arr
         self.text_upto.SetValue(int(self.voteupto[self.currentcontests[self.count]]))
@@ -856,6 +879,7 @@ class LabelContest(wx.Panel):
             self.text_title = wx.ComboBox(self.textarea, -1,
                                           choices=[],
                                           style=wx.CB_DROPDOWN, pos=(0,25))
+            self.text_upto = wx.lib.intctrl.IntCtrl(self.textarea, pos=(0,-10000))
             return
         
         #print "AND", self.text.values()
@@ -1002,3 +1026,4 @@ class LabelContest(wx.Panel):
         self.text_title.SetFocus()
 
         self.Fit()
+

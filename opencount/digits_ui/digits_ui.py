@@ -75,8 +75,8 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
         i = 0
         w_img, h_img = self.project.imgsize
-        expand_x = int(round(abs(x1-x2)*0.25*w_img))
-        expand_y = int(round(abs(y1-y2)*0.25*h_img))
+        expand_x = int(round(abs(x1-x2)*0.1*w_img))
+        expand_y = int(round(abs(y1-y2)*0.1*h_img))
         for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
             x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
             y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
