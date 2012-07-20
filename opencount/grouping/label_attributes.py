@@ -181,7 +181,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                             util_gui.create_dirs(patchrootDir)
                             patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
                                                                                     attrtype_str))
-                            if not os.path.exists(patchoutP):
+                            #if not os.path.exists(patchoutP):
+                            if True:
+                                # TODO: Only extract+save the imge patches
+                                # when you /have/ to.
                                 img = shared.standardImread(imgpath, flatten=True)
                                 patch = img[y1:y2,x1:x2]
                                 scipy.misc.imsave(patchoutP, patch)
