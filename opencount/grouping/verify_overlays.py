@@ -423,7 +423,11 @@ class VerifyPanel(wx.Panel):
         Adds a new GroupClass to internal datastructures, and updates
         relevant UI components.
         """
-        assert group not in self.queue
+        if group in self.queue:
+            # DOGFOOD: Remove this hotfix after the Napa audits
+            print "Silently throwing out duplicate group object."
+            return
+        #assert group not in self.queue
         self.queue.insert(0, group)
         self.queueList.Insert(group.label, 0)
         
