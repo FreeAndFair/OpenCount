@@ -279,6 +279,8 @@ def is_digitbased(project, attrtype):
 
 def is_quarantined(project, path):
     """ Returns True if the image path was quarantined by the user. """
+    if not os.path.exists(project.quarantined):
+        return False
     f = open(project.quarantined, 'r')
     for line in f:
         if line:
