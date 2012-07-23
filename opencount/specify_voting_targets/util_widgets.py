@@ -1,5 +1,6 @@
 import time, threading
 import wx
+from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.pubsub import Publisher
 
 """
@@ -47,6 +48,40 @@ class ProgressGauge(wx.Frame):
     def onbutton_abort(self, evt):
         print "Abort not implemented yet. Maybe never."
         #self.Destroy()
+
+class MosaicPanel(ScrolledPanel):
+    """ A widget that (efficiently) displays images in a grid, organized
+    in pages.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+        self.num_rows = 4
+        self.num_cols = 2
+
+        self.gridsizer = wx.GridSizer(self.num_rows, self.num_cols)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+
+        btn_pageup = wx.Button(self, label="Page Up")
+        btn_pagedown = wx.Button(self, label="Page Down")
+        btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
+        btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
+
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.Add(btn_pageup)
+        btn_sizer.Add(btn_pagedown)
+
+        self.sizer.Add(self.gridsizer)
+        self.sizer.Add(btn_sizer)
+
+        self.SetSizer(self.sizer)
+        
+
+    def set_images(self, imgpaths):
+        """Given a list of image paths, display them."""
+        pass
+
 
 class _MainFrame(wx.Frame):
     """

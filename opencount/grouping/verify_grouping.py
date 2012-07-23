@@ -552,7 +552,6 @@ class RunGroupingPanel(wx.Panel):
             for attr_type in attr_types:
                 for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
                     if common.is_digitbased(self.project, attr_type):
-                        ''' this is all wrong... '''
                         attr_side = common.get_attr_prop(self.project, attr_type, 'side')
                         path = frontpath if attr_side == 'front' else backpath
                         for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[path]:
