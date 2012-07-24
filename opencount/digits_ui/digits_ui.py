@@ -553,9 +553,15 @@ class MyStaticBitmap(wx.Panel):
         assert self._box
         if self._box.width < 4 or self._box.height < 4:
             self._box = None
-            return
+            return None
         tmp = self._box
         self._box = None
+        # cut off coords that are out-of-bounds
+        x1,y1,x2,y2 = Box.make_canonical(tmp)
+        tmp.x1 = max(0, x1)
+        tmp.y1 = max(0, y1)
+        tmp.x2 = min(self.pil_img.size[0]-1, x2)
+        tmp.y2 = min(self.pil_img.size[1]-1, y2)
         return tmp
     def _update_box(self, x, y):
         assert self._box
