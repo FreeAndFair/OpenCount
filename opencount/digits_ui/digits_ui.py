@@ -720,7 +720,7 @@ class Box(object):
             return (xa, ya, xb, yb)
         elif xa < xb and ya > yb:
             # LowerLeft, UpperRight
-            return (xa, ya - h, xa, ya + h)
+            return (xa, ya - h, xb, yb + h)
         elif xa > xb and ya < yb:
             # UpperRight, LowerLeft
             return (xa - w, ya, xb + w, yb)
