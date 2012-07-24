@@ -655,7 +655,7 @@ class ThreadDoTempMatch(threading.Thread):
                 print 'template matching over:', pathjoin(dirpath, imgname)
                 regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.7)
+            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.8)
         except Exception as e:
             scipy.misc.imsave('_err_img1.png', self.img1)
             errf = open('_err_findpatchmatches.log', 'w')
