@@ -486,7 +486,7 @@ class RunGroupingPanel(wx.Panel):
                                       self.project.digitgroup_results)
         if os.path.exists(digitgroupresultsP):
             f = open(digitgroupresultsP, 'rb')
-            # maps {str imgpath: list of (attrtype_i, ocr_str_i, meta_i)},
+            # maps {str imgpath: list of (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i)},
             # where meta_i is numDigits-tuples of the form:
             #     (y1,y2,x1,x2, digit_i, digitimgpath_i, score)
             digitgroup_results = pickle.load(f)
@@ -495,7 +495,7 @@ class RunGroupingPanel(wx.Panel):
             digitgroup_results = {}
 
         grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
-        digits_results = {} # maps {str digit: list of [ballotid, patchpath]}
+        digits_results = {} # maps {str digit: list of [ballotid, patchpath, isflip_i, side_i]}
         attr_types = common.get_attrtypes(self.project)
         def removedups_rankedlist(rlist):
             """ Remove duplicates from the input ranked list, starting
@@ -521,11 +521,13 @@ class RunGroupingPanel(wx.Panel):
                     history[grouplabel] = True
             return True
         # Munge the grouping results into grouping_results, digit_results
+        ## Note: the isflip_i/side_i info from digitgroup_results gets
+        ## thrown out after these blocks. Do I actually need them?
         if not util.is_multipage(self.project):
             for attr_type in attr_types:
                 for ballotid in bal2imgs:
                     if common.is_digitbased(self.project, attr_type):
-                        for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[ballotid]:
+                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[ballotid]:
                             if attrtype_i == attr_type:
                                 for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
                                     digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
@@ -554,7 +556,7 @@ class RunGroupingPanel(wx.Panel):
                     if common.is_digitbased(self.project, attr_type):
                         attr_side = common.get_attr_prop(self.project, attr_type, 'side')
                         path = frontpath if attr_side == 'front' else backpath
-                        for (attrtype_i, ocr_str_i, meta_i) in digitgroup_results[path]:
+                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[path]:
                             if attrtype_i == attr_type:
                                 for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
                                     digits_results.setdefault(digit, []).append((path, digitpatchpath))
@@ -939,7 +941,7 @@ def correct_digit_labels(project, patchlabels):
     for imgpath, lst in digitgroup_results.iteritems():
         if common.is_quarantined(project, imgpath):
             continue
-        for attrtype, ocr_str, meta in lst:
+        for (attrtype, ocr_str, meta, isflip_i, side_i) in lst:
             correct_str = ''
             for i, (y1,y2,x1,x2,digit,digitpatchpath,score) in enumerate(meta):
                 try:
@@ -977,7 +979,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         obj project
     Output:
         A dict that maps:
-          {ballotid: ((attrtype_i, ocrresult_i, meta_i), ...)
+          {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
         where meta_i is a tuple containing numDigits tuples:
           (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i, score)
     """
@@ -999,14 +1001,41 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                     img = sh.standardImread(imgpath, flatten=True)
                     digitmap[digit] = img
         return digitmap
-    def all_ballotimgs_gen(bal2imgs, side):
+    def all_ballotimgs(bal2imgs, side):
         """ Generate all ballot images for either side 0 or 1. """
+        paths = []
         for ballotid, path in bal2imgs.iteritems():
             if side == 0:
-                yield path[0]
+                paths.append(path[0])
             else:
-                yield path[1]
-        raise StopIteration
+                paths.append(path[1])
+        return paths
+    def get_best_side(results_side0, results_side1):
+        """ Given the result of digitParse for both side0 and side1,
+        return the 'best' results where, for each imgpath, we return
+        the match for whose side's score is maximized.
+        Input:
+            list results_side0: [(imgpath0_i, ocr_str_i, meta_i, isflip_i), ...]
+            list results_side1: [(imgpath1_i, ocr_str_i, meta_i, isflip_i), ...]
+        Output:
+            list of [(ballotid_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
+        """
+        assert len(results_side0) == len(results_side1)
+        results_side0 = sorted(results_side0, key=lambda tup: tup[0])
+        results_side1 = sorted(results_side1, key=lambda tup: tup[0])
+        results = []
+        for idx, (path_side0, ocrstr_side0, meta_side0, isflip_side0) in enumerate(results_side0):
+            path_side1, ocrstr_side1, meta_side1, isflip_side1 = results_side1[idx]
+            assert len(meta_side0) == len(meta_side1)
+            avg_score_side0 = sum([tup[6] for tup in meta_side0]) / float(len(meta_side0))
+            avg_score_side1 = sum([tup[6] for tup in meta_side1]) / float(len(meta_side1))
+            if avg_score_side0 > avg_score_side1:
+                results.append((path_side0, ocrstr_side0, meta_side0, isflip_side0, 0))
+            else:
+                results.append((path_side1, ocrstr_side1, meta_side1, isflip_side1, 1))
+        assert (len(results) == len(results_side0)) and (len(results) == len(results_side1))
+        return results
+        
     result = {}
     digit_exs = make_digithashmap(project)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
@@ -1024,19 +1053,24 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),
               x2+int(round(w*c))]
-        results_side0 = sh.digitParse(digit_exs,
-                                      all_ballotimgs_gen(bal2imgs, 0),
-                                      bb,
-                                      num_digits)
-        '''
-        if util.is_multipage(project):
-            results_side1 = sh.digitParse(digit_exs,
-                                          all_ballotimgs_gen(bal2imgs, 1),
-                                          bb,
-                                          num_digits)
-        '''
-        digitparse_results = results_side0
-        for (imgpath, ocr_str, meta) in digitparse_results:
+        # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
+        if not util.is_multipage(project):
+            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
+                                         digit_exs,
+                                         num_digits,
+                                         bb=bb)
+            digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
+        else:
+            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
+                                               digit_exs,
+                                               num_digits,
+                                               bb=bb)
+            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
+                                               digit_exs,
+                                               num_digits,
+                                               bb=bb)
+            digitparse_results = get_best_side(results_side0, results_side1)
+        for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
             meta_out = []
             for (y1,y2,x1,x2, digit, digitimg, score) in meta:
                 rootdir = os.path.join(voteddigits_dir, digit)
@@ -1045,8 +1079,6 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                 scipy.misc.imsave(outpath, digitimg)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
-            result.setdefault(imgpath, []).append((digitattr, ocr_str, meta_out))
+            result.setdefault(imgpath, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result
-    
-    
     

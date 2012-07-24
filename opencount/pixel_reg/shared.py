@@ -178,13 +178,14 @@ def stackDel(match_hash,i1,i2,j1,j2):
         out=match_hash[key]
         out[i1:i2,j1:j2]=0
 
-def digitParse(digit_hash,imList,bbSearch,nDigits):
+def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
     """Runs NCC-based OCR on the images on imList.
     Input:
         dict digit_hash: maps {str digit: img digit_exemplar}
         lst imList: list of imagepaths to search over
         bbSearch: [y1,y2,x1,x2] coords to search on
         nDigits: an integer that specifies how many digits there are.
+        do_flip: If True, then flip the image.
     Output:
         A list of results of the form:
             [(imgpath_i, ocr_str_i, res_meta_i), ...)
@@ -198,12 +199,15 @@ def digitParse(digit_hash,imList,bbSearch,nDigits):
 
     for imP in imList:
         I1 = standardImread(imP,flatten=True)
+        if do_flip == True:
+            I1 = fastFlip(I1)
         I1=prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
         # perform matching for all digits
         # return best matching digit
         # mask out 
-        match_hash = matchAll(digit_hash,I1);
+        match_hash = matchAll(digit_hash,I1)
+        # match_hash are dicts mapping {str digit: (img, int isflip)}
         result_meta = []
 
         while len(result_meta) < nDigits:

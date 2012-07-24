@@ -738,6 +738,56 @@ class TextInputDialog(wx.Dialog):
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
 
+def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
+    """ Basically does what sh.digitParse does, but checks to see if
+    the image might be flipped, and if it is, to flip it and return
+    the match with the best response.
+    Input:
+        list imgpaths: list of image paths to perform digit ocr over
+        dict digit_exs: maps {str digit: obj img}
+        tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
+                  restricts the ocr search to the given bb.
+    Output:
+        list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
+    """
+    def get_best_flip(results_noflip, results_flip):
+        """ Given the results of digitParse (both not flipped and
+        flipped), return a new results list that, for each voted ballot,
+        chooses the match (either flipped/not-flipped) with the highest
+        score.
+        Input:
+            lst results_noflip: list of [(imgpath_i, ocrstr_i, meta_i), ...]
+            lst results_flip: list of [(imgpath_i, ocrstr_i, meta_i), ...]
+        Output:
+            lst results: list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
+        """
+        assert len(results_noflip) == len(results_flip)
+        results_noflip = sorted(results_noflip, key=lambda tup: tup[0])
+        results_flip = sorted(results_flip, key=lambda tup: tup[0])
+        results = []
+        for idx, (path_noflip, ocrstr_noflip, meta_noflip) in enumerate(results_noflip):
+            path_flip, ocrstr_flip, meta_flip = results_flip[idx]
+            assert path_noflip == path_flip
+            assert len(meta_noflip) == len(meta_flip)
+            avg_score_noflip = sum([tup[6] for tup in meta_noflip]) / float(len(meta_noflip))
+            avg_score_flip = sum([tup[6] for tup in meta_flip]) / float(len(meta_flip))
+            if avg_score_noflip > avg_score_flip:
+                results.append((path_noflip, ocrstr_noflip, meta_noflip, 0))
+            else:
+                results.append((path_flip, ocrstr_flip, meta_flip, 1))
+        assert len(results) == len(results_noflip)
+        assert len(results) == len(results_flip)
+        return results
+    if not bb:
+        imgsize = misc.imread(imgpath, flatten=True).shape
+        bb = (0, imgsize[0], 0, imgsize[1])
+    results_noflip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
+                                   do_flip=False)
+    results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
+                                 do_flip=True)
+    results_best = get_best_flip(results_noflip, results_flip)
+    return results_best
+
 if __name__ == '__main__':
     class MyFrame(wx.Frame):
         def __init__(self, parent, *args, **kwargs):
