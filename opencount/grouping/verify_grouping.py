@@ -334,6 +334,8 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
         except AttributeError:
             util_gui._dictwriter_writeheader(csvfile, fields)
         dictwriter.writerows(self._rows)
+        csvfile.close()
+
 
     def is_done_verifying(self):
         return self.verify_grouping.is_done_verifying()
@@ -997,6 +999,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
             digit = digitdir.split('_')[0]
             for dirpath, dirnames, filenames in os.walk(fullpath):
                 for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    # This currently scans through all images, unnecessary.
+                    # We only need just one.
                     imgpath = os.path.join(dirpath, imgname)
                     img = sh.standardImread(imgpath, flatten=True)
                     digitmap[digit] = img

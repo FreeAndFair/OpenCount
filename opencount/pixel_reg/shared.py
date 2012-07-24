@@ -207,7 +207,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
         # return best matching digit
         # mask out 
         match_hash = matchAll(digit_hash,I1)
-        # match_hash are dicts mapping {str digit: (img, int isflip)}
+        # match_hash are dicts mapping {str digit: img}
         result_meta = []
 
         while len(result_meta) < nDigits:
@@ -215,8 +215,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
             Iout=res[0]
             sym=res[1]
             YX=np.unravel_index(Iout.argmax(),Iout.shape)
-            i1=YX[0]; i2=YX[0]+patchExample.shape[0]
-            j1=YX[1]; j2=YX[1]+patchExample.shape[1]
+            i1=YX[0]; 
+            i2=YX[0]+digit_hash[sym].shape[0]
+            j1=YX[1]; 
+            j2=YX[1]+digit_hash[sym].shape[1]
 
             patch = digit_hash[sym]
             #(err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
@@ -224,10 +226,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
             result_meta.append((i1,i2,j1,j2,sym,Ireg,Iout.max()))
             
             # mask out detected region
-            i1mask = max(0,i1-patchExample.shape[0]/3)
-            i2mask = min(Iout.shape[0],i1+patchExample.shape[0]/3)
-            j1mask = max(0,j1-patchExample.shape[1]/3)
-            j2mask = min(Iout.shape[1],j1+patchExample.shape[1]/3)
+            i1mask = max(0,i1-digit_hash[sym].shape[0]/3)
+            i2mask = min(Iout.shape[0],i1+digit_hash[sym].shape[0]/3)
+            j1mask = max(0,j1-digit_hash[sym].shape[1]/3)
+            j2mask = min(Iout.shape[1],j1+digit_hash[sym].shape[1]/3)
             stackDel(match_hash,i1mask,i2mask,j1mask,j2mask)
 
         # Sort resutl_list and crop out the digits
