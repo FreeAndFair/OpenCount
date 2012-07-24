@@ -1,5 +1,6 @@
-import time, threading
+import time, threading, sys, os, math
 import wx
+import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.pubsub import Publisher
 
@@ -51,7 +52,7 @@ class ProgressGauge(wx.Frame):
 
 class MosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
-    in pages.
+    in pages. Assumes that the images are the same size.
     """
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -60,7 +61,23 @@ class MosaicPanel(ScrolledPanel):
         self.num_rows = 4
         self.num_cols = 2
 
+        self.cell_width = None    # set by display_page
+        self.cell_height = 400
+
+        self.imgpaths = []
+        self.cur_page = 0
+
+        # A 2-D array containing all wx.StaticBitmaps. self.cells[i][j]
+        # is the StaticBitmap at row i, col j.
+        self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
         self.gridsizer = wx.GridSizer(self.num_rows, self.num_cols)
+
+        # Pre-populate the gridsizer with StaticBitmaps
+        for i in range(self.num_rows):
+            for j in range(self.num_cols):
+                staticbitmap = wx.StaticBitmap(self)
+                self.cells[i][j] = staticbitmap
+                self.gridsizer.Add(staticbitmap)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
         btn_pageup = wx.Button(self, label="Page Up")
@@ -77,11 +94,75 @@ class MosaicPanel(ScrolledPanel):
 
         self.SetSizer(self.sizer)
         
+    def onButton_pageup(self, evt):
+        if self.cur_page <= 0:
+            self.cur_page = 0
+        else:
+            self.cur_page -= 1
+            self.display_page(self.cur_page)
+    def onButton_pagedown(self, evt):
+        total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
+        if self.cur_page >= (total_pages - 1):
+            self.cur_page = (total_pages - 1)
+        else:
+            self.cur_page += 1
+            self.display_page(self.cur_page)
 
     def set_images(self, imgpaths):
         """Given a list of image paths, display them."""
-        pass
+        self.imgpaths = imgpaths
+        self.cur_page = 0
+        self.display_page(self.cur_page)
 
+    def display_page(self, pagenum):
+        """Sets up UI so that all images on the pagenum are displayed.
+        """
+        assert self.imgpaths
+        start_idx = (self.num_rows * self.num_cols) * pagenum
+        assert start_idx < len(self.imgpaths)
+        i, j = 0, 0
+        for idx in range(start_idx, start_idx + (self.num_rows*self.num_cols)):
+            if idx >= len(self.imgpaths):
+                cell = self.cells[i][j]
+                dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
+                                                 red=0, green=0, blue=0)
+                cell.SetBitmap(dummybitmap)
+            else:
+                imgpath = self.imgpaths[idx]
+                img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
+                if img.GetHeight() != self.cell_height:
+                    c = img.GetHeight() / float(self.cell_height)
+                    new_w = int(round(img.GetWidth() / c))
+                    if self.cell_width == None:
+                        self.cell_width = new_w
+                    img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
+
+                cell = self.cells[i][j]
+                cell.SetBitmap(wx.BitmapFromImage(img))
+            j += 1
+            if j >= self.num_cols:
+                j = 0
+                i += 1
+        self.SetupScrolling()
+        self.Refresh()
+
+class _TestMosaicFrame(wx.Frame):
+    """
+    Frame to demo the MosaicPanel.
+    """
+    def __init__(self, parent, imgpaths, *args, **kwargs):
+        wx.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.imgpaths = imgpaths
+
+        self.SetSize((500, 500))
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.mosaicpanel = MosaicPanel(self)
+        self.mosaicpanel.set_images(imgpaths)
+        sizer.Add(self.mosaicpanel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(sizer)
+
+    
 
 class _MainFrame(wx.Frame):
     """
@@ -122,5 +203,22 @@ def demo_progressgauge():
     frame.Show()
     app.MainLoop()
 
+def demo_mosaicpanel(imgsdir):
+    imgpaths = []
+    for dirpath, dirnames, filenames in os.walk(imgsdir):
+        for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+            imgpaths.append(os.path.join(dirpath, imgname))
+    app = wx.App(False)
+    frame = _TestMosaicFrame(None, imgpaths)
+    frame.Show()
+    app.MainLoop()
+
 if __name__ == '__main__':
-    demo_progressgauge()
+    args = sys.argv[1:]
+    if len(args) == 0:
+        print "Provide an argument!"
+    elif args[0] == 'progressgauge':
+        demo_progressgauge()
+    elif args[0] == 'mosaicpanel':
+        imgsdir = args[1]
+        demo_mosaicpanel(imgsdir)
