@@ -486,7 +486,7 @@ class RunGroupingPanel(wx.Panel):
                                       self.project.digitgroup_results)
         if os.path.exists(digitgroupresultsP):
             f = open(digitgroupresultsP, 'rb')
-            # maps {str imgpath: list of (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i)},
+            # maps {str ballotid: list of (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i)},
             # where meta_i is numDigits-tuples of the form:
             #     (y1,y2,x1,x2, digit_i, digitimgpath_i, score)
             digitgroup_results = pickle.load(f)
@@ -1018,7 +1018,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
             list results_side0: [(imgpath0_i, ocr_str_i, meta_i, isflip_i), ...]
             list results_side1: [(imgpath1_i, ocr_str_i, meta_i, isflip_i), ...]
         Output:
-            list of [(ballotid_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
+            list of [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
         """
         assert len(results_side0) == len(results_side1)
         results_side0 = sorted(results_side0, key=lambda tup: tup[0])
@@ -1043,6 +1043,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                                     'rb'))
     voteddigits_dir = os.path.join(project.projdir_path,
                                      project.voteddigits_dir)
+    img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
     ctr = 0
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
@@ -1079,6 +1080,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
                 scipy.misc.imsave(outpath, digitimg)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
-            result.setdefault(imgpath, []).append((digitattr, ocr_str, meta_out, isflip, side))
+            ballotid = img2bal[imgpath]
+            result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result
     
