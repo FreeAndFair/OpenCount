@@ -75,9 +75,10 @@ class MosaicPanel(ScrolledPanel):
         # Pre-populate the gridsizer with StaticBitmaps
         for i in range(self.num_rows):
             for j in range(self.num_cols):
-                staticbitmap = wx.StaticBitmap(self)
-                self.cells[i][j] = staticbitmap
-                self.gridsizer.Add(staticbitmap)
+                cellpanel = CellPanel(self, i, j)
+                cellbitmap = cellpanel.cellbitmap
+                self.cells[i][j] = cellbitmap
+                self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
         btn_pageup = wx.Button(self, label="Page Up")
@@ -126,7 +127,8 @@ class MosaicPanel(ScrolledPanel):
                 cell = self.cells[i][j]
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
-                cell.SetBitmap(dummybitmap)
+                cell.set_bitmap(dummybitmap)
+                cell.parent.set_txtlabel('No image.')
             else:
                 imgpath = self.imgpaths[idx]
                 img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
@@ -138,13 +140,95 @@ class MosaicPanel(ScrolledPanel):
                     img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
 
                 cell = self.cells[i][j]
-                cell.SetBitmap(wx.BitmapFromImage(img))
+                cell.set_bitmap(wx.BitmapFromImage(img))
+                imgname = os.path.split(imgpath)[1]
+                parentdir = os.path.split(os.path.split(imgpath)[0])[1]
+                cell.parent.set_txtlabel(os.path.join(parentdir, imgname))
             j += 1
             if j >= self.num_cols:
                 j = 0
                 i += 1
         self.SetupScrolling()
         self.Refresh()
+
+class CellPanel(wx.Panel):
+    """ A Panel that contains both a StaticText label (displaying
+    the imagepath of the blank ballot) and a CellBitmap (which
+    displays the actual blank ballot image).
+    """
+    def __init__(self, parent, i, j, imgpath='', bitmap=None, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.i, self.j = i, j
+        self.imgpath = imgpath
+        self.bitmap = bitmap
+
+        self.cellbitmap = CellBitmap(self, i, j, imgpath, bitmap)
+        
+        self.txtlabel = wx.StaticText(self, label="Label here.")
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.txtlabel)
+        sizer.Add(self.cellbitmap, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(sizer)
+        self.Fit()
+
+        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
+    def onLeftDown(self, evt):
+        print "ON LEFT DOWN, CELL PANEL"
+        
+    def set_txtlabel(self, label):
+        self.txtlabel.SetLabel(label)
+
+class CellBitmap(wx.Panel):
+    """ A panel that displays an image, in addition to displaying a
+    list of colored boxes, which could indicate voting targets,
+    contests, etc.
+    To be used by MosaicPanel.
+    """
+
+    def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, rszFac=1.0, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.imgpath = imgpath
+        self.rszFac = rszFac
+        if not bitmap:
+            bitmap = wx.EmptyBitmap(50, 50, -1)
+        self.bitmap = bitmap
+        self.pil_img = pil_img
+        self.i, self.j = i, j
+        self.boxes = []
+
+        self.SetMinSize(bitmap.GetSize())
+
+        self.Bind(wx.EVT_PAINT, self.onPaint)
+
+    def set_bitmap(self, bitmap):
+        """ Given a wx.Bitmap, update me to display bitmap. """
+        self.bitmap = bitmap
+        self.SetMinSize(bitmap.GetSize())
+        self.Refresh()
+
+    def add_box(self, box):
+        assert box not in self.boxes
+        self.boxes.append(box)
+
+    def onPaint(self, evt):
+        """ Refresh screen. """
+        if self.IsDoubleBuffered():
+            dc = wx.PaintDC(self)
+        else:
+            dc = wx.BufferedPaintDC(self)
+        dc.DrawBitmap(self.bitmap, 0, 0)
+        self._draw_boxes(dc)
+        evt.Skip()
+        
+    def _draw_boxes(self, dc):
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        dc.SetPen(wx.Pen("Green", 2))
+        for box in self.boxes:
+            x1, y1, x2, y2 = Box.make_canonical(box)
+            dc.DrawRectangle(x1, y1, box.width, box.height)
 
 class _TestMosaicFrame(wx.Frame):
     """
