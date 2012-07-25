@@ -84,6 +84,16 @@ class MosaicPanel(ScrolledPanel):
     def set_images(self, imgpaths):
         self.imagemosaic.set_images(imgpaths)
 
+    def set_boxes(self, boxes_dict):
+        """ Given a dict that tells us all boxes for all imgpaths,
+        update the self.imagemosaic so that the boxes are correctly
+        displayed. 
+        Input:
+            dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
+        """
+        for imgpath, boxes in boxes_dict.iteritems():
+            self.imagemosaic
+
 class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
     in pages. Assumes that the images are the same size.
@@ -101,8 +111,9 @@ class ImageMosaicPanel(ScrolledPanel):
         self.imgpaths = []
         self.cur_page = 0
 
-        # A 2-D array containing all wx.StaticBitmaps. self.cells[i][j]
-        # is the StaticBitmap at row i, col j.
+        self.boxes_dict = {}  # maps {str imgpath: list of (y1,y2,x1,x2)}
+        # A 2-D array containing all CellPanels. self.cells[i][j]
+        # is the CellPanel at row i, col j.
         self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
         self.gridsizer = wx.GridSizer(self.num_rows, self.num_cols)
 
@@ -149,6 +160,10 @@ class ImageMosaicPanel(ScrolledPanel):
     def set_images(self, imgpaths):
         """Given a list of image paths, display them."""
         self.imgpaths = imgpaths
+        # Reset the boxes_dict for all imgpaths
+        self.boxes_dict = {}
+        for imgpath in imgpaths:
+            self.boxes_dict.setdefault(imgpath, [])
         self.cur_page = 0
         self.display_page(self.cur_page)
 
@@ -166,6 +181,7 @@ class ImageMosaicPanel(ScrolledPanel):
                                                  red=0, green=0, blue=0)
                 cell.set_bitmap(dummybitmap)
                 cell.parent.set_txtlabel('No image.')
+                cell.parent.set_boxes([])
             else:
                 imgpath = self.imgpaths[idx]
                 img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
@@ -178,6 +194,7 @@ class ImageMosaicPanel(ScrolledPanel):
 
                 cell = self.cells[i][j]
                 cell.set_bitmap(wx.BitmapFromImage(img))
+                cell.parent.set_boxes(self.boxes_dict[imgpath])
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
                 cell.parent.set_txtlabel(os.path.join(parentdir, imgname))
@@ -216,6 +233,10 @@ class CellPanel(wx.Panel):
         
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
+
+    def set_boxes(self, boxes):
+        self.cellbitmap.boxes = boxes
+        self.Refresh()
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
