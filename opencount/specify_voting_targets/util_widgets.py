@@ -51,6 +51,40 @@ class ProgressGauge(wx.Frame):
         #self.Destroy()
 
 class MosaicPanel(ScrolledPanel):
+    """ A widget that contains both an ImageMosaicPanel, and a simple
+    button toolbar that allows pageup/pagedown.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.imagemosaic = ImageMosaicPanel(self)
+        
+        btn_pageup = wx.Button(self, label="Page Up")
+        btn_pagedown = wx.Button(self, label="Page Down")
+        btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
+        btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
+
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.Add(btn_pageup)
+        btn_sizer.Add(btn_pagedown)
+        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.imagemosaic, proportion=1, flag=wx.EXPAND)
+        sizer.Add(btn_sizer)
+        
+        self.SetSizer(sizer)
+        self.Layout()
+
+    def onButton_pageup(self, evt):
+        self.imagemosaic.do_page_up()
+
+    def onButton_pagedown(self, evt):
+        self.imagemosaic.do_page_down()
+
+    def set_images(self, imgpaths):
+        self.imagemosaic.set_images(imgpaths)
+
+class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
     in pages. Assumes that the images are the same size.
     """
@@ -81,6 +115,7 @@ class MosaicPanel(ScrolledPanel):
                 self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
+        '''
         btn_pageup = wx.Button(self, label="Page Up")
         btn_pagedown = wx.Button(self, label="Page Down")
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
@@ -89,19 +124,21 @@ class MosaicPanel(ScrolledPanel):
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(btn_pageup)
         btn_sizer.Add(btn_pagedown)
-
+        '''
         self.sizer.Add(self.gridsizer)
-        self.sizer.Add(btn_sizer)
+        #self.sizer.Add(btn_sizer)
 
         self.SetSizer(self.sizer)
         
-    def onButton_pageup(self, evt):
+    def do_page_up(self):
+        """ Handles necessary logic of turning to the previous page. """
         if self.cur_page <= 0:
             self.cur_page = 0
         else:
             self.cur_page -= 1
             self.display_page(self.cur_page)
-    def onButton_pagedown(self, evt):
+    def do_page_down(self):
+        """ Handles necessary logic of turning to the next page. """
         total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
         if self.cur_page >= (total_pages - 1):
             self.cur_page = (total_pages - 1)
