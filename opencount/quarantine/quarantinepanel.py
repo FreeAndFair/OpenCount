@@ -224,32 +224,32 @@ the next step.",
         self.count = 0 
         self.candidates = []
 
-        print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
+        #print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
         self.discard.SetValue(self.discardlist[self.curballot])
 
-        print "AND ATTRS IS", self.attributes
-        print "qf", self.qfiles
-        print 'cur', self.curballot
+        #print "AND ATTRS IS", self.attributes
+        #print "qf", self.qfiles
+        #print 'cur', self.curballot
         print self.ballot_attributes
         if self.attributes[self.curballot] != []:
-            print 'a'
+            #print 'a'
             data = self.attributes[self.curballot]
         elif self.ballot_attributes:
             if self.qfiles[self.curballot] in self.ballot_attributes:
-                print 'b'
+                #print 'b'
                 data = self.ballot_attributes[self.qfiles[self.curballot]][1:-2]
             else:
-                print 'c'
+                #print 'c'
                 data = ['']*(len(self.ballot_attributes['header'])-3)
         else:
-            print 'd'
+            #print 'd'
             data = []
-        print 'SO GET', data
+        #print 'SO GET', data
         for inp,dat in zip(self.attributes_text, data):
             inp.SetValue(dat)
 
         for each in self.data[n]:
-            print "ADD", each
+            #print "ADD", each
             self.contests.Append(self.labeltext[each[0]][0])
 
         if first:
@@ -284,6 +284,11 @@ ballot images exist, so, no need to save contest data."
             collected.append(b.GetValue())
         self.data[self.curballot][self.count] = collected
         self.discardlist[self.curballot] = self.discard.GetValue()
+        for i, txtinput in enumerate(self.attributes_text):
+            if i < len(self.attributes[self.curballot]):
+                self.attributes[self.curballot][i] = txtinput.GetValue()
+            else:
+                self.attributes[self.curballot].append(txtinput.GetValue())
 
     def add_new_contest(self, x=None):
         self.contests.Append("choose contest")
@@ -309,6 +314,9 @@ ballot images exist, so, no need to save contest data."
             cs = self.candidates[i]
             cs[1].SetValue(yesno)
         self.discard.SetValue(self.discardlist[self.curballot])
+
+        for idx, txtinput in enumerate(self.attributes_text):
+            txtinput.SetValue(self.attributes[self.curballot][idx])
 
     def show_contest(self, which, force=False):
         """

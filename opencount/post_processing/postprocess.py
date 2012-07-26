@@ -337,7 +337,11 @@ class ResultsPanel(ScrolledPanel):
                     if os.path.abspath(a[0]) not in attributes:
                         raise Exception("Oh no. " + os.path.abspath(a[0]) + " was not in the grouping results.")
                     else:
-                        thisattr = attributes[os.path.abspath(a[0])][attr]
+                        try:
+                            thisattr = attributes[os.path.abspath(a[0])][attr]
+                        except Exception as e:
+                            print e
+                            pdb.set_trace()
                         if thisattr not in res: res[thisattr] = []
                         res[thisattr].append(a)
                 return res
