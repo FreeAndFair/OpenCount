@@ -10,6 +10,7 @@ from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 MAX_PRECINCT_PATCH_DIM=800
+MIN_PRECINCT_PATCH_DIM=20
 MAX_PRECINCT_PATCH_DISPLAY=800
 FLIP_CHECK_HEIGHT=200
 COARSE_BALLOT_REG_HEIGHT=500
