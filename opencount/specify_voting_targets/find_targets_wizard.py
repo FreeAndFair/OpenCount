@@ -408,7 +408,9 @@ function correctly.""".format(len(lonely_tmpls))
         cur_id = 0
         for templatepath in self.world.get_boxes_all():
             targets = [box.get_coords() for box in self.world.get_boxes(templatepath) if not box.is_contest]
+            # group is a tuple of ((x1_i,y1_i,x2_i,y2_i), ...)
             groups = grouptargets.do_group_hist(targets, epsilon=0.215) # used to be 1.15
+            groups = process_groups(groups)
             # find bounding box around each group
             assert sum(map(lambda lst: len(lst), groups)) == len(targets), "{0} targets, but there were {1} targets in groups".format(len(targets), sum(map(lambda lst: len(lst), groups)))
             contest_boxes = find_bounding_boxes(groups)
@@ -1779,7 +1781,62 @@ class WarnNoBoxesDialog(wx.Dialog):
     def onButton_proceed(self, evt):
         self.EndModal(WarnNoBoxesDialog.PROCEED)
 
-    
+def process_groups(groups):
+    """ Given the output of grouptargets.do_group_hist, apply a few
+    checks:
+        1.) Group only by rows/cols. Don't group targets into a grid.
+            For now, if a grid is detected, we'll split the grid into
+            a separate group for each row.
+    Input:
+        lst groups: Of the form (group_i, ...), where each group_i is
+        of the from ((x1,y1,x2,y2), ...).
+    Output:
+        A list of groups in the same format as the input groups, but
+        with possibly a few groups removed/added in. There will be the
+        same number of targets present in both input and output.
+    """
+    def is_gridlike(group):
+        """ Returns True if the targets in group form some NxM grid. """
+        return False
+    def is_same_row(t1, t2):
+        """ Returns True if t1 is roughly in the same row as t2. """
+        w = abs(t1[0] - t1[2])
+        h = abs(t1[1] - t1[3])
+        if (abs(t1[0] - t2[0]) <= (w / 2.0) and
+                abs(t1[1] - t2[1]) <= (h / 2.0)):
+            return True
+        return False
+    def is_row_any(target, group):
+        """ Returns True if target is in the same row as some target
+        in group, False otherwise. """
+        for t in group:
+            if is_same_row(target, t):
+                return True
+        return False
+    def row_idx(target, groups):
+        """ If the target is in the same row as some group G in groups,
+        then return the index of G. Else, return False. """
+        for i, group in enumerate(groups):
+            for target in group:
+                if is_row_any(target, group):
+                    return i
+        return False
+        
+    result = []
+    for group in groups:
+        if not is_gridlike(group):
+            result.append(group)
+        else:
+            # list of groups
+            new_groups = []
+            for target in group:
+                idx = row_idx(target, new_groups)
+                if idx == False:
+                    new_groups.append([target])
+                else:
+                    new_groups[idx].append(target)
+            result.extend(new_groups)
+    return result
 
 def find_bounding_boxes(groups):
     """
