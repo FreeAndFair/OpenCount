@@ -414,9 +414,6 @@ function correctly.""".format(len(lonely_tmpls))
             n1 = sum([len(group) for group in groups])
             n2 = sum([len(group) for group in groups_post])
             assert n1 == n2
-            if len(groups) != len(groups_post):
-                print "Num groups before: {0}  Num groups after: {1}".format(len(groups),
-                                                                             len(groups_post))
             groups = groups_post
             # find bounding box around each group
             assert sum(map(lambda lst: len(lst), groups)) == len(targets), "{0} targets, but there were {1} targets in groups".format(len(targets), sum(map(lambda lst: len(lst), groups)))
