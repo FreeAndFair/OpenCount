@@ -66,8 +66,9 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
 
 def evalPatchSimilarity(I,patch):
     # perform template matching and return the best match in expanded region
-    sh.prepOpenCV(I)
-    sh.prepOpenCV(patch)
+
+    I=sh.prepOpenCV(I)
+    patch=sh.prepOpenCV(patch)
     patchCv=cv.fromarray(np.copy(patch))
     ICv=cv.fromarray(np.copy(I))
     # call template match
@@ -81,22 +82,35 @@ def evalPatchSimilarity(I,patch):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
+
     IO=imagesAlign(I1c,patch,type='rigid')
 
-    #return (-IO[2],YX)
+    #estimate threshold for comparison: 
+    Ihist = np.histogram(I1c,bins=20);
+    Ibg = Ihist[1][np.argmax(Ihist[0])] # background
 
+    Phist = np.histogram(patch,bins=20);
+    Pbg = Phist[1][np.argmax(Phist[0])] # background
+
+    Ithr = (Ibg - I1c.min())/2
+    Pthr = (Pbg - patch.min())/2
+    thr = min(Ithr,Pthr)
     diff=np.abs(IO[1]-patch);
     diff=diff[5:diff.shape[0]-5,5:diff.shape[1]-5];
     # sum values of diffs above  threshold
-    err=np.sum(diff[np.nonzero(diff>.25)])
+    err=np.sum(diff[np.nonzero(diff>thr)])
     return (-err,YX,diff)
     
-def dist2patches(patchTuples,scale):
+def dist2patches(patchTuples,scale,debug=False):
     # patchTuples ((K img super regions),(K template patches))
     # for each pair, compute avg distance at scale sc
     scores=np.zeros(len(patchTuples))
     idx=0;
     locs=[]
+
+    if debug:
+        pdb.set_trace()
+
     for idx in range(len(patchTuples)):
         pt=patchTuples[idx]
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
@@ -126,7 +140,7 @@ def createPatchTuples(I,attr2pat,R,flip=False):
 
     if not(flip):
         return patchTuples
-    print "ARG", I, I.shape
+
     Ifl=sh.fastFlip(I)
     Ifl1=Ifl[rOut[0]:rOut[1],rOut[2]:rOut[3]]
 
@@ -161,11 +175,11 @@ def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
 
 
 def templateSSWorker(job):
-    (attr2pat, attr2tem, key, superRegion, sStep, minSc, fOut) = job
+    (attr2pat, attr2tem, key, superRegion, sStep, fOut) = job
+    
     # 'key' is (str temppath, str attrval)
     attr2pat1=attr2pat.copy()
     attr2pat1.pop(key)
-    #I=sh.standardImread(attr2tem[key],flatten=True)
     I=sh.standardImread(attr2tem[key],flatten=True)
     
     superRegionNp=np.array(superRegion)
@@ -174,7 +188,12 @@ def templateSSWorker(job):
     firstPat=attr2pat1.values()[0]
 
     sc0=sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM)
-    (scores0,locs)=dist2patches(patchTuples,sc0)
+    minSc=sh.resizeOrNot(firstPat.shape,sh.MIN_PRECINCT_PATCH_DIM)
+
+    if (key=='006--poll-38.png') or (key == '008--mail-50.png'):
+        (scores0,locs)=dist2patches(patchTuples,sc0,debug=False)
+    else:
+        (scores0,locs)=dist2patches(patchTuples,sc0)
 
     sidx=np.argsort(scores0)
     sidx=sidx[::-1]
@@ -198,7 +217,6 @@ def templateSSWorker(job):
     file = open(fOut, "wb")
     pickle.dump(toWrite, file)
     file.close()
-
 
 def groupImagesWorkerMAP(job):
     (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
@@ -263,24 +281,26 @@ def listAttributesNEW(patchesH):
         val=patchesH[k]
         for (bb,attrName,attrVal,side,is_digitbased,is_tabulationonly) in val:
             # check if type is in attrMap, if not, create
+            
+            # [kai] temporary hack for testing
+            # attrVal = attrVal + '--' + os.path.basename(k)
             if attrMap.has_key(attrName):
                 attrMap[attrName][attrVal]=(bb,side,k)
             else:
                 attrMap[attrName]={}
                 attrMap[attrName][attrVal]=(bb,side,k)                
+
     return attrMap
 
 def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
     print 'estimating scale.'
     jobs=[]
     sStep=.05
-    minSc=.1
     sList=[]
     nProc=sh.numProcs()
     for key in attr2pat.keys():
         # key := (str temppath, str attrval)
-        #fNm=attr2tem[key]
-        jobs.append((attr2pat,attr2tem,key,superRegion,sStep,minSc,pathjoin(initDir,key+'.png')))
+        jobs.append((attr2pat,attr2tem,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
 
     if nProc < 2:
         # default behavior for non multiproc machines
@@ -314,7 +334,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
         sList.append(s)
 
     print sList
-    scale=min(max(sList)+4*sStep,rszFac)
+    scale=min(max(sList)+2*sStep,rszFac)
     return scale
 
 def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=False, deleteall=True):
@@ -428,7 +448,6 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
 
 
     attrMap=listAttributesNEW(patchesH)
-
     for attrName in attrMap.keys():
         groupByAttr(bal2imgs,attrName,attrMap,destDir,metaDir,stopped,verbose=verbose,deleteall=deleteall)
 
