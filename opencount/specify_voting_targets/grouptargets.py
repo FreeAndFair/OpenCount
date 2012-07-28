@@ -1,6 +1,16 @@
 import contests
 
 def do_group_hist(targets, epsilon=2.0):
+    """
+    Groups a set of voting targets into clusters, which in theory
+    should correspond to contests.
+    Input: 
+        lst targets: Of the form ((x1_i, y1_i, x2_i, y2_i), ...)
+    Output:
+        lst groups: Of the form (group_i, ...), where each group_i is
+        itself a tuple ((x1_i, y1_i, x2_i, y2_i), ...).
+    """
+    
     def dist(a, b):
         return abs(a[0]-b[0]) + abs(a[1]-b[1])
 
