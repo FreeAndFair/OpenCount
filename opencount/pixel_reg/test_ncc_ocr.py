@@ -1,4 +1,5 @@
 import shared as sh
+import part_match as pm
 import os
 import numpy as np
 import pdb
@@ -33,9 +34,8 @@ for root, dirs, files in os.walk(ballotDir):
         p1=os.path.join(root,f)
         imList.append(p1)
         
-results = sh.digitParse(digit_hash,imList,bbSearch,7)
+results = pm.digitParse(digit_hash,imList,bbSearch,7)
 
 for r in results:
     print r[0], ",", r[1]
-    pdb.set_trace()
 
