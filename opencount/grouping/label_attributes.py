@@ -181,8 +181,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                             util_gui.create_dirs(patchrootDir)
                             patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
                                                                                     attrtype_str))
-                            #if not os.path.exists(patchoutP):
-                            if True:
+                            if not os.path.exists(patchoutP):
+                            #if True:
                                 # TODO: Only extract+save the imge patches
                                 # when you /have/ to.
                                 img = shared.standardImread(imgpath, flatten=True)
@@ -212,8 +212,26 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """ Saves some state. """
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
                                                         LabelPanel.STATE_FILE))
-        self.labelpanel.cluster_attr_patches()
+        self.cluster_attr_patches()
 
+    def cluster_attr_patches(self):
+        """ After the user has manually labeled every attribute patch
+        from all blank ballots, we will try to discover clusters
+        within a particular attribute value. For instance, if the
+        attribute type is 'language', and the attribute values are
+        'eng' and 'span', and some language patches have a white or
+        dark gray background, then this algorithm should discover two
+        clusters within 'eng' (white backs, gray backs) and within 'span'
+        (white backs, gray backs).
+        """
+        blankpatches = {} # maps {attrtype: {attrval: list of imgpatches}}
+        patchlabels = self.labelpanel.imagelabels
+        for patchPath, label in patchlabels.iteritems():
+            imgpath, attrtypestr = self.inv_mapping[patchPath]
+            blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
+        exemplars = group_attrs.cluster_attributes(blankpatches)
+        pdb.set_trace()
+        
     def validate_outputs(self):
         """ Check to see if all outputs are complete -- issue warnings
         to the user if otherwise, and return False.
@@ -406,18 +424,6 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         f = open(statefile, 'wb')
         pickle.dump(state, f)
         f.close()
-
-    def cluster_attr_patches(self):
-        """ After the user has manually labeled every attribute patch
-        from all blank ballots, we will try to discover clusters
-        within a particular attribute value. For instance, if the
-        attribute type is 'language', and the attribute values are
-        'eng' and 'span', and some language patches have a white or
-        dark gray background, then this algorithm should discover two
-        clusters within 'eng' (white backs, gray backs) and within 'span'
-        (white backs, gray backs).
-        """
-        pass
 
     def display_img(self, idx, no_overwrite=False):
         """Displays the image at idx, and allow the user to start labeling

@@ -156,7 +156,7 @@ def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=No
     """ Alternative grouping algorithm. """
     pass
 
-def cluster_attributes(blankpatches, project):
+def cluster_attributes(blankpatches):
     """ Given a map that, for each attribute type, maps an attribute 
     value to a list of atttribute patches (with the given type->val),
     return a new mapping that maps each type->val to a set of exemplars.
@@ -167,7 +167,11 @@ def cluster_attributes(blankpatches, project):
         A dict mapping {attrtype: {attrval: list of imgpatches}}, which
         is a subset of the input blankpatches.
     """
-    exemplars = {}
+    all_exemplars = {}
+    for attrtype in blankpatches:
+        attrval_exemplars = compute_exemplars2(blankpatches[attrtype])
+        all_exemplars[attrtype] = attrval_exemplars
+    return all_exemplars
 
 def compute_exemplars(mapping):
     """ Given a mapping {str label: list of imgpaths}, extracts a subset
@@ -224,17 +228,6 @@ def compute_exemplars2(mapping):
     Output:
         A (hopefully smaller) dict mapping {label: list of exemplar
         imgpaths}.
-
-for each patch in attribute patch set
-  scores for matching on each blank=find_patch_matches(blank ballot list, patch)
-  [update score of best matching patch for each blank ballot]
-end
-
-while there exist a blank ballot where best match is not correct attribute
-  add patch to attribute patch set
-  scores for matching on each blank=find_patch_matches(blank ballot list, patch)
-  [update score of best matching patch for each blank ballot]
-end
     """
     def make_inverse_mapping(mapping):
         inverse = {}
@@ -263,17 +256,31 @@ end
         h, w = patch.shape
         bb = [0, h, 0, w]
         matches = shared.find_patch_matchesV1(patch, bb, all_imgpaths, threshold=0.0)
+        all_s2 = True
         for (filename,s1,s2,I,i1,i2,j1,j2,rszFac) in matches:
+            if s2 != 0.0:
+                all_s2 = False
+            if s2 == 0.0:
+                print "sc2 was 0.0. correctlabel: {0}  label: {1}".format(inv_mapping[filename], label, filename)
+                print "comparing patch {0} with image {1}".format(imgpathA, filename)
+                pdb.set_trace()
             if filename not in bestmatches or s2 < bestmatches[filename][0]:
                 bestmatches[filename] = s2, inv_mapping[filename], label
+        if all_s2:
+            pdb.set_trace()
+    pdb.set_trace()
     is_done = False
     i = 0
+    last_len = 0
     while not is_done:
         incorrect_matches = get_incorrect_matches(bestmatches)
         print "i={0}, len(incorrect_matches)={1}".format(i, len(incorrect_matches))
         if not incorrect_matches:
             is_done = True
             continue
+        if len(incorrect_matches) == last_len:
+            pdb.set_trace()
+        last_len = len(incorrect_matches)
         imgpath, (bestscore, correctlabel, computedlabel) = incorrect_matches[0]
         exemplars[correctlabel].append(imgpath)
         patch = shared.standardImread(imgpath, flatten=True)
