@@ -208,11 +208,15 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.SetupScrolling()
         self.project.addCloseEvent(self.stop)
 
+    def set_attrgroup_results(self, groups):
+        """ Takes the results of autogrouping attribute patches, and
+        updates me. """
+        pass
+
     def stop(self):
         """ Saves some state. """
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
                                                         LabelPanel.STATE_FILE))
-        self.cluster_attr_patches()
 
     def cluster_attr_patches(self):
         """ After the user has manually labeled every attribute patch

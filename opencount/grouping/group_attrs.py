@@ -294,12 +294,12 @@ def compute_exemplars2(mapping):
             if s2 == 0.0:
                 print "sc2 was 0.0. correctlabel: {0}  label: {1}".format(inv_mapping[filename], label, filename)
                 print "comparing patch {0} with image {1}".format(imgpathA, filename)
-                pdb.set_trace()
+                #pdb.set_trace()
             if filename not in bestmatches or s2 < bestmatches[filename][0]:
                 bestmatches[filename] = s2, inv_mapping[filename], label
         if all_s2:
-            pdb.set_trace()
-    pdb.set_trace()
+            pass
+            #pdb.set_trace()
     is_done = False
     i = 0
     last_len = 0
