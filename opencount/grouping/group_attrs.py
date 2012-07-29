@@ -185,7 +185,7 @@ def compute_exemplars(mapping):
         bb = [0, h, 0, w]
         matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
         matches = sorted(matches, key=lambda t: t[2])
-        return matches[-1][2]
+        return matches[0][2]
     def closest_label(imgpath, exemplars):
         mindist = None
         bestmatch = None
@@ -264,8 +264,8 @@ end
         bb = [0, h, 0, w]
         matches = shared.find_patch_matchesV1(patch, bb, all_imgpaths, threshold=0.0)
         for (filename,s1,s2,I,i1,i2,j1,j2,rszFac) in matches:
-            if filename not in bestmatches or s1 > bestmatches[filename][0]:
-                bestmatches[filename] = s1, inv_mapping[filename], label
+            if filename not in bestmatches or s2 < bestmatches[filename][0]:
+                bestmatches[filename] = s2, inv_mapping[filename], label
     is_done = False
     i = 0
     while not is_done:
@@ -281,8 +281,8 @@ end
         bb = [0, h, 0, w]
         matches = shared.find_patch_matchesV1(patch, bb, all_imgpaths, threshold=0.0)
         for (filename,s1,s2,I,i1,i2,j1,j2,rszFac) in matches:
-            if filename not in bestmatches or s1 > bestmatches[filename][0]:
-                bestmatches[filename] = s1, inv_mapping[filename], inv_mapping[imgpath]
+            if filename not in bestmatches or s2 < bestmatches[filename][0]:
+                bestmatches[filename] = s2, inv_mapping[filename], inv_mapping[imgpath]
         i += 1
     return exemplars
 
