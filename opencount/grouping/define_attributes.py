@@ -616,7 +616,10 @@ class AttributeContextMenu(wx.Menu):
             dlg.chkbox_is_tabulationonly.SetValue(True)
         attrs_str = common.get_attrtype_str(self.attrbox.get_attrtypes())
         num_digits = common.get_numdigits(self.project, attrs_str)
-        dlg.num_digits.SetValue(str(num_digits))
+        if num_digits == None:
+            dlg.num_digits.SetValue('')
+        else:
+            dlg.num_digits.SetValue(str(num_digits))
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             new_attrtypes = dlg.results

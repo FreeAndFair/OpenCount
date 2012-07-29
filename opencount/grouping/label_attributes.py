@@ -212,6 +212,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """ Saves some state. """
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
                                                         LabelPanel.STATE_FILE))
+        self.labelpanel.cluster_attr_patches()
 
     def validate_outputs(self):
         """ Check to see if all outputs are complete -- issue warnings
@@ -405,6 +406,18 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         f = open(statefile, 'wb')
         pickle.dump(state, f)
         f.close()
+
+    def cluster_attr_patches(self):
+        """ After the user has manually labeled every attribute patch
+        from all blank ballots, we will try to discover clusters
+        within a particular attribute value. For instance, if the
+        attribute type is 'language', and the attribute values are
+        'eng' and 'span', and some language patches have a white or
+        dark gray background, then this algorithm should discover two
+        clusters within 'eng' (white backs, gray backs) and within 'span'
+        (white backs, gray backs).
+        """
+        pass
 
     def display_img(self, idx, no_overwrite=False):
         """Displays the image at idx, and allow the user to start labeling

@@ -329,8 +329,12 @@ def get_attr_prop(project, attrtype, prop):
 
 def get_numdigits(project, attr):
     """Return the number of digits that this digit-based attribute
-    has.
+    has. If this attr is not a digits attribute (or num_digitsmap
+    hasn't been created yet), this returns None.
     """
+    if not os.path.exists(pathjoin(project.projdir_path,
+                                   project.num_digitsmap)):
+        return None
     numdigits_map = pickle.load(open(pathjoin(project.projdir_path,
                                               project.num_digitsmap),
                                      'rb'))

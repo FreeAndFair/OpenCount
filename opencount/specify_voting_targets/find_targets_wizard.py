@@ -408,7 +408,7 @@ function correctly.""".format(len(lonely_tmpls))
         cur_id = 0
         for templatepath in self.world.get_boxes_all():
             targets = [box.get_coords() for box in self.world.get_boxes(templatepath) if not box.is_contest]
-            # group is a tuple of ((x1_i,y1_i,x2_i,y2_i), ...)
+            # groups is a tuple of ((x1_i,y1_i,x2_i,y2_i), ...)
             groups = grouptargets.do_group_hist(targets, epsilon=0.215) # used to be 1.15
             groups_post = process_groups(groups)
             n1 = sum([len(group) for group in groups])
