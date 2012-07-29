@@ -85,20 +85,12 @@ def evalPatchSimilarity(I,patch):
 
     IO=imagesAlign(I1c,patch,type='rigid')
 
-    #estimate threshold for comparison: 
-    Ihist = np.histogram(I1c,bins=20);
-    Ibg = Ihist[1][np.argmax(Ihist[0])] # background
-
-    Phist = np.histogram(patch,bins=20);
-    Pbg = Phist[1][np.argmax(Phist[0])] # background
-
-    Ithr = (Ibg - I1c.min())/2
-    Pthr = (Pbg - patch.min())/2
-    thr = min(Ithr,Pthr)
-    diff=np.abs(IO[1]-patch);
-    diff=diff[5:diff.shape[0]-5,5:diff.shape[1]-5];
-    # sum values of diffs above  threshold
-    err=np.sum(diff[np.nonzero(diff>thr)])
+    Ireg=IO[1]
+    Ireg1=Ireg[5:Ireg.shape[0]-5,5:Ireg.shape[1]-5]
+    patch1=patch[5:patch.shape[0]-5,5:patch.shape[1]-5]
+    err = sh.variableDiffThr(Ireg1,patch1)
+    diff=np.abs(Ireg1-patch1);
+    # #estimate threshold for comparison: 
     return (-err,YX,diff)
     
 def dist2patches(patchTuples,scale,debug=False):
@@ -329,7 +321,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
 
     # collect results
     for job in jobs:
-        f1=job[6]
+        f1=job[5]
         s=pickle.load(open(f1))['scale']
         sList.append(s)
 

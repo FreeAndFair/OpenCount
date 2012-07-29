@@ -43,6 +43,22 @@ def fastFlip(I):
     Iout=np.asarray(I1cv)
     return Iout
 
+def variableDiffThr(I,patch):
+    #estimate threshold for comparison: 
+    Ihist = np.histogram(I,bins=20);
+    Ibg = Ihist[1][np.argmax(Ihist[0])] # background
+
+    Phist = np.histogram(patch,bins=20);
+    Pbg = Phist[1][np.argmax(Phist[0])] # background
+
+    Ithr = (Ibg - I.min())/2
+    Pthr = (Pbg - patch.min())/2
+    thr = min(Ithr,Pthr)
+    diff=np.abs(I-patch);
+    # sum values of diffs above  threshold
+    err=np.sum(diff[np.nonzero(diff>thr)])
+    return err
+
 '''
 expand patch by pixPad with nans
 '''
@@ -65,8 +81,10 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]
+
+    #err=np.sum(diff[np.nonzero(diff>.25)])
+    err = variableDiffThr(Ireg,patch)
     diff=np.abs(Ireg-patch);
-    err=np.sum(diff[np.nonzero(diff>.25)])
     return (err,diff,Ireg)
 
 ''' 
@@ -130,7 +148,6 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
         Iout[Iout==1.0]=0; # opencv bug
 
         while Iout.max() > threshold:
-
             score1 = Iout.max() # NCC score
             YX=np.unravel_index(Iout.argmax(),Iout.shape)
             i1=YX[0]; i2=YX[0]+patch.shape[0]
