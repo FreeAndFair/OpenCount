@@ -410,7 +410,11 @@ function correctly.""".format(len(lonely_tmpls))
             targets = [box.get_coords() for box in self.world.get_boxes(templatepath) if not box.is_contest]
             # group is a tuple of ((x1_i,y1_i,x2_i,y2_i), ...)
             groups = grouptargets.do_group_hist(targets, epsilon=0.215) # used to be 1.15
-            groups = process_groups(groups)
+            groups_post = process_groups(groups)
+            n1 = sum([len(group) for group in groups])
+            n2 = sum([len(group) for group in groups_post])
+            assert n1 == n2
+            groups = groups_post
             # find bounding box around each group
             assert sum(map(lambda lst: len(lst), groups)) == len(targets), "{0} targets, but there were {1} targets in groups".format(len(targets), sum(map(lambda lst: len(lst), groups)))
             contest_boxes = find_bounding_boxes(groups)
@@ -1796,14 +1800,20 @@ def process_groups(groups):
         same number of targets present in both input and output.
     """
     def is_gridlike(group):
-        """ Returns True if the targets in group form some NxM grid. """
+        """ Returns True if the targets in group form some NxM grid.
+        (Or, at least, has at least 1 row and at least 1 col)."""
+        row_targets = []   # represents each row as a target
+        for target in group:
+            for row_t in row_targets:
+                if is_same_row(target, row_t):
+                    return True
+            row_targets.append(target)
         return False
     def is_same_row(t1, t2):
         """ Returns True if t1 is roughly in the same row as t2. """
         w = abs(t1[0] - t1[2])
         h = abs(t1[1] - t1[3])
-        if (abs(t1[0] - t2[0]) <= (w / 2.0) and
-                abs(t1[1] - t2[1]) <= (h / 2.0)):
+        if abs(t1[1] - t2[1]) <= (h / 2.0):
             return True
         return False
     def is_row_any(target, group):
@@ -1815,13 +1825,13 @@ def process_groups(groups):
         return False
     def row_idx(target, groups):
         """ If the target is in the same row as some group G in groups,
-        then return the index of G. Else, return False. """
+        then return the index of G. Else, return None. """
         for i, group in enumerate(groups):
-            for target in group:
-                if is_row_any(target, group):
-                    return i
-        return False
-        
+            if is_row_any(target, group):
+                return i
+        return None
+    def fuzzy_eq(n1, n2):
+        return abs(n1 - n2) <= 0.001
     result = []
     for group in groups:
         if not is_gridlike(group):
@@ -1831,7 +1841,7 @@ def process_groups(groups):
             new_groups = []
             for target in group:
                 idx = row_idx(target, new_groups)
-                if idx == False:
+                if idx == None:
                     new_groups.append([target])
                 else:
                     new_groups[idx].append(target)
