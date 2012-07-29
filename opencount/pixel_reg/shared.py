@@ -43,13 +43,15 @@ def fastFlip(I):
     Iout=np.asarray(I1cv)
     return Iout
 
+def estimateBg(I):
+    Ihist = np.histogram(I,bins=20);
+    return Ihist[1][np.argmax(Ihist[0])] # background
+    
+
 def variableDiffThr(I,patch):
     #estimate threshold for comparison: 
-    Ihist = np.histogram(I,bins=20);
-    Ibg = Ihist[1][np.argmax(Ihist[0])] # background
-
-    Phist = np.histogram(patch,bins=20);
-    Pbg = Phist[1][np.argmax(Phist[0])] # background
+    Ibg = estimateBg(I);
+    Pbg = estimateBg(patch);
 
     Ithr = (Ibg - I.min())/2
     Pthr = (Pbg - patch.min())/2
@@ -70,14 +72,16 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
     patchPad[pixPad:patch.shape[0]+pixPad,
              pixPad:patch.shape[1]+pixPad] = patch
 
-    IPad = np.zeros((I.shape[0]+2*pixPad,
-                     I.shape[1]+2*pixPad))
+    Ibg = estimateBg(I);
+    IPad = Ibg * np.ones((I.shape[0]+2*pixPad,
+                          I.shape[1]+2*pixPad))
 
     IPad[pixPad:I.shape[0]+pixPad,
          pixPad:I.shape[1]+pixPad] = I
     
     Ic = IPad[i1:i2+2*pixPad,j1:j2+2*pixPad]
-    IO=lk.imagesAlign(Ic,patchPad,type='rigid')
+
+    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg)
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]
