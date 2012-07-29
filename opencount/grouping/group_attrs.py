@@ -18,7 +18,7 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
       project: A Project.
     """
     OUTDIR_ATTRPATCHES = pathjoin(projdir_path, 'extract_attrs_templates')
-    def munge_matches(matches, grouplabel, patchpaths, d, outdir='extract_attrs_templates'):
+    def munge_matches(matches, grouplabel, attrtype, outdir='extract_attrs_templates'):
         """ Given matches from find_patch_matches, convert it to
         a format that GroupClass likes:
           (sampleid, rankedlist, patchpath)
@@ -27,15 +27,13 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
         results = []
         for (filename, score1, score2, Ireg, y1,y2,x1,x2, rszFac) in matches:
             relpath = os.path.relpath(filename)
-            patchpath = patchpaths[relpath]
-            results.append((relpath, (grouplabel,), patchpath))
 
             # Save registered patch
-            attrtype = tuple(sorted(d['attrs'].keys()))
             relpath = os.path.relpath(filename)
             attrtype_str = '-'.join(attrtype)
             outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
             outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
+            results.append((relpath, (grouplabel,), outpath_full))
             if not os.path.exists(outpath_full):
                 Ireg[0,0] = 0.99
                 Ireg[0,1] = 0.01
@@ -117,44 +115,77 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
         _endt = time.time() - _t
         print "len(matches): {0}  time: {1}".format(len(matches),_endt)
         if matches:
-            pdb.set_trace()
-
-'''
-            if matches:
-                flag = True
-                # Discard worst-scoring duplicates
-                bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
-                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
-                    key = (attrtype, filename)
-                    if key not in bestmatches:
+            flag = True
+            # Discard worst-scoring duplicates
+            bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
+            for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
+                key = (attrtype, filename)
+                if key not in bestmatches:
+                    bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                else:
+                    tup = bestmatches[key]
+                    sc = tup[2]
+                    if sc and sc2 < sc:
                         bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-                    else:
-                        tup = bestmatches.get(key, None)
-                        sc = tup[2]
-                        if sc and sc2 > sc:
-                            bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-                bestmatches_lst = bestmatches.values()
-                # Now handle 'found' templates
-                for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
-                    history.add((attrtype, filename))
-                inc_counter(attrtype_ctr, attrtype)
-                grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
-                elements = munge_matches(bestmatches_lst, grouplabel, patchpaths, d)
-                in_group = common.GroupClass(elements)
-                groups.append(in_group)
+            bestmatches_lst = bestmatches.values()
+            # Now handle 'found' templates
+            for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
+                history.add((attrtype, filename))
+            inc_counter(attrtype_ctr, attrtype)
+            grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
+            elements = munge_matches(bestmatches_lst, grouplabel, attrtype)
+            in_group = common.GroupClass(elements)
+            groups.append(in_group)
         if not flag:
             # Something bad happened, if we still have blank
             # ballots left to work over.
+            print "UH OH BAD."
             THRESHOLD -= 0.1
             #no_change = True
         n_iters += 1
     print "== Total Time:", time.time() - _starttime
-    pdb.set_trace()
     return groups
-'''    
+
 def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
     """ Alternative grouping algorithm. """
     pass
+
+def cluster_patches(imgpaths):
+    """ Given a list of imgpaths, where the number of groups are not
+    known ahead of time, cluster them into groups. """
+    def make_cluster(imgpath):
+        return [imgpath]
+    def cluster_add(cluster, imgpath):
+        assert imgpath not in cluster
+        cluster.append(imgpath)
+    def get_closest_cluster(clusters, imgpath, distfn):
+        mindist = None
+        bestcluster = None
+        for cluster in clusters:
+            dist = distfn(cluster, imgpath)
+            if mindist == None or dist < mindist:
+                mindist = dist
+                bestcluster = cluster
+        return bestcluster
+    def distmetric(cluster, imgpath):
+        patch = shared.standardImread(imgpath, flatten=True)
+        h, w = patch.shape
+        bb = [0, h, 0, w]
+        matches = shared.find_patch_matchesV1(img, bb, cluster, threshold=0.0)
+        return sum([t[2] for t in matches]) / len(matches)
+    clusters = [make_cluster(imgpaths[0])]
+    if type(imgpaths) != list:
+        imgpaths = list(imgpaths)
+    else:
+        imgpaths = imgpaths[:]
+    while len(imgpaths) >= 0:
+        imgpath = imgpaths.pop()
+        cluster = get_closest_cluster(clusters, imgpath, distmetric)
+        if cluster == None:
+            clusters.append(make_cluster(imgpath))
+        else:
+            cluster_add(cluster, imgpath)
+    return clusters
 
 def cluster_attributes(blankpatches):
     """ Given a map that, for each attribute type, maps an attribute 
@@ -351,7 +382,8 @@ def main():
     #imgsize = (1460, 2100)
     #imgsize = (1715, 2847)
     #imgsize = (1459, 2099)    # alameda
-    imgsize = (1968, 3530)    # napa
+    #imgsize = (1968, 3530)    # napa
+    imgsize = (1280, 2104)    # marin
     projdir_path = rootdir
     tmp2imgs_path = pathjoin(rootdir, 'template_to_images.p')
     groups = group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path)
