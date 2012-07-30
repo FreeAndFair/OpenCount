@@ -249,40 +249,42 @@ def find_min_exemplars(initials, bbsearch, samplelabels):
                 assert imgpath not in inverse
                 inverse[imgpath] = label
         return inverse
-    def get_incorrect_matches(bestmatches, correctlabels):
+    def get_incorrect_matches(bestmatches):
         """Returns all matches that are incorrect, as a list of tuples. """
         result = []
-        for imgpath, (bestscore, label, y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
-            correctlabel = correctlabels[imgpath]
+        for imgpath, (bestscore, correctlabel, label, y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
             if label != correctlabel:
                 result.append((imgpath, (bestscore, correctlabel, label,y1,y2,x1,x2,rszFac)))
         return result
     correctlabels = make_inverse_mapping(samplelabels)
     all_exemplars = {} # maps {label: ((imgpath_i,y1,y2,x1,x2, rszFac), ...)}
-    bestmatches = {} # maps {imgpath: (score, computedlabel, y1,y2,x1,x2, rszFac)}
+    bestmatches = {} # maps {imgpath: (score, correctlabel, computedlabel, y1,y2,x1,x2, rszFac)}
     all_imgpaths = list(reduce(lambda x,y: x+y, samplelabels.values()))
     for label, (imgpath, y1, y2, x1, x2) in initials.iteritems():
         all_exemplars[label] = ((imgpath,y1,y2,x1,x2,1.0),)
     # 1.) Apply initial exemplar guess
+    print "DOING LABEL: ", label
     for label, exemplars in all_exemplars.iteritems():
         for (imgpath, y1, y2, x1, x2,rszFac) in exemplars:
             img = shared.standardImread(imgpath, flatten=True)
-            bb = tuple(map(lambda c: c  / rszFac, (y1,y2,x1,x2)))
+            bb = tuple(map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2)))
             matches = shared.find_patch_matchesV1(img, bb, all_imgpaths, threshold=0.0,
                                                   bbSearch=bb)
             for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                print 'sc1: {0} sc2: {1}  region: {2}'.format(sc1, sc2, (y1,y2,x1,x2))
                 if filename not in bestmatches or sc2 < bestmatches[filename][0]:
-                    bestmatches[filename] = (sc2, label, y1, y2, x1, x2, rszFac)
+                    bestmatches[filename] = (sc2, correctlabels[filename], label, y1, y2, x1, x2, rszFac)
     # 2.) Fixed point iteration
     is_done = False
     while not is_done:
-        incorrectmatches = get_incorrect_matches(bestmatches, correctlabels)
+        incorrectmatches = get_incorrect_matches(bestmatches)
+        print "Num incorrectmatches:", len(incorrectmatches)
         if not incorrectmatches:
             is_done = True
             continue
         # Add the worst-scoring mismatch as a 'new' exemplar
-        imgpath,(score,correctlabel,label,y1,y2,x1,x2,rszFac) = sorted(incorrectmatches,
-                                                                       key=lambda t: t[1][0])[-1]
+        sorted_mismatches = sorted(incorrectmatches, key=lambda t: t[1][0])
+        imgpath,(score,correctlabel,label,y1,y2,x1,x2,rszFac) = sorted_mismatches[-1]
         all_exemplars.setdefault(correctlabel, []).append((imgpath, y1,y2,x1,x2,rszFac))
         # Re-run classification
         for label, exemplars in all_exemplars.iteritems():
@@ -293,7 +295,8 @@ def find_min_exemplars(initials, bbsearch, samplelabels):
                                                       bbSearch=bb)
                 for (filename, sc1, sc2, Ireg, y1, y2, x1, x2, rszFac) in matches:
                     if filename not in bestmatches or sc2 < bestmatches[filename][0]:
-                        bestmatches[filename] = (sc2, label, y1, y2, x1, x2, rszFac)
+                        bestmatches[filename] = (sc2, correctlabels[filename], label, y1, y2, x1, x2, rszFac)
+    #pdb.set_trace()
     return all_exemplars
 
 def compute_exemplarsV2(blankballot, bbsearch, mapping):
