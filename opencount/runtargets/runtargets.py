@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, multiprocessing, math
 import threading
 import wx
 import PIL
@@ -197,13 +197,6 @@ class RunThread(threading.Thread):
         # Just add it to there once. Code will be faster.
         dirList = [x for x in dirList]
         
-        def doandgetAvg(it):
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
-            data = standardImread(pathjoin(self.proj.extracted_dir, it),
-                                  flatten=True)
-            return 256*(float(sum(map(sum, data))))/(data.size)
-
-
         quarantined = set([encodepath(x[:-1]) for x in open(self.proj.quarantined)])
 
         dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
@@ -211,9 +204,18 @@ class RunThread(threading.Thread):
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "Doing a zip"
 
-
-        tmp = zip(dirList, map(doandgetAvg, dirList))
-
+        total = len(dirList)
+        manager = multiprocessing.Manager()
+        queue = manager.Queue()
+        start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
+        tmp = []
+        i = 0
+        while i < total:
+            result = queue.get()
+            tmp.append(result)
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+            i += 1
+        
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "Doing a find-longest-prefix thing"
 
@@ -257,3 +259,41 @@ class RunThread(threading.Thread):
 
         wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+
+def start_doandgetAvg(queue, rootdir, dirList):
+    p = multiprocessing.Process(target=spawn_jobs, args=(queue, rootdir, dirList))
+    p.start()
+
+def doandgetAvgs(imgnames, rootdir, queue):
+    for imgname in imgnames:
+        data = standardImread(pathjoin(rootdir, imgname), flatten=True)
+        result = 256 * (float(sum(map(sum, data)))) / (data.size)
+        queue.put((imgname, result))
+    return 0
+
+def spawn_jobs(queue, rootdir, dirList):
+    def divy_elements(lst, k):
+        """ Separate lst into k chunks """
+        chunksize = math.floor(len(lst) / float(k))
+        i = 0
+        chunks = []
+        curchunk = []
+        while i < len(lst):
+            if i != 0 and ((i % chunksize) == 0):
+                chunks.append(curchunk)
+                curchunk = []
+            curchunk.append(lst[i])
+            i += 1
+        if curchunk:
+            chunks.append(curchunk)
+        return chunks
+
+    pool = multiprocessing.Pool()
+    n_procs = float(multiprocessing.cpu_count())
+    for i, imgpaths in enumerate(divy_elements(dirList, n_procs)):
+        print 'Process {0} got {1} imgs'.format(i, len(imgpaths))
+        pool.apply_async(doandgetAvgs, args=(imgpaths, rootdir, queue))
+    pool.close()
+    pool.join()
+    
+    
