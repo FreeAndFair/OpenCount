@@ -162,7 +162,9 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
 
             (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             score2 = err / diff.size # pixel reg score
-            matchList.append((imP,score1,score2,Ireg,i1,i2,j1,j2,rszFac))
+            matchList.append((imP,score1,score2,Ireg,
+                              i1+bbOut1[0],i2+bbOut1[0],
+                              j1+bbOut1[2],j2+bbOut1[2],rszFac))
 
             # mask out detected region
             i1mask = max(0,i1-patch.shape[0]/3)

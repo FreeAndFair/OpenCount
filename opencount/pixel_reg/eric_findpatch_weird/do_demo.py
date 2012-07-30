@@ -1,3 +1,5 @@
+import pdb
+from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 import os, sys, scipy, scipy.misc
 sys.path.append('..')
 
@@ -29,8 +31,13 @@ def main():
     # account for resizing (?)
     (y1,y2,x1,x2) = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2)) 
 
-    img = imgA[y1:y2, x1:x2]
+    #y1 = y1 * rszFac
+    #y2 = y2 * rszFac
+    #x1 = x1 * rszFac
+    #x2 = x2 * rszFac
 
+    img = imgA[y1:y2, x1:x2]
+    pdb.set_trace()
     scipy.misc.imsave('extract1.png', img)  # super off? 
 
     # Do I need to offset (y1,y2,x1,x2) by bbSearch...?
