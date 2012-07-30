@@ -261,7 +261,7 @@ def find_min_exemplars(initials, bbsearch, samplelabels):
     bestmatches = {} # maps {imgpath: (score, correctlabel, computedlabel, y1,y2,x1,x2, rszFac)}
     all_imgpaths = list(reduce(lambda x,y: x+y, samplelabels.values()))
     for label, (imgpath, y1, y2, x1, x2) in initials.iteritems():
-        all_exemplars[label] = ((imgpath,y1,y2,x1,x2,1.0),)
+        all_exemplars[label] = [(imgpath,y1,y2,x1,x2,1.0),]
     # 1.) Apply initial exemplar guess
     print "DOING LABEL: ", label
     for label, exemplars in all_exemplars.iteritems():
