@@ -44,7 +44,9 @@ def fastFlip(I):
     return Iout
 
 def estimateBg(I):
-    Ihist = np.histogram(I,bins=20);
+    Ival = I
+    Ival[np.isnan(Ival)] = 1
+    Ihist = np.histogram(Ival,bins=10);
     return Ihist[1][np.argmax(Ihist[0])] # background
     
 
