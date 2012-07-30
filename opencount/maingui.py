@@ -1426,7 +1426,8 @@ class Project(object):
                      'attrgroup_results': 'attrgroup_results.p',
                      'labelattrs_out': 'labelattrs_out.csv',
                      'labelattrs_patchesdir': 'labelattrs_patchesdir',
-                     'attrexemplars_dir': 'attrexemplars_dir'}
+                     'attrexemplars_dir': 'attrexemplars_dir',
+                     'multexemplars_map': 'multexemplars_map.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

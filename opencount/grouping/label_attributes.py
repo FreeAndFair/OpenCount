@@ -235,6 +235,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(imgpath)
         # maps {attrtype: {attrval: ((imgpath_i,y1,y2,x1,x2,rszFac), ...)}}
         exemplars = group_attrs.cluster_attributesV2(blankpatches, self.project)
+        # Save the patches to outdir
+        outfile_map = {} # maps {attrtype: {attrval: patchpath}}
         for attrtype, thedict in exemplars.iteritems():
             for attrval, exemplars in thedict.iteritems():
                 rootdir = os.path.join(outdir, attrtype)
@@ -244,8 +246,13 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     y1,y2,x1,x2 = map(lambda c: c / rszFac, (y1,y2,x1,x2))
                     patch = img[y1:y2,x1:x2]
                     outfilename = "{0}_{1}.png".format(attrval, i)
-                    scipy.misc.imsave(os.path.join(rootdir, outfilename),
-                                      patch)
+                    fulloutpath = os.path.join(rootdir, outfilename)
+                    scipy.misc.imsave(fulloutpath, patch)
+                    outfile_map.setdefault(attrtype, {}).setdefault(attrval, []).append(fulloutpath)
+        # Also save out the outfile_map
+        pickle.dump(outfile_map, open(pathjoin(self.project.projdir_path,
+                                               self.project.multexemplars_map),
+                                      'wb'))
         print "Done saving exemplar patches."
     def validate_outputs(self):
         """ Check to see if all outputs are complete -- issue warnings
