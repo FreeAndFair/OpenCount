@@ -1,4 +1,4 @@
-import os, sys, scipy, scipy.misc
+import os, sys, scipy, scipy.misc, pdb
 sys.path.append('..')
 
 import shared
@@ -34,7 +34,6 @@ def main():
     scipy.misc.imsave('extract1.png', img)  # super off? 
 
     # Do I need to offset (y1,y2,x1,x2) by bbSearch...?
-
     img2 = imgA[bb[0]+y1:bb[0]+y2, bb[2]+x1:bb[2]+x2]
 
     scipy.misc.imsave('extract2.png', img2)  # also off?
