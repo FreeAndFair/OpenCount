@@ -187,6 +187,190 @@ def cluster_patches(imgpaths):
             cluster_add(cluster, imgpath)
     return clusters
 
+def cluster_attributesV2(blanklabels, project):
+    """ For all attribute types, try to find a set of exempalrs for
+    each type.
+    Input:
+        dict blanklabels: maps {str attrtype: {str attrval: list of blank paths}}
+    Output:
+        A dict mapping {attrtype: {attrval: list of blank paths}}
+    """
+    def pixcoords(coords, w, h):
+        return (int(round(coords[0]*w)), int(round(coords[1]*h)),
+                int(round(coords[2]*w)), int(round(coords[3]*h)))
+    attr_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    # Grab the blank ballot displayed in 'DefineBallotAttributes', since
+    # this is guaranteed to 'look good' in terms of registration
+    blankballotpath = None
+    for dirpath, dirnames, filenames in sorted(os.walk(project.templatesdir)):
+        for imgname in sorted([f for f in filenames if util_gui.is_image_ext(f)]):
+            blankballotpath = os.path.join(dirpath, imgname)
+            break
+    assert blankballotpath != None
+    blankballot = shared.standardImread(blankballotpath, flatten=True)
+    tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
+    h_img, w_img = blankballot.shape
+    all_exemplars = {}  # maps {attrtype: {attrval: ((tpath_i,y1,y2,x1,x2), ...)}}
+    for attrdict in attr_dicts:
+        attrtypestr = common.get_attrtype_str(attrdict['attrs'])
+        x1, y1, x2, y2 = pixcoords((attrdict['x1'], attrdict['y1'],
+                                   attrdict['x2'], attrdict['y2']),
+                                   w_img, h_img)
+        bbsearch = (y1,y2,x1,x2)
+        # grab the label from the blank ballot
+        startlabel = None
+        for attrval, blankpaths in blanklabels[attrtypestr].iteritems():
+            if blankballotpath in blankpaths:
+                startlabel = attrval
+                break
+        if startlabel == None:
+            print "Uh oh, startlabel was None."
+            pdb.set_trace()
+        assert startlabel != None
+        initials = {startlabel: (blankballotpath, y1, y2, x1, x2)}
+        # maps {attrval: ((templatepath_i, y1_i, y2_i, x1_i, x2_i), ...)}
+        exemplars = find_min_exemplars(initials, bbsearch, blanklabels[attrtypestr])
+        all_exemplars[attrtypestr] = exemplars
+    return all_exemplars
+
+def find_min_exemplars(initials, bbsearch, samplelabels):
+    """
+    Input:
+        dict initials: maps {label: (imgpath, y1, y2, x1, x2)}
+        bbsearch: A tuple (y1,y2,x1,x2)
+        dict samplelabels: maps {label: imgpath}
+    Output:
+        dict {label: ((imgpath_i, y1,y2,x1,x2), ...)}
+    """
+    def make_inverse_mapping(mapping):
+        inverse = {}
+        for label, imgpaths in mapping.iteritems():
+            for imgpath in imgpaths:
+                assert imgpath not in inverse
+                inverse[imgpath] = label
+        return inverse
+    def get_incorrect_matches(bestmatches, correctlabels):
+        """Returns all matches that are incorrect, as a list of tuples. """
+        result = []
+        for imgpath, (bestscore, label, y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+            correctlabel = correctlabels[imgpath]
+            if label != correctlabel:
+                result.append((imgpath, (bestscore, correctlabel, label,y1,y2,x1,x2,rszFac)))
+        return result
+    correctlabels = make_inverse_mapping(samplelabels)
+    all_exemplars = {} # maps {label: ((imgpath_i,y1,y2,x1,x2, rszFac), ...)}
+    bestmatches = {} # maps {imgpath: (score, computedlabel, y1,y2,x1,x2, rszFac)}
+    all_imgpaths = list(reduce(lambda x,y: x+y, samplelabels.values()))
+    for label, (imgpath, y1, y2, x1, x2) in initials.iteritems():
+        all_exemplars[label] = ((imgpath,y1,y2,x1,x2,1.0),)
+    # 1.) Apply initial exemplar guess
+    for label, exemplars in all_exemplars.iteritems():
+        for (imgpath, y1, y2, x1, x2,rszFac) in exemplars:
+            img = shared.standardImread(imgpath, flatten=True)
+            bb = tuple(map(lambda c: c  / rszFac, (y1,y2,x1,x2)))
+            matches = shared.find_patch_matchesV1(img, bb, all_imgpaths, threshold=0.0,
+                                                  bbSearch=bb)
+            for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                if filename not in bestmatches or sc2 < bestmatches[filename][0]:
+                    bestmatches[filename] = (sc2, label, y1, y2, x1, x2, rszFac)
+    # 2.) Fixed point iteration
+    is_done = False
+    while not is_done:
+        incorrectmatches = get_incorrect_matches(bestmatches, correctlabels)
+        if not incorrectmatches:
+            is_done = True
+            continue
+        # Add the worst-scoring mismatch as a 'new' exemplar
+        imgpath,(score,correctlabel,label,y1,y2,x1,x2,rszFac) = sorted(incorrectmatches,
+                                                                       key=lambda t: t[1][0])[-1]
+        all_exemplars.setdefault(correctlabel, []).append((imgpath, y1,y2,x1,x2,rszFac))
+        # Re-run classification
+        for label, exemplars in all_exemplars.iteritems():
+            for (imgpath, y1,y2,x1,x2,rszFac) in exemplars:
+                img = shared.standardImread(imgpath, flatten=True)
+                bb = tuple(map(lambda c: c / rszFac, (y1,y2,x1,x2)))
+                matches = shared.find_patch_matchesV1(img, bb, all_imgpaths, threshold=0.0,
+                                                      bbSearch=bb)
+                for (filename, sc1, sc2, Ireg, y1, y2, x1, x2, rszFac) in matches:
+                    if filename not in bestmatches or sc2 < bestmatches[filename][0]:
+                        bestmatches[filename] = (sc2, label, y1, y2, x1, x2, rszFac)
+    return all_exemplars
+
+def compute_exemplarsV2(blankballot, bbsearch, mapping):
+    """
+    Input:
+        obj blankballot: Blank ballot image to extract patch from
+        bbsearch: A tuple (y1,y2,x1,x2)
+        list tpaths: A list of blank ballot paths.
+        dict mapping: Maps {attrval: list of blank ballot paths}
+    Output:
+        A dict {attrval: ((tpath_i, y1_i, y2_i, x1_i, x2_i), ...)}
+    """
+    def make_inverse_mapping(mapping):
+        inverse = {}
+        for label, imgpaths in mapping.iteritems():
+            for imgpath in imgpaths:
+                assert imgpath not in inverse
+                inverse[imgpath] = label
+        return inverse
+    def get_incorrect_matches(bestmatches):
+        """Returns all matches that are incorrect, as a list of tuples. """
+        result = []
+        for imgpath, (bestscore, correctlabel, label) in bestmatches.iteritems():
+            if correctlabel != label:
+                result.append((imgpath, (bestscore, correctlabel, label)))
+        return result
+    mapping = copy.deepcopy(mapping)
+    inv_mapping = make_inverse_mapping(mapping)
+    exemplars = {} # maps {label: list of imgpaths}
+    bestmatches = {}  # maps {imgpath: (float best-score, str correctlabel, str computedlabel)}
+    all_imgpaths = reduce(lambda x, y: x + y, mapping.values())
+    # First, start off with only one exemplar for each attr value
+    for label, imgpaths in mapping.iteritems():
+        imgpathA = imgpaths[0]
+        exemplars[label] = [imgpathA]
+        patch = shared.standardImread(imgpathA, flatten=True)
+        h, w = patch.shape
+        bb = [0, h, 0, w]
+        matches = shared.find_patch_matchesV1(blankballot, bb, all_imgpaths, threshold=0.0)
+        all_s2 = True
+        for (filename,s1,s2,I,i1,i2,j1,j2,rszFac) in matches:
+            if s2 != 0.0:
+                all_s2 = False
+            if s2 == 0.0:
+                print "sc2 was 0.0. correctlabel: {0}  label: {1}".format(inv_mapping[filename], label, filename)
+                print "comparing patch {0} with image {1}".format(imgpathA, filename)
+                #pdb.set_trace()
+            if filename not in bestmatches or s2 < bestmatches[filename][0]:
+                bestmatches[filename] = s2, inv_mapping[filename], label
+        if all_s2:
+            pass
+            #pdb.set_trace()
+    is_done = False
+    i = 0
+    last_len = 0
+    while not is_done:
+        incorrect_matches = get_incorrect_matches(bestmatches)
+        print "i={0}, len(incorrect_matches)={1}".format(i, len(incorrect_matches))
+        if not incorrect_matches:
+            is_done = True
+            continue
+        if len(incorrect_matches) == last_len:
+            pdb.set_trace()
+        last_len = len(incorrect_matches)
+        imgpath, (bestscore, correctlabel, computedlabel) = incorrect_matches[0]
+        exemplars[correctlabel].append(imgpath)
+        patch = shared.standardImread(imgpath, flatten=True)
+        h, w = patch.shape
+        bb = [0, h, 0, w]
+        matches = shared.find_patch_matchesV1(patch, bb, all_imgpaths, threshold=0.0)
+        for (filename,s1,s2,I,i1,i2,j1,j2,rszFac) in matches:
+            if filename not in bestmatches or s2 < bestmatches[filename][0]:
+                bestmatches[filename] = s2, inv_mapping[filename], inv_mapping[imgpath]
+        i += 1
+    return exemplars
+
+
 def cluster_attributes(blankpatches):
     """ Given a map that, for each attribute type, maps an attribute 
     value to a list of atttribute patches (with the given type->val),

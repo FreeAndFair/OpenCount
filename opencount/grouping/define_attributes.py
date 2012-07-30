@@ -489,8 +489,8 @@ class DefineAttributesPanel(wx.Panel):
         if not util.is_multipage(self.project):
             # Display first template on BallotScreen
             imgname = None
-            for dirpath, dirnames, filenames in os.walk(self.templatesdir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+            for dirpath, dirnames, filenames in sorted(os.walk(self.templatesdir)):
+                for imgname in sorted([f for f in filenames if util_gui.is_image_ext(f)]):
                     imgpath = os.path.abspath(os.path.join(dirpath, imgname))
                     break
             if not imgpath:

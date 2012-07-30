@@ -111,7 +111,10 @@ Output:
   I1cropped=I1[i1:i2,j1:j2]
 
 '''
-def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSearch=.75,padPatch=0.0):
+def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSearch=.75,padPatch=0.0):
+    bb = list(bb)
+    if bbSearch != None:
+        bbSearch = list(bbSearch)
     matchList = [] # (filename, left,right,up,down)
     I=prepOpenCV(I);
     I = np.round(fastResize(I,rszFac)*255.)/255;
@@ -125,7 +128,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
 
     patch = patchFoo[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
 
-    if len(bbSearch)>0:
+    if bbSearch != None:
         bbSearch[0] = bbSearch[0]*rszFac
         bbSearch[1] = bbSearch[1]*rszFac
         bbSearch[2] = bbSearch[2]*rszFac
@@ -137,7 +140,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=[],padSear
         I1 = np.round(fastResize(I1,rszFac)*255.)/255.
 
         # crop to region if specified
-        if len(bbSearch)>0:
+        if bbSearch != None:
             [bbOut1,bbOff1]=expand(bbSearch[0],bbSearch[1],
                                    bbSearch[2],bbSearch[3],
                                    I1.shape[0],I1.shape[1],padSearch)

@@ -218,7 +218,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
                                                         LabelPanel.STATE_FILE))
 
-    def cluster_attr_patches(self):
+    def cluster_attr_patches(self, outdir):
         """ After the user has manually labeled every attribute patch
         from all blank ballots, we will try to discover clusters
         within a particular attribute value. For instance, if the
@@ -228,14 +228,25 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         clusters within 'eng' (white backs, gray backs) and within 'span'
         (white backs, gray backs).
         """
-        blankpatches = {} # maps {attrtype: {attrval: list of imgpatches}}
+        blankpatches = {} # maps {attrtype: {attrval: list of blank paths}}
         patchlabels = self.labelpanel.imagelabels
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
-            blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
-        exemplars = group_attrs.cluster_attributes(blankpatches)
-        pdb.set_trace()
-        
+            blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(imgpath)
+        # maps {attrtype: {attrval: ((imgpath_i,y1,y2,x1,x2,rszFac), ...)}}
+        exemplars = group_attrs.cluster_attributesV2(blankpatches, self.project)
+        for attrtype, thedict in exemplars.iteritems():
+            for attrval, exemplars in thedict.iteritems():
+                rootdir = os.path.join(outdir, attrtype)
+                util_gui.create_dirs(rootdir)
+                for i, (imgpath,y1,y2,x1,x2,rszFac) in enumerate(exemplars):
+                    img = scipy.misc.imread(imgpath, flatten=True)
+                    y1,y2,x1,x2 = map(lambda c: c / rszFac, (y1,y2,x1,x2))
+                    patch = img[y1:y2,x1:x2]
+                    outfilename = "{0}_{1}.png".format(attrval, i)
+                    scipy.misc.imsave(os.path.join(rootdir, outfilename),
+                                      patch)
+        print "Done saving exemplar patches."
     def validate_outputs(self):
         """ Check to see if all outputs are complete -- issue warnings
         to the user if otherwise, and return False.
