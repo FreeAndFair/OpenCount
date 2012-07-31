@@ -261,6 +261,9 @@ class ResultsPanel(ScrolledPanel):
             if not os.path.exists(os.path.split(path)[0]):
                 os.makedirs(os.path.split(path)[0])
             #print ballot_cvr
+                   
+            path = os.path.splitext(path)[0] + '.txt'
+
             out = open(path, "w")
             for cid,votes in ballot_cvr.items():
                 processed_votes = [n for n,vote in zip(text[cid][2:], votes[:-1]) if vote == '1']
@@ -360,9 +363,6 @@ class ResultsPanel(ScrolledPanel):
     def tally_by_batch(self, cvr):
         """Tallies by batches rooted at voted/ directory.
         e.g. /000, /000/Absentee, etc.
-
-        Takes in full_cvr as an input and creates dict
-        containing key-val pairs of batch-> cvr entry
         
         """
         

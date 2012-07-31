@@ -364,6 +364,9 @@ blank ballots and voted ballots directories first.")
         if self.project.is_multipage:
             self.is_double_sided.SetValue(True)
 
+        if self.project.are_blankballots_straightened and self.project.are_votedballots_straightened:
+            self.is_straightened.SetValue(True)
+
         if os.path.exists(templatesdir) and os.path.exists(samplesdir):
             Publisher().sendMessage("broadcast.can_proceed")
 
