@@ -60,7 +60,7 @@ def dt2(I):
     return (res,Rx,Ry)
 
 # partmatch
-def pm(digit_hash,I,nDigits, hackConstant=250, hspace = 20):
+def pm(digit_hash,I,nDigits,hspace, hackConstant=250):
     # TODO: check if user has accepted/rejected any positions
  
     # either load previously computed results or compute new

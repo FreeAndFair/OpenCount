@@ -34,7 +34,7 @@ for root, dirs, files in os.walk(ballotDir):
         p1=os.path.join(root,f)
         imList.append(p1)
         
-results = pm.digitParse(digit_hash,imList,bbSearch,7)
+results = pm.digitParse(digit_hash,imList,bbSearch,7, hspace=20)
 
 for r in results:
     print r[0], ",", r[1]
