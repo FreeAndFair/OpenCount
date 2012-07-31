@@ -147,10 +147,6 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
                                    bbSearch[2],bbSearch[3],
                                    I1.shape[0],I1.shape[1],padSearch)
             I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
-        else:
-            # Temporary workaround -- this doesn't set bbOff1, which
-            # will screw things up if we end up wanting to use bbOff1...
-            bbOut1 = [0, I1.shape[0], 0, I1.shape[1]]
 
         patchCv=cv.fromarray(np.copy(patch))
         ICv=cv.fromarray(np.copy(I1))
@@ -168,17 +164,20 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
 
             (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             score2 = err / diff.size # pixel reg score
-            matchList.append((imP,score1,score2,Ireg,
-                              i1+bbOut1[0],i2+bbOut1[0],
-                              j1+bbOut1[2],j2+bbOut1[2],rszFac))
-
+            if bbSearch != None:
+                matchList.append((imP,score1,score2,Ireg,
+                                  i1+bbOut1[0],i2+bbOut1[0],
+                                  j1+bbOut1[2],j2+bbOut1[2],rszFac))
+            else:
+                matchList.append((imP,score1,score2,Ireg,
+                                  i1,i2,j1,j2,rszFac))
+                
             # mask out detected region
             i1mask = max(0,i1-patch.shape[0]/3)
             i2mask = min(Iout.shape[0],i1+patch.shape[0]/3)
             j1mask = max(0,j1-patch.shape[1]/3)
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
             Iout[i1mask:i2mask,j1mask:j2mask]=0
-
 
     return matchList
 
