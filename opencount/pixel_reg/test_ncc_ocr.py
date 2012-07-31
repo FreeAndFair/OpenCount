@@ -38,4 +38,9 @@ results = pm.digitParse(digit_hash,imList,bbSearch,7)
 
 for r in results:
     print r[0], ",", r[1]
+    # r[0]: filename
+    # r[1]: ocr string
+    # r[2]: list of numpy patches
+    # r[3]: list of 4-tuple coordinates of patches
+    # r[4]: list of scores for each digit
 
