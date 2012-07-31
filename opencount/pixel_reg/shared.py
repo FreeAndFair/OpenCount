@@ -147,6 +147,10 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
                                    bbSearch[2],bbSearch[3],
                                    I1.shape[0],I1.shape[1],padSearch)
             I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
+        else:
+            # Temporary workaround -- this doesn't set bbOff1, which
+            # will screw things up if we end up wanting to use bbOff1...
+            bbOut1 = [0, I1.shape[0], 0, I1.shape[1]]
 
         patchCv=cv.fromarray(np.copy(patch))
         ICv=cv.fromarray(np.copy(I1))

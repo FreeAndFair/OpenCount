@@ -368,7 +368,7 @@ def get_attrtype_str(attrtypes):
         lst attrtypes: List of strings
     """
     return '_'.join(sorted(attrtypes))
-
+    
 def remove_common_pathpart(rootdir, path):
     """ Given two paths, a root and a path, return just the part of
     path that starts at root:

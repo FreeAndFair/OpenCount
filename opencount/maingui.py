@@ -364,6 +364,9 @@ blank ballots and voted ballots directories first.")
         if self.project.is_multipage:
             self.is_double_sided.SetValue(True)
 
+        if self.project.are_blankballots_straightened and self.project.are_votedballots_straightened:
+            self.is_straightened.SetValue(True)
+
         if os.path.exists(templatesdir) and os.path.exists(samplesdir):
             Publisher().sendMessage("broadcast.can_proceed")
 
@@ -1132,8 +1135,8 @@ because the current election has only one template. Skipping ahead to 'Run'."
                                       self.project.attrgroup_results), 'wb')
                 pickle.dump(groupresults, f)
                 f.close()
-                self.panel_label_attrs.start(self.project)
-                # Skip attr grouping for now
+                self.panel_label_attrs.start(self.project, groupresults=groupresults)
+                # Skip attr grouping for now LETS TRY IT NOW
                 #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
                 self.SendSizeEvent()
@@ -1150,14 +1153,14 @@ one template. \nSkipping ahead to 'Run'."
                 return
             elif not groupattrs_already_done(self.project):
                 # Attr grouping is causing more problems than help,
-                # skipping it for now...
-                #f = GroupAttrsFrame(self, self.project, start_labelattrs)
-                #f.SetSize((400, 500))
-                #f.Show()
-                start_labelattrs(None)
+                # skipping it for now... LETS TRY IT NOW
+                f = GroupAttrsFrame(self, self.project, start_labelattrs)
+                f.SetSize((400, 500))
+                f.Show()
+                #start_labelattrs(None)
             else:
-                start_labelattrs(None)    # Skip all attr grouping for now
-                '''
+                #start_labelattrs(None)    # Skip all attr grouping for now
+
                 dlg = wx.MessageDialog(self, message="Attribute Grouping \
 has already been run in a previous session. Would you like to re-run \
 attribute grouping? ", style=wx.YES | wx.NO)
@@ -1170,7 +1173,7 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f = open(self.project.attrgroup_results, 'rb')
                     groupresults = pickle.load(f)
                     start_labelattrs(groupresults)
-                '''
+
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):
                 all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))

@@ -11,14 +11,14 @@ from pixel_reg import shared
 
 _i = 0
 
-def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None):
+def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator
     effort.
       attrdata: A list of dicts (marshall'd AttributeBoxes)
       project: A Project.
     """
     OUTDIR_ATTRPATCHES = pathjoin(projdir_path, 'extract_attrs_templates')
-    def munge_matches(matches, grouplabel, attrtype, outdir='extract_attrs_templates'):
+    def munge_matches(matches, grouplabel, attrtype_str, outdir='extract_attrs_templates'):
         """ Given matches from find_patch_matches, convert it to
         a format that GroupClass likes:
           (sampleid, rankedlist, patchpath)
@@ -30,7 +30,6 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
 
             # Save registered patch
             relpath = os.path.relpath(filename)
-            attrtype_str = '-'.join(attrtype)
             outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
             outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
             results.append((relpath, (grouplabel,), outpath_full))
@@ -80,7 +79,16 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
     n_iters = 0
     _starttime = time.time()
     THRESHOLD = 0.7
-    unlabeled_blanks = tmp2imgs.copy()
+    def init_unlabeled_blanks(tmp2imgs, attrdicts, is_multipage):
+        result = {}
+        for attrdict in attrdicts:
+            side = attrdict['side']
+            attrtypestr = common.get_attrtype_str(attrdict['attrs'])
+            if not is_multipage or side == 'front':
+                result[attrtypestr] = list([paths[0] for paths in tmp2imgs.values()])
+            else:
+                result[attrtypestr] = list([paths[1] for paths in tmp2imgs.values()])
+        return result
     def choose_blank(unlabeled_blanks, side):
         for tempid, path in unlabeled_blanks.iteritems():
             if side == 'front':
@@ -96,53 +104,81 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, job_id=None
             else:
                 yield path[1]
         raise StopIteration
-    for attrdict in attrdata:
-        x1, y1 = int(round(attrdict['x1']*w_img)), int(round(attrdict['y1']*h_img))
-        x2, y2 = int(round(attrdict['x2']*w_img)), int(round(attrdict['y2']*h_img))
-        side = attrdict['side']
-        attrtype = tuple(sorted(attrdict['attrs'].keys()))
-        blankpath = choose_blank(unlabeled_blanks, side)
-        img = shared.standardImread(blankpath, flatten=True)
-        patch = img[y1:y2, x1:x2]
-        h, w = patch.shape
-        bb = [0, h, 0, w]
-        temppaths = get_unlabeled_paths(unlabeled_blanks, side)
-        _t = time.time()
-        matches = shared.find_patch_matchesV1(patch, bb, 
-                                              temppaths,
-                                              bbSearch=[y1, y2, x1, x2],
-                                              threshold=THRESHOLD)
-        _endt = time.time() - _t
-        print "len(matches): {0}  time: {1}".format(len(matches),_endt)
-        if matches:
-            flag = True
-            # Discard worst-scoring duplicates
-            bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
-            for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
-                key = (attrtype, filename)
-                if key not in bestmatches:
-                    bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-                else:
-                    tup = bestmatches[key]
-                    sc = tup[2]
-                    if sc and sc2 < sc:
+    #unlabeled_blanks = tmp2imgs.copy()
+    # maps {attrtype: list of imgpaths}
+    unlabeled_blanks = init_unlabeled_blanks(tmp2imgs, attrdata, project.is_multipage)
+    labeled_blanks = {}  # maps {attrtype: list of imgpaths}
+    was_change = True
+    while was_change:
+        amidone = True
+        for attrtype, blankpaths in unlabeled_blanks.iteritems():
+            if blankpaths:
+                amidone=False
+                break
+        if amidone == True:
+            break
+        was_change = False
+        for attrdict in attrdata:
+            x1, y1 = int(round(attrdict['x1']*w_img)), int(round(attrdict['y1']*h_img))
+            x2, y2 = int(round(attrdict['x2']*w_img)), int(round(attrdict['y2']*h_img))
+            side = attrdict['side']
+            #attrtype = tuple(sorted(attrdict['attrs'].keys()))
+            #blankpath = choose_blank(unlabeled_blanks, side)
+            attrtype = common.get_attrtype_str(attrdict['attrs'])
+            # Grab an unclustered blank ballot for attrtype
+            ungrouped_blanks = unlabeled_blanks[attrtype]
+            if not ungrouped_blanks:
+                # we've grouped all blank ballots for this attrtype
+                continue
+            blankpath = ungrouped_blanks[0]
+            img = shared.standardImread(blankpath, flatten=True)
+            patch = img[y1:y2, x1:x2]
+            h, w = patch.shape
+            bb = [0, h, 0, w]
+            #temppaths = get_unlabeled_paths(unlabeled_blanks, side)
+            temppaths = ungrouped_blanks
+            _t = time.time()
+            matches = shared.find_patch_matchesV1(patch, bb, 
+                                                  temppaths,
+                                                  bbSearch=[y1, y2, x1, x2],
+                                                  threshold=THRESHOLD)
+            _endt = time.time() - _t
+            print "len(matches): {0}  time: {1}".format(len(matches),_endt)
+            if matches:
+                flag = True
+                was_change = True
+                # Discard worst-scoring duplicates
+                bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
+                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
+                    key = (attrtype, filename)
+                    if key not in bestmatches:
                         bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-            bestmatches_lst = bestmatches.values()
-            # Now handle 'found' templates
-            for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
-                history.add((attrtype, filename))
-            inc_counter(attrtype_ctr, attrtype)
-            grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
-            elements = munge_matches(bestmatches_lst, grouplabel, attrtype)
-            in_group = common.GroupClass(elements)
-            groups.append(in_group)
-        if not flag:
-            # Something bad happened, if we still have blank
-            # ballots left to work over.
-            print "UH OH BAD."
-            THRESHOLD -= 0.1
-            #no_change = True
+                    else:
+                        tup = bestmatches[key]
+                        sc = tup[2]
+                        if sc and sc2 < sc:
+                            bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                bestmatches_lst = bestmatches.values()
+                # Now handle 'found' templates
+                for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
+                    history.add((attrtype, filename))
+                    unlabeled_blanks[attrtype].remove(filename)
+                inc_counter(attrtype_ctr, attrtype)
+                grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
+                elements = munge_matches(bestmatches_lst, grouplabel, attrtype)
+                in_group = common.GroupClass(elements)
+                groups.append(in_group)
+            if not flag:
+                # This is weird. We should have at least clustered
+                # one blank ballot (the one pointed by blankpath).
+                print "UH OH BAD."
+                THRESHOLD -= 0.1
+                #no_change = True
         n_iters += 1
+    for attrtype in unlabeled_blanks:
+        if len(unlabeled_blanks[attrtype]) != 0:
+            print "WAT"
+            pdb.set_trace()
     print "== Total Time:", time.time() - _starttime
     return groups
 
