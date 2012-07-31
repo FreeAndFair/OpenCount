@@ -49,7 +49,7 @@ class MainPanel(wx.Panel):
         lines2 = open(self.proj.quarantined_manual).read().split("\n")
         # Catches case when self.proj.quarantined is the empty file
         lines2 = [line for line in lines2 if line != '']
-        self.qfiles = lines1+lines2
+        self.qfiles = list(set(lines1+lines2))
         self.count = 0
         self.number_of_contests = 0
         self.label_index = 0

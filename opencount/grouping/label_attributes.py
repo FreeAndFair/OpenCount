@@ -31,6 +31,7 @@ class GroupAttributesThread(threading.Thread):
         groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
                                               self.project.projdir_path,
                                               self.project.template_to_images,
+                                              self.project,
                                               job_id=self.job_id)
         self.queue.put(groups)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
@@ -122,8 +123,14 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         self.project = None
 
+        # mapping, inv_mapping contain information about every image
+        # patch that the user will manually label.
         self.mapping = None # maps {imgpath: {str attrtypestr: str patchPath}}
         self.inv_mapping = None # maps {str patchPath: (imgpath, attrtypestr)}
+
+        # This keeps track of all patches that the attribute-grouping
+        # code found to be 'equal'
+        self.patch_groups = {} # maps {patchpath: list of imgpaths}
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
@@ -131,7 +138,12 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.labelpanel = LabelPanel(self)
         self.sizer.Add(self.labelpanel, proportion=1, flag=wx.EXPAND)
 
-    def start(self, project):
+    def start(self, project, groupresults=None):
+        """ Start the Labeling widget. If groups is given, then this
+        means that only a subset of the patches need to be labeled.
+        Input:
+            dict groupresults: maps {grouplabel: List of GroupClass objects}
+        """
         def extract_attr_patches(project, outdir):
             """Extract all attribute patches from all blank ballots into
             the specified outdir.
@@ -194,9 +206,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                             patchpaths.add(patchoutP)
             return mapping, inv_mapping, tuple(patchpaths)
         self.project = project
-        mapping, inv_mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
-        self.mapping = mapping
-        self.inv_mapping = inv_mapping
+        if groupresults == None:
+            # We are manually labeling everything
+            self.mapping, self.inv_mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
+        else:
+            self.mapping, self.inv_mapping, patchpaths = self.handle_grouping_results(groupresults)
         # outfilepath isn't used at the moment.
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
@@ -204,14 +218,62 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                  LabelPanel.STATE_FILE)
         if not self.labelpanel.restore_session(statefile=statefilepath):
             self.labelpanel.start(patchpaths, outfile=outfilepath)
+        self.check_state()
         self.Fit()
         self.SetupScrolling()
         self.project.addCloseEvent(self.stop)
 
-    def set_attrgroup_results(self, groups):
-        """ Takes the results of autogrouping attribute patches, and
-        updates me. """
+    def check_state(self):
+        """ Makes sure that the LabelPanel's internal data structures
+        are in-sync with my own data structures. They might become out
+        of sync if, say, in session A, I save state. Then in session B,
+        I re-run grouping, make a change, and then restore the (now
+        invalid) state.
+        """
+        # The below is the 'idea', yet this throws an image-not-found
+        # error.
         pass
+        '''
+        for patchpath in self.labelpanel.imagepaths[:]:
+            if patchpath not in self.inv_mapping:
+                print "Removing {0} from LabelPanel.".format(patchpath)
+                self.labelpanel.imagepaths.remove(patchpath)
+                self.labelpanel.imagelabels.pop(patchpath)
+        '''
+
+    def handle_grouping_results(self, groupresults):
+        """ Takes the results of autogrouping attribute patches, and
+        updates my internal data structures
+        Input:
+            dict groupresults: maps {grouplabel: list of GroupClass instances}
+        """
+        mapping = {}  # maps {imgpath: {attrtypestr: patchpath}}
+        inv_mapping = {}  # maps {patchpath: (imgpath, attrtypestr)}
+        patchpaths = []
+        for grouplabel, groups in groupresults.iteritems():
+            attrtypestr = tuple(grouplabel)[0][0] # why do i do this?!
+            flag = True
+            for group in groups:
+                if group.is_manual:
+                    for votedpath, rankedlist, patchpath in group.elements:
+                        mapping.setdefault(votedpath, {})[attrtypestr] = patchpath
+                        inv_mapping[patchpath] = (votedpath, attrtypestr)
+                        patchpaths.append(patchpath)
+                elif flag:
+                    # grab one exemplar
+                    votedpath_exemplar, _, patchpath_exemplar = groups[0].elements[0]
+                    patchpaths.append(patchpath_exemplar)
+                    mapping.setdefault(votedpath_exemplar, {})[attrtypestr] = patchpath_exemplar
+                    inv_mapping[patchpath_exemplar] = (votedpath_exemplar, attrtypestr)
+                    flag = False
+                    # update my self.patch_groups map
+                    for votedpath, rankedlist, patchpath in group.elements[1:]:
+                        self.patch_groups.setdefault(patchpath_exemplar, []).append(votedpath)
+                else:
+                    for votedpath, rankedlist, patchpath in group.elements:
+                        self.patch_groups.setdefault(patchpath_exemplar, []).append(votedpath)
+
+        return mapping, inv_mapping, patchpaths
 
     def stop(self):
         """ Saves some state. """

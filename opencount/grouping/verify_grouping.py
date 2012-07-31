@@ -231,7 +231,9 @@ class GroupingMasterPanel(wx.Panel):
             assert ad != {}
             if common.is_digit_grouplabel(grouplabel, self.project):
                 # Temporary hack for digit patches :\
-                # For real, we need to do at least imgorder
+                # Because the flip/imgorder info got thrown out in
+                # on_grouping_done, these grouplabels won't have this
+                # info. But, rest assured, it has been taken care of.
                 flip = 0
                 imgorder = 0
             else:
@@ -241,6 +243,8 @@ class GroupingMasterPanel(wx.Panel):
             assert imgorder != None
             for group in groups:
                 for (samplepath, rankedlist, patchpath) in group.elements:
+                    if common.is_quarantined(self.project, samplepath):
+                        continue
                     for attrtype, attrval in ad.iteritems():
                         results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
                                                                             flip,
