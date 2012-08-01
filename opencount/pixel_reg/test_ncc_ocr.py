@@ -35,7 +35,6 @@ for root, dirs, files in os.walk(ballotDir):
         imList.append(p1)
         
 results = pm.digitParse(digit_hash,imList,bbSearch,7, hspace=20)
-
 for r in results:
     print r[0], ",", r[1]
     # r[0]: filename
@@ -44,3 +43,32 @@ for r in results:
     # r[3]: list of 4-tuple coordinates of patches
     # r[4]: list of scores for each digit
 
+
+badresult = results[7]
+extracted = badresult[2]
+combined = np.ones((1,1))
+for p in extracted:
+    combined = sh.joinImages(combined,p)
+
+figure(0);
+# show incorrect result
+imshow(combined);title(badresult[1] + '\n' + badresult[0] + '\n initially incorrect');
+
+# now provide user input to reject a label at a location
+#
+I = sh.standardImread(badresult[0],flatten=True);
+Ic=I[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+rejected_hash={}
+# specify bounding box on the '6' as incorrect
+rejected_hash['6']=badresult[3][3]
+(ocr_str,extracted,bbs,scores)=pm.pm1(digit_hash,Ic,7,20,rejected_hash=rejected_hash)
+
+combined = np.ones((1,1))
+for p in extracted:
+    combined = sh.joinImages(combined,p)
+
+figure(1);
+# show corrected result
+imshow(combined);title(ocr_str + '\n' + '\n fixed');
+
+show()

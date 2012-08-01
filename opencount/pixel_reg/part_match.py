@@ -60,7 +60,7 @@ def dt2(I):
     return (res,Rx,Ry)
 
 # partmatch
-def pm(digit_hash,I,nDigits,hspace, hackConstant=250):
+def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
     # TODO: check if user has accepted/rejected any positions
  
     # either load previously computed results or compute new
@@ -76,6 +76,16 @@ def pm(digit_hash,I,nDigits,hspace, hackConstant=250):
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
         Iout[Iout==1.0]=0; # opencv bug
+
+        # mask out any part if given by param
+        if rejected_hash.has_key(key):
+            bbMask = rejected_hash[key]
+            i1 = max(0,bbMask[0]-(bbMask[1]-bbMask[0])/4)
+            i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
+            j1 = max(0,bbMask[2]-(bbMask[3]-bbMask[2])/4)
+            j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
+            Iout[i1:i2,j1:j2]=-2
+
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
 
@@ -186,7 +196,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         # perform matching for all digits
         # return best matching digit
         # mask out 
-        res = pm(digit_hash,I1,nDigits,hspace)
+        res = pm1(digit_hash,I1,nDigits,hspace)
         results.append((imP,res[0],res[1],res[2]))
 
     return results

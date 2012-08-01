@@ -17,6 +17,13 @@ COARSE_BALLOT_REG_HEIGHT=500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
+def joinImages(I1,I2):
+    newHeight = max(I1.shape[0],I2.shape[0])
+    canvas = np.zeros((newHeight,I1.shape[1]+I2.shape[1]))
+    canvas[0:I1.shape[0],0:I1.shape[1]]=I1
+    canvas[0:I2.shape[0],I1.shape[1]:canvas.shape[1]]=I2
+    return canvas
+
 def prepOpenCV(I):
     I = I + np.float32((np.random.random(I.shape) - .5)*.05)
     I[I>.99]=.99
