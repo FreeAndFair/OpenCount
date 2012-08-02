@@ -68,6 +68,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
     matchMat = []
     count = 0;
     keys = digit_hash.keys()
+
     for key in keys:
         patch = sh.prepOpenCV(digit_hash[key]);
         patchCv=cv.fromarray(np.copy(patch))
@@ -88,8 +89,9 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
 
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
-
-        matchMat[:,:,count] = Iout;
+        matchMat[:,:,count] = Iout;    # Assumes that all exemplar digit
+                                       # patches are the same size (which
+                                       # currently isn't true)
         count += 1
 
     maxResp = np.amax(matchMat,axis=2)
@@ -178,9 +180,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         do_flip: If True, then flip the image.
     Output:
         A list of results of the form:
-            [(imgpath_i, ocr_str_i, res_meta_i), ...)
-        where res_meta_i is a tuple of len nDigits, containing:
-            (y1,y2,x1,x2, str digit, obj digitimg, float score)
+            [(imgpath_i, ocr_str_i, imgpatches_i, patchcoords_i, scores_i), ... ]
     """
     digitList = digit_hash.values();
     patchExample = digitList[0]
@@ -197,6 +197,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         # return best matching digit
         # mask out 
         res = pm1(digit_hash,I1,nDigits,hspace)
+
         results.append((imP,res[0],res[1],res[2]))
 
     return results
