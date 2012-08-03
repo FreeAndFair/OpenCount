@@ -56,6 +56,19 @@ def estimateBg(I):
     Ihist = np.histogram(Ival,bins=10);
     return Ihist[1][np.argmax(Ihist[0])] # background
     
+def NCC(I,patch):
+    I = prepOpenCV(I);
+    patch = prepOpenCV(patch);
+    patchCv=cv.fromarray(np.copy(patch))
+    ICv=cv.fromarray(np.copy(I))
+    outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
+    cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+    Iout=np.asarray(outCv)
+    Iout[Iout==1.0]=0; # opencv bug
+    outPad = np.ones(I.shape)*-1
+    outPad[0:Iout.shape[0],0:Iout.shape[1]]=Iout
+    return outPad
+    
 
 def variableDiffThr(I,patch):
     #estimate threshold for comparison: 

@@ -61,22 +61,12 @@ def dt2(I):
 
 # partmatch
 def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
-    # TODO: check if user has accepted/rejected any positions
- 
     # either load previously computed results or compute new
-    
     matchMat = []
     count = 0;
     keys = digit_hash.keys()
     for key in keys:
-        patch = sh.prepOpenCV(digit_hash[key]);
-        patchCv=cv.fromarray(np.copy(patch))
-        ICv=cv.fromarray(np.copy(I))
-        outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
-        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
-        Iout=np.asarray(outCv)
-        Iout[Iout==1.0]=0; # opencv bug
-
+        Iout = sh.NCC(I,digit_hash[key])
         # mask out any part if given by param
         if rejected_hash.has_key(key):
             bbMask = rejected_hash[key]
@@ -89,6 +79,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
 
+        # TODO: dynamically resize to smallest Iout
         matchMat[:,:,count] = Iout;
         count += 1
 
@@ -191,7 +182,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         I1 = sh.standardImread(imP,flatten=True)
         if do_flip == True:
             I1 = fastFlip(I1)
-        I1=sh.prepOpenCV(I1)
+        #I1=sh.prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
         # perform matching for all digits
         # return best matching digit
