@@ -45,9 +45,9 @@ class ProjectPanel(wx.Panel):
         panel1 = wx.Panel(self)
         panel1.sizer = wx.BoxSizer(wx.VERTICAL)
 
-        box = wx.StaticBox(panel1, label="Setup Project Configuration")
+        box = wx.StaticBox(panel1, label="Select Election Project")
 
-        box2 = wx.StaticBox(panel1, label="Project Configurations")
+        box2 = wx.StaticBox(panel1, label="Election Projects")
         self.listbox_projects = wx.ListBox(panel1, choices=(), size=(500, 400))
         self.listbox_projects.Bind(wx.EVT_LISTBOX, self.on_selected)
         
@@ -64,8 +64,14 @@ class ProjectPanel(wx.Panel):
         self.panel_btn.Fit()
 
         boxsizer = wx.StaticBoxSizer(box, orient=wx.VERTICAL)
-        boxsizer.Add((0, 25))
+        boxsizer.Add((0, 10))
         boxsizer2 = wx.StaticBoxSizer(box2, orient=wx.VERTICAL)
+
+        instructions = wx.StaticText(panel1, label = 'Select the election project you want to work with, then click Import Files tab when done. If there are no election projects listed, create a new one.')
+        instructions.Wrap(400)
+        boxsizer.Add(instructions)
+        boxsizer.Add((0, 10))
+        
         boxsizer2.Add(self.listbox_projects)
         boxsizer.Add(boxsizer2)
         boxsizer.Add(self.panel_btn)
