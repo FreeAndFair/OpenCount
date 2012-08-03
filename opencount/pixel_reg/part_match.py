@@ -179,7 +179,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
     for imP in imList:
         I1 = sh.standardImread(imP,flatten=True)
         if do_flip == True:
-            I1 = fastFlip(I1)
+            I1 = sh.fastFlip(I1)
         #I1=sh.prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
         # perform matching for all digits
@@ -187,6 +187,6 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         # mask out 
         res = pm1(digit_hash,I1,nDigits,hspace)
 
-        results.append((imP,res[0],res[1],res[2]))
+        results.append((imP,res[0],res[1],res[2],res[3]))
 
     return results
