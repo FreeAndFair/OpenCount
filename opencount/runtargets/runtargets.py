@@ -274,6 +274,8 @@ def doandgetAvgs(imgnames, rootdir, queue):
 def spawn_jobs(queue, rootdir, dirList):
     def divy_elements(lst, k):
         """ Separate lst into k chunks """
+        if len(lst) <= k:
+            return [lst]
         chunksize = math.floor(len(lst) / float(k))
         i = 0
         chunks = []
@@ -287,7 +289,6 @@ def spawn_jobs(queue, rootdir, dirList):
         if curchunk:
             chunks.append(curchunk)
         return chunks
-
     pool = multiprocessing.Pool()
     n_procs = float(multiprocessing.cpu_count())
     for i, imgpaths in enumerate(divy_elements(dirList, n_procs)):
