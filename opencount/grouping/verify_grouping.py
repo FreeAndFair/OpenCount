@@ -560,12 +560,15 @@ class RunGroupingPanel(wx.Panel):
             for attr_type in attr_types:
                 for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
                     if common.is_digitbased(self.project, attr_type):
-                        attr_side = common.get_attr_prop(self.project, attr_type, 'side')
-                        path = frontpath if attr_side == 'front' else backpath
-                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[path]:
+                        # Note: digitgroup_results has correct side info
+                        sidepath = frontpath if frontpath in digitgroup_results else backpath
+                        if sidepath not in digitgroup_results:
+                            print "Uhoh, sidepath not in digitgroup_results"
+                            pdb.set_trace()
+                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[sidepath]:
                             if attrtype_i == attr_type:
                                 for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
-                                    digits_results.setdefault(digit, []).append((path, digitpatchpath))
+                                    digits_results.setdefault(digit, []).append((sidepath, digitpatchpath))
                                 break
                         continue
                     metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
@@ -751,6 +754,13 @@ def add_flipinfo(project, correctedflips, fields, csvpath):
     writefile.close()
 def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips):
     """
+    TODO: Instead of mutating the ballot_to_images.p mapping (which is
+    used by widgets previous in the pipeline), just create a new
+    mapping ballot_to_page.p, that maps:
+        {str ballotimgpath: int sidenumber}
+    This will fix the problem where the wrong ballot gets quarantined if
+    you re-run grouping on OpenCount.
+    
     Fix the ordering in the ballot_to_images mapping.
     dict bal2tmp: {str ballotid: str templateid}
     dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}

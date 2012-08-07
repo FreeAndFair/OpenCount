@@ -5,6 +5,7 @@ from scipy import misc
 sys.path.append('../')
 sys.path.append('../pixel_reg/')
 import pixel_reg.shared as sh
+import pixel_reg.part_match as part_match
 
 import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
@@ -782,15 +783,51 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
         assert len(results) == len(results_noflip)
         assert len(results) == len(results_flip)
         return results
+    
     if not bb:
         imgsize = misc.imread(imgpath, flatten=True).shape
         bb = (0, imgsize[0], 0, imgsize[1])
-    results_noflip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-                                   do_flip=False)
-    results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-                                 do_flip=True)
+    #results_noflip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
+    #                               do_flip=False)
+    #results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
+    #                             do_flip=True)
+    results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
+                                           num_digits, do_flip=False)
+    results_flip = part_match.digitParse(digit_exs, imgpaths, bb,
+                                         num_digits, do_flip=True)
+    results_noflip = munge_pm_results(results_noflip)
+    results_flip = munge_pm_results(results_flip)
     results_best = get_best_flip(results_noflip, results_flip)
     return results_best
+
+def munge_pm_results(results):
+    """ Converts results format from part_match.digitParse to the output
+    format of shared.digitParse.
+    Input:
+        lst results: List of [(imgpath_i, ocrstr_i, imgpatches_i, patchcoords_i, scores_i), ...]
+    Output:
+        lst of [(imgpath_i, ocrstr_i, meta_i), ...], where each meta_i
+        is a list of the form:
+            meta_i := (y1,y2,x1,x2,str digit, obj digitimg, float score)
+    """
+    out = []
+    for (imgpath, ocrstr, imgpatches, patchcoords, scores) in results:
+        meta = []
+        if not (len(imgpatches) == len(patchcoords) == len(scores)):
+            print "Uhoh, not all were equal length."
+            pdb.set_trace()
+        assert len(imgpatches) == len(patchcoords) == len(scores)
+        for i, (y1,y2,x1,x2) in enumerate(patchcoords):
+            try:
+                digit = ocrstr[i]
+            except Exception as e:
+                print e
+                pdb.set_trace()
+            digitimg = imgpatches[i]
+            score = scores[i]
+            meta.append((y1,y2,x1,x2,digit,digitimg,score))
+        out.append((imgpath, ocrstr, meta))
+    return out
 
 if __name__ == '__main__':
     class MyFrame(wx.Frame):
