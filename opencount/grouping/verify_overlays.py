@@ -174,6 +174,8 @@ class VerifyPanel(wx.Panel):
         self.okayButton = wx.Button(self.mainPanel, label='OK')
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
+        self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
+        self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
 
         # Buttons for MODE_YESNO
@@ -193,6 +195,7 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
@@ -237,11 +240,13 @@ class VerifyPanel(wx.Panel):
         elif self.mode == VerifyPanel.MODE_YESNO:
             self.okayButton.Hide()
             self.quarantineButton.Hide()
+            self.misclassifyButton.Hide()
             self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
             self.quarantineButton.Hide()
+            self.misclassifyButton.Hide()
             self.templateImg.Hide()
             self.diffImg.Hide()
             self.st3.Hide()
@@ -534,7 +539,29 @@ class VerifyPanel(wx.Panel):
             self.done_verifying()
         else:
             self.select_group(self.queue[0])
-            
+
+    def OnClickMisclassify(self, evt):
+        """ Used for MODE_NORMAL. Signals that the current attr patch
+        is misclassified (say, the wrong attribute type), and to handle
+        it *somehow*.
+        For digit-based attributes, this will re-run partmatch*, but with
+        an updated mismatch dict.
+        """
+        grouplabel = self.currentGroup.getcurrentgrouplabel()
+        attrtypestr, attrval = common.get_attrpair_grouplabel(self.project, grouplabel)
+        if not common.is_digitbased(attrtypestr):
+            dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
+supported for non-digitbased attributes. Perhaps you'd like to quarantine \
+this instead?", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        rejected_paths = []
+        for (sampleid, rlist, imgpatch) in self.currentGroup.elements:
+            # TODO: Do I append sampleid, or imgpath? 
+            rejected_paths.append(imgpath)
+        partmatch_fns.reject_match(rejected_paths, self.project)
 
     def is_done_verifying(self):
         return not self.queue

@@ -503,6 +503,8 @@ class GroupClass(object):
     ctrs = {}
     def __init__(self, elements, no_overlays=False):
         """
+        TODO: Is it really 'sampleid'? Or what?
+
         elements: A list of (str sampleid, rankedlist, str imgpatch),
                  where sampleid is the ID for this data point. 
                  rankedlist is a list of grouplabels, which should be
