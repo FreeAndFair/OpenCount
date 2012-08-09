@@ -365,6 +365,7 @@ def convertImagesWorkerMAP(job):
         balPerm=[checkBallotFlipped(balImL[0],tplImL[0])]
         order=[0]
     else:
+        # tplImL, balImL is already in [front, back] order
         balPerm=associateTwoPage(tplImL,balImL)
         order=balPerm[2]
 
@@ -449,6 +450,31 @@ def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMeta
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
     return worked
 
+def fix_ballot_order(balL, proj):
+    """ Using ballot_to_page, correct the image ordering (i.e. 'side0',
+    'side1', ...
+    Input:
+        lst balL: [imgpath_i, ...]
+        obj proj
+    Output:
+        [side0_path, side1_path, ...]
+    """
+    assert issubclass(type(balL), list)
+    bal2page = pickle.load(open(os.path.join(proj.projdir_path,
+                                             proj.ballot_to_page),
+                           'rb'))
+    out = [None]*len(balL)
+    for imgpath in balL:
+        if imgpath not in bal2page:
+            print "Uh oh, imgpath not in bal2page."
+            pdb.set_trace()
+        assert imgpath in bal2page
+        side = bal2page[imgpath]
+        assert issubclass(type(side), int)
+        out[side] = imgpath
+    assert None not in out
+    return out
+    
 def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
     targetDiffDir=targetDir+'_diffs'
 
@@ -465,7 +491,8 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
                 print e
                 pdb.set_trace()
             balL=bal2imgs[k]
-
+            # correct ordering in balL, via ballot_to_page
+            balL = fix_ballot_order(balL, project)
             bbsL=[]
             for tplP in tplL:
                 csvP=csvPattern % get_filename(tplP, NO_EXT=True)

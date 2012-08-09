@@ -774,6 +774,12 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         # Don't do anything, just return a 'dummy' correctedflips.
         # In this case, it is just sample_flips, since for singepage,
         # imageorder '0' is always 'front'
+        img2bal = pickle.load(open(pathjoin(project.image_to_ballot), 'rb'))
+        bal2pageP = pathjoin(project.projdir_path, project.ballot_to_page)
+        bal2page = {}
+        for imgpath in img2bal:
+            bal2page[imgpath] = 0
+        pickle.dump(bal2page, open(bal2pageP, 'wb'))
         return sample_flips
     else:
         b2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
@@ -811,8 +817,12 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
                 front = img1
                 back = img0
                 correctedflips[ballotid] = flip1, flip0
-            b2imgs[ballotid] = front, back
-        pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
+            bal2page[front] = 0
+            bal2page[back] = 1    # TODO: Account for more-than-2 pages
+            #b2imgs[ballotid] = front, back
+        #pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
+        pickle.dump(bal2page, open(pathjoin(project.projdir_path,
+                                            project.ballot_to_page), 'wb'))
         return correctedflips
 
 def determine_template(sample_attrs, template_attrs, project):
