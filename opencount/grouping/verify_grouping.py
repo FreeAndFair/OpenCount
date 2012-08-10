@@ -35,6 +35,29 @@ from wx.lib.pubsub import Publisher
 # Set by MainFrame
 TIMER = None
 
+"""
+Output Files:
+- <projdir>/grouping_results.csv
+    Contains the grouping output for each voted ballot image. This is
+    a csv with the following columns:
+      samplepath,templatepath,<attrtype_i>,...,flipped_front,flipped_back
+    This is outputted as soon as the user finishes verifying the overlays.
+- <projdir>/digitgroup_results.p
+    Contains the results of running digit-based OCR (i.e. the return 
+    value of do_digitocr_patches()). This is a dict that maps:
+      {ballotid: ((attrtype_i, ocrstr_i, meta_i, isflip_i, side_i), ...)
+    Where meta_i is a tuple containing numDigits-number of tuples:
+      (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i, float score)
+    This is created as soon as the digitocr computation is completed.
+- <projdir>/ballot_to_page.p
+    This is a dictionary that maps voted imgpath to its page, i.e:
+      0 := front/side0
+      1 := back/side1
+      2 := side2
+      ...
+    Created when grouping computation is complete.
+"""
+
 class GroupingMasterPanel(wx.Panel):
     """
     Panel that contains both RunGroupingPanel and VerifyGroupingPanel.
@@ -856,6 +879,9 @@ def munge_digit_results(results, all_attrtypes, project):
     def is_digitbased_grouplabel(grouplabel):
         """Assumes a digit-based grouplabel has a k,v with the
         k being 'digit'. Lousy assumption.
+        TODO: This 'digit' kv-pair assumption restricts this framework
+        to only allow one digit-based attribute at a time. We should
+        ideally be able to handle any number of digit-based attributes.
         """
         return common.get_propval(grouplabel, 'digit') != None
     img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
