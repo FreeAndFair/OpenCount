@@ -36,6 +36,22 @@ all the metadata that partmatch might need (like the rejected
 information, DP tables, etc).
 """
 
+def get_rejected_hashes(project):
+    """ Returns the rejected_hashes for the entire data set.
+    Returns:
+        {str imgpath: {str digit: ((y1,y2,x1,x2,side),...)}}
+        or None if rejected_hashes.p doesn't exist yet.
+    """
+    rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
+    if not os.path.exists(rej_path):
+        return None
+    return pickle.load(open(rej_path, 'rb'))
+    
+def save_rejected_hashes(project, rejected_hashes):
+    """ Saves the newer-version of rejected_hashes. """
+    rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
+    pickle.dump(rejected_hashes, open(rej_path, 'wb'))
+
 def reject_match(imgpath, digit, bbBox, proj):
     """
     Re-run partmatch*, but with the new knowledge that the digit patch
@@ -48,5 +64,5 @@ def reject_match(imgpath, digit, bbBox, proj):
     Output:
         New digit results.
     """
-    
+    pass
 

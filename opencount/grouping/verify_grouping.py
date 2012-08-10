@@ -179,7 +179,8 @@ class GroupingMasterPanel(wx.Panel):
             {grouplabel: list of GroupClasses}
         """
         attr_types = set(common.get_attrtypes(self.project))
-        # 0.) munge digit-grouping-results into results
+        # 0.) munge digit-grouping-results into results, since digitattrs
+        #     are still in 'digit' form.
         results = munge_digit_results(results, attr_types, self.project)
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
@@ -977,7 +978,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, rejected_hashes=None):
         dict bal2imgs
         dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
         obj project
-        dict rejected_hashes: maps {imgpath: {attrtype: ((y1,y2,x1,x2),side)}}
+        dict rejected_hashes: maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
     Output:
         A dict that maps:
           {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)

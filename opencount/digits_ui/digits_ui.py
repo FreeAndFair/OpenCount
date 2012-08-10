@@ -379,7 +379,14 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         gauge.Show()
 
     def on_tempmatchdone(self):
-        """Called when the template-matching thread is finished. """
+        """Called when the template-matching thread is finished. 
+        TODO: This makes the assumption that a GroupClass representing
+        a digit-based attribute will have a grouplabel whose kv-pairs
+        has a key 'digit', and its value is a digit ('0','1',etc.).
+        This seems to unnecessarily restrict the architecture to only
+        allowing one digit-based attribute in an election, which is
+        unnecessary.
+        """
         queue = self.queue
         exemplar_img = queue.get()
         matches = queue.get()

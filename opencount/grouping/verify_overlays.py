@@ -546,10 +546,22 @@ class VerifyPanel(wx.Panel):
         it *somehow*.
         For digit-based attributes, this will re-run partmatch*, but with
         an updated mismatch dict.
+        TODO: Assumes that groups representing a digitbased attribute
+              will have a grouplabel with a kv-pair whose key is 'digit',
+              and whose value is the digit string ('0','1',etc.). Lousy
+              assumption, since I think this restricts the architecture
+              to only allowing one digit-based attribute.
         """
+        def get_digitattrtypes(project):
+            attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+            digitattrs = []
+            for attr in attrs:
+                attrtypestr = common.get_attrtype_str(project, attr['attrs'])
+                if common.is_digitbased(project, attrtypestr):
+                    digitattrs.append(attrtypestr)
+            return digitattrs
         grouplabel = self.currentGroup.getcurrentgrouplabel()
-        attrtypestr, attrval = common.get_attrpair_grouplabel(self.project, grouplabel)
-        if not common.is_digitbased(attrtypestr):
+        if common.get_propval(grouplabel, 'digit') == None:
             dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
 supported for non-digitbased attributes. Perhaps you'd like to quarantine \
 this instead?", style=wx.OK)
@@ -557,6 +569,18 @@ this instead?", style=wx.OK)
             dlg.ShowModal()
             self.Enable()
             return
+        digitattrs = get_digitattrtypes(project)
+        if not digitattrs:
+            print "Uhoh, digitattrs was empty, when it shouldn't be."
+            pdb.set_trace()
+        assert len(digitattrs) > 0
+        if len(digitattrs) != 1:
+            print "Sorry, OpenCount only supports one digit-based attribute \
+at a time."
+            pdb.set_trace()
+            assert False
+
+        attrtypestr = digitattrs[0]  # Assume only one digit-based attr
         num_digits = common.get_numdigits(self.project, attrtypestr)
         w_img, h_img = self.project.imgsize
             
@@ -565,29 +589,30 @@ this instead?", style=wx.OK)
         digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         for attrdict in attrs:
-            attrtypestr = common.get_attrtypestr(self.project, attrdict['attrs'])
-            if common.is_digitbased(self.project, attrtypestr):
+            attrstr = common.get_attrtypestr(self.project, attrdict['attrs'])
+            if common.is_digitbased(self.project, attrstr):
                 y1 = int(round(attrdict['y1']*h_img))
                 y2 = int(round(attrdict['y2']*h_img))
                 x1 = int(round(attrdict['x1']*w_img))
                 x2 = int(round(attrdict['x2']*w_img))
                 side = attrdict['side']
-                digit_attrs[attrtypestr] = ((y1, y2, x1, x2), side)
+                digit_attrs[attrstr] = ((y1, y2, x1, x2), side)
+        if len(digit_attrs) != 1:
+            print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
+            pdb.set_trace()
+        assert len(digit_attrs) == 1
         # Construct rejected_hashes
-        rejected_hashes = {} # maps {imgpath: {attrtype: ((y1,y2,x1,x2),side)}}
+        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        # rejected_hashes maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
+        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            # TODO: Ugh, this isn't quite right. rejected_hashes needs to
-            # map {imgpath: {digit: ((y1,y2,x1,x2),side)}}, not attrtypestr.
-            # Somewhere, there is the notion of 'digits', but I don't remember
-            # if it got lost already.
-            rejected_hashes.setdefault(sampleid, {})[attrtypestr] = digit_attrs[attrtypestr]
-
+            rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
+        partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         groups = verify_grouping.do_digitocr_patches(bal2imgs, digit_patches, self.project,
                                                      rejected_hashes=rejected_hashes)
         
-
     def is_done_verifying(self):
         return not self.queue
         

@@ -790,10 +790,6 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None, rejected_hashes=None):
     if not bb:
         imgsize = misc.imread(imgpath, flatten=True).shape
         bb = (0, imgsize[0], 0, imgsize[1])
-    #results_noflip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-    #                               do_flip=False)
-    #results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-    #                             do_flip=True)
     results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
                                            num_digits, do_flip=False,
                                            rejected_hashes=rejected_hashes)
