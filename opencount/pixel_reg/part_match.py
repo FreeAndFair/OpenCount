@@ -60,7 +60,17 @@ def dt2(I):
     return (res,Rx,Ry)
 
 # partmatch
-def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
+def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
+    """
+    Applies digit-OCR to an image.
+    Input:
+        dict digit_hash: maps {str digit: img digit_exemplar}
+        obj I: image to search over (i.e. voted ballot)
+        int nDigits: number of digits to find
+        hspace: 
+        hackConstant:
+        dict rejected_hash: maps {str digit: (y1,y2,x1,x2)}
+    """
     # either load previously computed results or compute new
     matchMat = []
     count = 0;
@@ -69,7 +79,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash={}):
     for key in keys:
         Iout = sh.NCC(I,digit_hash[key])
         # mask out any part if given by param
-        if rejected_hash.has_key(key):
+        if rejected_hash and rejected_hash.has_key(key):
             bbMask = rejected_hash[key]
             i1 = max(0,bbMask[0]-(bbMask[1]-bbMask[0])/4)
             i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
@@ -159,7 +169,7 @@ def stackMax1(result_hash):
             
     return (maxSurf,symmax)
 
-def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
+def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rejected_hashes=None):
     """Runs NCC-based OCR on the images on imList.
     Input:
         dict digit_hash: maps {str digit: img digit_exemplar}
@@ -167,6 +177,9 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
         bbSearch: [y1,y2,x1,x2] coords to search on
         nDigits: an integer that specifies how many digits there are.
         do_flip: If True, then flip the image.
+        dict rejected_hashes: Contains all user rejections for each image,
+                              maps:
+                                {imgpath: {str digit: (y1,y2,x1,x2)}}
     Output:
         A list of results of the form:
             [(imgpath_i, ocr_str_i, imgpatches_i, patchcoords_i, scores_i), ... ]
@@ -182,10 +195,11 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20):
             I1 = sh.fastFlip(I1)
         #I1=sh.prepOpenCV(I1)
         I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+        rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
         # perform matching for all digits
         # return best matching digit
         # mask out 
-        res = pm1(digit_hash,I1,nDigits,hspace)
+        res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash)
 
         results.append((imP,res[0],res[1],res[2],res[3]))
 

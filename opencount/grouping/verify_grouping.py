@@ -448,6 +448,7 @@ class RunGroupingPanel(wx.Panel):
                        stopped,
                        deleteall=deleteall)
         if digitmunged:
+            
             digitgroup_results = do_digitocr_patches(bal2imgs, digitmunged, self.project)
             outpath = os.path.join(self.project.projdir_path, 
                                    self.project.digitgroup_results)
@@ -996,13 +997,14 @@ def make_digits_rankedlist(d, digits):
         result.append(grouplabel)
     return result
 
-def do_digitocr_patches(bal2imgs, digitattrs, project):
+def do_digitocr_patches(bal2imgs, digitattrs, project, rejected_hashes=None):
     """ For each digitbased attribute, run our NCC-OCR on the patch
     (using our digit exemplars).
     Input:
         dict bal2imgs
         dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
         obj project
+        dict rejected_hashes: maps {imgpath: {attrtype: ((y1,y2,x1,x2),side)}}
     Output:
         A dict that maps:
           {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
@@ -1077,7 +1079,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
         w, h = abs(x1-x2), abs(y1-y2)
-        c = 0.0
+        c = 0.0    # NO BORDER
         bb = [max(0, y1-int(round(h*c))),
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),
@@ -1087,17 +1089,17 @@ def do_digitocr_patches(bal2imgs, digitattrs, project):
             digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                          digit_exs,
                                          num_digits,
-                                         bb=bb)
+                                         bb=bb, rejected_hashes=rejected_hashes)
             digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
         else:
             results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb)
+                                               bb=bb, rejected_hashes=rejected_hashes)
             results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb)
+                                               bb=bb, rejected_hashes=rejected_hashes)
             digitparse_results = get_best_side(results_side0, results_side1)
         for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
             meta_out = []

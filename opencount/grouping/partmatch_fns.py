@@ -36,10 +36,17 @@ all the metadata that partmatch might need (like the rejected
 information, DP tables, etc).
 """
 
-def reject_match(imgpath, proj):
+def reject_match(imgpath, digit, bbBox, proj):
     """
     Re-run partmatch*, but with the new knowledge that the digit patch
     'imgpath' is incorrect.
+    Input:
+        str imgpath:
+        str digit: 
+        tuple bb: (y1, y2, x1, x2)
+        obj proj:
+    Output:
+        New digit results.
     """
-    pass
+    
 

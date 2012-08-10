@@ -745,7 +745,7 @@ class TextInputDialog(wx.Dialog):
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
 
-def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
+def do_digitocr(imgpaths, digit_exs, num_digits, bb=None, rejected_hashes=None):
     """ Basically does what sh.digitParse does, but checks to see if
     the image might be flipped, and if it is, to flip it and return
     the match with the best response.
@@ -754,6 +754,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
         dict digit_exs: maps {str digit: obj img}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
+        dict rejected_hashes: maps {imgpath: {str digit: bb}}
     Output:
         list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
     """
@@ -771,7 +772,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
         assert len(results_noflip) == len(results_flip)
         results_noflip = sorted(results_noflip, key=lambda tup: tup[0])
         results_flip = sorted(results_flip, key=lambda tup: tup[0])
-        results = []
+        results =p []
         for idx, (path_noflip, ocrstr_noflip, meta_noflip) in enumerate(results_noflip):
             path_flip, ocrstr_flip, meta_flip = results_flip[idx]
             assert path_noflip == path_flip
@@ -794,9 +795,11 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
     #results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
     #                             do_flip=True)
     results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                           num_digits, do_flip=False)
+                                           num_digits, do_flip=False,
+                                           rejected_hashes=rejected_hashes)
     results_flip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                         num_digits, do_flip=True)
+                                         num_digits, do_flip=True,
+                                         rejected_hashes=rejected_hashes)
     results_noflip = munge_pm_results(results_noflip)
     results_flip = munge_pm_results(results_flip)
     results_best = get_best_flip(results_noflip, results_flip)

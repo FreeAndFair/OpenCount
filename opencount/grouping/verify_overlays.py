@@ -557,11 +557,36 @@ this instead?", style=wx.OK)
             dlg.ShowModal()
             self.Enable()
             return
-        rejected_paths = []
-        for (sampleid, rlist, imgpatch) in self.currentGroup.elements:
-            # TODO: Do I append sampleid, or imgpath? 
-            rejected_paths.append(imgpath)
-        partmatch_fns.reject_match(rejected_paths, self.project)
+        num_digits = common.get_numdigits(self.project, attrtypestr)
+        w_img, h_img = self.project.imgsize
+            
+        bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        # Reconstruct digit_attrs
+        digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
+        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        for attrdict in attrs:
+            attrtypestr = common.get_attrtypestr(self.project, attrdict['attrs'])
+            if common.is_digitbased(self.project, attrtypestr):
+                y1 = int(round(attrdict['y1']*h_img))
+                y2 = int(round(attrdict['y2']*h_img))
+                x1 = int(round(attrdict['x1']*w_img))
+                x2 = int(round(attrdict['x2']*w_img))
+                side = attrdict['side']
+                digit_attrs[attrtypestr] = ((y1, y2, x1, x2), side)
+        # Construct rejected_hashes
+        rejected_hashes = {} # maps {imgpath: {attrtype: ((y1,y2,x1,x2),side)}}
+        for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+            # TODO: Do I append sampleid, or patchpath? 
+            # TODO: Is it sampleid, or imgpath?
+            # TODO: Ugh, this isn't quite right. rejected_hashes needs to
+            # map {imgpath: {digit: ((y1,y2,x1,x2),side)}}, not attrtypestr.
+            # Somewhere, there is the notion of 'digits', but I don't remember
+            # if it got lost already.
+            rejected_hashes.setdefault(sampleid, {})[attrtypestr] = digit_attrs[attrtypestr]
+
+        groups = verify_grouping.do_digitocr_patches(bal2imgs, digit_patches, self.project,
+                                                     rejected_hashes=rejected_hashes)
+        
 
     def is_done_verifying(self):
         return not self.queue
