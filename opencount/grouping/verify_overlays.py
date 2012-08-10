@@ -26,6 +26,86 @@ from scipy import misc
 import wx.lib.inspection
 from wx.lib.pubsub import Publisher
 
+"""
+Output Files:
+- <projdir>/verifygroupstate.p
+
+  This is a snapshot of the internal state of the VerifyOverlays widget.
+  It is just a pickle'd dictionary with the keys:
+    {'todo': list of all GroupClass objects. Note that this is a list of
+             /all/ GroupClass objects, including groups that the user
+             has already labeled. At one point, I considered keeping a
+             separate 'finished' list, but for simplicity we are not
+             doing this.
+     'finished': At one point, intended to store all labeled GroupClass
+                 instances, but this is unused - should always be the
+                 empty list [].}
+- <projdir>/<VeriyPanel.outfilepath>
+  Stores the raw results of completing the overlay verification, as a
+  pickle'd dictionary, where the keys are grouplabels, and the values
+  are a list of GroupClass instances:
+    {grouplabel: list of GroupClass's}
+  For OpenCount, I don't think it uses/saves this. 
+"""
+
+"""
+VerifyPanel Modes Documentation
+
+MODE_NORMAL: The general behavior, where you have N pre-determined
+group categories, and you want to assign each Group to some category.
+Actions:
+  'Ok' - All overlays look good, and they correspond to the currently-
+         selected label.
+  'Split' - The overlays look bad (i.e. two different categories are
+            present within the Group), so split the Group into two
+            different groups, in the hopes of separating the Group
+            into distinct groups with good overlays.
+  'Quarantine' - If something awful happened (say, the overlay doesn't
+                 look /at all/ correct (say, all white/all black), then
+                 signal that something bad happened. For OpenCount, this
+                 will quarantine the voted ballot(s) that this overlay
+                 came from.
+
+MODE_YESNO: Here, the UI is asking the following question: do these
+images correspond to some pre-determined group G? For instance, "Do
+these images correspond to a 'two'?"
+Actions:
+  'Yes' - All overlays look good, and they correspond to G. Choosing this
+          will set the currentGroup.index = VerifyPanel.YES_IDX.
+  'No' - These overlays definitely do /not/ correspond to G. Under the
+         hood, this adds currentGroup to the category labeled by grouplabel
+         VerifyPanel.GROUPLABEL_OTHER, and sets the group.index to
+         VerifyPanel.OTHER_IDX.
+  'Split' - See MODE_NORMAL.
+  'Quarantine' - See MODE_NORMAL.
+     
+MODE_YESNO2: Here, the UI is asking: "Given this set of images A, try
+to separate them into N groups. We don't know ahead of time how many
+groups there are. This would most likely be used to verify the results
+of some clustering algorithm (i.e. k-means). 
+Actions:
+  'Yes' - All overlays look good, and corresponds to some group G. 
+          Choosing this will set the currentGroup.index to
+          VerifyPanel.YES_IDX. In addition, this creates a grouplabel
+          with a unique ID (global counter) stuffed in. For instance,
+          if the grouplabel was originally:
+            GroupLabel('party' -> 'democrat')
+          Then the grouplabels outputted will be:
+            GroupLabel(('party', 'democrat') -> 0)
+            GroupLabel(('party', 'democrat') -> 1)
+            ...
+  'Split' - See MODE_NORMAL.
+  'Manually Label' - If the current group has an extremely messy overlay,
+                     due to many different categories being present, then
+                     the user might choose this option in order to avoid
+                     having to manually separate out the group into 
+                     its categories (which might take /many/ Splits).
+                     This sets the currentGroup.is_manual to True, and
+                     sets currentGroup.index to VerifyPanel.OTHER_INDEX.
+                     In addition, this adds the currentGroup to the 
+                     category labeled by VerifyPanel.GROUPLABEL_MANUAL.
+"""
+
 THRESHOLD = 0.9
 
 class VerifyPanel(wx.Panel):
@@ -106,19 +186,15 @@ class VerifyPanel(wx.Panel):
         self.patchsizer.Clear(False)
         self.patchsizer.SetRows(4)
         self.patchsizer.SetCols(2)
-        
         # HBOX 1 (min overlay)
         self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 2 (max overlay)
         self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 3 (template patch)
         self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 6 (diff patch)
         self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
@@ -150,7 +226,6 @@ class VerifyPanel(wx.Panel):
             sizer = self.overlays_layout_horiz()
         else:
             sizer = self.overlays_layout_vert()
-        self.Refresh()
         self.Layout()
         self.Refresh()
 
@@ -432,7 +507,7 @@ class VerifyPanel(wx.Panel):
             # DOGFOOD: Remove this hotfix after the Napa audits
             print "Silently throwing out duplicate group object."
             return
-        #assert group not in self.queue
+        assert group not in self.queue
         self.queue.insert(0, group)
         self.queueList.Insert(group.label, 0)
         
@@ -509,7 +584,8 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
 
     def OnClickYes(self, event):
-        """ Used for MODE_YESNO """
+        """ Used for MODE_YESNO. Indicates that the currentGroup does
+        correspond to some pre-determined group G. """
         self.add_finalize_group(self.currentGroup, VerifyPanel.YES_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -519,7 +595,8 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
         
     def OnClickNo(self, event):
-        """ USED FOR MODE_YESNO """
+        """ USED FOR MODE_YESNO. Indicates that the currentGroup does
+        NOT correspond to some pre-determined group G. """
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -529,8 +606,10 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
 
     def OnClickLabelManually(self, event):
-        """ USED FOR MODE_YESNO2. Signal that the user wants to 
-        manually label everything in this group. """
+        """ USED FOR MODE_YESNO2. Indicates that the user wants to 
+        manually label everything in this group, say, because the current
+        group has too many different types, and doesn't want to bother
+        repeatedly-performing Splits. """
         self.currentGroup.is_manual = True
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
@@ -631,9 +710,14 @@ at a time."
             # Hack: Treat each GroupClass as separate categories,
             # instead of trying to merge them. However, we do
             # merge the GROUPLABEL_MANUAL ones.
+            # TODO: In theory, we could
+            # merge GroupClasses from the same category, but I think
+            # the grouplabels currently have a 'counter'-like var that
+            # I don't remember the format.
             for group in self.finished:
                 grouplabel = group.orderedAttrVals[0]
                 if grouplabel in results:
+                    print "Uhoh, gropulabel was in results more than once."
                     pdb.set_trace()
                 assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel))
                 results[grouplabel] = [group]
@@ -653,12 +737,18 @@ at a time."
 
     def OnClickSplit(self, event):
         def collect_ids(newGroups):
+            """ Only used in MODE_YESNO2. """
             ids = {} # {str attrname: list of ids}
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
 
             for group in groups:
                 # In MODE_YESNO2, foo is a list of the form:
                 #    ((<attrtype>,), ID)
+
+                # TODO: group.orderedAttrVals[0] seems troubling. Shouldn't
+                # I be using the group.index or something? Or is it guaranteed
+                # that group.orderedAttrVals[0] is always the 'current-best'
+                # guess?
                 #foo = list(group.getcurrentgrouplabel())
                 foo = list(group.orderedAttrVals[0])
                 attrtype = tuple(sorted([t[0] for t in foo]))
@@ -668,6 +758,7 @@ at a time."
         def assign_new_id(group, ids):
             """ Given a new GroupClass, and a previous IDS mapping,
             find a unique new id for group to use.
+            Only used in MODE_YESNO2.
             """
             foo = list(group.getcurrentgrouplabel())
             k = tuple(sorted([t[0] for t in foo]))
