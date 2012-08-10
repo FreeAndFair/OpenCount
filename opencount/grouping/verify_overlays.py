@@ -710,10 +710,11 @@ at a time."
             # Hack: Treat each GroupClass as separate categories,
             # instead of trying to merge them. However, we do
             # merge the GROUPLABEL_MANUAL ones.
-            # TODO: In theory, we could
-            # merge GroupClasses from the same category, but I think
-            # the grouplabels currently have a 'counter'-like var that
-            # I don't remember the format.
+            # TODO: In theory, we could /try/ to
+            # merge GroupClasses from the same category, but this isn't
+            # trivial -- maybe we'd perform another clustering run on
+            # exemplars from each new cluster, but it doesn't seem
+            # worth it at the moment.
             for group in self.finished:
                 grouplabel = group.orderedAttrVals[0]
                 if grouplabel in results:
