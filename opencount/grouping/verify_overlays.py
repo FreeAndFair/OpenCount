@@ -415,7 +415,8 @@ class VerifyPanel(wx.Panel):
         self.SetSizer(self.sizer, deleteOld=False)
 
         if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
-            # Add a dummy group to each GroupClass
+            # Add a dummy group to each GroupClass's orderedAttrVals and
+            # rankedlists of the elements list.
             if self.mode == VerifyPanel.MODE_YESNO:
                 type, val = 'othertype', 'otherval'
             else:
@@ -689,8 +690,13 @@ at a time."
             # TODO: Is it sampleid, or imgpath?
             rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        print "Running partmatch digit-OCR computation with updated \
+rejected_hashes..."
         groups = verify_grouping.do_digitocr_patches(bal2imgs, digit_patches, self.project,
                                                      rejected_hashes=rejected_hashes)
+        print "Finished partmatch digit-OCR."
+        # TODO: Replace my internal groups (self.queue, etc.) with the
+        # GroupClass's given in GROUPS.
         
     def is_done_verifying(self):
         return not self.queue
@@ -699,8 +705,8 @@ at a time."
         """
         When the user has finished verifying all groups, do some
         fancy computing, and output results.
-        Outputs grouping results into the specified out-directory,
-        where each group gets outputted to an output file.
+        Outputs grouping results into the specified out-directory, if
+        given.
         """
         # First populate results
         print "DONE Verifying!"

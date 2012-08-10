@@ -518,11 +518,14 @@ class GroupClass(object):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
-        # orderedAttrVals is a list of grouplabels
+        # orderedAttrVals is a list of grouplabels, whose order is 
+        # predetermined by some score-metric. Should not change after it
+        # is first set.
         self.orderedAttrVals = []
         
-        # Index into the attrs_list that this group is currently using.
-        # Is 'finalized' in OnClickOK
+        # The index of the grouplabel (w.r.t self.orderedAttrVals) that
+        # this group ostensibly represents. Is 'finalized' when the user
+        # clicks 'Ok' within the VerifyOverlay UI.
         self.index = 0
 
         self.processElements()
@@ -541,7 +544,9 @@ class GroupClass(object):
             GroupClass.ctrs[self.label] += 1
         self.label += '-{0}'.format(GroupClass.ctrs[self.label])
 
-        self.is_manual = False # If this group should be labeled manually
+        # is_manual: A flag used by MODE_YESNO2, indicates this group
+        # should be labeled manually.
+        self.is_manual = False
 
     def get_overlays(self):
         """ Returns overlayMin, overlayMax """
@@ -590,8 +595,8 @@ class GroupClass(object):
 
     def processElements(self):
         """
-        Go through the elements generating overlays and compiling an ordered list
-        of candidate templates
+        Go through the elements, and compile an ordered list of
+        gropulabels for self.orderedAttrVals.
         """
         def sanitycheck_rankedlists(elements):
             """Make sure that the first grouplabel for each rankedlist
@@ -646,7 +651,6 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            # TODO: Is this groupname/patchDir setting correct?
             groups.append(GroupClass(group1))
             groups.append(GroupClass(group2))
             return groups
