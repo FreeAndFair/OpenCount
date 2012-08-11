@@ -776,7 +776,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None, rejected_hashes=None):
         assert len(results_noflip) == len(results_flip)
         results_noflip = sorted(results_noflip, key=lambda tup: tup[0])
         results_flip = sorted(results_flip, key=lambda tup: tup[0])
-        results =p []
+        results = []
         for idx, (path_noflip, ocrstr_noflip, meta_noflip) in enumerate(results_noflip):
             path_flip, ocrstr_flip, meta_flip = results_flip[idx]
             assert path_noflip == path_flip
