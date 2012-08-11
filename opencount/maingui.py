@@ -1175,7 +1175,9 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f.SetSize((400, 500))
                     f.Show()
                 else:
-                    f = open(self.project.attrgroup_results, 'rb')
+                    f = open(pathjoin(self.project.projdir_path,
+                                      self.project.attrgroup_results)
+                             , 'rb')
                     groupresults = pickle.load(f)
                     start_labelattrs(groupresults)
 

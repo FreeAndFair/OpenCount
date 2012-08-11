@@ -758,6 +758,7 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
         img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
         correctedflips = {}
+        bal2page = {}
         for ballotid, templateid in bal2tmp.iteritems():
             frontpath, backpath = b2imgs[ballotid]
             side0, side1 = None, None
