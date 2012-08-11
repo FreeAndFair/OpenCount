@@ -341,8 +341,7 @@ function correctly.""".format(len(lonely_tmpls))
         self.sanity_check_grouping()
         
         self.Refresh()
-        self.parent.Fit()
-        self.parent.Refresh()
+        self.Fit()
                 
     def update_frontbackpanel(self):
         """
