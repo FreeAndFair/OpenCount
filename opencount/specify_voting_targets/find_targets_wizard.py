@@ -1679,7 +1679,7 @@ class FrontBackPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.SetSizer(sizer)
         txt = wx.StaticText(self, label="Which side is this ballot image?")
         radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -1694,10 +1694,28 @@ class FrontBackPanel(wx.Panel):
         sizer.Add(txt)
         sizer.Add((10, 10))
         sizer.Add(radio_sizer)
+        btn_options = wx.Button(self, label="Options...")
+        btn_options.Bind(wx.EVT_BUTTON, self.onButton_options)
+        sizer.Add((10, 10))
+        sizer.Add(wx.StaticText(self, label="-Or-"))
+        sizer.Add((10, 10))
+        sizer.Add(btn_options)
         
     def onRadioButton(self, evt):
         front_val = self.radiobtn_front.GetValue()
         back_val = self.radiobtn_back.GetValue()
+
+    def onButton_options(self, evt):
+        dlg = FrontBackOptsDlg(self)
+        retval = dlg.ShowModal()
+        if retval == wx.ID_CANCEL:
+            return
+        if dlg.is_alternating == True:
+            # Update parent.frontback_map to alternate by sorted imgpath
+            for i, imgpath in enumerate(sorted(self.parent.frontback_map)):
+                # TODO: Support more-than 2 sides
+                newside = 'front' if i % 2 == 0 else 'back'
+                self.parent.frontback_map[imgpath] = newside
 
     def set_side(self, side):
         """
@@ -1713,6 +1731,43 @@ class FrontBackPanel(wx.Panel):
 
     def get_side(self):
         return 'front' if self.radiobtn_front.GetValue() else 'back'
+
+class FrontBackOptsDlg(wx.Dialog):
+    """
+    A dialog that is displayed when the user clicks the 'Options...'
+    button in the 'Front/Back' panel.
+
+    EndModal(int status):
+        wx.ID_OK  - user clicked 'Ok'
+        wx.ID_CANCEl - user clicked 'Cancel'
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, title="Front/Back Options", *args, **kwargs)
+
+        # 'Output' variables
+        self.is_alternating = False
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        txt1 = wx.StaticText(self, label="Blank ballots alternate \
+front/back.")
+        self.is_alt_chkbox = wx.CheckBox(self)
+        opt1_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        opt1_sizer.AddMany([(txt1,), (self.is_alt_chkbox,)])
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+        self.sizer.AddMany([(opt1_sizer,), (btn_sizer,)])
+        self.SetSizer(self.sizer)
+
+    def onButton_ok(self, evt):
+        if self.is_alt_chkbox.IsChecked() == True:
+            self.is_alternating = True
+        self.EndModal(wx.ID_OK)
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
 
 class WarnNoBoxesDialog(wx.Dialog):
     """
