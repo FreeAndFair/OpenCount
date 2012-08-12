@@ -698,12 +698,25 @@ at a time."
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
-        groups = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                 rejected_hashes=rejected_hashes)
-        print "Finished partmatch digit-OCR."
-        # TODO: Replace my internal groups (self.queue, etc.) with the
+        digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+                                                             rejected_hashes=rejected_hashes)
+        groups = digit_group.to_groupclasses(self.project, digitgroup_results)
+        print "Finished partmatch digit-OCR. Number of groups:", len(groups)
+        # Replace my internal groups (self.queue, etc.) with the
         # GroupClass's given in GROUPS.
-        
+        # 1.) First, remove all 'digit' Groups
+        for group in self.queue[:]:
+            # TODO: Assumes a GroupClass with a grouplabel with 'digit'
+            # signals that this is a Digit. This disallows:
+            #    a.) Multiple digit-based attributes
+            #    b.) A Ballot Attribute called 'digit'
+            for grouplabel in group.orderedAttrVals:
+                if common.get_propval(grouplabel, 'digit') != None:
+                    self.remove_group(group)
+                    break
+        # 2.) Now, add in all new 'digit' Groups
+        for new_digitgroup in groups:
+            self.add_group(new_digitgroup)
         
     def is_done_verifying(self):
         return not self.queue
