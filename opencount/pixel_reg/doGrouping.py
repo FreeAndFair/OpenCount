@@ -66,15 +66,16 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
 
 def evalPatchSimilarity(I,patch):
     # perform template matching and return the best match in expanded region
-
     I=sh.prepOpenCV(I)
     patch=sh.prepOpenCV(patch)
-    patchCv=cv.fromarray(np.copy(patch))
-    ICv=cv.fromarray(np.copy(I))
+    # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
+    # converting NP -> OpenCV.
+    patchCv=cv.fromarray(np.copy(patch) * 255.0)  
+    ICv=cv.fromarray(np.copy(I) * 255.0)
     # call template match
     outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
     cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
-    Iout=np.asarray(outCv)
+    Iout=np.asarray(outCv) / 255.0
     Iout[Iout==1.0]=0;
     YX=np.unravel_index(Iout.argmax(),Iout.shape)
 
@@ -82,12 +83,24 @@ def evalPatchSimilarity(I,patch):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
-
+    
     IO=imagesAlign(I1c,patch,type='rigid')
 
     Ireg=IO[1]
-    Ireg1=Ireg[5:Ireg.shape[0]-5,5:Ireg.shape[1]-5]
-    patch1=patch[5:patch.shape[0]-5,5:patch.shape[1]-5]
+    # C := num pixels to discard around border. This used to be C=5,
+    #      but this caused issues if one of the 'patch' dimensions was
+    #      <= 10, causing an ill-formed image patch.
+    C = 1    
+    Ireg1=Ireg[C:Ireg.shape[0]-C,C:Ireg.shape[1]-C]
+    patch1=patch[C:patch.shape[0]-C,C:patch.shape[1]-C]
+    if 0 in Ireg1.shape or 0 in patch1.shape:
+        print "Ireg.shape: {0}  patch.shape: {1}".format(Ireg.shape, patch.shape)
+        print "Ireg1.shape: {0}  patch1.shape: {1}".format(Ireg1.shape, patch1.shape)
+        misc.imsave("_evalpatchsim_ireg.png", Ireg)
+        misc.imsave("_evalpatchsim_patch.png", patch)
+        misc.imsave("_evalpatchsim_I1c.png", I1c)
+        misc.imsave("_evalpatchsim_I.png", I)
+        
     err = sh.variableDiffThr(Ireg1,patch1)
     diff=np.abs(Ireg1-patch1);
     # #estimate threshold for comparison: 
@@ -318,7 +331,6 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
 
         pool.close()
         pool.join()
-
     # collect results
     for job in jobs:
         f1=job[5]
@@ -437,9 +449,8 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
     # Note: because multi-page elections will have different
     # attribute types on the front and back sides, we will have
     # to modify the grouping to accomodate multi-page.
-
-
     attrMap=listAttributesNEW(patchesH)
+
     for attrName in attrMap.keys():
         groupByAttr(bal2imgs,attrName,attrMap,destDir,metaDir,stopped,verbose=verbose,deleteall=deleteall)
 

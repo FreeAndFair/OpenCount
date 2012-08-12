@@ -366,6 +366,7 @@ class RunGroupingPanel(wx.Panel):
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
+        """ Performs grouping. Passed to a separate thread. """
         num = 0
         for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
             for f in filenames:
@@ -419,8 +420,9 @@ class RunGroupingPanel(wx.Panel):
                        stopped,
                        deleteall=deleteall)
         if digitmunged:
-            
+            print "== Performing DigitOCR..."
             digitgroup_results = do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            print "== Finished DigitOCR."
             outpath = os.path.join(self.project.projdir_path, 
                                    self.project.digitgroup_results)
             f = open(outpath, 'wb')

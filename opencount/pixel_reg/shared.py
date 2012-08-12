@@ -5,6 +5,7 @@ import cv
 import csv
 import string
 import math
+import traceback
 import imagesAlign as lk
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
@@ -81,6 +82,7 @@ def variableDiffThr(I,patch):
     diff=np.abs(I-patch);
     # sum values of diffs above  threshold
     err=np.sum(diff[np.nonzero(diff>thr)])
+
     return err
 
 '''
