@@ -7,7 +7,7 @@ from util import MyGauge
 from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
-import util, common
+import util, common, partmatch_fns, digit_group
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
@@ -636,7 +636,7 @@ class VerifyPanel(wx.Panel):
             attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
             digitattrs = []
             for attr in attrs:
-                attrtypestr = common.get_attrtype_str(project, attr['attrs'])
+                attrtypestr = common.get_attrtype_str(attr['attrs'])
                 if common.is_digitbased(project, attrtypestr):
                     digitattrs.append(attrtypestr)
             return digitattrs
@@ -649,7 +649,7 @@ this instead?", style=wx.OK)
             dlg.ShowModal()
             self.Enable()
             return
-        digitattrs = get_digitattrtypes(project)
+        digitattrs = get_digitattrtypes(self.project)
         if not digitattrs:
             print "Uhoh, digitattrs was empty, when it shouldn't be."
             pdb.set_trace()
@@ -669,7 +669,7 @@ at a time."
         digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         for attrdict in attrs:
-            attrstr = common.get_attrtypestr(self.project, attrdict['attrs'])
+            attrstr = common.get_attrtype_str(attrdict['attrs'])
             if common.is_digitbased(self.project, attrstr):
                 y1 = int(round(attrdict['y1']*h_img))
                 y2 = int(round(attrdict['y2']*h_img))
@@ -685,6 +685,12 @@ at a time."
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        if rejected_hashes == None:
+            # Hasn't been created yet.
+            rejected_hashes = {}
+            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+                                                       self.project.rejected_hashes),
+                                              'wb'))
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
@@ -692,11 +698,12 @@ at a time."
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
-        groups = verify_grouping.do_digitocr_patches(bal2imgs, digit_patches, self.project,
-                                                     rejected_hashes=rejected_hashes)
+        groups = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+                                                 rejected_hashes=rejected_hashes)
         print "Finished partmatch digit-OCR."
         # TODO: Replace my internal groups (self.queue, etc.) with the
         # GroupClass's given in GROUPS.
+        
         
     def is_done_verifying(self):
         return not self.queue

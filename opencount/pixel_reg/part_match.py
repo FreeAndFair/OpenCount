@@ -69,7 +69,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         int nDigits: number of digits to find
         hspace: 
         hackConstant:
-        dict rejected_hash: maps {str digit: (y1,y2,x1,x2)}
+        dict rejected_hash: maps {str digit: ((y1,y2,x1,x2), str side)}
     """
     # either load previously computed results or compute new
     matchMat = []
@@ -80,7 +80,9 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         Iout = sh.NCC(I,digit_hash[key])
         # mask out any part if given by param
         if rejected_hash and rejected_hash.has_key(key):
-            bbMask = rejected_hash[key]
+            # TODO: I don't ever use the 'side'. Is it worth removing it
+            #       from rejected_hashes, or will it be used downstream?
+            bbMask = rejected_hash[key][0]
             i1 = max(0,bbMask[0]-(bbMask[1]-bbMask[0])/4)
             i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
             j1 = max(0,bbMask[2]-(bbMask[3]-bbMask[2])/4)
@@ -179,7 +181,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
         do_flip: If True, then flip the image.
         dict rejected_hashes: Contains all user rejections for each image,
                               maps:
-                                {imgpath: {str digit: (y1,y2,x1,x2)}}
+                                {imgpath: {str digit: ((y1,y2,x1,x2), str side)}}
     Output:
         A list of results of the form:
             [(imgpath_i, ocr_str_i, imgpatches_i, patchcoords_i, scores_i), ... ]

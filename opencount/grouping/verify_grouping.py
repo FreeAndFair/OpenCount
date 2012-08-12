@@ -8,7 +8,7 @@ from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
 from verify_overlays import VerifyPanel
-import label_attributes, util, common
+import label_attributes, util, common, digit_group
 
 from common import TABULATION_ONLY_ID, DIGIT_BASED_ID
 
@@ -421,7 +421,7 @@ class RunGroupingPanel(wx.Panel):
                        deleteall=deleteall)
         if digitmunged:
             print "== Performing DigitOCR..."
-            digitgroup_results = do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
             print "== Finished DigitOCR."
             outpath = os.path.join(self.project.projdir_path, 
                                    self.project.digitgroup_results)
