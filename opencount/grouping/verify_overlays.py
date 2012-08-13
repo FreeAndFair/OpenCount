@@ -507,6 +507,7 @@ class VerifyPanel(wx.Panel):
         if group in self.queue:
             # DOGFOOD: Remove this hotfix after the Napa audits
             print "Silently throwing out duplicate group object."
+            pdb.set_trace()
             return
         assert group not in self.queue
         self.queue.insert(0, group)
@@ -665,7 +666,7 @@ at a time."
         w_img, h_img = self.project.imgsize
             
         bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
-        # Reconstruct digit_attrs
+        # a.) Reconstruct digit_attrs
         digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         for attrdict in attrs:
@@ -681,7 +682,7 @@ at a time."
             print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
             pdb.set_trace()
         assert len(digit_attrs) == 1
-        # Construct rejected_hashes
+        # b.) Construct rejected_hashes
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
@@ -696,12 +697,21 @@ at a time."
             # TODO: Is it sampleid, or imgpath?
             rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        # c.) Construct list of patches already verified by the user
+        ignorelist = []
+        for group in self.finished:
+            if common.get_propval(group.getcurrentgrouplabel(), 'digit') != None:
+                for (sampleid, rlist, patchpath) in group.elements:
+                    ignorelist.append(sampleid)
+                    
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
         digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                             rejected_hashes=rejected_hashes)
-        groups = digit_group.to_groupclasses(self.project, digitgroup_results)
+                                                             rejected_hashes=rejected_hashes,
+                                                             ignorelist=ignorelist)
+        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results, ignorelist=ignorelist)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
+
         # Replace my internal groups (self.queue, etc.) with the
         # GroupClass's given in GROUPS.
         # 1.) First, remove all 'digit' Groups
@@ -715,8 +725,11 @@ rejected_hashes..."
                     self.remove_group(group)
                     break
         # 2.) Now, add in all new 'digit' Groups
+        # TODO: Discard all matches that deal with already-verified
+        #       patches, or tell partmatch to not search these imgs.
         for new_digitgroup in groups:
             self.add_group(new_digitgroup)
+        self.select_group(self.queue[0])
         
     def is_done_verifying(self):
         return not self.queue

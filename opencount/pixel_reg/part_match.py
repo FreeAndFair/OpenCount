@@ -83,10 +83,15 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
             # TODO: I don't ever use the 'side'. Is it worth removing it
             #       from rejected_hashes, or will it be used downstream?
             bbMask = rejected_hash[key][0]
-            i1 = max(0,bbMask[0]-(bbMask[1]-bbMask[0])/4)
-            i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
+            h = bbMask[1] - bbMask[0]
+            w = bbMask[3] - bbMask[2]
+            # Expand the mask-region a little bit
+            i1 = max(0,bbMask[0]-(h/4))
+            #i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
+            i2 = min(Iout.shape[0], bbMask[1]+(h/3))
             j1 = max(0,bbMask[2]-(bbMask[3]-bbMask[2])/4)
-            j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
+            j2 = min(Iout.shape[1], bbMask[3] + (w/3))
+            #j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
             Iout[i1:i2,j1:j2]=-2
 
         if len(matchMat) == 0:
