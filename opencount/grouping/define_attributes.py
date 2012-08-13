@@ -582,11 +582,31 @@ class IToolBar(ToolBar):
                
     def _populate_icons(self, iconsdir):
         ToolBar._populate_icons(self, iconsdir)
+        panel_addcustomattr = wx.Panel(self)
+        self.btn_addcustomattr = wx.Button(panel_addcustomattr, label="Custom Attr")
+        self.btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_customattr)
+        font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        txt = wx.StaticText(panel_addcustomattr, label="Add Custom Attribute", style=wx.ALIGN_CENTER)
+        txt.SetFont(font)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_addcustomattr.SetSizer(sizer)
+        sizer.Add(self.btn_addcustomattr)
+        sizer.Add(txt, flag=wx.ALIGN_CENTER)
+        self.sizer.Add(panel_addcustomattr)
+
         self.btn_addtarget.GetParent().GetChildren()[1].SetLabel("Define Ballot Attribute")
         self.btn_addcontest.GetParent().Hide()
         self.btn_splitcontest.GetParent().Hide()
         self.btn_undo.GetParent().Hide()
         self.btn_infercontests.GetParent().Hide()
+
+    def onButton_customattr(self, evt):
+        dlg = SpreadSheetAttrDialog(self)
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        path = dlg.path
+        print "User selected:", path
 
 class AttributeContextMenu(wx.Menu):
     """
@@ -684,6 +704,7 @@ class DefineAttributeDialog(wx.Dialog):
         self.sizer.Add(caption_txt, border=10, flag=wx.ALL)
         gridsizer = wx.GridSizer(rows=0, cols=2, hgap=5, vgap=3)
         btn_add = wx.Button(self, label="+")
+        self.btn_add = btn_add
         btn_add.Bind(wx.EVT_BUTTON, self.onButton_add)
         btn_add.Bind(wx.EVT_SET_FOCUS, self.onAddButtonFocus)
         
@@ -786,6 +807,49 @@ more than once. Please correct.".format(val),
         self._add_btn_panel(self.sizer)
         self.Fit()
         input_ctrl.SetFocus()
+
+class SpreadSheetAttrDialog(DefineAttributeDialog):
+    def __init__(self, parent, *args, **kwargs):
+        DefineAttributeDialog.__init__(self, parent, *args, **kwargs)
+
+        # The path that the user selected
+        self.path = ''
+
+        self.parent = parent
+        self.chkbox_is_digitbased.Disable()
+        self.chkbox_is_tabulationonly.Disable()
+        self.num_digits.Disable()
+        self.btn_add.Disable()
+        txt = wx.StaticText(self, label="Spreadsheet File:")
+        file_inputctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
+        self.file_inputctrl = file_inputctrl
+        btn_select = wx.Button(self, label="Select...")
+        btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(txt)
+        sizer.Add((10, 10))
+        sizer.Add(file_inputctrl, proportion=1, flag=wx.EXPAND)
+        sizer.Add(btn_select)
+
+        self.input_pairs.append((txt, file_inputctrl))
+
+        self.sizer.Insert(len(self.sizer.GetChildren())-1, sizer,
+                          proportion=1,
+                          border=10,
+                          flag=wx.EXPAND | wx.ALL)
+
+        self.Fit()
+
+    def onButton_selectfile(self, evt):
+        dlg = wx.FileDialog(self, message="Choose spreadsheet...",
+                            defaultDir='.', style=wx.FD_OPEN)
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        path = dlg.GetPath()
+        self.file_inputctrl.SetValue(path)
+        self.path = path
 
 def delete_attr_type(attrvalsdir, attrtype):
     """
