@@ -696,7 +696,7 @@ at a time."
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
             #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
-            rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_group.get_digitmatch_info(self.project, patchpath)
+            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         # c.) Construct list of patches already verified by the user
         ignorelist = []

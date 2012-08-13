@@ -69,7 +69,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         int nDigits: number of digits to find
         hspace: 
         hackConstant:
-        dict rejected_hash: maps {str digit: ((y1,y2,x1,x2), str side)}
+        dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i), ...]}
     """
     # either load previously computed results or compute new
     matchMat = []
@@ -78,21 +78,23 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
 
     for key in keys:
         Iout = sh.NCC(I,digit_hash[key])
+        #misc.imsave("_Iout_{0}.png".format(key), Iout)
         # mask out any part if given by param
         if rejected_hash and rejected_hash.has_key(key):
-            # TODO: I don't ever use the 'side'. Is it worth removing it
-            #       from rejected_hashes, or will it be used downstream?
-            bbMask = rejected_hash[key][0]
-            h = bbMask[1] - bbMask[0]
-            w = bbMask[3] - bbMask[2]
-            # Expand the mask-region a little bit
-            i1 = max(0,bbMask[0]-(h/4))
-            #i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
-            i2 = min(Iout.shape[0], bbMask[1]+(h/3))
-            j1 = max(0,bbMask[2]-(w/4))
-            j2 = min(Iout.shape[1], bbMask[3] + (w/3))
-            #j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
-            Iout[i1:i2,j1:j2]=-2
+            for (bbMask, side) in rejected_hash[key]:
+                # TODO: I don't ever use the 'side'. Is it worth removing it
+                #       from rejected_hashes, or will it be used downstream?
+                h = bbMask[1] - bbMask[0]
+                w = bbMask[3] - bbMask[2]
+                # Expand the mask-region a little bit
+                i1 = max(0,bbMask[0]-(h/4))
+                #i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
+                i2 = min(Iout.shape[0], bbMask[1]+(h/3))
+                j1 = max(0,bbMask[2]-(w/4))
+                j2 = min(Iout.shape[1], bbMask[3] + (w/3))
+                #j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
+                Iout[i1:i2,j1:j2]=-2
+            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
 
@@ -209,3 +211,4 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
         results.append((imP,res[0],res[1],res[2],res[3]))
 
     return results
+
