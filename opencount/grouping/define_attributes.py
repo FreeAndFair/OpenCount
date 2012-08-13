@@ -601,7 +601,15 @@ class IToolBar(ToolBar):
         self.btn_infercontests.GetParent().Hide()
 
     def onButton_customattr(self, evt):
-        dlg = SpreadSheetAttrDialog(self)
+        defattrspanel = self.parent.parent.GetParent()
+        attrtypes = defattrspanel.world.get_attrtypes()
+        if len(attrtypes) == 0:
+            print "No attrtypes created yet, can't do this."
+            d = wx.MessageDialog(self, message="You must first create \
+Ballot Attributes, before creating Custom Ballot Attributes.")
+            d.ShowModal()
+            return
+        dlg = SpreadSheetAttrDialog(self, attrtypes)
         status = dlg.ShowModal()
         if status == wx.ID_CANCEL:
             return
@@ -725,11 +733,13 @@ class DefineAttributeDialog(wx.Dialog):
         self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
 this patch be only used for tabulation (and not for grouping)?")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
+        self.numdigits_label = numdigits_label
         self.num_digits = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
         digit_sizer.Add(self.chkbox_is_digitbased, proportion=0)
         digit_sizer.Add(numdigits_label, proportion=0)
         digit_sizer.Add(self.num_digits, proportion=0)
+        self.digit_sizer = digit_sizer
         self.sizer.Add(digit_sizer, proportion=0)
         self.sizer.Add(self.chkbox_is_tabulationonly, proportion=0)
 
@@ -809,28 +819,39 @@ more than once. Please correct.".format(val),
         input_ctrl.SetFocus()
 
 class SpreadSheetAttrDialog(DefineAttributeDialog):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, attrtypes, *args, **kwargs):
         DefineAttributeDialog.__init__(self, parent, *args, **kwargs)
 
         # The path that the user selected
         self.path = ''
 
         self.parent = parent
-        self.chkbox_is_digitbased.Disable()
+        self.chkbox_is_digitbased.Hide()
+        self.num_digits.Hide()
+        self.numdigits_label.Hide()
         self.chkbox_is_tabulationonly.Disable()
-        self.num_digits.Disable()
-        self.btn_add.Disable()
+        self.btn_add.Hide()
+
         txt = wx.StaticText(self, label="Spreadsheet File:")
         file_inputctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
         self.file_inputctrl = file_inputctrl
         btn_select = wx.Button(self, label="Select...")
         btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
 
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(txt)
-        sizer.Add((10, 10))
-        sizer.Add(file_inputctrl, proportion=1, flag=wx.EXPAND)
-        sizer.Add(btn_select)
+        sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
+        txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
+        self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
+        sizer_horiz.Add(txt2)
+        sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer_file = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_file.Add(txt)
+        sizer_file.Add((10, 10))
+        sizer_file.Add(file_inputctrl, proportion=1, flag=wx.EXPAND)
+        sizer_file.Add(btn_select)
+        sizer.Add(sizer_file)
+        sizer.Add(sizer_horiz)
 
         self.input_pairs.append((txt, file_inputctrl))
 
