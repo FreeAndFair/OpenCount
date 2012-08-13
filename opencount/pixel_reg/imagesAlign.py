@@ -259,6 +259,9 @@ def pttransform(I,H0,pt0):
 def associateTwoPage(tplImL, balImL):
     # return permuted balImL list
     # check first template against both ballots
+    # Assumes that tplImL, balImL are ordered by imageorder, meaning:
+    #   tplImL := [frontpath, backpath]
+    #   balImL := [frontback, backpath]
     tpl0=tplImL[0]; tpl1=tplImL[1]
     bal0=balImL[0]; bal1=balImL[1]
 

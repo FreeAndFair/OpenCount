@@ -503,6 +503,8 @@ class GroupClass(object):
     ctrs = {}
     def __init__(self, elements, no_overlays=False):
         """
+        TODO: Is it really 'sampleid'? Or what?
+
         elements: A list of (str sampleid, rankedlist, str imgpatch),
                  where sampleid is the ID for this data point. 
                  rankedlist is a list of grouplabels, which should be
@@ -516,11 +518,14 @@ class GroupClass(object):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
-        # orderedAttrVals is a list of grouplabels
+        # orderedAttrVals is a list of grouplabels, whose order is 
+        # predetermined by some score-metric. Should not change after it
+        # is first set.
         self.orderedAttrVals = []
         
-        # Index into the attrs_list that this group is currently using.
-        # Is 'finalized' in OnClickOK
+        # The index of the grouplabel (w.r.t self.orderedAttrVals) that
+        # this group ostensibly represents. Is 'finalized' when the user
+        # clicks 'Ok' within the VerifyOverlay UI.
         self.index = 0
 
         self.processElements()
@@ -539,7 +544,9 @@ class GroupClass(object):
             GroupClass.ctrs[self.label] += 1
         self.label += '-{0}'.format(GroupClass.ctrs[self.label])
 
-        self.is_manual = False # If this group should be labeled manually
+        # is_manual: A flag used by MODE_YESNO2, indicates this group
+        # should be labeled manually.
+        self.is_manual = False
 
     def get_overlays(self):
         """ Returns overlayMin, overlayMax """
@@ -588,8 +595,8 @@ class GroupClass(object):
 
     def processElements(self):
         """
-        Go through the elements generating overlays and compiling an ordered list
-        of candidate templates
+        Go through the elements, and compile an ordered list of
+        gropulabels for self.orderedAttrVals.
         """
         def sanitycheck_rankedlists(elements):
             """Make sure that the first grouplabel for each rankedlist
@@ -644,7 +651,6 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            # TODO: Is this groupname/patchDir setting correct?
             groups.append(GroupClass(group1))
             groups.append(GroupClass(group2))
             return groups
@@ -743,7 +749,7 @@ class TextInputDialog(wx.Dialog):
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
 
-def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
+def do_digitocr(imgpaths, digit_exs, num_digits, bb=None, rejected_hashes=None):
     """ Basically does what sh.digitParse does, but checks to see if
     the image might be flipped, and if it is, to flip it and return
     the match with the best response.
@@ -752,6 +758,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
         dict digit_exs: maps {str digit: obj img}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
+        dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
     Output:
         list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
     """
@@ -787,14 +794,12 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None):
     if not bb:
         imgsize = misc.imread(imgpath, flatten=True).shape
         bb = (0, imgsize[0], 0, imgsize[1])
-    #results_noflip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-    #                               do_flip=False)
-    #results_flip = sh.digitParse(digit_exs, imgpaths, bb, num_digits,
-    #                             do_flip=True)
     results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                           num_digits, do_flip=False)
+                                           num_digits, do_flip=False,
+                                           rejected_hashes=rejected_hashes)
     results_flip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                         num_digits, do_flip=True)
+                                         num_digits, do_flip=True,
+                                         rejected_hashes=rejected_hashes)
     results_noflip = munge_pm_results(results_noflip)
     results_flip = munge_pm_results(results_flip)
     results_best = get_best_flip(results_noflip, results_flip)

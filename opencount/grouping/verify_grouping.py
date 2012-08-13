@@ -8,7 +8,7 @@ from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
 from verify_overlays import VerifyPanel
-import label_attributes, util, common
+import label_attributes, util, common, digit_group
 
 from common import TABULATION_ONLY_ID, DIGIT_BASED_ID
 
@@ -20,57 +20,14 @@ from pixel_reg.doGrouping import  groupImagesMAP, encodepath
 ## Import 3rd party libraries
 ####
 
-try:
-    import wx
-    import wx.animate
-    import wx.lib.scrolledpanel as scrolled
-except ImportError:
-    print """Error importing wxPython (wx) -- to install wxPython (a Python GUI \
-library), do (if you're on Linux):
-    sudo apt-get install python-wxgtk2.8
-Or go to: 
-    http://www.wxpython.org/download.php
-For OS-specific installation instructions."""
-    exit(1)
-try:
-    import Image
-except ImportError:
-    print """Error importing Python Imaging Library (Image) -- to install \
-PIL (a Python image-processing library), go to: 
-    http://www.pythonware.com/products/pil/"""
-    exit(1)
-try:
-    import cv2
-except ImportError:
-    print """Error importing OpenCV w/ Python bindings (cv2) -- to install \
-OpenCV w/ Python bindings (a Python computer vision library), go to:
-    http://opencv.willowgarage.com/wiki/
-Note that documentation for installing OpenCV is pretty shaky in my \
-experience. A README section on installing OpenCV will be created soon.
-On Windows, to get the Python bindings, copy/paste the contents of:
-    opencv/build/python/2.7 (or 2.6)
-to the site-packages directory of your Python installation, i.e.:
-    C:/Python27/Lib/site-packages/
-For me, this means that you'll be adding two new files to that directory:
-    C:/Python27/Lib/site-packages/cv.py
-    C:/Python27/Lib/site-packages/cv2.pyd"""
-    exit(1)
-try:
-    import numpy as np
-except ImportError:
-    print """Error importing Numpy (numpy) -- to install Numpy, go to:
-    http://numpy.scipy.org/
-You'll probably want to install both scipy and numpy."""
-    exit(1)
-    
-try:
-    import scipy
-    from scipy import misc
-except ImportError:
-    print """Error importing SciPy (scipy) -- to install Scipy, go to:
-    http://scipy.org/
-You'll probably want to install both scipy and numpy."""
-    exit(1)
+import wx
+import wx.animate
+import wx.lib.scrolledpanel as scrolled
+import Image
+import cv2
+import numpy as np
+import scipy
+from scipy import misc
     
 import wx.lib.inspection
 from wx.lib.pubsub import Publisher
@@ -78,15 +35,28 @@ from wx.lib.pubsub import Publisher
 # Set by MainFrame
 TIMER = None
 
-# Get this script's directory. Necessary to know this information
-# since the current working directory may not be the same as where
-# this script lives (which is important for loading resources like
-# imgs)
-try:
-    MYDIR = os.path.abspath(os.path.dirname(__file__))
-except NameError:
-    # This script is being run directly
-    MYDIR = os.path.abspath(sys.path[0])
+"""
+Output Files:
+- <projdir>/grouping_results.csv
+    Contains the grouping output for each voted ballot image. This is
+    a csv with the following columns:
+      samplepath,templatepath,<attrtype_i>,...,flipped_front,flipped_back
+    This is outputted as soon as the user finishes verifying the overlays.
+- <projdir>/digitgroup_results.p
+    Contains the results of running digit-based OCR (i.e. the return 
+    value of do_digitocr_patches()). This is a dict that maps:
+      {ballotid: ((attrtype_i, ocrstr_i, meta_i, isflip_i, side_i), ...)
+    Where meta_i is a tuple containing numDigits-number of tuples:
+      (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i, float score)
+    This is created as soon as the digitocr computation is completed.
+- <projdir>/ballot_to_page.p
+    This is a dictionary that maps voted imgpath to its page, i.e:
+      0 := front/side0
+      1 := back/side1
+      2 := side2
+      ...
+    Created when grouping computation is complete.
+"""
 
 class GroupingMasterPanel(wx.Panel):
     """
@@ -209,7 +179,8 @@ class GroupingMasterPanel(wx.Panel):
             {grouplabel: list of GroupClasses}
         """
         attr_types = set(common.get_attrtypes(self.project))
-        # 0.) munge digit-grouping-results into results
+        # 0.) munge digit-grouping-results into results, since digitattrs
+        #     are still in 'digit' form.
         results = munge_digit_results(results, attr_types, self.project)
         # munge results -> results_foo
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
@@ -395,6 +366,7 @@ class RunGroupingPanel(wx.Panel):
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
+        """ Performs grouping. Passed to a separate thread. """
         num = 0
         for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
             for f in filenames:
@@ -440,6 +412,7 @@ class RunGroupingPanel(wx.Panel):
                                 digitsresult[attrtype] = (bb, attrdict['side'])
             return result, digitsresult
         munged,digitmunged = munge_patches(self.patches, all_attrtypes, self.project)
+        print "== calling groupImagesMAP..."
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
                        munged,
@@ -447,8 +420,11 @@ class RunGroupingPanel(wx.Panel):
                        self.project.ballot_grouping_metadata, 
                        stopped,
                        deleteall=deleteall)
+        print "== finished groupImagesMAP"
         if digitmunged:
-            digitgroup_results = do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            print "== Performing DigitOCR..."
+            digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            print "== Finished DigitOCR."
             outpath = os.path.join(self.project.projdir_path, 
                                    self.project.digitgroup_results)
             f = open(outpath, 'wb')
@@ -486,8 +462,6 @@ class RunGroupingPanel(wx.Panel):
         except Exception as e:
             print e
             print "grouping can't output time to TIMER."
-
-        bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
         digitgroupresultsP = pathjoin(self.project.projdir_path,
                                       self.project.digitgroup_results)
         if os.path.exists(digitgroupresultsP):
@@ -499,124 +473,9 @@ class RunGroupingPanel(wx.Panel):
             f.close()
         else:
             digitgroup_results = {}
-
-        grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
-        digits_results = {} # maps {str digit: list of [ballotid, patchpath, isflip_i, side_i]}
-        attr_types = common.get_attrtypes(self.project)
-        def removedups_rankedlist(rlist):
-            """ Remove duplicates from the input ranked list, starting
-            from L-R. This is needed because Kais' NCC-OCR code can,
-            for a given digit patch, signal that a given digit D
-            occurs in the patch multiple times.
-            """
-            result = []
-            for i, grouplabel in enumerate(rlist):
-                if i >= len(rlist)-1:
-                    break
-                if grouplabel not in rlist[i+1:]:
-                    result.append(grouplabel)
-            return result
-        def sanity_check_rankedlist(rlist):
-            history = {}
-            for grouplabel in rlist:
-                if grouplabel in history:
-                    print 'woah, this grouplabel was already here:', grouplabel
-                    pdb.set_trace()
-                    return False
-                else:
-                    history[grouplabel] = True
-            return True
-        # Munge the grouping results into grouping_results, digit_results
-        ## Note: the isflip_i/side_i info from digitgroup_results gets
-        ## thrown out after these blocks. Do I actually need them?
-        if not util.is_multipage(self.project):
-            for attr_type in attr_types:
-                for ballotid in bal2imgs:
-                    if common.is_digitbased(self.project, attr_type):
-                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[ballotid]:
-                            if attrtype_i == attr_type:
-                                for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
-                                    digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
-                                break
-                        continue
-                    metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
-                    path = os.path.join(metadata_dir, encodepath(ballotid))
-                    try:
-                        file = open(path, 'rb')
-                    except IOError as e:
-                        print e
-                        pdb.set_trace()
-
-                    data = pickle.load(file)
-                    file.close()
-                    dummies = [0]*len(data["attrOrder"])
-                    attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
-                    bestMatch = attrs_list[0]
-                    patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
-                                    encodepath(ballotid)+'.png')
-                    grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
-        else:
-            # Multipage
-            for attr_type in attr_types:
-                for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
-                    if common.is_digitbased(self.project, attr_type):
-                        # Note: digitgroup_results has correct side info
-                        sidepath = frontpath if frontpath in digitgroup_results else backpath
-                        if sidepath not in digitgroup_results:
-                            print "Uhoh, sidepath not in digitgroup_results"
-                            pdb.set_trace()
-                        for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[sidepath]:
-                            if attrtype_i == attr_type:
-                                for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
-                                    digits_results.setdefault(digit, []).append((sidepath, digitpatchpath))
-                                break
-                        continue
-                    metadata_dir = self.project.ballot_grouping_metadata + '-' + attr_type
-                    path = os.path.join(metadata_dir, encodepath(ballotid))
-                    try:
-                        file = open(path, 'rb')
-                    except IOError as e:
-                        print e
-                        pdb.set_trace()
-                    # data is a dict with keys 'attrOrder', 'flipOrder', 'err',
-                    # and 'imageOrder'
-                    data = pickle.load(file)
-                    file.close()
-                    attrs_list = zip(data["attrOrder"], data["flipOrder"], data["imageOrder"])
-                    bestMatch = attrs_list[0]
-                    bestAttr = bestMatch[0]
-                    patchpath = pathjoin(self.project.extracted_precinct_dir+"-"+attr_type,
-                                    encodepath(ballotid)+'.png')
-                    grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
         
-        groups = []
-        # Seed initial set of groups
-        i = 1
-        # Note: grouping_results is structured strangely, hence, why
-        # the strange code below.
-        for attrtype, _dict in grouping_results.items():
-            for (attrval,flip,imgorder), samples in _dict.items():
-                #extracted_attr_dir = self.project.extracted_precinct_dir + '-' + attrtype
-                munged_samples = []
-                for (path, rankedlist, patchpath) in samples:
-                    maps = []
-                    for (attrval, flip, imgorder) in rankedlist:
-                        maps.append(((attrtype,attrval),('flip',flip),('imageorder',imgorder)))
-                    munged_samples.append((path,
-                                           [common.make_grouplabel(*mapping) for mapping in maps],
-                                          patchpath))
-                group = common.GroupClass(munged_samples)
-                groups.append(group)
-                i += 1
-        # Now, seed the digits stuff
-        alldigits = digits_results.keys()
-        for digit, lst in digits_results.iteritems():
-            elements = []
-            rankedlist = make_digits_rankedlist(digit, alldigits)
-            for (ballotid, patchpath) in lst:
-                elements.append((ballotid, rankedlist, patchpath))
-            group = common.GroupClass(elements)
-            groups.append(group)
+        groups = to_groupclasses(self.project)
+        groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
         self.parent.grouping_done(groups)
 
     def onButton_rerun(self, evt):
@@ -774,12 +633,19 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         # Don't do anything, just return a 'dummy' correctedflips.
         # In this case, it is just sample_flips, since for singepage,
         # imageorder '0' is always 'front'
+        img2bal = pickle.load(open(pathjoin(project.image_to_ballot), 'rb'))
+        bal2pageP = pathjoin(project.projdir_path, project.ballot_to_page)
+        bal2page = {}
+        for imgpath in img2bal:
+            bal2page[imgpath] = 0
+        pickle.dump(bal2page, open(bal2pageP, 'wb'))
         return sample_flips
     else:
         b2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
         tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
         img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
         correctedflips = {}
+        bal2page = {}
         for ballotid, templateid in bal2tmp.iteritems():
             frontpath, backpath = b2imgs[ballotid]
             side0, side1 = None, None
@@ -811,8 +677,12 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
                 front = img1
                 back = img0
                 correctedflips[ballotid] = flip1, flip0
-            b2imgs[ballotid] = front, back
-        pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
+            bal2page[front] = 0
+            bal2page[back] = 1    # TODO: Account for more-than-2 pages
+            #b2imgs[ballotid] = front, back
+        #pickle.dump(b2imgs, open(project.ballot_to_images, 'wb'))
+        pickle.dump(bal2page, open(pathjoin(project.projdir_path,
+                                            project.ballot_to_page), 'wb'))
         return correctedflips
 
 def determine_template(sample_attrs, template_attrs, project):
@@ -898,6 +768,9 @@ def munge_digit_results(results, all_attrtypes, project):
     def is_digitbased_grouplabel(grouplabel):
         """Assumes a digit-based grouplabel has a k,v with the
         k being 'digit'. Lousy assumption.
+        TODO: This 'digit' kv-pair assumption restricts this framework
+        to only allow one digit-based attribute at a time. We should
+        ideally be able to handle any number of digit-based attributes.
         """
         return common.get_propval(grouplabel, 'digit') != None
     img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
@@ -969,136 +842,106 @@ def correct_digit_labels(project, patchlabels):
             result.setdefault(imgpath, []).append((attrtype, correct_str))
     return result
 
-def make_digits_rankedlist(d, digits):
-    #intuition = {'0': ('8', '9', ''),
-    #             '1': '7',
-    #             '2': '0',
-    #             '3': '8',
-    #             '4': '5',
-    #             '5': '4',
-    #             '6': 
-    cpy = list(digits)[:]
-    cpy.remove(d)
-    cpy.insert(0, d)
-    result = []
-    for digit in cpy:
-        grouplabel = common.make_grouplabel(('digit', digit))
-        result.append(grouplabel)
-    return result
-
-def do_digitocr_patches(bal2imgs, digitattrs, project):
-    """ For each digitbased attribute, run our NCC-OCR on the patch
-    (using our digit exemplars).
+def to_groupclasses(proj):
+    """ Converts the result of grouping (non-digits) to a list of 
+    GroupClass instances.
     Input:
-        dict bal2imgs
-        dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
-        obj project
+        obj proj:
     Output:
-        A dict that maps:
-          {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
-        where meta_i is a tuple containing numDigits tuples:
-          (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i, score)
+        List of GroupClass instances for non-digit attributes.
     """
-    def make_digithashmap(project):
-        digitmap = {} # maps {str digit: obj img}
-        digit_exemplarsdir = os.path.join(project.projdir_path,
-                                          project.digit_exemplars_outdir)
-        digitdirs = os.listdir(digit_exemplarsdir)
-        for digitdir in digitdirs:
-            # Assumes this has directories of the form:
-            #    0_examples/*.png
-            #    1_examples/*.png
-            #    ...
-            fullpath = os.path.join(digit_exemplarsdir, digitdir)
-            digit = digitdir.split('_')[0]
-            for dirpath, dirnames, filenames in os.walk(fullpath):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    # This currently scans through all images, unnecessary.
-                    # We only need just one.
-                    imgpath = os.path.join(dirpath, imgname)
-                    img = sh.standardImread(imgpath, flatten=True)
-                    digitmap[digit] = img
-        return digitmap
-    def all_ballotimgs(bal2imgs, side):
-        """ Generate all ballot images for either side 0 or 1. """
-        paths = []
-        for ballotid, path in bal2imgs.iteritems():
-            if side == 0:
-                paths.append(path[0])
-            else:
-                paths.append(path[1])
-        return paths
-    def get_best_side(results_side0, results_side1):
-        """ Given the result of digitParse for both side0 and side1,
-        return the 'best' results where, for each imgpath, we return
-        the match for whose side's score is maximized.
-        Input:
-            list results_side0: [(imgpath0_i, ocr_str_i, meta_i, isflip_i), ...]
-            list results_side1: [(imgpath1_i, ocr_str_i, meta_i, isflip_i), ...]
-        Output:
-            list of [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
+    bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
+
+    grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
+    attr_types = common.get_attrtypes(proj)
+    def removedups_rankedlist(rlist):
+        """ Remove duplicates from the input ranked list, starting
+        from L-R. This is needed because Kais' NCC-OCR code can,
+        for a given digit patch, signal that a given digit D
+        occurs in the patch multiple times.
         """
-        assert len(results_side0) == len(results_side1)
-        results_side0 = sorted(results_side0, key=lambda tup: tup[0])
-        results_side1 = sorted(results_side1, key=lambda tup: tup[0])
-        results = []
-        for idx, (path_side0, ocrstr_side0, meta_side0, isflip_side0) in enumerate(results_side0):
-            path_side1, ocrstr_side1, meta_side1, isflip_side1 = results_side1[idx]
-            assert len(meta_side0) == len(meta_side1)
-            avg_score_side0 = sum([tup[6] for tup in meta_side0]) / float(len(meta_side0))
-            avg_score_side1 = sum([tup[6] for tup in meta_side1]) / float(len(meta_side1))
-            if avg_score_side0 > avg_score_side1:
-                results.append((path_side0, ocrstr_side0, meta_side0, isflip_side0, 0))
+        result = []
+        for i, grouplabel in enumerate(rlist):
+            if i >= len(rlist)-1:
+                break
+            if grouplabel not in rlist[i+1:]:
+                result.append(grouplabel)
+        return result
+    def sanity_check_rankedlist(rlist):
+        history = {}
+        for grouplabel in rlist:
+            if grouplabel in history:
+                print 'woah, this grouplabel was already here:', grouplabel
+                pdb.set_trace()
+                return False
             else:
-                results.append((path_side1, ocrstr_side1, meta_side1, isflip_side1, 1))
-        assert (len(results) == len(results_side0)) and (len(results) == len(results_side1))
-        return results
-        
-    result = {}
-    digit_exs = make_digithashmap(project)
-    numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
-                                                 project.num_digitsmap),
-                                    'rb'))
-    voteddigits_dir = os.path.join(project.projdir_path,
-                                     project.voteddigits_dir)
-    img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
-    ctr = 0
-    for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
-        num_digits = numdigitsmap[digitattr]
-        # add some border, for good measure
-        w, h = abs(x1-x2), abs(y1-y2)
-        c = 0.0
-        bb = [max(0, y1-int(round(h*c))),
-              y2+int(round(h*c)),
-              max(0, x1-int(round(w*c))),
-              x2+int(round(w*c))]
-        # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
-        if not util.is_multipage(project):
-            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
-                                         digit_exs,
-                                         num_digits,
-                                         bb=bb)
-            digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
-        else:
-            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
-                                               digit_exs,
-                                               num_digits,
-                                               bb=bb)
-            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
-                                               digit_exs,
-                                               num_digits,
-                                               bb=bb)
-            digitparse_results = get_best_side(results_side0, results_side1)
-        for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
-            meta_out = []
-            for (y1,y2,x1,x2, digit, digitimg, score) in meta:
-                rootdir = os.path.join(voteddigits_dir, digit)
-                util.create_dirs(rootdir)
-                outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
-                scipy.misc.imsave(outpath, digitimg)
-                meta_out.append((y1,y2,x1,x2, digit, outpath, score))
-                ctr += 1
-            ballotid = img2bal[imgpath]
-            result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
-    return result
-    
+                history[grouplabel] = True
+        return True
+    # Munge the grouping results into grouping_results, digit_results
+    ## Note: the isflip_i/side_i info from digitgroup_results gets
+    ## thrown out after these blocks. Do I actually need them?
+    if not util.is_multipage(proj):
+        for attr_type in attr_types:
+            if common.is_digitbased(proj, attr_type):
+                continue
+            for ballotid in bal2imgs:
+                metadata_dir = proj.ballot_grouping_metadata + '-' + attr_type
+                path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                try:
+                    file = open(path, 'rb')
+                except IOError as e:
+                    print e
+                    pdb.set_trace()
+
+                data = pickle.load(file)
+                file.close()
+                dummies = [0]*len(data["attrOrder"])
+                attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
+                bestMatch = attrs_list[0]
+                patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
+                                     util.encodepath(ballotid)+'.png')
+                grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
+    else:
+        # Multipage
+        for attr_type in attr_types:
+            if common.is_digitbased(proj, attr_type):
+                continue
+            for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
+                metadata_dir = proj.ballot_grouping_metadata + '-' + attr_type
+                path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                try:
+                    file = open(path, 'rb')
+                except IOError as e:
+                    print e
+                    pdb.set_trace()
+                # data is a dict with keys 'attrOrder', 'flipOrder', 'err',
+                # and 'imageOrder'
+                data = pickle.load(file)
+                file.close()
+                attrs_list = zip(data["attrOrder"], data["flipOrder"], data["imageOrder"])
+                bestMatch = attrs_list[0]
+                bestAttr = bestMatch[0]
+                patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
+                                     util.encodepath(ballotid)+'.png')
+                grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
+
+    groups = []
+    # Seed initial set of groups
+    i = 1
+    # Note: grouping_results is structured strangely, hence, why
+    # the strange code below.
+    for attrtype, _dict in grouping_results.items():
+        for (attrval,flip,imgorder), samples in _dict.items():
+            #extracted_attr_dir = self.proj.extracted_precinct_dir + '-' + attrtype
+            munged_samples = []
+            for (path, rankedlist, patchpath) in samples:
+                maps = []
+                for (attrval, flip, imgorder) in rankedlist:
+                    maps.append(((attrtype,attrval),('flip',flip),('imageorder',imgorder)))
+                munged_samples.append((path,
+                                       [common.make_grouplabel(*mapping) for mapping in maps],
+                                      patchpath))
+            group = common.GroupClass(munged_samples)
+            groups.append(group)
+            i += 1
+    return groups

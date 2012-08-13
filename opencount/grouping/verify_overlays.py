@@ -7,7 +7,7 @@ from util import MyGauge
 from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
-import util, common
+import util, common, partmatch_fns, digit_group
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
@@ -25,6 +25,86 @@ import scipy
 from scipy import misc    
 import wx.lib.inspection
 from wx.lib.pubsub import Publisher
+
+"""
+Output Files:
+- <projdir>/verifygroupstate.p
+
+  This is a snapshot of the internal state of the VerifyOverlays widget.
+  It is just a pickle'd dictionary with the keys:
+    {'todo': list of all GroupClass objects. Note that this is a list of
+             /all/ GroupClass objects, including groups that the user
+             has already labeled. At one point, I considered keeping a
+             separate 'finished' list, but for simplicity we are not
+             doing this.
+     'finished': At one point, intended to store all labeled GroupClass
+                 instances, but this is unused - should always be the
+                 empty list [].}
+- <projdir>/<VeriyPanel.outfilepath>
+  Stores the raw results of completing the overlay verification, as a
+  pickle'd dictionary, where the keys are grouplabels, and the values
+  are a list of GroupClass instances:
+    {grouplabel: list of GroupClass's}
+  For OpenCount, I don't think it uses/saves this. 
+"""
+
+"""
+VerifyPanel Modes Documentation
+
+MODE_NORMAL: The general behavior, where you have N pre-determined
+group categories, and you want to assign each Group to some category.
+Actions:
+  'Ok' - All overlays look good, and they correspond to the currently-
+         selected label.
+  'Split' - The overlays look bad (i.e. two different categories are
+            present within the Group), so split the Group into two
+            different groups, in the hopes of separating the Group
+            into distinct groups with good overlays.
+  'Quarantine' - If something awful happened (say, the overlay doesn't
+                 look /at all/ correct (say, all white/all black), then
+                 signal that something bad happened. For OpenCount, this
+                 will quarantine the voted ballot(s) that this overlay
+                 came from.
+
+MODE_YESNO: Here, the UI is asking the following question: do these
+images correspond to some pre-determined group G? For instance, "Do
+these images correspond to a 'two'?"
+Actions:
+  'Yes' - All overlays look good, and they correspond to G. Choosing this
+          will set the currentGroup.index = VerifyPanel.YES_IDX.
+  'No' - These overlays definitely do /not/ correspond to G. Under the
+         hood, this adds currentGroup to the category labeled by grouplabel
+         VerifyPanel.GROUPLABEL_OTHER, and sets the group.index to
+         VerifyPanel.OTHER_IDX.
+  'Split' - See MODE_NORMAL.
+  'Quarantine' - See MODE_NORMAL.
+     
+MODE_YESNO2: Here, the UI is asking: "Given this set of images A, try
+to separate them into N groups. We don't know ahead of time how many
+groups there are. This would most likely be used to verify the results
+of some clustering algorithm (i.e. k-means). 
+Actions:
+  'Yes' - All overlays look good, and corresponds to some group G. 
+          Choosing this will set the currentGroup.index to
+          VerifyPanel.YES_IDX. In addition, this creates a grouplabel
+          with a unique ID (global counter) stuffed in. For instance,
+          if the grouplabel was originally:
+            GroupLabel('party' -> 'democrat')
+          Then the grouplabels outputted will be:
+            GroupLabel(('party', 'democrat') -> 0)
+            GroupLabel(('party', 'democrat') -> 1)
+            ...
+  'Split' - See MODE_NORMAL.
+  'Manually Label' - If the current group has an extremely messy overlay,
+                     due to many different categories being present, then
+                     the user might choose this option in order to avoid
+                     having to manually separate out the group into 
+                     its categories (which might take /many/ Splits).
+                     This sets the currentGroup.is_manual to True, and
+                     sets currentGroup.index to VerifyPanel.OTHER_INDEX.
+                     In addition, this adds the currentGroup to the 
+                     category labeled by VerifyPanel.GROUPLABEL_MANUAL.
+"""
 
 THRESHOLD = 0.9
 
@@ -106,19 +186,15 @@ class VerifyPanel(wx.Panel):
         self.patchsizer.Clear(False)
         self.patchsizer.SetRows(4)
         self.patchsizer.SetCols(2)
-        
         # HBOX 1 (min overlay)
         self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 2 (max overlay)
         self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 3 (template patch)
         self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
-        
         # HBOX 6 (diff patch)
         self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
         self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
@@ -150,7 +226,6 @@ class VerifyPanel(wx.Panel):
             sizer = self.overlays_layout_horiz()
         else:
             sizer = self.overlays_layout_vert()
-        self.Refresh()
         self.Layout()
         self.Refresh()
 
@@ -174,6 +249,8 @@ class VerifyPanel(wx.Panel):
         self.okayButton = wx.Button(self.mainPanel, label='OK')
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
+        self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
+        self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
 
         # Buttons for MODE_YESNO
@@ -193,6 +270,7 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
@@ -237,11 +315,13 @@ class VerifyPanel(wx.Panel):
         elif self.mode == VerifyPanel.MODE_YESNO:
             self.okayButton.Hide()
             self.quarantineButton.Hide()
+            self.misclassifyButton.Hide()
             self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
             self.quarantineButton.Hide()
+            self.misclassifyButton.Hide()
             self.templateImg.Hide()
             self.diffImg.Hide()
             self.st3.Hide()
@@ -335,7 +415,8 @@ class VerifyPanel(wx.Panel):
         self.SetSizer(self.sizer, deleteOld=False)
 
         if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
-            # Add a dummy group to each GroupClass
+            # Add a dummy group to each GroupClass's orderedAttrVals and
+            # rankedlists of the elements list.
             if self.mode == VerifyPanel.MODE_YESNO:
                 type, val = 'othertype', 'otherval'
             else:
@@ -426,8 +507,9 @@ class VerifyPanel(wx.Panel):
         if group in self.queue:
             # DOGFOOD: Remove this hotfix after the Napa audits
             print "Silently throwing out duplicate group object."
+            pdb.set_trace()
             return
-        #assert group not in self.queue
+        assert group not in self.queue
         self.queue.insert(0, group)
         self.queueList.Insert(group.label, 0)
         
@@ -504,7 +586,8 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
 
     def OnClickYes(self, event):
-        """ Used for MODE_YESNO """
+        """ Used for MODE_YESNO. Indicates that the currentGroup does
+        correspond to some pre-determined group G. """
         self.add_finalize_group(self.currentGroup, VerifyPanel.YES_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -514,7 +597,8 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
         
     def OnClickNo(self, event):
-        """ USED FOR MODE_YESNO """
+        """ USED FOR MODE_YESNO. Indicates that the currentGroup does
+        NOT correspond to some pre-determined group G. """
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
         if self.is_done_verifying():
@@ -524,8 +608,10 @@ class VerifyPanel(wx.Panel):
             self.select_group(self.queue[0])
 
     def OnClickLabelManually(self, event):
-        """ USED FOR MODE_YESNO2. Signal that the user wants to 
-        manually label everything in this group. """
+        """ USED FOR MODE_YESNO2. Indicates that the user wants to 
+        manually label everything in this group, say, because the current
+        group has too many different types, and doesn't want to bother
+        repeatedly-performing Splits. """
         self.currentGroup.is_manual = True
         self.add_finalize_group(self.currentGroup, VerifyPanel.OTHER_IDX)
         self.remove_group(self.currentGroup)
@@ -534,8 +620,118 @@ class VerifyPanel(wx.Panel):
             self.done_verifying()
         else:
             self.select_group(self.queue[0])
-            
 
+    def OnClickMisclassify(self, evt):
+        """ Used for MODE_NORMAL. Signals that the current attr patch
+        is misclassified (say, the wrong attribute type), and to handle
+        it *somehow*.
+        For digit-based attributes, this will re-run partmatch*, but with
+        an updated mismatch dict.
+        TODO: Assumes that groups representing a digitbased attribute
+              will have a grouplabel with a kv-pair whose key is 'digit',
+              and whose value is the digit string ('0','1',etc.). Lousy
+              assumption, since I think this restricts the architecture
+              to only allowing one digit-based attribute.
+        """
+        def get_digitattrtypes(project):
+            attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+            digitattrs = []
+            for attr in attrs:
+                attrtypestr = common.get_attrtype_str(attr['attrs'])
+                if common.is_digitbased(project, attrtypestr):
+                    digitattrs.append(attrtypestr)
+            return digitattrs
+        grouplabel = self.currentGroup.getcurrentgrouplabel()
+        if common.get_propval(grouplabel, 'digit') == None:
+            dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
+supported for non-digitbased attributes. Perhaps you'd like to quarantine \
+this instead?", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        digitattrs = get_digitattrtypes(self.project)
+        if not digitattrs:
+            print "Uhoh, digitattrs was empty, when it shouldn't be."
+            pdb.set_trace()
+        assert len(digitattrs) > 0
+        if len(digitattrs) != 1:
+            print "Sorry, OpenCount only supports one digit-based attribute \
+at a time."
+            pdb.set_trace()
+            assert False
+
+        attrtypestr = digitattrs[0]  # Assume only one digit-based attr
+        num_digits = common.get_numdigits(self.project, attrtypestr)
+        w_img, h_img = self.project.imgsize
+            
+        bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        # a.) Reconstruct digit_attrs
+        digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
+        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        for attrdict in attrs:
+            attrstr = common.get_attrtype_str(attrdict['attrs'])
+            if common.is_digitbased(self.project, attrstr):
+                y1 = int(round(attrdict['y1']*h_img))
+                y2 = int(round(attrdict['y2']*h_img))
+                x1 = int(round(attrdict['x1']*w_img))
+                x2 = int(round(attrdict['x2']*w_img))
+                side = attrdict['side']
+                digit_attrs[attrstr] = ((y1, y2, x1, x2), side)
+        if len(digit_attrs) != 1:
+            print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
+            pdb.set_trace()
+        assert len(digit_attrs) == 1
+        # b.) Construct rejected_hashes
+        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        # rejected_hashes maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
+        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        if rejected_hashes == None:
+            # Hasn't been created yet.
+            rejected_hashes = {}
+            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+                                                       self.project.rejected_hashes),
+                                              'wb'))
+        for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+            # TODO: Do I append sampleid, or patchpath? 
+            # TODO: Is it sampleid, or imgpath?
+            #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
+            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
+        partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        # c.) Construct list of patches already verified by the user
+        ignorelist = []
+        for group in self.finished:
+            if common.get_propval(group.getcurrentgrouplabel(), 'digit') != None:
+                for (sampleid, rlist, patchpath) in group.elements:
+                    ignorelist.append(sampleid)
+                    
+        print "Running partmatch digit-OCR computation with updated \
+rejected_hashes..."
+        digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+                                                             rejected_hashes=rejected_hashes)
+        digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
+        print "Finished partmatch digit-OCR. Number of groups:", len(groups)
+
+        # Replace my internal groups (self.queue, etc.) with the
+        # GroupClass's given in GROUPS.
+        # 1.) First, remove all 'digit' Groups
+        for group in self.queue[:]:
+            # TODO: Assumes a GroupClass with a grouplabel with 'digit'
+            # signals that this is a Digit. This disallows:
+            #    a.) Multiple digit-based attributes
+            #    b.) A Ballot Attribute called 'digit'
+            for grouplabel in group.orderedAttrVals:
+                if common.get_propval(grouplabel, 'digit') != None:
+                    self.remove_group(group)
+                    break
+        # 2.) Now, add in all new 'digit' Groups
+        # TODO: Discard all matches that deal with already-verified
+        #       patches, or tell partmatch to not search these imgs.
+        for new_digitgroup in groups:
+            self.add_group(new_digitgroup)
+        self.select_group(self.queue[0])
+        
     def is_done_verifying(self):
         return not self.queue
         
@@ -543,8 +739,8 @@ class VerifyPanel(wx.Panel):
         """
         When the user has finished verifying all groups, do some
         fancy computing, and output results.
-        Outputs grouping results into the specified out-directory,
-        where each group gets outputted to an output file.
+        Outputs grouping results into the specified out-directory, if
+        given.
         """
         # First populate results
         print "DONE Verifying!"
@@ -554,9 +750,15 @@ class VerifyPanel(wx.Panel):
             # Hack: Treat each GroupClass as separate categories,
             # instead of trying to merge them. However, we do
             # merge the GROUPLABEL_MANUAL ones.
+            # TODO: In theory, we could /try/ to
+            # merge GroupClasses from the same category, but this isn't
+            # trivial -- maybe we'd perform another clustering run on
+            # exemplars from each new cluster, but it doesn't seem
+            # worth it at the moment.
             for group in self.finished:
                 grouplabel = group.orderedAttrVals[0]
                 if grouplabel in results:
+                    print "Uhoh, gropulabel was in results more than once."
                     pdb.set_trace()
                 assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel))
                 results[grouplabel] = [group]
@@ -576,12 +778,18 @@ class VerifyPanel(wx.Panel):
 
     def OnClickSplit(self, event):
         def collect_ids(newGroups):
+            """ Only used in MODE_YESNO2. """
             ids = {} # {str attrname: list of ids}
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
 
             for group in groups:
                 # In MODE_YESNO2, foo is a list of the form:
                 #    ((<attrtype>,), ID)
+
+                # TODO: group.orderedAttrVals[0] seems troubling. Shouldn't
+                # I be using the group.index or something? Or is it guaranteed
+                # that group.orderedAttrVals[0] is always the 'current-best'
+                # guess?
                 #foo = list(group.getcurrentgrouplabel())
                 foo = list(group.orderedAttrVals[0])
                 attrtype = tuple(sorted([t[0] for t in foo]))
@@ -591,6 +799,7 @@ class VerifyPanel(wx.Panel):
         def assign_new_id(group, ids):
             """ Given a new GroupClass, and a previous IDS mapping,
             find a unique new id for group to use.
+            Only used in MODE_YESNO2.
             """
             foo = list(group.getcurrentgrouplabel())
             k = tuple(sorted([t[0] for t in foo]))

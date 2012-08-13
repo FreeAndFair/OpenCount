@@ -1,24 +1,23 @@
-import os, sys, csv, time, optparse, threading, shutil, re, traceback, pdb, multiprocessing, logging
+import os, sys, csv, time, optparse, threading, shutil, re, traceback
+import pdb, multiprocessing, logging, pickle
 from xml.etree.ElementTree import Element, ElementTree
 from os.path import join as pathjoin
 
-import util
+import wx, Image, cv
+from wx.lib.pubsub import Publisher
+
+import sanitycheck, util
 import specify_voting_targets.find_targets_wizard as find_targets_wizard
 import specify_voting_targets.util_gui as util_gui
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.sanity_check as sanity_check
 import pre_processing.straighten_ballots as straighten_ballots
-import wx, Image, cv
-from wx.lib.pubsub import Publisher
-import pickle
 
-import sanitycheck
 from tab_wrap import tab_wrap
 from threshold.threshold import ThresholdPanel
 from labelcontest.labelcontest import LabelContest
 from runtargets.runtargets import RunTargets
-from grouping.define_attributes import DefineAttributesPanel
-from grouping.define_attributes import AttributeBox
+from grouping.define_attributes import DefineAttributesPanel, AttributeBox
 from grouping.label_attributes import LabelAttributesPanel, GroupAttrsFrame
 from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.verify_grouping import GroupingMasterPanel
@@ -1176,7 +1175,9 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f.SetSize((400, 500))
                     f.Show()
                 else:
-                    f = open(self.project.attrgroup_results, 'rb')
+                    f = open(pathjoin(self.project.projdir_path,
+                                      self.project.attrgroup_results)
+                             , 'rb')
                     groupresults = pickle.load(f)
                     start_labelattrs(groupresults)
 
@@ -1437,7 +1438,9 @@ class Project(object):
                      'labelattrs_out': 'labelattrs_out.csv',
                      'labelattrs_patchesdir': 'labelattrs_patchesdir',
                      'attrexemplars_dir': 'attrexemplars_dir',
-                     'multexemplars_map': 'multexemplars_map.p'}
+                     'multexemplars_map': 'multexemplars_map.p',
+                     'ballot_to_page': 'ballot_to_page.p',
+                     'rejected_hashes': 'rejected_hashes.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

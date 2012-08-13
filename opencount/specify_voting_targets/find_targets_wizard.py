@@ -55,47 +55,11 @@ Todo:
 ## Import 3rd party libraries
 ####
 
-try:
-    import wx
-    import wx.animate
-except ImportError:
-    print """Error importing wxPython (wx) -- to install wxPython (a Python GUI \
-library), do (if you're on Linux):
-    sudo apt-get install python-wxgtk2.8
-Or go to: 
-    http://www.wxpython.org/download.php
-For OS-specific installation instructions."""
-    exit(1)
-try:
-    import Image
-except ImportError:
-    print """Error importing Python Imaging Library (Image) -- to install \
-PIL (a Python image-processing library), go to: 
-    http://www.pythonware.com/products/pil/"""
-    exit(1)
-try:
-    import cv2
-except ImportError:
-    print """Error importing OpenCV w/ Python bindings (cv2) -- to install \
-OpenCV w/ Python bindings (a Python computer vision library), go to:
-    http://opencv.willowgarage.com/wiki/
-Note that documentation for installing OpenCV is pretty shaky in my \
-experience. A README section on installing OpenCV will be created soon.
-On Windows, to get the Python bindings, copy/paste the contents of:
-    opencv/build/python/2.7 (or 2.6)
-to the site-packages directory of your Python installation, i.e.:
-    C:/Python27/Lib/site-packages/
-For me, this means that you'll be adding two new files to that directory:
-    C:/Python27/Lib/site-packages/cv.py
-    C:/Python27/Lib/site-packages/cv2.pyd"""
-    exit(1)
-try:
-    import numpy as np
-except ImportError:
-    print """Error importing Numpy (numpy) -- to install Numpy, go to:
-    http://numpy.scipy.org/
-You'll probably want to install both scipy and numpy."""
-    exit(1)
+import wx
+import wx.animate
+import Image
+import cv2
+import numpy as np
 import wx.lib.inspection
 from wx.lib.pubsub import Publisher
     
@@ -377,8 +341,7 @@ function correctly.""".format(len(lonely_tmpls))
         self.sanity_check_grouping()
         
         self.Refresh()
-        self.parent.Fit()
-        self.parent.Refresh()
+        self.Fit()
                 
     def update_frontbackpanel(self):
         """
@@ -1716,7 +1679,7 @@ class FrontBackPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.SetSizer(sizer)
         txt = wx.StaticText(self, label="Which side is this ballot image?")
         radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -1731,10 +1694,28 @@ class FrontBackPanel(wx.Panel):
         sizer.Add(txt)
         sizer.Add((10, 10))
         sizer.Add(radio_sizer)
+        btn_options = wx.Button(self, label="Options...")
+        btn_options.Bind(wx.EVT_BUTTON, self.onButton_options)
+        sizer.Add((10, 10))
+        sizer.Add(wx.StaticText(self, label="-Or-"))
+        sizer.Add((10, 10))
+        sizer.Add(btn_options)
         
     def onRadioButton(self, evt):
         front_val = self.radiobtn_front.GetValue()
         back_val = self.radiobtn_back.GetValue()
+
+    def onButton_options(self, evt):
+        dlg = FrontBackOptsDlg(self)
+        retval = dlg.ShowModal()
+        if retval == wx.ID_CANCEL:
+            return
+        if dlg.is_alternating == True:
+            # Update parent.frontback_map to alternate by sorted imgpath
+            for i, imgpath in enumerate(sorted(self.parent.frontback_map)):
+                # TODO: Support more-than 2 sides
+                newside = 'front' if i % 2 == 0 else 'back'
+                self.parent.frontback_map[imgpath] = newside
 
     def set_side(self, side):
         """
@@ -1750,6 +1731,43 @@ class FrontBackPanel(wx.Panel):
 
     def get_side(self):
         return 'front' if self.radiobtn_front.GetValue() else 'back'
+
+class FrontBackOptsDlg(wx.Dialog):
+    """
+    A dialog that is displayed when the user clicks the 'Options...'
+    button in the 'Front/Back' panel.
+
+    EndModal(int status):
+        wx.ID_OK  - user clicked 'Ok'
+        wx.ID_CANCEl - user clicked 'Cancel'
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, title="Front/Back Options", *args, **kwargs)
+
+        # 'Output' variables
+        self.is_alternating = False
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        txt1 = wx.StaticText(self, label="Blank ballots alternate \
+front/back.")
+        self.is_alt_chkbox = wx.CheckBox(self)
+        opt1_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        opt1_sizer.AddMany([(txt1,), (self.is_alt_chkbox,)])
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+        self.sizer.AddMany([(opt1_sizer,), (btn_sizer,)])
+        self.SetSizer(self.sizer)
+
+    def onButton_ok(self, evt):
+        if self.is_alt_chkbox.IsChecked() == True:
+            self.is_alternating = True
+        self.EndModal(wx.ID_OK)
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
 
 class WarnNoBoxesDialog(wx.Dialog):
     """

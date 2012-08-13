@@ -379,11 +379,21 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         gauge.Show()
 
     def on_tempmatchdone(self):
-        """Called when the template-matching thread is finished. """
+        """Called when the template-matching thread is finished. 
+        TODO: This makes the assumption that a GroupClass representing
+        a digit-based attribute will have a grouplabel whose kv-pairs
+        has a key 'digit', and its value is a digit ('0','1',etc.).
+        This seems to unnecessarily restrict the architecture to only
+        allowing one digit-based attribute in an election, which is
+        unnecessary.
+        """
         queue = self.queue
         exemplar_img = queue.get()
         matches = queue.get()
-        matches_pruned = prune_matches(matches, self.matches)
+        matches_prune = prune_matches(matches, self.matches)
+
+        print "Number of matches pruned: {0}".format(len(matches) - len(matches_prune))
+        matches = matches_prune
         
         if not matches:
             print "Couldn't find any matches."
@@ -825,10 +835,11 @@ def prune_matches(matches, prev_matches):
         Input:
             bb1, bb2: tuple (y1, y2, x1, x2)
         """
-        #if get_common_area(bb1, bb2) >= c:
-        #    return True
-        #else:
-        #    return False
+        area_1 = abs(bb1[0]-bb1[1])*abs(bb1[2]-bb1[3])
+        if get_common_area(bb1, bb2) / area_1  >= c:
+            return True
+        else:
+            return False
         return False
     def is_overlap_any(regionpath, bb, bb_lst, c=0.25):
         for regionpath2, bb2 in bb_lst:
@@ -853,6 +864,24 @@ def get_common_area(bb1, bb2):
     Output:
         area.
     """
+    def common_segment(seg1, seg2):
+        """ Returns the segment common to both seg1, seg2:
+        Input:
+            seg1, seg2: tuples (a1, a2)
+        Output:
+            A tuple (b1, b2), or None if there's no intersection.
+        """
+        # First make seg1 to the left of seg2
+        if seg2[0] < seg1[0]:
+            tmp = seg1
+            seg1 = seg2
+            seg2 = seg1
+        if seg2[0] < seg1[1]:
+            outA = seg2[0]
+            outB = min(seg1[1], seg2[1])
+            return (outA, outB)
+        else:
+            return None
     if bb1[3] > bb2[3]:
         # Make bb1 to the left of bb2
         tmp = bb1
@@ -862,6 +891,17 @@ def get_common_area(bb1, bb2):
     y1b,y2b,x1b,x2b = bb2
     w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
     w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
+    segw_a = x1a, x1a+w_a
+    segh_a = y1a, y1a+h_a
+    segw_b = x1b, x1b+w_b
+    segh_b = y1b, y1b+h_b
+    cseg_w = common_segment(segw_a, segw_b)
+    cseg_h = common_segment(segh_a, segh_b)
+    if cseg_w == None or cseg_h == None:
+        return 0.0
+    else:
+        return abs(cseg_w[0]-cseg_w[1]) * abs(cseg_h[0]-cseg_h[1])
+    '''
     if x1b < (x1a+w_a):
         x_segment = x1a+w_a - x1b
     else:
@@ -882,6 +922,7 @@ def get_common_area(bb1, bb2):
     else:
         y_segment = 0.0
     return x_segment * y_segment
+    '''
 
 def _test_get_common_area():
     bb1 = [2, 0, 0, 1]
@@ -890,6 +931,10 @@ def _test_get_common_area():
 
     bb1 = [3, 1, 1, 2]
     bb2 = [2, 0, 3, 5]
+    print get_common_area(bb1, bb2)
+
+    bb1 = [1, 3, 1, 3]
+    bb2 = [1, 3, 2, 3]
     print get_common_area(bb1, bb2)
 #_test_get_common_area()
 #pdb.set_trace()
