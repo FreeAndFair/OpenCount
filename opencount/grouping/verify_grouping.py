@@ -412,6 +412,7 @@ class RunGroupingPanel(wx.Panel):
                                 digitsresult[attrtype] = (bb, attrdict['side'])
             return result, digitsresult
         munged,digitmunged = munge_patches(self.patches, all_attrtypes, self.project)
+        print "== calling groupImagesMAP..."
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
                        munged,
@@ -419,6 +420,7 @@ class RunGroupingPanel(wx.Panel):
                        self.project.ballot_grouping_metadata, 
                        stopped,
                        deleteall=deleteall)
+        print "== finished groupImagesMAP"
         if digitmunged:
             print "== Performing DigitOCR..."
             digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)

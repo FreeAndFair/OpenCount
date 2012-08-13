@@ -93,18 +93,21 @@ def evalPatchSimilarity(I,patch):
     C = 1    
     Ireg1=Ireg[C:Ireg.shape[0]-C,C:Ireg.shape[1]-C]
     patch1=patch[C:patch.shape[0]-C,C:patch.shape[1]-C]
-    '''
+
+
     if 0 in Ireg1.shape or 0 in patch1.shape:
+        print "==== Uhoh, a crash is about to happen."
         print "Ireg.shape: {0}  patch.shape: {1}".format(Ireg.shape, patch.shape)
         print "Ireg1.shape: {0}  patch1.shape: {1}".format(Ireg1.shape, patch1.shape)
         misc.imsave("_evalpatchsim_ireg.png", Ireg)
         misc.imsave("_evalpatchsim_patch.png", patch)
         misc.imsave("_evalpatchsim_I1c.png", I1c)
         misc.imsave("_evalpatchsim_I.png", I)
-    ''' 
+
     err = sh.variableDiffThr(Ireg1,patch1)
     diff=np.abs(Ireg1-patch1);
     # #estimate threshold for comparison: 
+
     return (-err,YX,diff)
     
 def dist2patches(patchTuples,scale,debug=False):

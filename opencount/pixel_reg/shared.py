@@ -73,16 +73,24 @@ def NCC(I,patch):
 
 def variableDiffThr(I,patch):
     #estimate threshold for comparison: 
-    Ibg = estimateBg(I);
-    Pbg = estimateBg(patch);
+    try:
+        Ibg = estimateBg(I);
+        Pbg = estimateBg(patch);
 
-    Ithr = (Ibg - I.min())/2
-    Pthr = (Pbg - patch.min())/2
-    thr = min(Ithr,Pthr)
-    diff=np.abs(I-patch);
-    # sum values of diffs above  threshold
-    err=np.sum(diff[np.nonzero(diff>thr)])
-
+        Ithr = (Ibg - I.min())/2
+        Pthr = (Pbg - patch.min())/2
+        thr = min(Ithr,Pthr)
+        diff=np.abs(I-patch);
+        # sum values of diffs above  threshold
+        err=np.sum(diff[np.nonzero(diff>thr)])
+    except Exception as e:
+        print e
+        traceback.print_exc()
+        print "I.shape:", I.shape
+        print "patch.shape:", patch.shape
+        print "Ibg.shape:", Ibg.shape
+        print "Pbg.shape:", Pbg.shape
+        print "BOOM."
     return err
 
 '''
