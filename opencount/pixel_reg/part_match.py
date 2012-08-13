@@ -89,11 +89,10 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
             i1 = max(0,bbMask[0]-(h/4))
             #i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
             i2 = min(Iout.shape[0], bbMask[1]+(h/3))
-            j1 = max(0,bbMask[2]-(bbMask[3]-bbMask[2])/4)
+            j1 = max(0,bbMask[2]-(w/4))
             j2 = min(Iout.shape[1], bbMask[3] + (w/3))
             #j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
             Iout[i1:i2,j1:j2]=-2
-
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
 
@@ -166,7 +165,6 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
     return (ocr_str,patches,bbs,scores)
 
 def stackMax1(result_hash):
-    pdb.set_trace()
     maxSurf=np.zeros(1); symmax=-1;
     for key in result_hash.keys():
         out=result_hash[key]

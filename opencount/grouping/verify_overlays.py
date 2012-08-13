@@ -695,7 +695,8 @@ at a time."
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
+            #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
+            rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_group.get_digitmatch_info(self.project, patchpath)
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         # c.) Construct list of patches already verified by the user
         ignorelist = []
@@ -707,9 +708,9 @@ at a time."
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
         digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                             rejected_hashes=rejected_hashes,
-                                                             ignorelist=ignorelist)
-        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results, ignorelist=ignorelist)
+                                                             rejected_hashes=rejected_hashes)
+        digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
 
         # Replace my internal groups (self.queue, etc.) with the
