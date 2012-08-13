@@ -8,7 +8,7 @@ import cv
 import csv
 import os
 import string
-import sys, shutil
+import sys, shutil, traceback
 import multiprocessing as mp
 from wx.lib.pubsub import Publisher
 import json
@@ -210,17 +210,23 @@ def templateSSWorker(job):
 
     sc1=sc0-sStep
 
-    while sc1>minSc:
-        (scores,locs)=dist2patches(patchTuples,sc1)
-        sidx=np.argsort(scores)
-        sidx=sidx[::-1]
-        mid=np.ceil(len(sidx)/2.0)
-        dumpIdx=sidx[mid:len(sidx)]
-        if sum(0+(dumpIdx==trackIdx))>0:
-            break
-        else:
-            sc1=sc1-sStep
-            
+    try:
+        while sc1>minSc:
+            (scores,locs)=dist2patches(patchTuples,sc1)
+            sidx=np.argsort(scores)
+            sidx=sidx[::-1]
+            mid=np.ceil(len(sidx)/2.0)
+            dumpIdx=sidx[mid:len(sidx)]
+            if sum(0+(dumpIdx==trackIdx))>0:
+                break
+            else:
+                sc1=sc1-sStep
+    except Exception as e:
+        print e
+        traceback.print_exc()
+        print "BOOM"
+        exit(1)
+
     # write scale to file
     toWrite={"scale": min(sc1+sStep,sc0)}
     file = open(fOut, "wb")
