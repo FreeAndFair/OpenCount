@@ -239,7 +239,9 @@ class GroupingMasterPanel(wx.Panel):
                                        self.project,
                                        util.is_multipage(self.project),
                                        img2tmp)
-
+        # munged_patches doesn't know anything about digitattrs, so add
+        # this info in.
+        munged_patches = add_digitattr_info(self.project, munged_patches)
         for samplepath, attrdict in results_foo.items():
             row = {}
             row['samplepath'] = samplepath
@@ -327,6 +329,7 @@ class RunGroupingPanel(wx.Panel):
         self.parent = parent
         self.project = None
 
+        # self.patches is {str temppath: [((y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i),...]}
         self.patches = None
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -684,6 +687,28 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         pickle.dump(bal2page, open(pathjoin(project.projdir_path,
                                             project.ballot_to_page), 'wb'))
         return correctedflips
+
+def add_digitattr_info(proj, munged_patches):
+    """ Aux function to add DigitAttrVals for blank ballots to the input
+    munged_patches.
+    Input:
+        obj proj:
+        dict munged_patches: maps {str temppath: {str attrtype: (str attrval, int side)}}
+    Output:
+        An updated munged_patches.
+    """
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    # a dict {temppath: {digitattrtype: (digitval, bb, int side)}}
+    digitattrvals_blanks = pickle.load(open(pathjoin(proj.projdir_path,
+                                                     proj.digitattrvals_blanks),
+                                            'rb'))
+    img2tmp = pickle.load(open(proj.image_to_template, 'rb'))
+    digitattrs = common.get_digitbased_attrs(proj)
+    for tmpimgpath, digitvals in digitattrvals_blanks.iteritems():
+        tmpid = img2tmp[tmpimgpath]
+        for digitattrtype, (digitval, bb, side) in digitvals.iteritems():
+            munged_patches.setdefault(tmpid, {})[digitattrtype] = (digitval, side)
+    return munged_patches
 
 def determine_template(sample_attrs, template_attrs, samplepath, project):
     """

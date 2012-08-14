@@ -417,8 +417,6 @@ def importPatches(project):
     Reads in all .csv files in precinct_locations/, and returns
     them as:
       {str temppath: [(y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i), ...]}
-    Remember that digitbased attributes are not stored in
-    precinct_locations/, but are instead stored elsewere.
     Output:
       A dict that contains all attribute types for all blank ballots,
       of the form:
@@ -465,8 +463,6 @@ def importPatches(project):
                                                    side, is_digitbased, is_tabulationonly))
             except IOError as e:
                 print "Unable to open file: {0}".format(csvfilepath)
-    # 2.) Now, get all digit-based attribute information
-    # TODO: FINISH THIS
     return boxes
 
 """ GroupLabel Data Type """

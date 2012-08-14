@@ -124,8 +124,10 @@ def custattr_map_inval_ss(proj, attrname, attr_inval):
     attr_inval is a string. """
     custom_attrs = load_custom_attrs(proj)
     ss_attrs = [cattr for cattr in custom_attrs if cattr.mode == CustomAttribute.M_SPREADSHEET]
-    for attrname_i, sspath, attrin in ss_attrs:
-        if attrname_i == attrname:
+    for cattr in ss_attrs:
+        sspath = cattr.sspath
+        attrin = cattr.attrin
+        if cattr.attrname == attrname:
             csvf = open(sspath, 'rb')
             reader = csv.DictReader(csvf)
             for row in reader:

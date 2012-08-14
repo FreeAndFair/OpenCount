@@ -28,8 +28,13 @@ Output files:
 
 This keeps track of the mapping from digit patch imgpaths to the 
 associated blank ballot imgpath:
-    {str digitpatchpath: str templatepath}
+    {str digitpatchpath: (str templatepath, attrstr, bb, int side)}
 
+<projdir>/digitattrvals_blanks.p
+
+This keeps track of the precinct numbers of all blank ballots:
+    {str blankimgpath: {digitattrtype: (str digitval, bb, int side)}}
+Note that this is blankimgpath, not blankid.
 
 """
 
@@ -76,7 +81,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
             str outdir: This directory will look like:
                 <outdir>/attr_i/*.png
         Output:
-            A dict mapping {str patchpath: str templatepath}.
+            A dict mapping {str patchpath: (templatepath, attrs_sortedstr, bb, int side)}.
         """
         # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
         all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
@@ -127,7 +132,8 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                        attrs_sortedstr,
                                        outfilename)
                 scipy.misc.imsave(outfilepath, patch)
-                patch2temp[outfilepath] = imgpath
+                bb = (y1, y2, x1, x2)
+                patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
                 i += 1
         print "Finished extracting patch dirs."
         return patch2temp
@@ -521,33 +527,31 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         result = {}
         for patchpath, txt in self.precinct_txts.iteritems():
             assert patchpath not in result
-            result[patchpath] = txt.GetLabel()
+            # txt.GetLabel() returns something like 'Precinct Number:0013038',
+            # so get rid of this.
+            result[patchpath] = txt.GetLabel().split(":")[1].strip()
         return result
 
     def export_precinct_nums(self, result):
         """ Export precinct nums to a specified outfile.
         Input:
-            dict result: maps {str patchpath: str precinctnumber}
+            dict result: maps {str patchpath: str digitval}
             str outpath:
         """
         proj = self.parent.parent.project  # TODO: breach of abstraction
         digitpatch2temp = pickle.load(open(pathjoin(proj.projdir_path,
                                                     proj.digitpatch2temp),
                                            'rb'))
-        digitattrvals_blanks = {}  # maps {str templatepath: str precinctnum}
-        for patchpath, precinctnum in result.iteritems():
+        digitattrvals_blanks = {}  # maps {str templatepath: {digitattrtype: digitval}}
+        for patchpath, digitval in result.iteritems():
             if patchpath not in digitpatch2temp:
                 print "Uhoh, patchpath not in digitpatch2temp:", patchpath
                 pdb.set_trace()
-            temppath = digitpatch2temp[patchpath]
-            # TODO: Assumes only one digit-based attribute. We should
-            #       support multiple digit-based attributes.
-            assert temppath not in digitattrvals_blanks
-            digitattrvals_blanks[temppath] = precinctnum
+            temppath, attrstr, bb, side = digitpatch2temp[patchpath]
+            digitattrvals_blanks.setdefault(temppath, {})[attrstr] = (digitval, bb, side)
         pickle.dump(digitattrvals_blanks, open(pathjoin(proj.projdir_path,
                                                         proj.digitattrvals_blanks),
                                                'wb'))
-
 
     def add_box(self, box, regionpath):
         assert regionpath in self.matches
