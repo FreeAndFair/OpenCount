@@ -676,7 +676,29 @@ exists as a Custom Attribute.".format(attrname))
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
                 return
-            
+            if dlg.regex == None:
+                d = wx.MessageDialog(self, message="You must choose \
+an input regex.")
+                d.ShowModal()
+                return
+            elif dlg.attrname == None:
+                d = wx.MessageDialog(self, message="You must choose \
+an Attribute Name.")
+                d.ShowModal()
+                return
+            attrname = dlg.attrname
+            regex = dlg.regex
+            print 'attrname is:', attrname
+            print 'regex is:', regex
+            proj = self.parent.parent.GetParent().project
+            custom_attrs = cust_attrs.load_custom_attrs(proj)
+            if cust_attrs.custattr_exists(proj, attrname):
+                d = wx.MessageDialog(self, message="The attrname {0} already \
+exists as a Custom Attribute.".format(attrname))
+                d.ShowModal()
+                return
+            cust_attrs.add_custom_attr_filename(self.parent.parent.GetParent().project,
+                                                attrname, regex)
         
     def onButton_viewcustomattrs(self, evt):
         custom_attrs = cust_attrs.load_custom_attrs(self.parent.parent.GetParent().project)
@@ -691,6 +713,9 @@ exists as a Custom Attribute.".format(attrname))
                 print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
                                                                              cattr.sspath,
                                                                              cattr.attrin)
+            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                print "  Attrname: {0} FilenameRegex: {1}".format(attrname,
+                                                                  cattr.filename_regex)
             else:
                 print "  Attrname: {0} Mode: {1}".format(attrname, cattr.mode)
             
@@ -964,14 +989,29 @@ class FilenameAttrDialog(wx.Dialog):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         
+        # self.attrname is the name of the CustomAttribute
+        self.attrname = None
         # self.regex is the user-inputted regex to use
         self.regex = None
 
         sizer = wx.BoxSizer(wx.VERTICAL)
+
         txt1 = wx.StaticText(self, label="Please enter a Python-style \
 regex that will match the attribute value.")
         sizer.Add(txt1)
+        sizer.Add((20, 20))
+
+        sizer_input0 = wx.BoxSizer(wx.HORIZONTAL)
+        txt0 = wx.StaticText(self, label="Custom Attribute Name:")
+        attrname_input = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        attrname_input.Bind(wx.EVT_TEXT_ENTER, lambda evt: re_input.SetFocus())
+        self.attrname_input = attrname_input
+        sizer_input0.Add(txt0)
+        sizer_input0.Add(attrname_input, proportion=1, flag=wx.EXPAND)
+        sizer.Add(sizer_input0, flag=wx.EXPAND)
         
+        sizer.Add((20, 20))
+
         sizer_input = wx.BoxSizer(wx.HORIZONTAL)
         txt2 = wx.StaticText(self, label="Regex Pattern:")
         sizer_input.Add(txt2)
@@ -994,14 +1034,16 @@ regex that will match the attribute value.")
         sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
         self.SetSizer(sizer)
         self.Fit()
+
+        self.attrname_input.SetFocus()
         
     def onButton_ok(self, evt):
+        self.attrname = self.attrname_input.GetValue()
         self.regex = self.re_input.GetValue()
         self.EndModal(wx.ID_OK)
 
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
-        
 
 def delete_attr_type(attrvalsdir, attrtype):
     """

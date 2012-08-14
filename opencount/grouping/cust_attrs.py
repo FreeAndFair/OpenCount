@@ -65,7 +65,18 @@ def add_custom_attr_ss(proj, attrname, sspath, attrin):
                             sspath=sspath, attrin=attrin)
     custom_attrs.append(cattr)
     path = pathjoin(proj.projdir_path, proj.custom_attrs)
-    pickle.dump(custom_attrs, open(path, 'wb'))
+    dump_custom_attrs(proj, custom_attrs)
+
+def add_custom_attr_filename(proj, attrname, regex):
+    """ Adds a new Filename-based Custom Attribute. """
+    custom_attrs = load_custom_attrs(proj)
+    if custom_attrs == None:
+        custom_attrs = []
+    cattr = CustomAttribute(attrname, mode=CustomAttribute.M_FILENAME,
+                            filename_regex=regex)
+    custom_attrs.append(cattr)
+    path = pathjoin(proj.projdir_path, proj.custom_attrs)
+    dump_custom_attrs(proj, custom_attrs)
 
 def dump_custom_attrs(proj, custattrs=None):
     """ Stores the custom_attributes into the correct output location. """
@@ -126,3 +137,4 @@ def custattr_map_inval_ss(proj, attrname, attr_inval):
     print "Uhoh, attrname wasn't found in custom_attrs:", attrname
     pdb.set_trace()
     assert False
+
