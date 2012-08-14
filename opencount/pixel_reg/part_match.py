@@ -10,6 +10,7 @@ import shared as sh
 import time
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+import multiprocessing as mp
 
 def dt1(f):
     n = f.size
@@ -166,7 +167,8 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         j2=j1+digit_hash[key].shape[1]
         P = I[i1:i2,j1:j2]
         bbs.append((i1,i2,j1,j2))
-        patches.append(P)
+        #patches.append(P)
+        patches.append(None)
         scores.append(maxResp[(i1,j1)])
 
 
@@ -181,6 +183,21 @@ def stackMax1(result_hash):
             symmax = key
             
     return (maxSurf,symmax)
+
+def process_one(args):
+    imP, digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes = args
+    I1 = sh.standardImread(imP,flatten=True)
+    if do_flip == True:
+        I1 = sh.fastFlip(I1)
+    #I1=sh.prepOpenCV(I1)
+    I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+    rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
+    # perform matching for all digits
+    # return best matching digit
+    # mask out 
+    res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash)
+
+    return (imP,res[0],res[1],res[2],res[3])
 
 def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rejected_hashes=None):
     """Runs NCC-based OCR on the images on imList.
@@ -200,21 +217,11 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
     digitList = digit_hash.values();
     patchExample = digitList[0]
 
-    results = []
-
-    for imP in imList:
-        I1 = sh.standardImread(imP,flatten=True)
-        if do_flip == True:
-            I1 = sh.fastFlip(I1)
-        #I1=sh.prepOpenCV(I1)
-        I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
-        rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
-        # perform matching for all digits
-        # return best matching digit
-        # mask out 
-        res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash)
-
-        results.append((imP,res[0],res[1],res[2],res[3]))
+    nProc=sh.numProcs()
+    pool = mp.Pool(processes=nProc)
+    results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes) for x in  imList])
+    pool.close()
+    pool.join()
 
     return results
 

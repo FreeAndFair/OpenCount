@@ -5,6 +5,7 @@ sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
 import pixel_reg.shared as sh
 import util, common
+from PIL import Image
 
 def do_digitocr_patches(bal2imgs, digitattrs, project,
                         rejected_hashes=None, ignorelist=None):
@@ -127,7 +128,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
                 rootdir = os.path.join(voteddigits_dir, digit)
                 util.create_dirs(rootdir)
                 outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
-                scipy.misc.imsave(outpath, digitimg)
+                #scipy.misc.imsave(outpath, digitimg)
+                Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
             ballotid = img2bal[imgpath]
