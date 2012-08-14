@@ -953,11 +953,54 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
 class FilenameAttrDialog(wx.Dialog):
     """
     Dialog that handles the creation of a Filename-based Custom
-    Attribute.
+    Attribute. The user-input will be a regex-like expression in order
+    to extract the 'attribute' from the filename. For instance, to 
+    extract the last digit '0' from a filename like:
+        329_141_250_145_0.png
+    The user-input regex would be:
+        r'\d*_\d*_\d*_\d*_(\d*).png'
     """
     def __init__(self, parent, *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        
+        # self.regex is the user-inputted regex to use
+        self.regex = None
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        txt1 = wx.StaticText(self, label="Please enter a Python-style \
+regex that will match the attribute value.")
+        sizer.Add(txt1)
+        
+        sizer_input = wx.BoxSizer(wx.HORIZONTAL)
+        txt2 = wx.StaticText(self, label="Regex Pattern:")
+        sizer_input.Add(txt2)
+        re_input = wx.TextCtrl(self, value=r'\d*_\d*_\d*_\d*_(\d*).png',
+                               style=wx.TE_PROCESS_ENTER)
+        self.re_input = re_input
+        re_input.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
+        sizer_input.Add(re_input, proportion=1, flag=wx.EXPAND)
+
+        sizer.Add(sizer_input, proportion=1, flag=wx.EXPAND)
+        
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_sizer.Add(btn_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_sizer.Add(btn_cancel)
+
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+        
+    def onButton_ok(self, evt):
+        self.regex = self.re_input.GetValue()
+        self.EndModal(wx.ID_OK)
+
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
         
 
 def delete_attr_type(attrvalsdir, attrtype):
