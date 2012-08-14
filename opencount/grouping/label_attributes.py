@@ -243,9 +243,19 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def handle_grouping_results(self, groupresults):
         """ Takes the results of autogrouping attribute patches, and
-        updates my internal data structures
+        updates my internal data structures. Importantly, this updates
+        the self.patch_groups data structure, which allows me to know
+        that labeling a patch P implies the labeling of all votedpaths
+        given by self.patch_groups[patchpathP].
         Input:
             dict groupresults: maps {grouplabel: list of GroupClass instances}
+        Output:
+            dict mapping, dict inv_mapping, list patchpaths, but only for
+            one exemplar from each group, where mapping is:
+              {str votedpath: {attrtype: patchpath}}
+            inv_mapping is:
+              {str patchpath: (imgpath, attrtype)}
+            patchpaths is a list of all patchpaths.
         """
         mapping = {}  # maps {imgpath: {attrtypestr: patchpath}}
         inv_mapping = {}  # maps {patchpath: (imgpath, attrtypestr)}
@@ -288,7 +298,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         'eng' and 'span', and some language patches have a white or
         dark gray background, then this algorithm should discover two
         clusters within 'eng' (white backs, gray backs) and within 'span'
-        (white backs, gray backs).
+        (white backs, gray backs). CURRENTLY NOT USED.
         """
         blankpatches = {} # maps {attrtype: {attrval: list of blank paths}}
         patchlabels = self.labelpanel.imagelabels
@@ -333,6 +343,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             ballot_attr_labels.setdefault(imgpath, {})[attrtypestr] = label
+            # Finally, also add this labeling for all blank ballots
+            # that were grouped together by attr-grouping
+            for siblingpath in self.patch_groups.get(patchPath, []):
+                ballot_attr_labels.setdefault(siblingpath, {})[attrtypestr] = label
         util_gui.create_dirs(self.project.patch_loc_dir)
         header = ("imgpath", "id", "x", "y", "width", "height", "attr_type",
                   "attr_val", "side", "is_digitbased", "is_tabulationonly")
