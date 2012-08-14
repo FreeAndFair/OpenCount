@@ -336,7 +336,7 @@ class LabelContest(wx.Panel):
             groups = final_grouping(self.grouping_cached, targets)
         else:
             if not self.proj.infer_bounding_boxes:
-                dlg = wx.MessageDialog(self, message="You must click Infer Contest Regions bounding boxes on the Select and Group Targets tab to run the inference.", style=wx.OK)
+                dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
                 dlg.ShowModal()
                 return
 
