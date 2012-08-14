@@ -50,21 +50,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
 
     if rszFac==1:
         t0=time.clock()
-        try:
-            (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose)
-        except Exception as e:
-            print e
-            print I1.shape
-            print Iref1.shape
-            '''
-            d = {'I1': I1, 'Iref1': Iref1, 'type': type}
-            path = 'err_dict_0'
-            while os.path.exists(path):
-                new_i = int(path.split("_")[-1]) + 1
-                path = 'err_dict_{0}'.format(str(new_i))
-            pickle.dump(d, open(path, 'wb'))
-            '''
-            raise Exception("meow")
+        (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
     else:
@@ -180,7 +166,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
             print "_B shape:", _B.shape
             print "_C shape:", _C.shape
             traceback.print_exc()
-            raise Exception("OH NO")
+            raise Exception("_C computation failed")
         ds1 = np.dot(_B, _C)
         #ds1=np.dot(np.linalg.inv(np.dot(D0,D0.T)+Lbda),np.dot(D0,dI1))
         ds[keep]=ds1;
