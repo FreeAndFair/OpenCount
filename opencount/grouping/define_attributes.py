@@ -18,6 +18,8 @@ from specify_voting_targets import util_gui as util_gui
 from common import AttributeBox, IWorldState, TextInputDialog
 import common
 
+import cust_attrs
+
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
 # this script lives (which is important for loading resources like
@@ -582,6 +584,7 @@ class IToolBar(ToolBar):
                
     def _populate_icons(self, iconsdir):
         ToolBar._populate_icons(self, iconsdir)
+
         panel_addcustomattr = wx.Panel(self)
         self.btn_addcustomattr = wx.Button(panel_addcustomattr, label="Custom Attr")
         self.btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_customattr)
@@ -593,6 +596,17 @@ class IToolBar(ToolBar):
         sizer.Add(self.btn_addcustomattr)
         sizer.Add(txt, flag=wx.ALIGN_CENTER)
         self.sizer.Add(panel_addcustomattr)
+
+        panel_viewcustomattrs = wx.Panel(self)
+        self.btn_viewcustomattrs = wx.Button(panel_viewcustomattrs, label="View Custom Attrs")
+        self.btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
+        txt2 = wx.StaticText(panel_viewcustomattrs, label="View Custom Attributes...", style=wx.ALIGN_CENTER)
+        txt2.SetFont(font)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_viewcustomattrs.SetSizer(sizer)
+        sizer.Add(self.btn_viewcustomattrs)
+        sizer.Add(txt2, flag=wx.ALIGN_CENTER)
+        self.sizer.Add(panel_viewcustomattrs)
 
         self.btn_addtarget.GetParent().GetChildren()[1].SetLabel("Define Ballot Attribute")
         self.btn_addcontest.GetParent().Hide()
@@ -613,9 +627,50 @@ Ballot Attributes, before creating Custom Ballot Attributes.")
         status = dlg.ShowModal()
         if status == wx.ID_CANCEL:
             return
-        path = dlg.path
-        print "User selected:", path
-
+        attrname = dlg.results[0]
+        spreadsheetpath = dlg.path
+        attrin = dlg.combobox.GetValue()
+        print "attrname:", attrname
+        print "Spreadsheet path:", spreadsheetpath
+        print "Attrin:", attrin
+        if not attrname:
+            d = wx.MessageDialog(self, message="You must choose a valid \
+attribute name.")
+            d.ShowModal()
+            return
+        elif not spreadsheetpath:
+            d = wx.MessageDialog(self, message="You must choose the \
+spreadsheet path.")
+            d.ShowModal()
+            return
+        elif not attrin:
+            d = wx.MessageDialog(self, message="You must choose an \
+'input' attribute type.")
+            d.ShowModal()
+            return
+        proj = self.parent.parent.GetParent().project
+        custom_attrs = cust_attrs.load_custom_attrs(proj)
+        if cust_attrs.custattr_exists(proj, attrname):
+            d = wx.MessageDialog(self, message="The attrname {0} already
+exists as a Custom Attribute.".format(attrname))
+            d.ShowModal()
+            return
+        
+        cust_attrs.add_custom_attr_ss(self.parent.parent.GetParent().project,
+                                      attrname, spreadsheetpath, attrin)
+        
+    def onButton_viewcustomattrs(self, evt):
+        custom_attrs = cust_attrs.load_custom_attrs(self.parent.parent.GetParent().project)
+        if custom_attrs == None:
+            d = wx.MessageDialog(self, message="No Custom Attributes yet.")
+            d.ShowModal()
+            return
+        print "Custom Attributes are:"
+        for attrname, sspath, attrin in custom_attrs:
+            print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
+                                                                         sspath,
+                                                                         attrin)
+            
 class AttributeContextMenu(wx.Menu):
     """
     Context Menu to display when user right-clicks on a Ballot Attribute.
