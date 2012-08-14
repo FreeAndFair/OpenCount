@@ -251,6 +251,8 @@ class VerifyPanel(wx.Panel):
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
+        self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
+        self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
 
         # Buttons for MODE_YESNO
@@ -271,6 +273,7 @@ class VerifyPanel(wx.Panel):
         hbox5.Add((40,-1))
         hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(self.rundigitgroupButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
@@ -316,12 +319,14 @@ class VerifyPanel(wx.Panel):
             self.okayButton.Hide()
             self.quarantineButton.Hide()
             self.misclassifyButton.Hide()
+            self.rundigitgroupButton.Hide()
             self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
             self.quarantineButton.Hide()
             self.misclassifyButton.Hide()
+            self.rundigitgroupButton.Hide()
             self.templateImg.Hide()
             self.diffImg.Hide()
             self.st3.Hide()
@@ -621,12 +626,123 @@ class VerifyPanel(wx.Panel):
         else:
             self.select_group(self.queue[0])
 
+    def OnClickRunDigitGroup(self, evt):
+        """ Used for MODE_NORMAL, for digitbased attributes. Signals
+        that the user wants to re-run the digitparsing.
+        """
+        def get_digitattrtypes(project):
+            attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+            digitattrs = []
+            for attr in attrs:
+                attrtypestr = common.get_attrtype_str(attr['attrs'])
+                if common.is_digitbased(project, attrtypestr):
+                    digitattrs.append(attrtypestr)
+            return digitattrs
+        grouplabel = self.currentGroup.getcurrentgrouplabel()
+        if common.get_propval(grouplabel, 'digit') == None:
+            dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
+supported for non-digitbased attributes. Perhaps you'd like to quarantine \
+this instead?", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        digitattrs = get_digitattrtypes(self.project)
+        if not digitattrs:
+            print "Uhoh, digitattrs was empty, when it shouldn't be."
+            pdb.set_trace()
+        assert len(digitattrs) > 0
+        if len(digitattrs) != 1:
+            print "Sorry, OpenCount only supports one digit-based attribute \
+at a time."
+            pdb.set_trace()
+            assert False
+
+        attrtypestr = digitattrs[0]  # Assume only one digit-based attr
+        num_digits = common.get_numdigits(self.project, attrtypestr)
+        w_img, h_img = self.project.imgsize
+            
+        bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        # a.) Reconstruct digit_attrs
+        digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
+        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        for attrdict in attrs:
+            attrstr = common.get_attrtype_str(attrdict['attrs'])
+            if common.is_digitbased(self.project, attrstr):
+                y1 = int(round(attrdict['y1']*h_img))
+                y2 = int(round(attrdict['y2']*h_img))
+                x1 = int(round(attrdict['x1']*w_img))
+                x2 = int(round(attrdict['x2']*w_img))
+                side = attrdict['side']
+                digit_attrs[attrstr] = ((y1, y2, x1, x2), side)
+        if len(digit_attrs) != 1:
+            print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
+            pdb.set_trace()
+        assert len(digit_attrs) == 1
+        # b.) Construct rejected_hashes
+        #cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
+        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        if rejected_hashes == None:
+            # Hasn't been created yet.
+            rejected_hashes = {}
+            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+                                                       self.project.rejected_hashes),
+                                              'wb'))
+        ct = 0
+        for imgpath, digitsmap in rejected_hashes.iteritems():
+            for digit, lst in digitsmap.iteritems():
+                ct += len(lst)
+        print "Number of rejected regions:", ct
+        #for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+            # TODO: Do I append sampleid, or patchpath? 
+            # TODO: Is it sampleid, or imgpath?
+            #rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
+        partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        # c.) Construct list of patches already verified by the user
+        ignorelist = []
+        for group in self.finished:
+            if common.get_propval(group.getcurrentgrouplabel(), 'digit') != None:
+                for (sampleid, rlist, patchpath) in group.elements:
+                    ignorelist.append(sampleid)
+
+        if len(rejected_hashes) == 0:
+            print "No need to re-run partmatch, rejected_hashes is empty."
+            return
+
+        print "Running partmatch digit-OCR computation with updated \
+rejected_hashes..."
+        digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+                                                             rejected_hashes=rejected_hashes)
+        digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
+        print "Finished partmatch digit-OCR. Number of groups:", len(groups)
+
+        # Replace my internal groups (self.queue, etc.) with the
+        # GroupClass's given in GROUPS.
+        # 1.) First, remove all 'digit' Groups
+        for group in self.queue[:]:
+            # TODO: Assumes a GroupClass with a grouplabel with 'digit'
+            # signals that this is a Digit. This disallows:
+            #    a.) Multiple digit-based attributes
+            #    b.) A Ballot Attribute called 'digit'
+            for grouplabel in group.orderedAttrVals:
+                if common.get_propval(grouplabel, 'digit') != None:
+                    self.remove_group(group)
+                    break
+        # 2.) Now, add in all new 'digit' Groups
+        # TODO: Discard all matches that deal with already-verified
+        #       patches, or tell partmatch to not search these imgs.
+        for new_digitgroup in groups:
+            self.add_group(new_digitgroup)
+        self.select_group(self.queue[0])
+        
     def OnClickMisclassify(self, evt):
         """ Used for MODE_NORMAL. Signals that the current attr patch
         is misclassified (say, the wrong attribute type), and to handle
         it *somehow*.
-        For digit-based attributes, this will re-run partmatch*, but with
-        an updated mismatch dict.
+        For digit-based attributes, this will update the rejected_hashes
+        data structure.
         TODO: Assumes that groups representing a digitbased attribute
               will have a grouplabel with a kv-pair whose key is 'digit',
               and whose value is the digit string ('0','1',etc.). Lousy
@@ -684,7 +800,7 @@ at a time."
         assert len(digit_attrs) == 1
         # b.) Construct rejected_hashes
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-        # rejected_hashes maps {imgpath: {digit: ((y1,y2,x1,x2),side)}}
+        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
         if rejected_hashes == None:
             # Hasn't been created yet.
@@ -698,38 +814,15 @@ at a time."
             #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
             rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
-        # c.) Construct list of patches already verified by the user
-        ignorelist = []
-        for group in self.finished:
-            if common.get_propval(group.getcurrentgrouplabel(), 'digit') != None:
-                for (sampleid, rlist, patchpath) in group.elements:
-                    ignorelist.append(sampleid)
-                    
-        print "Running partmatch digit-OCR computation with updated \
-rejected_hashes..."
-        digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                             rejected_hashes=rejected_hashes)
-        digit_group.save_digitgroup_results(self.project, digitgroup_results)
-        groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
-        print "Finished partmatch digit-OCR. Number of groups:", len(groups)
 
-        # Replace my internal groups (self.queue, etc.) with the
-        # GroupClass's given in GROUPS.
-        # 1.) First, remove all 'digit' Groups
-        for group in self.queue[:]:
-            # TODO: Assumes a GroupClass with a grouplabel with 'digit'
-            # signals that this is a Digit. This disallows:
-            #    a.) Multiple digit-based attributes
-            #    b.) A Ballot Attribute called 'digit'
-            for grouplabel in group.orderedAttrVals:
-                if common.get_propval(grouplabel, 'digit') != None:
-                    self.remove_group(group)
-                    break
-        # 2.) Now, add in all new 'digit' Groups
-        # TODO: Discard all matches that deal with already-verified
-        #       patches, or tell partmatch to not search these imgs.
-        for new_digitgroup in groups:
-            self.add_group(new_digitgroup)
+        ct = 0
+        for imgpath, digitsmap in rejected_hashes.iteritems():
+            for digit, lst in digitsmap.iteritems():
+                ct += len(lst)
+        print "Number of rejected regions:", ct
+
+        # Remove the current group, and display the next one
+        self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
         
     def is_done_verifying(self):

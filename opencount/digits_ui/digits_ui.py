@@ -396,6 +396,13 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if retstat == wx.ID_CANCEL:
             return
         digitval = dlg.results["Digit?:"]
+        if digitval == None or digitval == '':
+            d = wx.MessageDialog(self, message="You must enter in the \
+digit.")
+            self.Disable(); self.disable_cells()
+            d.ShowModal()
+            self.Enable(); self.enable_cells()
+            return
         self.current_digit = digitval
 
         self.queue = Queue.Queue()

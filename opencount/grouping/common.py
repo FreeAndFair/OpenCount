@@ -872,6 +872,8 @@ def munge_pm_results(results):
                 digit = ocrstr[i]
             except Exception as e:
                 print e
+                print "OH DEAR. Did you accidently not type in the digit \
+during LabelDigitAttrs?"
                 pdb.set_trace()
             digitimg = imgpatches[i]
             score = scores[i]
