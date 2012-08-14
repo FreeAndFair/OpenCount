@@ -736,6 +736,9 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
                 attrin = cattr.attrin
                 sample_inval = sample_attrs[attrin][0]
 
+                if attrin not in temp_attrdict:
+                    print "Uhoh, attrin not in temp_attrdict:", attrin
+                    pdb.set_trace()
                 temp_inval = temp_attrdict[attrin][0]
                 sample_outval = cust_attrs.custattr_map_inval_ss(project, attrname, sample_inval)
                 temp_outval = cust_attrs.custattr_map_inval_ss(project, attrname, temp_inval)
