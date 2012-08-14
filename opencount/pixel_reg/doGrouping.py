@@ -66,16 +66,22 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
 
 def evalPatchSimilarity(I,patch):
     # perform template matching and return the best match in expanded region
+    I_in = np.copy(I)
+    patch_in = np.copy(patch)
     I=sh.prepOpenCV(I)
     patch=sh.prepOpenCV(patch)
     # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
     # converting NP -> OpenCV.
     patchCv=cv.fromarray(np.copy(patch) * 255.0)  
     ICv=cv.fromarray(np.copy(I) * 255.0)
+    #patchCv=cv.fromarray(np.copy(patch))  
+    #ICv=cv.fromarray(np.copy(I))
+    
     # call template match
     outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
     cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
     Iout=np.asarray(outCv) / 255.0
+    #Iout=np.asarray(outCv)
     Iout[Iout==1.0]=0;
     YX=np.unravel_index(Iout.argmax(),Iout.shape)
 
@@ -83,7 +89,6 @@ def evalPatchSimilarity(I,patch):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
-    
     IO=imagesAlign(I1c,patch,type='rigid')
 
     Ireg=IO[1]
@@ -128,8 +133,11 @@ def dist2patches(patchTuples,scale,debug=False):
         #I[I==1.0]=.999; I[I==0.0]=.001
         patch=np.round(sh.fastResize(pt[1],scale)*255.)/255.
         #patch[patch==1.0]=.999; patch[patch==0.0]=.001
-
-        res=evalPatchSimilarity(I,patch)
+        try:
+            res=evalPatchSimilarity(I,patch)
+        except Exception as e:
+            print "CRASHED AT IDX:", idx
+            raise e
         scores[idx]=res[0]
         locs.append((res[1][0]/scale,res[1][1]/scale))
 
@@ -210,22 +218,29 @@ def templateSSWorker(job):
 
     sc1=sc0-sStep
 
-    try:
-        while sc1>minSc:
+    while sc1>minSc:
+        try:
             (scores,locs)=dist2patches(patchTuples,sc1)
-            sidx=np.argsort(scores)
-            sidx=sidx[::-1]
-            mid=np.ceil(len(sidx)/2.0)
-            dumpIdx=sidx[mid:len(sidx)]
-            if sum(0+(dumpIdx==trackIdx))>0:
-                break
-            else:
-                sc1=sc1-sStep
-    except Exception as e:
-        print e
-        traceback.print_exc()
-        print "BOOM"
-        exit(1)
+        except Exception as e:
+            d = {'patchTuples': patchTuples, 'sc1': sc1}
+            path = '_errdict_0'
+            '''
+            while os.path.exists(path):
+                new_i = int(path.split("_")[-1]) + 1
+                path = '_errdict_{0}'.format(str(new_i))
+            pickle.dump(d, open(path, 'wb'))
+            '''
+            print "Exiting."
+            exit(1)
+
+        sidx=np.argsort(scores)
+        sidx=sidx[::-1]
+        mid=np.ceil(len(sidx)/2.0)
+        dumpIdx=sidx[mid:len(sidx)]
+        if sum(0+(dumpIdx==trackIdx))>0:
+            break
+        else:
+            sc1=sc1-sStep
 
     # write scale to file
     toWrite={"scale": min(sc1+sStep,sc0)}

@@ -1,5 +1,5 @@
 import numpy as np
-import math
+import math, pickle, os, traceback
 import pdb
 import time
 import cv
@@ -139,6 +139,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
     Lbda=lbda*np.prod(Iref.shape)*np.eye(Ds.shape[0])
     err=np.Inf
     ds=np.zeros([8,1])
+
     for i in range(100):
         # warp image with current esimate
         Ip=imtransform(I,H)
@@ -148,6 +149,12 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
         idx=np.nonzero(np.squeeze(Mf))
         D0=np.squeeze(D[:,idx]); dI1=dIf[idx]
 
+        # guard against bad things
+        if dI1.size < 2:
+            H = np.eye(3)
+            err = np.Inf
+            break
+
         # check if > half of pixels turn to NAN
         # subtract new nans from old nans, divide by old valids
         origValidPixels=np.sum(1-(np.isnan(I)+0))
@@ -155,7 +162,20 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
         if newValidPixels<(origValidPixels/3.):
             return (np.eye(3),np.inf)
 
-        ds1=np.dot(np.linalg.inv(np.dot(D0,D0.T)+Lbda),np.dot(D0,dI1))
+        _A = np.dot(D0, D0.T)
+        _B = np.linalg.inv(_A + Lbda)
+        try:
+            _C = np.dot(D0, dI1)
+        except Exception as e:
+            print e
+            print "D0.shape:", D0.shape
+            print "dI1.shape:", dI1.shape
+            print "_B shape:", _B.shape
+            print "_C shape:", _C.shape
+            traceback.print_exc()
+            raise Exception("_C computation failed")
+        ds1 = np.dot(_B, _C)
+        #ds1=np.dot(np.linalg.inv(np.dot(D0,D0.T)+Lbda),np.dot(D0,dI1))
         ds[keep]=ds1;
         HH=ds2H(ds,wts); H=np.dot(H,HH[0]); H=H/H[2,2]
         err0=err; err=np.abs(dI1); err=np.mean(err); delta=err0-err;

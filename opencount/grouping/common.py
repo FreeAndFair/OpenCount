@@ -415,7 +415,12 @@ def get_imagepaths(dir):
 def importPatches(project):
     """
     Reads in all .csv files in precinct_locations/, and returns
-    them as {str templatepath: ((y1,y2,x1,x2), grouplabel, side, is_digitbased, is_tabulationonly)}
+    them as:
+      {str temppath: [(y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i), ...]}
+    Output:
+      A dict that contains all attribute types for all blank ballots,
+      of the form:
+        {str temppath: [(y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i), ...]}
     """
     if not project or not project.patch_loc_dir:
         return
@@ -749,6 +754,46 @@ class TextInputDialog(wx.Dialog):
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
 
+class SingleChoiceDialog(wx.Dialog):
+    """
+    A Dialog to allow the user to select one of N choices.
+    """
+    def __init__(self, parent, message="Please make a choice.", choices=[], *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        
+        # self.result will be the user-selected choice
+        self.result = None
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        txt1 = wx.StaticText(self, label=message)
+        sizer.Add(txt1)
+        radio_btns = [] # List of [(str choice_i, obj RadioButton_i), ...]
+        self.radio_btns = radio_btns
+        for i, choice in enumerate(choices):
+            if i == 0:
+                radiobtn = wx.RadioButton(self, label=choice, style=wx.RB_GROUP)
+            else:
+                radiobtn = wx.RadioButton(self, label=choice)
+            radio_btns.append((choice, radiobtn))
+            sizer.Add(radiobtn)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+
+    def onButton_ok(self, evt):
+        for choice, radiobtn in self.radio_btns:
+            if radiobtn.GetValue() == True:
+                self.result = choice
+        self.EndModal(wx.ID_OK)
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
+
 def do_digitocr(imgpaths, digit_exs, num_digits, bb=None, rejected_hashes=None):
     """ Basically does what sh.digitParse does, but checks to see if
     the image might be flipped, and if it is, to flip it and return
@@ -827,6 +872,8 @@ def munge_pm_results(results):
                 digit = ocrstr[i]
             except Exception as e:
                 print e
+                print "OH DEAR. Did you accidently not type in the digit \
+during LabelDigitAttrs?"
                 pdb.set_trace()
             digitimg = imgpatches[i]
             score = scores[i]

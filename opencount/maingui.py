@@ -1440,7 +1440,10 @@ class Project(object):
                      'attrexemplars_dir': 'attrexemplars_dir',
                      'multexemplars_map': 'multexemplars_map.p',
                      'ballot_to_page': 'ballot_to_page.p',
-                     'rejected_hashes': 'rejected_hashes.p'}
+                     'rejected_hashes': 'rejected_hashes.p',
+                     'custom_attrs': 'custom_attrs.p',
+                     'digitpatch2temp': 'digitpatch2temp.p',
+                     'digitattrvals_blanks': 'digitattrvals_blanks.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

@@ -21,6 +21,23 @@ Where each *.png is the result of encodepath'ing a blank ballot
 id.
 """        
 
+"""
+Output files:
+
+<projdir>/digitpatch2temp.p
+
+This keeps track of the mapping from digit patch imgpaths to the 
+associated blank ballot imgpath:
+    {str digitpatchpath: (str templatepath, attrstr, bb, int side)}
+
+<projdir>/digitattrvals_blanks.p
+
+This keeps track of the precinct numbers of all blank ballots:
+    {str blankimgpath: {digitattrtype: (str digitval, bb, int side)}}
+Note that this is blankimgpath, not blankid.
+
+"""
+
 class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """ A wrapper-class of DigitMainPanel that is meant to be
     integrated into OpenCount itself.
@@ -40,7 +57,10 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                                   project.extracted_digitpatch_dir)
         digit_ex_fulldir = pathjoin(project.projdir_path, project.digit_exemplars_outdir)
         precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
-        self.extract_digitbased_patches(extracted_digitpatches_fulldir)
+        patch2temp = self.extract_digitbased_patches(extracted_digitpatches_fulldir)
+        pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
+                                              project.digitpatch2temp),
+                                     'wb'))
         self.mainpanel = DigitMainPanel(self, extracted_digitpatches_fulldir,
                                         digit_ex_fulldir,
                                         precinctnums_fullpath,
@@ -57,8 +77,11 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def extract_digitbased_patches(self, outdir):
         """ Extract all digit-based attributes into the outdir. This
         will be the input to the Digit-Labeling UI.
-        str outdir: This directory will look like:
-            <outdir>/attr_i/*.png
+        Input:
+            str outdir: This directory will look like:
+                <outdir>/attr_i/*.png
+        Output:
+            A dict mapping {str patchpath: (templatepath, attrs_sortedstr, bb, int side)}.
         """
         # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
         all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
@@ -73,6 +96,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 side = attrbox_dict['side']
                 digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
         tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
+        patch2temp = {}  # maps {patchpath: temlatepath}
         i = 0
         w_img, h_img = self.project.imgsize
         FACTOR = 0.0
@@ -108,15 +132,19 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                        attrs_sortedstr,
                                        outfilename)
                 scipy.misc.imsave(outfilepath, patch)
+                bb = (y1, y2, x1, x2)
+                patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
                 i += 1
         print "Finished extracting patch dirs."
+        return patch2temp
 
     def ondone(self, results):
         """ Called when the user is finished labeling digit-based
-        attributes.
+        attributes. Currently doesn't do much at all.
+        Input:
+            dict results: maps {str patchpath: str precinct number}
         """
         print "Done Labeling Digit-Based Attributes"
-        print results
 
 class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
@@ -191,7 +219,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         self.extracted_dir = extracted_dir
         self.digit_exemplars_outdir = digit_exemplars_outdir
-        self.precinctnums_outpath = precinctnums_outpath
+        self.precinctnums_outpath = precinctnums_outpath  # TODO: NOT USED
         self.ondone = ondone
 
         # Keeps track of the currently-being-labeled digit
@@ -368,6 +396,13 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if retstat == wx.ID_CANCEL:
             return
         digitval = dlg.results["Digit?:"]
+        if digitval == None or digitval == '':
+            d = wx.MessageDialog(self, message="You must enter in the \
+digit.")
+            self.Disable(); self.disable_cells()
+            d.ShowModal()
+            self.Enable(); self.enable_cells()
+            return
         self.current_digit = digitval
 
         self.queue = Queue.Queue()
@@ -390,6 +425,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         queue = self.queue
         exemplar_img = queue.get()
         matches = queue.get()
+
         matches_prune = prune_matches(matches, self.matches)
 
         print "Number of matches pruned: {0}".format(len(matches) - len(matches_prune))
@@ -483,8 +519,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        self.export_precinct_nums(self.precinctnums_outpath)
         result = self.get_patch2precinct()
+        self.export_precinct_nums(result)
         if self.ondone:
             self.ondone(result)
         self.Disable()
@@ -498,16 +534,31 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         result = {}
         for patchpath, txt in self.precinct_txts.iteritems():
             assert patchpath not in result
-            result[patchpath] = txt.GetLabel()
+            # txt.GetLabel() returns something like 'Precinct Number:0013038',
+            # so get rid of this.
+            result[patchpath] = txt.GetLabel().split(":")[1].strip()
         return result
 
-    def export_precinct_nums(self, outpath):
-        """ Export precinct nums to a specified text file. """
-        f = open(outpath, 'w')
-        for imgpath, txt in self.precinct_txts.iteritems():
-            precinct_num = txt.GetLabel()
-            print >>f, precinct_num
-        f.close()
+    def export_precinct_nums(self, result):
+        """ Export precinct nums to a specified outfile.
+        Input:
+            dict result: maps {str patchpath: str digitval}
+            str outpath:
+        """
+        proj = self.parent.parent.project  # TODO: breach of abstraction
+        digitpatch2temp = pickle.load(open(pathjoin(proj.projdir_path,
+                                                    proj.digitpatch2temp),
+                                           'rb'))
+        digitattrvals_blanks = {}  # maps {str templatepath: {digitattrtype: digitval}}
+        for patchpath, digitval in result.iteritems():
+            if patchpath not in digitpatch2temp:
+                print "Uhoh, patchpath not in digitpatch2temp:", patchpath
+                pdb.set_trace()
+            temppath, attrstr, bb, side = digitpatch2temp[patchpath]
+            digitattrvals_blanks.setdefault(temppath, {})[attrstr] = (digitval, bb, side)
+        pickle.dump(digitattrvals_blanks, open(pathjoin(proj.projdir_path,
+                                                        proj.digitattrvals_blanks),
+                                               'wb'))
 
     def add_box(self, box, regionpath):
         assert regionpath in self.matches
@@ -830,13 +881,15 @@ def prune_matches(matches, prev_matches):
     Output:
         A new list of matches.
     """
-    def is_overlap(bb1, bb2, c=0.25):
+    def is_overlap(bb1, bb2, c=0.50):
         """ Returns True if bb1 and bb2 share a certain amount of area.
         Input:
             bb1, bb2: tuple (y1, y2, x1, x2)
         """
-        area_1 = abs(bb1[0]-bb1[1])*abs(bb1[2]-bb1[3])
-        if get_common_area(bb1, bb2) / area_1  >= c:
+        area_1 = float(abs(bb1[0]-bb1[1])*abs(bb1[2]-bb1[3]))
+        common_area = float(get_common_area(bb1, bb2))
+        overlap_area = common_area / area_1
+        if overlap_area  >= c:
             return True
         else:
             return False
