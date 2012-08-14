@@ -38,6 +38,28 @@ Note that this is blankimgpath, not blankid.
 
 """
 
+# Used to give a unique ID to all Digit-template-match matches.
+matchID = 0
+
+def get_last_matchID(imgsdir):
+    """ Given the directory of saved imgmatches, return the last
+    matchID. imgsdir would be like:
+        <projdir>/digit_exemplars/<i>_examples/*
+    Assumes that match paths are of the form:
+        <matchID>_match.png
+    i.e.:
+        0_match.png
+        1_match.png
+        ...
+    """
+    i = 0
+    for dirpath, dirnames, filenames in os.walk(imgsdir):
+        for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+            curidx = int(imgname.split("_")[0])
+            if curidx > i:
+                i = curidx
+    return i
+
 class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """ A wrapper-class of DigitMainPanel that is meant to be
     integrated into OpenCount itself.
@@ -447,7 +469,9 @@ digit.")
         examples = []
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
-        for matchID, (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in enumerate(matches):
+        global matchID
+        matchID = get_last_matchID(self.digit_exemplars_outdir)
+        for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
             rootdir = os.path.join(self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
             util_gui.create_dirs(rootdir)
             patchpath = os.path.join(rootdir, '{0}_match.png'.format(matchID))
@@ -457,9 +481,11 @@ digit.")
                 newIreg = np.zeros((h,w))
                 newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
                 Ireg = newIreg
+            print "Saving digpatchimg:", patchpath
             scipy.misc.imsave(patchpath, Ireg)
             examples.append((filename, (grouplabel,), patchpath))
             self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
+            matchID += 1
         group = common.GroupClass(examples)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
@@ -525,7 +551,7 @@ digit.")
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        self.export_results()
+        result = self.export_results()
         if self.ondone:
             self.ondone(result)
         self.Disable()
@@ -534,6 +560,7 @@ digit.")
         """ Saves out the digitattrvals_blanks.p file. """
         result = self.get_patch2precinct()
         self.export_precinct_nums(result)
+        return result
 
     def get_patch2precinct(self):
         """ Called by on_done. Computes the result dictionary:

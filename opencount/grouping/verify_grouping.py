@@ -377,7 +377,12 @@ class RunGroupingPanel(wx.Panel):
                 if not is_image_ext(f):
                     continue
                 num += 1
-        kind = len(self.patches.items()[0])
+        # QUESTION: What is kind? The number of img-based attributes?
+        #           Is this change correct?
+        if not common.exists_imgattrs(self.project):
+            kind = 0
+        else:
+            kind = len(self.patches.items()[0])
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", num*kind)
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
@@ -437,6 +442,10 @@ class RunGroupingPanel(wx.Panel):
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
     def start_grouping(self):
+        """ Creates the separate Thread that spawns the grouping
+        subprocesses. This part will group both img-based and digit-based
+        attributes.
+        """
         r = ProcessClass(self.groupBallotsProcess, True)
         r.start()
 
