@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os
+import sys, csv, copy, pdb, os, re
 import threading, time
 import timeit
 sys.path.append('../')
@@ -247,7 +247,7 @@ class GroupingMasterPanel(wx.Panel):
                 row[attrtype] = attrval
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
-            templateid = determine_template(attrdict, munged_patches, self.project)
+            templateid = determine_template(attrdict, munged_patches, samplepath, self.project)
             if not templateid:
                 hosed_bals.append((samplepath, attrdict, munged_patches))
                 continue
@@ -685,14 +685,15 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
                                             project.ballot_to_page), 'wb'))
         return correctedflips
 
-def determine_template(sample_attrs, template_attrs, project):
+def determine_template(sample_attrs, template_attrs, samplepath, project):
     """
     Given a sample image's attrtype->attrval mappings, return the
     template that has the same attrtype->attrval mapping.
     Input:
       dict sample_attrs: {str attrtype: (str attrval, int flip, int imageorder)}
       dict template_attrs: {str temppath: {str attrtype: str attrval, int side}}
-      project
+      str samplepath: Imagepath to the sample ballot in question.
+      obj project: 
     Output:
       Path of the associated template.
     """
@@ -726,19 +727,37 @@ def determine_template(sample_attrs, template_attrs, project):
             return None
         assert len(possibles) == 1
         return possibles.keys()[0]
-    for cattr in custom_attrs:
-        attrname = cattr.attrname
-        sspath = cattr.sspath
-        attrin = cattr.attrin
+    for temppath, temp_attrdict in possibles.iteritems():
         flag = True
-        sample_inval = sample_attrs[attrin][0]
-        for temppath, temp_attrdict in possibles.iteritems():
-            temp_inval = temp_attrdict[attrin][0]
-            sample_outval = cust_attrs.custattr_map_inval_ss(project, attrname, sample_inval)
-            temp_outval = cust_attrs.custattr_map_inval_ss(project, attrname, temp_inval)
-            if sample_outval != temp_outval:
-                flag = False
-                break
+        for cattr in custom_attrs:
+            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                attrname = cattr.attrname
+                sspath = cattr.sspath
+                attrin = cattr.attrin
+                sample_inval = sample_attrs[attrin][0]
+
+                temp_inval = temp_attrdict[attrin][0]
+                sample_outval = cust_attrs.custattr_map_inval_ss(project, attrname, sample_inval)
+                temp_outval = cust_attrs.custattr_map_inval_ss(project, attrname, temp_inval)
+                if sample_outval != temp_outval:
+                    flag = False
+                    break
+            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                attrname = cattr.attrname
+                regex = cattr.filename_regex
+                sample_filename = os.path.split(samplepath)[1]
+                m1 = re.search(regex, sample_filename) 
+                sample_page = m1.groups()[0]
+                temp_filename = os.path.split(temppath)[1]
+                m = re.search(regex, temp_filename)
+                temp_page = m.groups()[0]
+                if sample_page != temp_page:
+                    flag = False
+                    break
+            else:
+                print "== Unknown CustomAttribute Type:", cattr.mode
+                print "What do I do? Hm..."
+                pdb.set_trace()
         if flag:
             return temppath
     # if we get here, we're hosed
