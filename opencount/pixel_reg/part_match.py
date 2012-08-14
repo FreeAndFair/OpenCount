@@ -7,6 +7,7 @@ import string
 import math
 import imagesAlign as lk
 import shared as sh
+import time
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
@@ -76,6 +77,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
     count = 0;
     keys = digit_hash.keys()
 
+    t0=time.clock()    
     for key in keys:
         Iout = sh.NCC(I,digit_hash[key])
         #misc.imsave("_Iout_{0}.png".format(key), Iout)
@@ -101,6 +103,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         matchMat[:,:,count] = Iout;
         count += 1
 
+    print 'match time:',time.clock()-t0,'(s)'
     maxResp = np.amax(matchMat,axis=2)
     maxObj = np.argmax(matchMat,axis=2)
 
@@ -121,7 +124,9 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         shiftH[0,2] = hspace
         prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
         # shift
+        t1=time.clock()    
         res = dt2(prevT+unary)
+        print 'DP time:',time.clock()-t1,'(s)'
         M[i] = res[0]
         Mx[i] = res[1]
         My[i] = res[2]
@@ -163,6 +168,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         bbs.append((i1,i2,j1,j2))
         patches.append(P)
         scores.append(maxResp[(i1,j1)])
+
 
     return (ocr_str,patches,bbs,scores)
 

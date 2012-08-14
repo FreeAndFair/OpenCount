@@ -23,7 +23,8 @@ def main():
     scipy.misc.imsave("I1.png", I1)
     scipy.misc.imsave("Iref1.png", Iref1)
 
-    H, err = imagesAlign.imagesAlign1(I1, Iref1, type=type)
+    output = imagesAlign.imagesAlign(I1, Iref1, type=type)
+    #H, err = imagesAlign(I1, Iref1, type=type)
     
 if __name__ == '__main__':
     main()
