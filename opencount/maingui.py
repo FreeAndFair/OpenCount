@@ -297,8 +297,8 @@ blank ballots and voted ballots directories first.")
         else:
             self.project.templatesdir = ''
             self.project.samplesdir = ''
-            self.blankballots_straightdir = pathjoin(self.project.projdir_path, 'blankballots_straight')
-            self.votedballots_straightdir = pathjoin(self.project.projdir_path, 'votedballots_straight')
+            self.project.blankballots_straightdir = pathjoin(self.project.projdir_path, 'blankballots_straight')
+            self.project.votedballots_straightdir = pathjoin(self.project.projdir_path, 'votedballots_straight')
         self.project.are_votedballots_straightened = val
         self.project.are_blankballots_straightened = val
             
