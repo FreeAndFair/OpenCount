@@ -139,6 +139,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
     Lbda=lbda*np.prod(Iref.shape)*np.eye(Ds.shape[0])
     err=np.Inf
     ds=np.zeros([8,1])
+
     for i in range(100):
         # warp image with current esimate
         Ip=imtransform(I,H)
@@ -147,6 +148,12 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
         dI=Ip-Iref; dIf=dI.reshape(np.prod(I.shape),1)
         idx=np.nonzero(np.squeeze(Mf))
         D0=np.squeeze(D[:,idx]); dI1=dIf[idx]
+
+        # guard against bad things
+        if dI1.size < 2:
+            H = np.eye(3)
+            err = np.Inf
+            break
 
         # check if > half of pixels turn to NAN
         # subtract new nans from old nans, divide by old valids
