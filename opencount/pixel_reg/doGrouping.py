@@ -66,16 +66,22 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
 
 def evalPatchSimilarity(I,patch):
     # perform template matching and return the best match in expanded region
+    I_in = np.copy(I)
+    patch_in = np.copy(patch)
     I=sh.prepOpenCV(I)
     patch=sh.prepOpenCV(patch)
     # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
     # converting NP -> OpenCV.
     patchCv=cv.fromarray(np.copy(patch) * 255.0)  
     ICv=cv.fromarray(np.copy(I) * 255.0)
+    #patchCv=cv.fromarray(np.copy(patch))  
+    #ICv=cv.fromarray(np.copy(I))
+    
     # call template match
     outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,I.shape[1]-patch.shape[1]+1,patchCv.type)
     cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
     Iout=np.asarray(outCv) / 255.0
+    #Iout=np.asarray(outCv)
     Iout[Iout==1.0]=0;
     YX=np.unravel_index(Iout.argmax(),Iout.shape)
 
@@ -83,8 +89,20 @@ def evalPatchSimilarity(I,patch):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
-    
-    IO=imagesAlign(I1c,patch,type='rigid')
+    try:
+        IO=imagesAlign(I1c,patch,type='rigid')
+    except Exception as e:
+        print e
+        d = {'I': I, 'patch': patch, 'type': type, 'I1c': I1c,
+             'I_in': I_in, 'patch_in': patch_in}
+        path = 'err_dict_0'
+        while os.path.exists(path):
+            new_i = int(path.split("_")[-1]) + 1
+            path = 'err_dict_{0}'.format(str(new_i))
+        pickle.dump(d, open(path, 'wb'))
+        print "EXITING."
+        exit(1)
+
 
     Ireg=IO[1]
     # C := num pixels to discard around border. This used to be C=5,
