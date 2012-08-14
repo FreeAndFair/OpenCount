@@ -108,7 +108,7 @@ def custattr_get(custom_attrs, attrname):
     if custom_attrs == None:
         return None
     for cattr in custom_attrs:
-        if cattr.attrname == attrname_i:
+        if cattr.attrname == attrname:
             return cattr
     return None
 
