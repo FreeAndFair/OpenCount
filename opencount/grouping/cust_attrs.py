@@ -34,8 +34,12 @@ class CustomAttribute:
     def __init__(self, attrname, mode=0, sspath=None, attrin=None, filename_regex=None):
         self.attrname = attrname
         self.mode = mode
+
+        """ M_SPREADSHEET """
         self.sspath = sspath
         self.attrin = attrin
+
+        """ M_FILENAME """
         self.filename_regex = filename_regex
 
 def marshall_cust_attr(custattr):
@@ -45,7 +49,7 @@ def marshall_cust_attr(custattr):
     marsh['attrin'] = custattr.attrin
     marsh['sspath'] = custattr.sspath
     marsh['filename_regex'] = custattr.filename_regex
-    return mash
+    return marsh
 
 def unmarshall_cust_attr(d):
     return CustomAttribute(d['attrname'], mode=d['mode'], sspath=d['sspath'],
@@ -70,7 +74,7 @@ def dump_custom_attrs(proj, custattrs=None):
     if custattrs == None:
         custattrs = []
     marshalled = [marshall_cust_attr(cattr) for cattr in custattrs]
-    pickle.dump(marshalled, open(pathjoin(proj.projdirpath, proj.custom_attrs), 'wb'))
+    pickle.dump(marshalled, open(pathjoin(proj.projdir_path, proj.custom_attrs), 'wb'))
 
 def load_custom_attrs(proj):
     """ Returns the custom_attrs data structure if it exists, or None

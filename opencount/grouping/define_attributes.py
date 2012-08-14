@@ -666,10 +666,14 @@ exists as a Custom Attribute.".format(attrname))
             d.ShowModal()
             return
         print "Custom Attributes are:"
-        for attrname, sspath, attrin in custom_attrs:
-            print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
-                                                                         sspath,
-                                                                         attrin)
+        for cattr in custom_attrs:
+            attrname = cattr.attrname
+            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
+                                                                             cattr.sspath,
+                                                                             cattr.attrin)
+            else:
+                print "  Attrname: {0} Mode: {1}".format(attrname, cattr.mode)
             
 class AttributeContextMenu(wx.Menu):
     """
