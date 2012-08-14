@@ -18,6 +18,8 @@ from specify_voting_targets import util_gui as util_gui
 from common import AttributeBox, IWorldState, TextInputDialog
 import common
 
+import cust_attrs
+
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
 # this script lives (which is important for loading resources like
@@ -582,12 +584,116 @@ class IToolBar(ToolBar):
                
     def _populate_icons(self, iconsdir):
         ToolBar._populate_icons(self, iconsdir)
+
+        panel_addcustomattr = wx.Panel(self)
+        self.btn_addcustomattr = wx.Button(panel_addcustomattr, label="Custom Attr")
+        self.btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_customattr)
+        font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        txt = wx.StaticText(panel_addcustomattr, label="Add Custom Attribute", style=wx.ALIGN_CENTER)
+        txt.SetFont(font)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_addcustomattr.SetSizer(sizer)
+        sizer.Add(self.btn_addcustomattr)
+        sizer.Add(txt, flag=wx.ALIGN_CENTER)
+        self.sizer.Add(panel_addcustomattr)
+
+        panel_viewcustomattrs = wx.Panel(self)
+        self.btn_viewcustomattrs = wx.Button(panel_viewcustomattrs, label="View Custom Attrs")
+        self.btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
+        txt2 = wx.StaticText(panel_viewcustomattrs, label="View Custom Attributes...", style=wx.ALIGN_CENTER)
+        txt2.SetFont(font)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_viewcustomattrs.SetSizer(sizer)
+        sizer.Add(self.btn_viewcustomattrs)
+        sizer.Add(txt2, flag=wx.ALIGN_CENTER)
+        self.sizer.Add(panel_viewcustomattrs)
+
         self.btn_addtarget.GetParent().GetChildren()[1].SetLabel("Define Ballot Attribute")
         self.btn_addcontest.GetParent().Hide()
         self.btn_splitcontest.GetParent().Hide()
         self.btn_undo.GetParent().Hide()
         self.btn_infercontests.GetParent().Hide()
 
+    def onButton_customattr(self, evt):
+        """ User clicked the 'Create Custom Attribute' button. """
+        SPREADSHEET = 'SpreadSheet'
+        FILENAME = 'Filename'
+        choice_dlg = common.SingleChoiceDialog(self, message="Which modality \
+will the Custom Attribute use?", 
+                                               choices=[SPREADSHEET, FILENAME])
+        status = choice_dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        choice = choice_dlg.result
+        if choice == None:
+            return
+        elif choice == SPREADSHEET:
+            defattrspanel = self.parent.parent.GetParent()
+            attrtypes = defattrspanel.world.get_attrtypes()
+            if len(attrtypes) == 0:
+                print "No attrtypes created yet, can't do this."
+                d = wx.MessageDialog(self, message="You must first create \
+    Ballot Attributes, before creating Custom Ballot Attributes.")
+                d.ShowModal()
+                return
+            dlg = SpreadSheetAttrDialog(self, attrtypes)
+            status = dlg.ShowModal()
+            if status == wx.ID_CANCEL:
+                return
+            attrname = dlg.results[0]
+            spreadsheetpath = dlg.path
+            attrin = dlg.combobox.GetValue()
+            print "attrname:", attrname
+            print "Spreadsheet path:", spreadsheetpath
+            print "Attrin:", attrin
+            if not attrname:
+                d = wx.MessageDialog(self, message="You must choose a valid \
+attribute name.")
+                d.ShowModal()
+                return
+            elif not spreadsheetpath:
+                d = wx.MessageDialog(self, message="You must choose the \
+spreadsheet path.")
+                d.ShowModal()
+                return
+            elif not attrin:
+                d = wx.MessageDialog(self, message="You must choose an \
+'input' attribute type.")
+                d.ShowModal()
+                return
+            proj = self.parent.parent.GetParent().project
+            custom_attrs = cust_attrs.load_custom_attrs(proj)
+            if cust_attrs.custattr_exists(proj, attrname):
+                d = wx.MessageDialog(self, message="The attrname {0} already \
+exists as a Custom Attribute.".format(attrname))
+                d.ShowModal()
+                return
+            cust_attrs.add_custom_attr_ss(self.parent.parent.GetParent().project,
+                                          attrname, spreadsheetpath, attrin)
+        elif choice == FILENAME:
+            print "Handling Filename-based Custom Attribute."
+            dlg = FilenameAttrDialog(self)
+            status = dlg.ShowModal()
+            if status == wx.ID_CANCEL:
+                return
+            
+        
+    def onButton_viewcustomattrs(self, evt):
+        custom_attrs = cust_attrs.load_custom_attrs(self.parent.parent.GetParent().project)
+        if custom_attrs == None:
+            d = wx.MessageDialog(self, message="No Custom Attributes yet.")
+            d.ShowModal()
+            return
+        print "Custom Attributes are:"
+        for cattr in custom_attrs:
+            attrname = cattr.attrname
+            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
+                                                                             cattr.sspath,
+                                                                             cattr.attrin)
+            else:
+                print "  Attrname: {0} Mode: {1}".format(attrname, cattr.mode)
+            
 class AttributeContextMenu(wx.Menu):
     """
     Context Menu to display when user right-clicks on a Ballot Attribute.
@@ -684,6 +790,7 @@ class DefineAttributeDialog(wx.Dialog):
         self.sizer.Add(caption_txt, border=10, flag=wx.ALL)
         gridsizer = wx.GridSizer(rows=0, cols=2, hgap=5, vgap=3)
         btn_add = wx.Button(self, label="+")
+        self.btn_add = btn_add
         btn_add.Bind(wx.EVT_BUTTON, self.onButton_add)
         btn_add.Bind(wx.EVT_SET_FOCUS, self.onAddButtonFocus)
         
@@ -704,11 +811,13 @@ class DefineAttributeDialog(wx.Dialog):
         self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
 this patch be only used for tabulation (and not for grouping)?")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
+        self.numdigits_label = numdigits_label
         self.num_digits = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
         digit_sizer.Add(self.chkbox_is_digitbased, proportion=0)
         digit_sizer.Add(numdigits_label, proportion=0)
         digit_sizer.Add(self.num_digits, proportion=0)
+        self.digit_sizer = digit_sizer
         self.sizer.Add(digit_sizer, proportion=0)
         self.sizer.Add(self.chkbox_is_tabulationonly, proportion=0)
 
@@ -786,6 +895,113 @@ more than once. Please correct.".format(val),
         self._add_btn_panel(self.sizer)
         self.Fit()
         input_ctrl.SetFocus()
+
+class SpreadSheetAttrDialog(DefineAttributeDialog):
+    def __init__(self, parent, attrtypes, *args, **kwargs):
+        DefineAttributeDialog.__init__(self, parent, *args, **kwargs)
+
+        # The path that the user selected
+        self.path = ''
+
+        self.parent = parent
+        self.chkbox_is_digitbased.Hide()
+        self.num_digits.Hide()
+        self.numdigits_label.Hide()
+        self.chkbox_is_tabulationonly.Disable()
+        self.btn_add.Hide()
+
+        txt = wx.StaticText(self, label="Spreadsheet File:")
+        file_inputctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
+        self.file_inputctrl = file_inputctrl
+        btn_select = wx.Button(self, label="Select...")
+        btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
+
+        sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
+        txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
+        self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
+        sizer_horiz.Add(txt2)
+        sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer_file = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_file.Add(txt)
+        sizer_file.Add((10, 10))
+        sizer_file.Add(file_inputctrl, proportion=1, flag=wx.EXPAND)
+        sizer_file.Add(btn_select)
+        sizer.Add(sizer_file)
+        sizer.Add(sizer_horiz)
+
+        self.input_pairs.append((txt, file_inputctrl))
+
+        self.sizer.Insert(len(self.sizer.GetChildren())-1, sizer,
+                          proportion=1,
+                          border=10,
+                          flag=wx.EXPAND | wx.ALL)
+
+        self.Fit()
+
+    def onButton_selectfile(self, evt):
+        dlg = wx.FileDialog(self, message="Choose spreadsheet...",
+                            defaultDir='.', style=wx.FD_OPEN)
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        path = dlg.GetPath()
+        self.file_inputctrl.SetValue(path)
+        self.path = path
+
+class FilenameAttrDialog(wx.Dialog):
+    """
+    Dialog that handles the creation of a Filename-based Custom
+    Attribute. The user-input will be a regex-like expression in order
+    to extract the 'attribute' from the filename. For instance, to 
+    extract the last digit '0' from a filename like:
+        329_141_250_145_0.png
+    The user-input regex would be:
+        r'\d*_\d*_\d*_\d*_(\d*).png'
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        
+        # self.regex is the user-inputted regex to use
+        self.regex = None
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        txt1 = wx.StaticText(self, label="Please enter a Python-style \
+regex that will match the attribute value.")
+        sizer.Add(txt1)
+        
+        sizer_input = wx.BoxSizer(wx.HORIZONTAL)
+        txt2 = wx.StaticText(self, label="Regex Pattern:")
+        sizer_input.Add(txt2)
+        re_input = wx.TextCtrl(self, value=r'\d*_\d*_\d*_\d*_(\d*).png',
+                               style=wx.TE_PROCESS_ENTER)
+        self.re_input = re_input
+        re_input.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
+        sizer_input.Add(re_input, proportion=1, flag=wx.EXPAND)
+
+        sizer.Add(sizer_input, proportion=1, flag=wx.EXPAND)
+        
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_sizer.Add(btn_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_sizer.Add(btn_cancel)
+
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+        
+    def onButton_ok(self, evt):
+        self.regex = self.re_input.GetValue()
+        self.EndModal(wx.ID_OK)
+
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
+        
 
 def delete_attr_type(attrvalsdir, attrtype):
     """

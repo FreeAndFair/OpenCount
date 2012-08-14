@@ -160,7 +160,8 @@ class RunThread(threading.Thread):
                                              self.proj.extracted_metadata,
                                              self.proj.ballot_metadata,
                                              self.proj.quarantined,
-                                             self.stopped)
+                                             self.stopped,
+                                             self.proj)
             else:
                 fh=open(self.proj.grouping_results)
                 dreader=csv.DictReader(fh)
