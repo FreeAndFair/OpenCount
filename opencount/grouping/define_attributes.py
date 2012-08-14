@@ -615,49 +615,68 @@ class IToolBar(ToolBar):
         self.btn_infercontests.GetParent().Hide()
 
     def onButton_customattr(self, evt):
-        defattrspanel = self.parent.parent.GetParent()
-        attrtypes = defattrspanel.world.get_attrtypes()
-        if len(attrtypes) == 0:
-            print "No attrtypes created yet, can't do this."
-            d = wx.MessageDialog(self, message="You must first create \
-Ballot Attributes, before creating Custom Ballot Attributes.")
-            d.ShowModal()
-            return
-        dlg = SpreadSheetAttrDialog(self, attrtypes)
-        status = dlg.ShowModal()
+        """ User clicked the 'Create Custom Attribute' button. """
+        SPREADSHEET = 'SpreadSheet'
+        FILENAME = 'Filename'
+        choice_dlg = common.SingleChoiceDialog(self, message="Which modality \
+will the Custom Attribute use?", 
+                                               choices=[SPREADSHEET, FILENAME])
+        status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
             return
-        attrname = dlg.results[0]
-        spreadsheetpath = dlg.path
-        attrin = dlg.combobox.GetValue()
-        print "attrname:", attrname
-        print "Spreadsheet path:", spreadsheetpath
-        print "Attrin:", attrin
-        if not attrname:
-            d = wx.MessageDialog(self, message="You must choose a valid \
+        choice = choice_dlg.result
+        if choice == None:
+            return
+        elif choice == SPREADSHEET:
+            defattrspanel = self.parent.parent.GetParent()
+            attrtypes = defattrspanel.world.get_attrtypes()
+            if len(attrtypes) == 0:
+                print "No attrtypes created yet, can't do this."
+                d = wx.MessageDialog(self, message="You must first create \
+    Ballot Attributes, before creating Custom Ballot Attributes.")
+                d.ShowModal()
+                return
+            dlg = SpreadSheetAttrDialog(self, attrtypes)
+            status = dlg.ShowModal()
+            if status == wx.ID_CANCEL:
+                return
+            attrname = dlg.results[0]
+            spreadsheetpath = dlg.path
+            attrin = dlg.combobox.GetValue()
+            print "attrname:", attrname
+            print "Spreadsheet path:", spreadsheetpath
+            print "Attrin:", attrin
+            if not attrname:
+                d = wx.MessageDialog(self, message="You must choose a valid \
 attribute name.")
-            d.ShowModal()
-            return
-        elif not spreadsheetpath:
-            d = wx.MessageDialog(self, message="You must choose the \
+                d.ShowModal()
+                return
+            elif not spreadsheetpath:
+                d = wx.MessageDialog(self, message="You must choose the \
 spreadsheet path.")
-            d.ShowModal()
-            return
-        elif not attrin:
-            d = wx.MessageDialog(self, message="You must choose an \
+                d.ShowModal()
+                return
+            elif not attrin:
+                d = wx.MessageDialog(self, message="You must choose an \
 'input' attribute type.")
-            d.ShowModal()
-            return
-        proj = self.parent.parent.GetParent().project
-        custom_attrs = cust_attrs.load_custom_attrs(proj)
-        if cust_attrs.custattr_exists(proj, attrname):
-            d = wx.MessageDialog(self, message="The attrname {0} already \
+                d.ShowModal()
+                return
+            proj = self.parent.parent.GetParent().project
+            custom_attrs = cust_attrs.load_custom_attrs(proj)
+            if cust_attrs.custattr_exists(proj, attrname):
+                d = wx.MessageDialog(self, message="The attrname {0} already \
 exists as a Custom Attribute.".format(attrname))
-            d.ShowModal()
-            return
-        
-        cust_attrs.add_custom_attr_ss(self.parent.parent.GetParent().project,
-                                      attrname, spreadsheetpath, attrin)
+                d.ShowModal()
+                return
+            cust_attrs.add_custom_attr_ss(self.parent.parent.GetParent().project,
+                                          attrname, spreadsheetpath, attrin)
+        elif choice == FILENAME:
+            print "Handling Filename-based Custom Attribute."
+            dlg = FilenameAttrDialog(self)
+            status = dlg.ShowModal()
+            if status == wx.ID_CANCEL:
+                return
+            
         
     def onButton_viewcustomattrs(self, evt):
         custom_attrs = cust_attrs.load_custom_attrs(self.parent.parent.GetParent().project)
@@ -930,6 +949,16 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         path = dlg.GetPath()
         self.file_inputctrl.SetValue(path)
         self.path = path
+
+class FilenameAttrDialog(wx.Dialog):
+    """
+    Dialog that handles the creation of a Filename-based Custom
+    Attribute.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        
 
 def delete_attr_type(attrvalsdir, attrtype):
     """
