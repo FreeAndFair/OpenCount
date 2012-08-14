@@ -713,12 +713,19 @@ def determine_template(sample_attrs, template_attrs, project):
                 break
         if flag:
             #return temppath
-            possibles[temppath] = attr_dict
+            possibles[temppath] = temp_attrdict
     # 2.) Now, handle custom_attributes
     custom_attrs = cust_attrs.load_custom_attrs(project)
     if custom_attrs == None:
         if len(possibles) > 1:
-        assert len(possibles)
+            print "Uhoh, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+            pdb.set_trace()
+        if len(possibles) == 0:
+            print "== Error, determine_template couldn't find a template. We're hosed."
+            pdb.set_trace()
+            return None
+        assert len(possibles) == 1
+        return possibles.keys()[0]
     for cattr in custom_attrs:
         attrname = cattr.attrname
         sspath = cattr.sspath

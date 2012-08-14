@@ -651,7 +651,7 @@ spreadsheet path.")
         proj = self.parent.parent.GetParent().project
         custom_attrs = cust_attrs.load_custom_attrs(proj)
         if cust_attrs.custattr_exists(proj, attrname):
-            d = wx.MessageDialog(self, message="The attrname {0} already
+            d = wx.MessageDialog(self, message="The attrname {0} already \
 exists as a Custom Attribute.".format(attrname))
             d.ShowModal()
             return
