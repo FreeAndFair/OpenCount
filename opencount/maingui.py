@@ -1072,8 +1072,9 @@ and active in order to access this.",
                 self.notebook.ChangeSelection(self.LABEL_ATTRS)
                 return            
         elif old == self.LABEL_DIGIT_ATTRS:
-            # Should sanity-check the results
-            pass
+            # TODO: Should also sanity-check the results (such as, have
+            #       all patches been fully labeled?
+            self.panel_label_digitattrs.export_results()
         elif old == self.CORRECT_GROUPING:
             TIMER.stop_task(('user', map_pages[self.CORRECT_GROUPING]['user']))
             self.panel_correct_grouping.exportResults()

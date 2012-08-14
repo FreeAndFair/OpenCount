@@ -138,6 +138,9 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         print "Finished extracting patch dirs."
         return patch2temp
 
+    def export_results(self):
+        self.mainpanel.export_results()
+
     def ondone(self, results):
         """ Called when the user is finished labeling digit-based
         attributes. Currently doesn't do much at all.
@@ -182,6 +185,9 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.Fit()
         if not self.digitpanel.restore_session(statefile=statefile):
             self.digitpanel.start()
+
+    def export_results(self):
+        self.digitpanel.export_results()
 
     def onButton_sort(self, evt):
         self.digitpanel.sort_cells()
@@ -519,11 +525,15 @@ digit.")
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        result = self.get_patch2precinct()
-        self.export_precinct_nums(result)
+        self.export_results()
         if self.ondone:
             self.ondone(result)
         self.Disable()
+
+    def export_results(self):
+        """ Saves out the digitattrvals_blanks.p file. """
+        result = self.get_patch2precinct()
+        self.export_precinct_nums(result)
 
     def get_patch2precinct(self):
         """ Called by on_done. Computes the result dictionary:

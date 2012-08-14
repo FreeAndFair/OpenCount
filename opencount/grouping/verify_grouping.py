@@ -241,7 +241,8 @@ class GroupingMasterPanel(wx.Panel):
                                        img2tmp)
         # munged_patches doesn't know anything about digitattrs, so add
         # this info in.
-        munged_patches = add_digitattr_info(self.project, munged_patches)
+        if common.get_digitbased_attrs(self.project):
+            munged_patches = add_digitattr_info(self.project, munged_patches)
         for samplepath, attrdict in results_foo.items():
             row = {}
             row['samplepath'] = samplepath
