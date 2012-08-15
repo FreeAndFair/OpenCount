@@ -327,7 +327,25 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.start()
         for regionpath, digits_str in digits.iteritems():
             self.precinct_txts[regionpath].SetLabel("Precinct Number:"+digits_str)
-        for regionpath, boxes in cell_boxes.iteritems():
+        #for regionpath, boxes in cell_boxes.iteritems():
+        #    self.cells[regionpath].boxes = boxes
+        # For awhile, a bug happened where self.matches could become 
+        # out-of-sync with self.cells. This code will ensure that they
+        # stay synced.
+        def get_digit(patchpath):
+            """ patchpaths are of the form:
+                <projdir>/digit_exemplars/0_examples/*.png
+            """
+            return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
+        for regionpath, matches in self.matches.iteritems():
+            boxes = []
+            for (patchpath, matchID,y1,y2,x1,x2,rszFac) in matches:
+                x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+                # Then, scale it by the resizing done in setup_grid
+                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                digit = get_digit(patchpath)
+                box = Box(x1,y1,x2,y2,digit=digit)
+                boxes.append(box)
             self.cells[regionpath].boxes = boxes
         return True
 
@@ -455,6 +473,8 @@ digit.")
         matches = queue.get()
 
         matches_prune = prune_matches(matches, self.matches)
+        # TODO: Doesn't prune away close-matches within the results of
+        #       template matching.
 
         print "Number of matches pruned: {0}".format(len(matches) - len(matches_prune))
         matches = matches_prune
@@ -481,7 +501,6 @@ digit.")
                 newIreg = np.zeros((h,w))
                 newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
                 Ireg = newIreg
-            print "Saving digpatchimg:", patchpath
             scipy.misc.imsave(patchpath, Ireg)
             examples.append((filename, (grouplabel,), patchpath))
             self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
@@ -501,11 +520,6 @@ digit.")
         matching on the current digit. Add all 'correct' matches to
         the relevant cell's boxes.
         """
-        def dont_add(newbox, regionpath):
-            for box in self.cells[regionpath].boxes:
-                if Box.too_close(newbox, box):
-                    return True
-            return False
         self.f.Close()
         self.Enable()
         self.enable_cells()
@@ -526,15 +540,23 @@ digit.")
                         stuff = [t for t in stuff if t[0] != patchpath]
                         self.matches[regionpath] = stuff
         added_matches = 0
+        def get_digit(patchpath):
+            """ patchpaths are of the form:
+                <projdir>/digit_exemplars/0_examples/*.png
+            """
+            return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
         for regionpath, stuff in self.matches.iteritems():
+            boxes = []
             for (patchpath, matchID, y1, y2, x1, x2, rszFac) in stuff:
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
                 # Then, scale it by the resizing done in setup_grid
                 x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
-                newbox = Box(x1, y1, x2, y2, digit=self.current_digit)
-                if not dont_add(newbox, regionpath):
-                    added_matches += 1
-                    self.add_box(newbox, regionpath)
+                dig = get_digit(patchpath)
+                newbox = Box(x1, y1, x2, y2, digit=dig)
+                added_matches += 1
+                boxes.append(newbox)
+                #self.add_box(newbox, regionpath)
+            self.cells[regionpath].boxes = boxes
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
 
@@ -939,6 +961,8 @@ def prune_matches(matches, prev_matches):
     pruned_matches = []
     prev_bbs = []
     for regionpath, tuples in prev_matches.iteritems():
+        if '5_exemplar.png' == os.path.split(regionpath)[1]:
+            pass
         for (patchpath, matchID, y1, y2, x1, x2, rszFac) in tuples:
             prev_bbs.append((regionpath, (y1,y2,x1,x2)))
     for (regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac) in matches:
