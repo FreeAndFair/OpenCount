@@ -12,6 +12,7 @@ import specify_voting_targets.util_gui as util_gui
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.sanity_check as sanity_check
 import pre_processing.straighten_ballots as straighten_ballots
+import grouping.common as common
 
 from tab_wrap import tab_wrap
 from threshold.threshold import ThresholdPanel
@@ -23,6 +24,7 @@ from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.verify_grouping import GroupingMasterPanel
 from post_processing.postprocess import ResultsPanel
 from quarantine.quarantinepanel import QuarantinePanel
+
 
 TIMER = None
 TIMING_FILENAME = 'timings.log'
@@ -1171,6 +1173,14 @@ one template. \nSkipping ahead to 'Run'."
                 self.notebook.ChangeSelection(self.RUN)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
                 return
+            elif not common.exists_imgattrs(self.project):
+                msg = "The step 'Label Ballot Attributes' is unnecessary, \
+because the current election has no Image-based attributes. \nSkipping \
+ahead to 'Label Digit Attributes'."
+                dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                dlg.ShowModal()
+                self.notebook.ChangeSelection(self.LABEL_DIGIT_ATTRS)
+                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGIT_ATTRS)
             elif not groupattrs_already_done(self.project):
                 # Attr grouping is causing more problems than help,
                 # skipping it for now... LETS TRY IT NOW

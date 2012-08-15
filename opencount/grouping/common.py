@@ -258,6 +258,18 @@ def get_attrtypes(project):
         result.add(attrs_str)
     return result
 
+def exists_imgattrs(proj):
+    """ Returns True if there exists at least one image based attribute
+    (i.e. a non-custom+non-digit based attr).
+    """
+    # attrs does NOT include CustomAttributes (these are stored in 
+    # custom_attrs.p), so no need to check for them.
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if not attr['is_digitbased']:
+            return True
+    return False
+
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
     attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
@@ -499,6 +511,12 @@ def str_grouplabel(grouplabel):
     for (k, v) in kv_pairs:
         out += '{0}->{1}, '.format(k, v)
     return out
+
+def get_median_img(imgdir):
+    """ Given a directory of images, choose the median image. """
+    # TODO: By choosing the median exemplar image, this might
+    #       improve accuracy (somewhat). Can't hurt.
+    imgs = []
 
 class GroupClass(object):
     """

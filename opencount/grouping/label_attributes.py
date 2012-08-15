@@ -287,6 +287,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def stop(self):
         """ Saves some state. """
+        if self.project == None:
+            # We never called 'self.start()', so don't proceed. This
+            # happens if, say, there are no Img-Based attrs in the
+            # election.
+            return
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
                                                         LabelPanel.STATE_FILE))
 
@@ -337,6 +342,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         all patchpath->label mappings to one .csv file, we want to save
         the blankballotpath->(attr labels) to multiple .csv files.
         """
+        if self.project == None:
+            # self.start was never called, so don't proceed. This could
+            # happen if, say, this election has no Img-based attrs.
+            return
         print "Exporting results."
         patchlabels = self.labelpanel.imagelabels
         ballot_attr_labels = {} # maps {imgpath: {attrstr: label}}
