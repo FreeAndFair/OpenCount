@@ -288,7 +288,9 @@ blank ballots and voted ballots directories first.")
             dlg.ShowModal()
             self.Enable()
             return
+
         val = self.is_straightened.GetValue()
+
         if val:
             self.project.templatesdir = self.project.raw_templatesdir
             self.project.samplesdir = self.project.raw_samplesdir
@@ -299,8 +301,14 @@ blank ballots and voted ballots directories first.")
             self.project.samplesdir = ''
             self.project.blankballots_straightdir = pathjoin(self.project.projdir_path, 'blankballots_straight')
             self.project.votedballots_straightdir = pathjoin(self.project.projdir_path, 'votedballots_straight')
+
         self.project.are_votedballots_straightened = val
         self.project.are_blankballots_straightened = val
+
+        # These flags are set because when reloading a project, need to indicate whether it
+        # was PRE-STRAIGHTENED, rather than straightened using OpenCount
+        self.project.are_votedballots_prestraightened = val
+        self.project.are_blankballots_prestraightened = val
             
     def changeDoubleSided(self, x):
         val = self.is_double_sided.GetValue()
@@ -358,6 +366,7 @@ blank ballots and voted ballots directories first.")
         project = msg.data
         self.project = project
         templatesdir, samplesdir = project.raw_templatesdir, project.raw_samplesdir
+
         if os.path.exists(templatesdir):
             self.set_templatepath(templatesdir)
         else:
@@ -366,11 +375,16 @@ blank ballots and voted ballots directories first.")
             self.set_samplepath(samplesdir)
         else:
             self.box_samples.txt_samplespath.SetLabel(samplesdir)
+            
         if self.project.is_multipage:
             self.is_double_sided.SetValue(True)
-
-        if self.project.are_blankballots_straightened and self.project.are_votedballots_straightened:
+        else:
+            self.is_double_sided.SetValue(False)
+        
+        if self.project.are_blankballots_prestraightened and self.project.are_votedballots_prestraightened:
             self.is_straightened.SetValue(True)
+        else:
+            self.is_straightened.SetValue(False)
 
         if os.path.exists(templatesdir) and os.path.exists(samplesdir):
             Publisher().sendMessage("broadcast.can_proceed")
@@ -1426,7 +1440,9 @@ class Project(object):
                      'votedballots_straightdir': pathjoin(projdir_path, 'votedballots_straight'),
                      'blankballots_straightdir': pathjoin(projdir_path, 'blankballots_straight'),
                      'are_blankballots_straightened': False,
+                     'are_blankballots_prestraightened':False,
                      'are_votedballots_straightened': False,
+                     'are_votedballots_prestraightened': False,
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
