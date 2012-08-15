@@ -10,7 +10,6 @@ import shared as sh
 import time
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
-import multiprocessing as mp
 
 def dt1(f):
     n = f.size
@@ -77,7 +76,6 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
     matchMat = []
     count = 0;
     keys = digit_hash.keys()
-
     t0=time.clock()    
     for key in keys:
         Iout = sh.NCC(I,digit_hash[key])
@@ -92,10 +90,11 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
                 # Expand the mask-region a little bit
                 i1 = max(0,bbMask[0]-(h/4))
                 #i2 = min(Iout.shape[0],bbMask[0]+(bbMask[1]-bbMask[0])/3)
-                i2 = min(Iout.shape[0], bbMask[1]+(h/3))
+                #i2 = min(Iout.shape[0], bbMask[1]+(h/3))
+                i2 = min(Iout.shape[0], bbMask[0]+(h/3))
                 j1 = max(0,bbMask[2]-(w/4))
-                j2 = min(Iout.shape[1], bbMask[3] + (w/3))
-                #j2 = min(Iout.shape[1],bbMask[2]+(bbMask[3]-bbMask[2])/3)
+                #j2 = min(Iout.shape[1], bbMask[3] + (w/3))
+                j2 = min(Iout.shape[1],bbMask[2]+(w/3))
                 Iout[i1:i2,j1:j2]=-2
             #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
         if len(matchMat) == 0:
@@ -218,10 +217,16 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
     patchExample = digitList[0]
 
     nProc=sh.numProcs()
-    pool = mp.Pool(processes=nProc)
-    results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes) for x in  imList])
-    pool.close()
-    pool.join()
+
+    if nProc < 2:
+        results = []
+        for x in imList:
+            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,do_flip,hspace,rejected_hashes)))
+    else:
+        pool = mp.Pool(processes=nProc)
+        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes) for x in  imList])
+        pool.close()
+        pool.join()
 
     return results
 
