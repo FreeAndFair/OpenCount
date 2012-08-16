@@ -270,6 +270,19 @@ def exists_imgattrs(proj):
             return True
     return False
 
+def exists_digitattrs(proj):
+    """ Returns True if there exists at least one digit-based attr. """
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if attr['is_digitbased']:
+            return True
+    return False
+
+def exists_customattrs(proj):
+    """ Returns True if there exists at least one Custom attr. """
+    customattrsP = pathjoin(proj.projdir_path, proj.custom_attrs)
+    return os.path.exists(customattrsP)
+
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
     attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))

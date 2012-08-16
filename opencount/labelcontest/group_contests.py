@@ -473,12 +473,16 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print "USING", tops
     blocks = []
     for upper,lower in zip(tops, tops[1:]):
+        istarget = (upper != 0)
+        if upper == lower:
+            blocks.append((istarget, ""))
+            continue
         print "POS", upper, lower
+        print len(cont_area[upper:lower])
         img = num2pil(cont_area[upper:lower])
         name = os.path.join(path, str(upper)+".tif")
         img.save(name)
         os.popen("tesseract %s %s -l %s"%(name, name, lang))
-        istarget = (upper != 0)
         if os.path.exists(name+".txt"):
             print "THIS BLOCK GOT", open(name+".txt").read().decode('utf8')
             blocks.append((istarget, open(name+".txt").read().decode('utf8')))
@@ -672,7 +676,6 @@ def extend_multibox(ballots, box1, box2, orders):
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
     print "ARGUMENTS", (t, paths, giventargets, lang_map)
-    print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
@@ -690,6 +693,7 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
 
 def find_contests(t, paths, giventargets):
     global tmp
+    print "ARGS", (t, paths, giventargets)
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
@@ -707,23 +711,24 @@ def find_contests(t, paths, giventargets):
 def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
     print "ARGUMENTS", (t, paths, giventargets, lang_map)
-    print 'giventargets', giventargets
+    #print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp+"*")
     ballots = []
-    print "CONTESTARG", contests
+    #print "CONTESTARG", contests
     for i,(f,conts) in enumerate(zip(paths,contests)):
         print f
         im = load_num(f)
         lang = lang_map[f] if f in lang_map else 'eng'
         get = ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
         ballots.append(get)
-    print "WORKING ON", ballots
+    #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
 def final_grouping(ballots, giventargets):
     ballots = merge_contests(ballots, giventargets)
     return equ_class(ballots)
+
