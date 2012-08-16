@@ -141,6 +141,9 @@ class VerifyPanel(wx.Panel):
                             # when verifying is done
         self.outfilepath = None   # An optional filepath to output
                                   # grouping results to.
+        # self._mismatch_cnt: Keeps track of the current number of 'new'
+        # MisClassified overlays currently in the queue.
+        self._mismatch_cnt = 0
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
@@ -249,8 +252,13 @@ class VerifyPanel(wx.Panel):
         self.okayButton = wx.Button(self.mainPanel, label='OK')
         self.splitButton = wx.Button(self.mainPanel, label='Split')
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
+        misclassify_sizer = wx.BoxSizer(wx.VERTICAL)
         self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
+        self.misclassify_txt = wx.StaticText(self.mainPanel, label="Mismatches \
+in queue: 0")
+        misclassify_sizer.Add(self.misclassifyButton)
+        misclassify_sizer.Add(self.misclassify_txt)
         self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
         self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
@@ -272,7 +280,8 @@ class VerifyPanel(wx.Panel):
         hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(misclassify_sizer, flag=wx.LEFT | wx.CENTRE)
+        #hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.rundigitgroupButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
@@ -512,7 +521,7 @@ class VerifyPanel(wx.Panel):
         if group in self.queue:
             # DOGFOOD: Remove this hotfix after the Napa audits
             print "Silently throwing out duplicate group object."
-            pdb.set_trace()
+            #pdb.set_trace()
             return
         assert group not in self.queue
         self.queue.insert(0, group)
@@ -639,19 +648,16 @@ class VerifyPanel(wx.Panel):
                     digitattrs.append(attrtypestr)
             return digitattrs
         grouplabel = self.currentGroup.getcurrentgrouplabel()
-        if common.get_propval(grouplabel, 'digit') == None:
-            dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
+        digitattrs = get_digitattrtypes(self.project)
+        if not digitattrs:
+            dlg = wx.MessageDialog(self, message="'Run Digit Group' isn't \
 supported for non-digitbased attributes. Perhaps you'd like to quarantine \
 this instead?", style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
             return
-        digitattrs = get_digitattrtypes(self.project)
-        if not digitattrs:
-            print "Uhoh, digitattrs was empty, when it shouldn't be."
-            pdb.set_trace()
-        assert len(digitattrs) > 0
+
         if len(digitattrs) != 1:
             print "Sorry, OpenCount only supports one digit-based attribute \
 at a time."
@@ -736,6 +742,9 @@ rejected_hashes..."
         for new_digitgroup in groups:
             self.add_group(new_digitgroup)
         self.select_group(self.queue[0])
+
+        self._mismatch_cnt = 0
+        self.misclassify_txt.SetLabel("Mismatches in queue: 0")
         
     def OnClickMisclassify(self, evt):
         """ Used for MODE_NORMAL. Signals that the current attr patch
@@ -820,6 +829,8 @@ at a time."
             for digit, lst in digitsmap.iteritems():
                 ct += len(lst)
         print "Number of rejected regions:", ct
+        self._mismatch_cnt += 1
+        self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
 
         # Remove the current group, and display the next one
         self.remove_group(self.currentGroup)

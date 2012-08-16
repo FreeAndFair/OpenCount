@@ -290,7 +290,9 @@ blank ballots and voted ballots directories first.")
             dlg.ShowModal()
             self.Enable()
             return
+
         val = self.is_straightened.GetValue()
+
         if val:
             self.project.templatesdir = self.project.raw_templatesdir
             self.project.samplesdir = self.project.raw_samplesdir
@@ -301,9 +303,18 @@ blank ballots and voted ballots directories first.")
             self.project.samplesdir = ''
             self.project.blankballots_straightdir = pathjoin(self.project.projdir_path, 'blankballots_straight')
             self.project.votedballots_straightdir = pathjoin(self.project.projdir_path, 'votedballots_straight')
-        self.project.are_votedballots_straightened = val
-        self.project.are_blankballots_straightened = val
+       
+        # If the straightener has ran, i.e., the ballots have been straightened and
+        # written to the projects directory, then these internal flags should not be changed
+        # by the UI
+        if not self.project.has_straightener_ran:
+            self.project.are_votedballots_straightened = val
+            self.project.are_blankballots_straightened = val
             
+        # UI flag to set checkbox if ballots are
+        # pre-straightened or not.
+        self.project.are_ballots_prestraightened = val
+
     def changeDoubleSided(self, x):
         val = self.is_double_sided.GetValue()
         self.project.is_multipage = val
@@ -360,6 +371,7 @@ blank ballots and voted ballots directories first.")
         project = msg.data
         self.project = project
         templatesdir, samplesdir = project.raw_templatesdir, project.raw_samplesdir
+
         if os.path.exists(templatesdir):
             self.set_templatepath(templatesdir)
         else:
@@ -368,11 +380,16 @@ blank ballots and voted ballots directories first.")
             self.set_samplepath(samplesdir)
         else:
             self.box_samples.txt_samplespath.SetLabel(samplesdir)
+            
         if self.project.is_multipage:
             self.is_double_sided.SetValue(True)
-
-        if self.project.are_blankballots_straightened and self.project.are_votedballots_straightened:
+        else:
+            self.is_double_sided.SetValue(False)
+        
+        if self.project.are_ballots_prestraightened:
             self.is_straightened.SetValue(True)
+        else:
+            self.is_straightened.SetValue(False)
 
         if os.path.exists(templatesdir) and os.path.exists(samplesdir):
             Publisher().sendMessage("broadcast.can_proceed")
@@ -676,6 +693,7 @@ class MainFrame(wx.Frame):
         """
         print 'Blank ballots have been straightened.'
         self.project.are_blankballots_straightened = True
+        self.project.has_straightener_ran = True
         self.Enable()
         self.panel_specify_voting_targets.start()
         self.panel_specify_voting_targets.SendSizeEvent()
@@ -684,6 +702,7 @@ class MainFrame(wx.Frame):
     def _pubsub_votedballot_done(self, msg):
         print "Voted ballots have been straightened."
         self.project.are_votedballots_straightened = True
+        self.project.has_straightener_ran = True
         if self.waiting_for_votedstraights:
             print "== Since UI was waiting for voted ballots to be \
 straightened, I'm now unlocking the UI."
@@ -1076,7 +1095,19 @@ and active in order to access this.",
         elif old == self.LABEL_DIGIT_ATTRS:
             # TODO: Should also sanity-check the results (such as, have
             #       all patches been fully labeled?
-            self.panel_label_digitattrs.export_results()
+            
+            # If there is no digit-based attributes in the project,
+            # there will be no panel for digit attrs, so must check before
+            # trying to export.
+            def is_any_digitspatches(project):
+                all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+                for attrbox_dict in all_attrtypes:
+                    if attrbox_dict['is_digitbased']:
+                        return True
+                return False
+            if is_any_digitspatches(self.project):
+                self.panel_label_digitattrs.export_results()
+
         elif old == self.CORRECT_GROUPING:
             TIMER.stop_task(('user', map_pages[self.CORRECT_GROUPING]['user']))
             self.panel_correct_grouping.exportResults()
@@ -1199,15 +1230,20 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     if attrbox_dict['is_digitbased']:
                         return True
                 return False
+            print is_any_digitspatches(self.project)
             if is_any_digitspatches(self.project):
                 self.panel_label_digitattrs.start(self.project)
             else:
                 msg = "There are no digit-based attribute patches, \
 so this step is unnecessary. Skipping ahead."
                 dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                self.Disable()
                 dlg.ShowModal()
+                self.Enable()
+                old_page = self.notebook.GetSelection()
+                print old_page
                 self.notebook.ChangeSelection(self.LABEL_CONTESTS)
-                self.notebook.SendPageChangedEvent(self.LABEL_DIGIT_ATTRS, self.LABEL_CONTESTS)
+                self.notebook.SendPageChangedEvent(old_page, self.LABEL_CONTESTS)
                 self.SendSizeEvent()
                 return
             self.SendSizeEvent()
@@ -1435,6 +1471,8 @@ class Project(object):
                      'imgsize': (0,0),
                      'votedballots_straightdir': pathjoin(projdir_path, 'votedballots_straight'),
                      'blankballots_straightdir': pathjoin(projdir_path, 'blankballots_straight'),
+                     'has_straightener_ran': False,
+                     'are_ballots_prestraightened': False,
                      'are_blankballots_straightened': False,
                      'are_votedballots_straightened': False,
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
