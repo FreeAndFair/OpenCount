@@ -639,19 +639,16 @@ class VerifyPanel(wx.Panel):
                     digitattrs.append(attrtypestr)
             return digitattrs
         grouplabel = self.currentGroup.getcurrentgrouplabel()
-        if common.get_propval(grouplabel, 'digit') == None:
-            dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
+        digitattrs = get_digitattrtypes(self.project)
+        if not digitattrs:
+            dlg = wx.MessageDialog(self, message="'Run Digit Group' isn't \
 supported for non-digitbased attributes. Perhaps you'd like to quarantine \
 this instead?", style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
             return
-        digitattrs = get_digitattrtypes(self.project)
-        if not digitattrs:
-            print "Uhoh, digitattrs was empty, when it shouldn't be."
-            pdb.set_trace()
-        assert len(digitattrs) > 0
+
         if len(digitattrs) != 1:
             print "Sorry, OpenCount only supports one digit-based attribute \
 at a time."
