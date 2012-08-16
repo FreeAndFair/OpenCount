@@ -588,9 +588,31 @@ in queue: 0")
         self.fitPanel()
     
     def OnClickOK(self, event):
+        """ Used for MODE_NORMAL. Indicates that the currentGroup is 
+        indeed represented by the current exemplar. """
         index = self.templateChoice.GetCurrentSelection()
         self.add_finalize_group(self.currentGroup, index)
-        
+  
+        # For digits-based, update our accepted_hashes.
+        # TODO: Assumes that digit-based grouplabels has a key 'digit'
+        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
+        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        if accepted_hashes == None:
+            accepted_hashes = {}
+            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+            # digitinfo: ((y1,y2,x1,x2), str side)
+            digitinfo = digit_group.get_digitmatch_info(self.project, patchpath)
+            accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
+        partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+
+        cnt = 0
+        for imgpath, digitmap in accepted_hashes.iteritems():
+            for digit, lst in digitmap.iteritems():
+                cnt += len(lst)
+        print "Total number of accepted regions:", cnt
+
         self.remove_group(self.currentGroup)
 
         if self.is_done_verifying():
@@ -705,21 +727,27 @@ at a time."
             # TODO: Is it sampleid, or imgpath?
             #rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
-        # c.) Construct list of patches already verified by the user
-        ignorelist = []
-        for group in self.finished:
-            if common.get_propval(group.getcurrentgrouplabel(), 'digit') != None:
-                for (sampleid, rlist, patchpath) in group.elements:
-                    ignorelist.append(sampleid)
-
         if len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
             return
+        # c.) Grab accepted_hashes
+        # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
+        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        if accepted_hashes == None:
+            # Hasn't been created yet.
+            accepted_hashes = {}
+            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        accept_cnt = 0
+        for imgpath, digitsmap in accepted_hashes.iteritems():
+            for digit, lst in digitsmap.iteritems():
+                accept_cnt += len(lst)
+        print "Total number of accepted regions:", accept_cnt
 
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
         digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                             rejected_hashes=rejected_hashes)
+                                                             rejected_hashes=rejected_hashes,
+                                                             accepted_hashes=accepted_hashes)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
@@ -827,6 +855,7 @@ at a time."
             # TODO: Is it sampleid, or imgpath?
             #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
             rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
+        
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
 
         ct = 0

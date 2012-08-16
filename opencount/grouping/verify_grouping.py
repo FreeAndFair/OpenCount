@@ -505,6 +505,11 @@ Do you really want to re-run grouping?"""
                                  (YES, NO))
         statusval = dlg.ShowModal()
         if statusval == YES:
+            # Remember to remove state files
+            util_gui.remove_files(pathjoin(self.project.projdir_path,
+                                           self.project.rejected_hashes),
+                                  pathjoin(self.project.projdir_path,
+                                           self.project.accepted_hashes))
             self.start_grouping()
 
     def onButton_continue(self, evt):

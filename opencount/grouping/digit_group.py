@@ -7,8 +7,9 @@ import pixel_reg.shared as sh
 import util, common
 from PIL import Image
 
-def do_digitocr_patches(bal2imgs, digitattrs, project,
-                        rejected_hashes=None, ignorelist=None):
+def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
+                        rejected_hashes=None,
+                        accepted_hashes=None):
     """ For each digitbased attribute, run our NCC-OCR on the patch
     (using our digit exemplars).
     Input:
@@ -16,9 +17,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
         dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
         obj project
         dict rejected_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
-        list ignorelist: List of imagepaths to not process, i.e. if imgs
-                         have already been verified by the user. Should
-                         be sampleids.
+        dict accepted_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
+        lst ignorelist: List of images to ignore. UNUSED.
     Output:
         A dict that maps:
           {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
@@ -107,20 +107,23 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
               x2+int(round(w*c))]
         # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
         if not util.is_multipage(project):
-            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
+            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                                     digit_exs,
                                                     num_digits,
-                                                    bb=bb, rejected_hashes=rejected_hashes)
+                                                    bb=bb, rejected_hashes=rejected_hashes,
+                                                    accepted_hashes=accepted_hashes)
             digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
         else:
-            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
+            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb, rejected_hashes=rejected_hashes)
-            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1, ignorelist=ignorelist),
+                                               bb=bb, rejected_hashes=rejected_hashes,
+                                               accepted_hashes=accepted_hashes)
+            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb, rejected_hashes=rejected_hashes)
+                                               bb=bb, rejected_hashes=rejected_hashes,
+                                               accepted_hashes=accepted_hashes)
             digitparse_results = get_best_side(results_side0, results_side1)
         for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
             meta_out = []
@@ -138,8 +141,13 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
 
 def get_digitmatch_info(proj, patchpath):
     """ Given the path to a digit-patch (from a votedballot), return
-    the (y1,y2,x1,x2) region from the votedballot it was extracted
+    the ((y1,y2,x1,x2), side) region from the votedballot it was extracted
     from.
+    Input:
+        obj proj:
+        str patchpath: Path of a digitpatch from some image
+    Output:
+        ((y1,y2,x1,x2), str side)
     """
     res_path = os.path.join(proj.projdir_path, proj.digitgroup_results)
     digitgroup_results = pickle.load(open(res_path, 'rb'))
