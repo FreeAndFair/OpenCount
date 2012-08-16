@@ -8,6 +8,7 @@ import math
 import imagesAlign as lk
 import shared as sh
 import time
+import distance_transform
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
@@ -122,9 +123,15 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         shiftH[0,2] = hspace
         prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
         # shift
+        #t1=time.clock()    
+        # old
+        #res = dt2(prevT+unary) 
+        #print 'old DP time:',time.clock()-t1,'(s)'
         t1=time.clock()    
-        res = dt2(prevT+unary)
-        print 'DP time:',time.clock()-t1,'(s)'
+        # new cython implementation
+        res = distance_transform.dt2(prevT+unary)
+        print 'cython DP time:',time.clock()-t1,'(s)'
+        #print 'diff = ', np.sum(np.abs(res[0] - res2[0]))
         M[i] = res[0]
         Mx[i] = res[1]
         My[i] = res[2]
