@@ -135,35 +135,27 @@ def find_lines(data):
             if not data[y][x] < black: 
                 #data[y][x] = black
                 continue
-            if True:
-                #print 'black at', y,x
-                
-                if y%YSKIP == 0 and (y/3,x/3) not in foundy:
-                    u,d = full_extend_ud((y,x))
+            if y%YSKIP == 0 and (y/3,x/3) not in foundy:
+                u,d = full_extend_ud((y,x))
+                if d-u > 30:
+                    u,d = full_extend_ud_2((y,x))
                     if d-u > 30:
-                        u,d = full_extend_ud_2((y,x))
-                        if d-u > 30:
-                            for dx in range(-10, 10, 3):
-                                for q in range(u,d):
-                                    foundy[q/3,(x+dx)/3] = True
-                            lines.append(("V", (x-3,u,x+3,d)))
+                        for dx in range(-10, 10, 3):
+                            for q in range(u,d):
+                                foundy[q/3,(x+dx)/3] = True
+                        lines.append(("V", (x-3,u,x+3,d)))
 
-                if x%XSKIP == 0 and (y/3,x/3) not in foundx:
-                    #print 'h', newy, y, x
-                    l,r = full_extend_lr_2((y,x))
-                    if r-l > 30:
-                        for dy in range(-10, 10, 3):
-                            for q in range(l,r):
-                                foundx[(y+dy)/3,q/3] = True
-                        #print 'line starting from', x, y, data[y][x]
-                        #LST.append((x-3,y-3,x+3,y+3))
-                        #LST.append((l,y,r,y))
-                        lines.append(("H", (l,y-3,r+10,y+3)))
-            """
-            except Exception as e:
-                print e
-                pass
-            """
+            if x%XSKIP == 0 and (y/3,x/3) not in foundx:
+                #print 'h', newy, y, x
+                l,r = full_extend_lr_2((y,x))
+                if r-l > 30:
+                    for dy in range(-10, 10, 3):
+                        for q in range(l,r):
+                            foundx[(y+dy)/3,q/3] = True
+                    #print 'line starting from', x, y, data[y][x]
+                    #LST.append((x-3,y-3,x+3,y+3))
+                    #LST.append((l,y,r,y))
+                    lines.append(("H", (l,y-3,r,y+3)))
     
     if do_save:
         num2pil(data).save(tmp+"/it.png")
@@ -249,39 +241,56 @@ def to_graph(lines, width, height):
     vertical and horizontal lines.
     """
     print width, height
-    table = [[None]*(width+20) for _ in range(height+20)]
-    equal = []
-    for full in lines:
-        if full[0] != 'H': continue
-        _,(l,u,r,d) = full
-        for x in range(l,r):
-            for y in range(u,d):
-                if table[y][x] != None:
-                    equal.append((table[y][x], full))
-                else:
-                    table[y][x] = full
-    equal = list(set(equal))
-    #print equal
-    graph = {}
-    for v1,v2 in equal:
-        if v1 not in graph: graph[v1] = []
-        if v2 not in graph: graph[v2] = []
-        graph[v1].append(v2)
-        graph[v2].append(v1)
-    #print graph
-    seen = {}
-    new = []
-    for el in graph.keys():
-        if el in seen: continue
-        makeequal = dfs(graph, el)
-        for each in makeequal:
-            seen[each] = True
-        new.append((makeequal[0][0], reduce(union, [x[1] for x in makeequal])))
-    for line in lines:
-        if line not in seen:
-            new.append(line)
-    lines = new
 
+    # Extend the lines.
+    def extend(line):
+        if line[0] == 'V':
+            l, u, r, d = line[1]
+            ext = int(round((d-u)*0.02))
+            return ('V', (l, u-ext if u-ext >= 0 else 0, r, d+ext if d+ext < height else height-1))
+        if line[0] == 'H':
+            l, u, r, d = line[1]
+            ext = int(round((r-l)*0.02))
+            return ('H', (l-ext if l-ext >= 0 else 0, u, r+ext if r+ext < width else width-1, d))
+
+    for _ in range(2):
+        print "THERE ARE", len(lines)
+        lines = map(extend, lines)
+    
+        for direction in ['H', 'V']:
+            table = [[None]*(width+20) for _ in range(height+20)]
+            equal = []
+            for full in lines:
+                if full[0] != direction: continue
+                _,(l,u,r,d) = full
+                for x in range(l,r):
+                    for y in range(u,d):
+                        if table[y][x] != None:
+                            equal.append((table[y][x], full))
+                        else:
+                            table[y][x] = full
+            equal = list(set(equal))
+            #print equal
+            graph = {}
+            for v1,v2 in equal:
+                if v1 not in graph: graph[v1] = []
+                if v2 not in graph: graph[v2] = []
+                graph[v1].append(v2)
+                graph[v2].append(v1)
+            #print graph
+            seen = {}
+            new = []
+            for el in graph.keys():
+                if el in seen: continue
+                makeequal = dfs(graph, el)
+                for each in makeequal:
+                    seen[each] = True
+                new.append((makeequal[0][0], reduce(union, [x[1] for x in makeequal])))
+            for line in lines:
+                if line not in seen:
+                    new.append(line)
+            lines = new
+    print "THERE ARE END", len(lines)
         
     vertexes = dict((x, []) for _,x in lines)
 
