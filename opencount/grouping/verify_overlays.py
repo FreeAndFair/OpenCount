@@ -593,25 +593,27 @@ in queue: 0")
         index = self.templateChoice.GetCurrentSelection()
         self.add_finalize_group(self.currentGroup, index)
   
-        # For digits-based, update our accepted_hashes.
-        # TODO: Assumes that digit-based grouplabels has a key 'digit'
-        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-        # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
-        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
-        if accepted_hashes == None:
-            accepted_hashes = {}
+        if False:
+            # For digits-based, update our accepted_hashes.
+            # TODO: Assumes that digit-based grouplabels has a key 'digit'
+            cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+            print "CUR DIGIT:", cur_digit
+            # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
+            accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+            if accepted_hashes == None:
+                accepted_hashes = {}
+                partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+                # digitinfo: ((y1,y2,x1,x2), str side)
+                digitinfo = digit_group.get_digitmatch_info(self.project, patchpath)
+                accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
-        for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-            # digitinfo: ((y1,y2,x1,x2), str side)
-            digitinfo = digit_group.get_digitmatch_info(self.project, patchpath)
-            accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
-        partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
 
-        cnt = 0
-        for imgpath, digitmap in accepted_hashes.iteritems():
-            for digit, lst in digitmap.iteritems():
-                cnt += len(lst)
-        print "Total number of accepted regions:", cnt
+            cnt = 0
+            for imgpath, digitmap in accepted_hashes.iteritems():
+                for digit, lst in digitmap.iteritems():
+                    cnt += len(lst)
+            print "Total number of accepted regions:", cnt
 
         self.remove_group(self.currentGroup)
 
