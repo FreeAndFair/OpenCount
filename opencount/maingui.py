@@ -1199,15 +1199,10 @@ ahead to 'Label Digit Attributes'."
                 self.notebook.ChangeSelection(self.LABEL_DIGIT_ATTRS)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGIT_ATTRS)
             elif not groupattrs_already_done(self.project):
-                # Attr grouping is causing more problems than help,
-                # skipping it for now... LETS TRY IT NOW
                 f = GroupAttrsFrame(self, self.project, start_labelattrs)
                 f.SetSize((400, 500))
                 f.Show()
-                #start_labelattrs(None)
             else:
-                #start_labelattrs(None)    # Skip all attr grouping for now
-
                 dlg = wx.MessageDialog(self, message="Attribute Grouping \
 has already been run in a previous session. Would you like to re-run \
 attribute grouping? ", style=wx.YES | wx.NO)
