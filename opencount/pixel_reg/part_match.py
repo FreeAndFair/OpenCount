@@ -62,7 +62,7 @@ def dt2(I):
     return (res,Rx,Ry)
 
 # partmatch
-def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
+def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted_hash=None):
     """
     Applies digit-OCR to an image.
     Input:
@@ -72,6 +72,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None):
         hspace: 
         hackConstant:
         dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i), ...]}
+        dict accepted_hash: maps {str digit: [((y1,y2,x1,x2), str side_i), ...]}
     """
     # either load previously computed results or compute new
     reject_penalty = .2
@@ -189,21 +190,23 @@ def stackMax1(result_hash):
     return (maxSurf,symmax)
 
 def process_one(args):
-    imP, digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes = args
+    imP, digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes,accepted_hashes = args
     I1 = sh.standardImread(imP,flatten=True)
     if do_flip == True:
         I1 = sh.fastFlip(I1)
     #I1=sh.prepOpenCV(I1)
     I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
     rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
+    accepted_hash = accepted_hashes.get(imP, None) if accepted_hashes else None
     # perform matching for all digits
     # return best matching digit
     # mask out 
-    res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash)
+    res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
 
     return (imP,res[0],res[1],res[2],res[3])
 
-def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rejected_hashes=None):
+def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
+               rejected_hashes=None, accepted_hashes=None):
     """Runs NCC-based OCR on the images on imList.
     Input:
         dict digit_hash: maps {str digit: img digit_exemplar}
@@ -213,7 +216,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
         do_flip: If True, then flip the image.
         dict rejected_hashes: Contains all user rejections for each image,
                               maps:
-                                {imgpath: {str digit: ((y1,y2,x1,x2), str side)}}
+                                {imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
+        dict accepted_hashes: Contains all user accepts for each image,
+                              maps:
+                                {imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
     Output:
         A list of results of the form:
             [(imgpath_i, ocr_str_i, imgpatches_i, patchcoords_i, scores_i), ... ]
@@ -226,10 +232,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20, rej
     if nProc < 2:
         results = []
         for x in imList:
-            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,do_flip,hspace,rejected_hashes)))
+            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,do_flip,hspace,rejected_hashes,accepted_hashes)))
     else:
         pool = mp.Pool(processes=nProc)
-        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes) for x in  imList])
+        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes,accepted_hashes) for x in  imList])
         pool.close()
         pool.join()
 
