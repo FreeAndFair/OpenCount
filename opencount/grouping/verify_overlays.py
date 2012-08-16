@@ -593,11 +593,10 @@ in queue: 0")
         index = self.templateChoice.GetCurrentSelection()
         self.add_finalize_group(self.currentGroup, index)
   
-        if False:
+        if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit') != None:
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-            print "CUR DIGIT:", cur_digit
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
             accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
             if accepted_hashes == None:
