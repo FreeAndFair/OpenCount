@@ -736,6 +736,11 @@ rejected_hashes..."
                 if common.get_propval(grouplabel, 'digit') != None:
                     self.remove_group(group)
                     break
+        for group in self.finished[:]:
+            for grouplabel in group.orderedAttrVals:
+                if common.get_propval(grouplabel, 'digit') != None:
+                    self.finished.remove(group)
+                    break
         # 2.) Now, add in all new 'digit' Groups
         # TODO: Discard all matches that deal with already-verified
         #       patches, or tell partmatch to not search these imgs.
@@ -828,8 +833,8 @@ at a time."
         for imgpath, digitsmap in rejected_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():
                 ct += len(lst)
-        print "Number of rejected regions:", ct
-        self._mismatch_cnt += 1
+        print "Total Number of rejected regions:", ct
+        self._mismatch_cnt += len(self.currentGroup.elements)
         self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
 
         # Remove the current group, and display the next one
