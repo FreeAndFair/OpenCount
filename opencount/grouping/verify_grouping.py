@@ -522,14 +522,23 @@ Do you really want to re-run grouping?"""
         
     def _get_outputdirs(self):
         """
-        Return all output directories for this election.
+        Return all output directories for this election. Excludes
+        digit-based and Custom attributes, since they don't get
+        exported in this manner.
         Outputs:
             (<extractedpatches dirs>, <balgroupmetainit dirs>, <balgroupmeta dirs>)
         """
-        attrtypes = common.get_attrtypes(self.project)
+        # Weird thing: ballot_attributesfile includes img-based and
+        # digit-based attributes (but not custom-attrs). Filter out the
+        # digit-based attrs.
+        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         extractedpatches_dirs = []
         balgroupmeta_dirs = []
-        for attrtype in attrtypes:
+        for attr in attrs:
+            assert issubclass(type(attr['is_digitbased']), bool)
+            if attr['is_digitbased'] == True:
+                continue
+            attrtype = common.get_attrtype_str(attr['attrs'])
             path1 = self.project.extracted_precinct_dir + '-' + attrtype
             path2 = self.project.ballot_grouping_metadata + '-' + attrtype
             extractedpatches_dirs.append(path1)
@@ -546,14 +555,23 @@ Do you really want to re-run grouping?"""
             <projdir>/<project.ballot_grouping_metadata+'-'+attrtype+'_init'>/*
             <projdir>/<project.ballot_grouping_metadata+'-'+attrtype>/*
         """
-        extractedpatches_dirs, balgroupmeta_dirs = self._get_outputdirs()
-        for dir in extractedpatches_dirs:
-            if not util.contains_image(dir):
-                print '{0} has no images.'.format(dir)
-                return False
-        for dir in balgroupmeta_dirs:
-            if not util.contains_file(dir):
-                print '{0} has no files'.format(dir)
+        # The following block only checks img-based attributes
+        if common.exists_imgattrs(self.project):
+            extractedpatches_dirs, balgroupmeta_dirs = self._get_outputdirs()
+            for dir in extractedpatches_dirs:
+                if not util.contains_image(dir):
+                    print '{0} has no images.'.format(dir)
+                    return False
+            for dir in balgroupmeta_dirs:
+                if not util.contains_file(dir):
+                    print '{0} has no files'.format(dir)
+                    return False
+        # The following block checks digit-based attributes
+        if common.exists_digitattrs(self.project):
+            digitgroup_resultsP = pathjoin(self.project.projdir_path,
+                                           self.project.digitgroup_results)
+            if not os.path.exists(digitgroup_resultsP):
+                print "Digit Grouping hasn't been done yet:".format(digitgroup_resultsP)
                 return False
         return True
 
@@ -561,7 +579,6 @@ Do you really want to re-run grouping?"""
         proj = msg.data
         self.project = proj
 
-            
 class ProcessClass(threading.Thread):
     def __init__(self, fn, *args):
         self.fn = fn
