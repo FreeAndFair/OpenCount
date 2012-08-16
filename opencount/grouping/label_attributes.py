@@ -535,6 +535,13 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def display_img(self, idx, no_overwrite=False):
         """Displays the image at idx, and allow the user to start labeling
         it. Also updates the progress_txt.
+        Input:
+            int idx: Idx into self.imagepaths of the image to display.
+            bool no_overwrite: If True, then this will /not/ store the
+                current text in the text input (self.inputctrl) into
+                our internal data structures (self.imagelabels). This
+                is useful (albeit a bit of a hack) within
+                self.restore_session().
         """
         if not (idx < len(self.imagepaths)):
             pdb.set_trace()

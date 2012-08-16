@@ -13,6 +13,7 @@ import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.sanity_check as sanity_check
 import pre_processing.straighten_ballots as straighten_ballots
 import grouping.common as common
+import grouping.label_attributes as label_attributes
 
 from tab_wrap import tab_wrap
 from threshold.threshold import ThresholdPanel
@@ -1208,6 +1209,11 @@ has already been run in a previous session. Would you like to re-run \
 attribute grouping? ", style=wx.YES | wx.NO)
                 retstatus = dlg.ShowModal()
                 if retstatus == wx.ID_YES:
+                    # Remember to delete the LabelAttributes state
+                    # TODO: Shift the LabelPanel.STATE_FILE path into 
+                    # the Project class, to keep everything consolidated.
+                    os.remove(pathjoin(self.project.projdir_path,
+                                       label_attributes.LabelPanel.STATE_FILE))
                     f = GroupAttrsFrame(self, self.project, start_labelattrs)
                     f.SetSize((400, 500))
                     f.Show()
