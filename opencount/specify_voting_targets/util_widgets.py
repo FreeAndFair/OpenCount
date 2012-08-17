@@ -83,6 +83,12 @@ class MosaicPanel(ScrolledPanel):
 
     def set_images(self, imgpaths):
         self.imagemosaic.set_images(imgpaths)
+        min_w = self.imagemosaic.cell_width * self.imagemosaic.num_cols
+        min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
+        self.SetMinSize((min_w, -1))
+
+        self.SetupScrolling()
+        self.Fit()
 
     def set_boxes(self, boxes_dict):
         """ Given a dict that tells us all boxes for all imgpaths,
@@ -92,7 +98,13 @@ class MosaicPanel(ScrolledPanel):
             dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
         """
         for imgpath, boxes in boxes_dict.iteritems():
+            # TODO: IMPLEMENT ME
             self.imagemosaic
+
+    def select_image(self, imgpath):
+        """ Selects an image within the ImageMosaicPanel. """
+        # TODO: IMPLEMENT ME
+        pass
 
 class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized

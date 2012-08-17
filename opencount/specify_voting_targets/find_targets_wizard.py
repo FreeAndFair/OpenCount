@@ -133,14 +133,14 @@ class SpecifyTargetsPanel(wx.Panel):
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().unsubscribe(callback, topic)
-        self.panel_mosaic.unsubscribe_pubsubs()
+        #self.panel_mosaic.unsubscribe_pubsubs()
         self.ballotviewer.unsubscribe_pubsubs()
         self.world.unsubscribe_pubsubs()
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().subscribe(callback, topic)
-        self.panel_mosaic.subscribe_pubsubs()
+        #self.panel_mosaic.subscribe_pubsubs()
         self.ballotviewer.subscribe_pubsubs()
         self.world.subscribe_pubsubs()
         
@@ -152,7 +152,8 @@ class SpecifyTargetsPanel(wx.Panel):
     def setup_widgets(self):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.world = WorldState()
-        self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
+        #self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
+        self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
         self.panel_mosaic.Hide()
         self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
         self.ballotviewer.Hide()
@@ -166,6 +167,7 @@ class SpecifyTargetsPanel(wx.Panel):
         #self.sizer.Add(self.ballotviewer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
         #self.sizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL)
         self.SetSizer(self.sizer)
+        self.Fit()
         
     def _pubsub_freeze_contest(self, msg):
         """
@@ -295,23 +297,33 @@ function correctly.""".format(len(lonely_tmpls))
         self.subscribe_pubsubs()
         if not self.world.get_boxes_all():
             # User hasn't created boxes before
-            imgs_dict = {}
+            imgpaths = []
+            img_boxes = {}
             for dirpath, dirnames, filenames in os.walk(self.project.templatesdir):
                 for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                     imgpath = os.path.abspath(pathjoin(dirpath, imgname))
-                    imgs_dict[imgpath] = []
-            self.world.box_locations = imgs_dict
+                    imgpaths.append(imgpath)
+                    img_boxes[imgpath] = []
+            imgpaths = sorted(imgpaths)
+            self.world.box_locations = img_boxes
         else:
-            imgs_dict = self.world.get_boxes_all()
+            imgpaths = []
+            for dirpath, dirnames, filenames in os.walk(self.project.templatesdir):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    imgpath = os.path.abspath(pathjoin(dirpath, imgname))
+                    imgpaths.append(imgpath)
+            imgpaths = sorted(imgpaths)
+            img_boxes = self.world.get_boxes_all()
             
-        self.panel_mosaic.display_images(imgs_dict)
+        #self.panel_mosaic.display_images(imgs_dict)
+        self.panel_mosaic.set_images(imgpaths)
+        self.panel_mosaic.set_boxes(img_boxes)
 
         # Display first template on BallotScreen
-        imgpath = sorted(self.panel_mosaic.imgs.keys())[0]
+        imgpath = imgpaths[0]
         img = util_gui.open_as_grayscale(imgpath)
         target_locations = self.world.get_boxes(imgpath)
-        img_panel = self.panel_mosaic.img_panels[imgpath]
-        img_panel.static_bitmap.select()
+        self.panel_mosaic.select_image(imgpath)
         Publisher().sendMessage("signals.ballotviewer.set_image_pil", (imgpath, img))
         Publisher().sendMessage("signals.BallotScreen.set_bounding_boxes", (imgpath, target_locations))        
         Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
