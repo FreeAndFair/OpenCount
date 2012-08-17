@@ -432,12 +432,13 @@ class RunGroupingPanel(wx.Panel):
         print "== finished groupImagesMAP"
         if digitmunged:
             print "== Performing DigitOCR..."
-            digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
+            digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
             print "== Finished DigitOCR."
             outpath = os.path.join(self.project.projdir_path, 
                                    self.project.digitgroup_results)
             f = open(outpath, 'wb')
             pickle.dump(digitgroup_results, f)
+            digit_group.save_digitmatch_info(self.project, digitmatch_info)
             f.close()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 

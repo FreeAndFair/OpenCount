@@ -723,10 +723,7 @@ at a time."
             for digit, lst in digitsmap.iteritems():
                 ct += len(lst)
         print "Number of rejected regions:", ct
-        #for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-            # TODO: Do I append sampleid, or patchpath? 
-            # TODO: Is it sampleid, or imgpath?
-            #rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
+
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         if len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
@@ -746,10 +743,11 @@ at a time."
 
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
-        digitgroup_results = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
-                                                             rejected_hashes=rejected_hashes,
-                                                             accepted_hashes=accepted_hashes)
+        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+                                                                              rejected_hashes=rejected_hashes,
+                                                                              accepted_hashes=accepted_hashes)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        digit_group.save_digitmatch_info(self.project, digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
 

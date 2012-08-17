@@ -96,6 +96,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         print "Removing everything in:", voteddigits_dir
         shutil.rmtree(voteddigits_dir)
     ctr = 0
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
@@ -132,12 +133,13 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                 util.create_dirs(rootdir)
                 outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
                 #scipy.misc.imsave(outpath, digitimg)
+                digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
                 Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
             ballotid = img2bal[imgpath]
             result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
-    return result
+    return result, digitmatch_info
 
 def get_digitmatch_info(proj, patchpath):
     """ Given the path to a digit-patch (from a votedballot), return
@@ -149,16 +151,13 @@ def get_digitmatch_info(proj, patchpath):
     Output:
         ((y1,y2,x1,x2), str side)
     """
-    res_path = os.path.join(proj.projdir_path, proj.digitgroup_results)
-    digitgroup_results = pickle.load(open(res_path, 'rb'))
-    for ballotid, matches in digitgroup_results.iteritems():
-        for (digitattr, ocrstr, meta, isflip, side) in matches:
-            for (y1,y2,x1,x2,digit,outpath,score) in meta:
-                if patchpath == outpath:
-                    return (y1,y2,x1,x2), side
-    print "Uhoh, couldn't find patchpath."
-    pdb.set_trace()
-    return None
+    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    if patchpath not in digitmatch_info:
+        print "Uhoh, couldn't find patchpath."
+        pdb.set_trace()
+    assert patchpath in digitmatch_info
+    return digitmatch_info[patchpath]
 
 def save_digitgroup_results(proj, digitgroup_results):
     """ Saves the results of doing grouping-by-digits.
@@ -171,6 +170,16 @@ def save_digitgroup_results(proj, digitgroup_results):
     """
     outpath = os.path.join(proj.projdir_path, proj.digitgroup_results)
     pickle.dump(digitgroup_results, open(outpath, 'wb'))
+
+def save_digitmatch_info(proj, digitmatch_info):
+    """ Saves the digitmatch_info dictionary, which contains information
+    about all extracted digit patches from voted ballots.
+    Input:
+        obj proj:
+        dict digitmatch_info: maps {str patchpath: ((y1,y2,x1,x2), str side)}
+    """
+    outpath = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    pickle.dump(digitmatch_info, open(outpath, 'wb'))
 
 def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
     """ Converts the result of do_digitocr_patches to a list of 
