@@ -1,5 +1,4 @@
 import numpy as np
-import numexpr as ne
 cimport numpy as np
  
 def dt1(np.ndarray[np.float_t,ndim=1] f):
