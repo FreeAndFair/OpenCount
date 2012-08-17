@@ -76,6 +76,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
     """
     # either load previously computed results or compute new
     reject_penalty = .2
+    accept_bonus = .2
     matchMat = []
     count = 0;
     keys = digit_hash.keys()
@@ -97,6 +98,21 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
                 j2 = min(Iout.shape[1],bbMask[2]+(w/4))
                 Iout[i1:i2,j1:j2]=Iout[i1:i2,j1:j2]-reject_penalty
             #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+
+        if accepted_hash and accepted_hash.has_key(key):
+            for (bbMask, side) in accepted_hash[key]:
+                # TODO: I don't ever use the 'side'. Is it worth removing it
+                #       from rejected_hashes, or will it be used downstream?
+                h = bbMask[1] - bbMask[0]
+                w = bbMask[3] - bbMask[2]
+                # Expand the mask-region a little bit
+                i1 = max(0,bbMask[0]-(h/4))
+                i2 = min(Iout.shape[0], bbMask[0]+(h/4))
+                j1 = max(0,bbMask[2]-(w/4))
+                j2 = min(Iout.shape[1],bbMask[2]+(w/4))
+                Iout[i1:i2,j1:j2]=Iout[i1:i2,j1:j2]+accept_bonus
+            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0],Iout.shape[1],len(keys)))
 
