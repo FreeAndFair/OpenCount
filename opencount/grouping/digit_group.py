@@ -188,6 +188,10 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
     if ignorelist == None:
         ignorelist = []
     bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
+    digitpatchpath_scoresP = pathjoin(proj.projdir_path,
+                                      proj.digitpatchpath_scoresVoted)
+    # maps {str patchpath: float score}, used for 'Split'
+    digitpatchpath_scores = {}
 
     digits_results = {} # maps {str digit: list of [ballotid, patchpath, isflip_i, side_i]}
     attr_types = common.get_attrtypes(proj)
@@ -227,6 +231,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
                                 digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
+                                digitpatchpath_scores[digitpatchpath] = score
                             break
     else:
         # Multipage
@@ -244,6 +249,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
                                 digits_results.setdefault(digit, []).append((sidepath, digitpatchpath))
+                                digitpatchpath_scores[digitpatchpath] = score
                             break
 
     groups = []
@@ -254,7 +260,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
         rankedlist = make_digits_rankedlist(digit, alldigits)
         for (ballotid, patchpath) in lst:
             elements.append((ballotid, rankedlist, patchpath))
-        group = common.GroupClass(elements)
+        group = common.GroupClass(elements, is_digit=True,
+                                  user_data=digitpatchpath_scores)
         groups.append(group)
     return groups
 

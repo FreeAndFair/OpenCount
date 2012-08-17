@@ -537,7 +537,7 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, elements, no_overlays=False):
+    def __init__(self, elements, no_overlays=False, is_digit=False, user_data=None):
         """
         TODO: Is it really 'sampleid'? Or what?
 
@@ -548,12 +548,19 @@ class GroupClass(object):
                  should be at index 0).
                  imgpatch is a path to the image that this element
                  represents.
+        bool is_digit: True if this is a digit, False o.w.
+        user_data: Whatever you want it to be. For 'Digit' attributes,
+                   this will be a dict that maps:
+                     {str patchpath: float score}
+                   This will be used during 'Split', for smarter split
+                   behavior.
         """
         self.elements = list(elements)
         for i in range(len(elements)):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
+        self.is_digit = is_digit
         # orderedAttrVals is a list of grouplabels, whose order is 
         # predetermined by some score-metric. Should not change after it
         # is first set.
@@ -563,6 +570,10 @@ class GroupClass(object):
         # this group ostensibly represents. Is 'finalized' when the user
         # clicks 'Ok' within the VerifyOverlay UI.
         self.index = 0
+
+        # self.user_data can be several things. For "digits" attributes,
+        # it's a dict mapping {str patchpath: float score}
+        self.user_data = user_data
 
         self.processElements()
 
@@ -677,6 +688,38 @@ not equal."
                                                                    reverse=True)]
         
     def split(self):
+        if self.is_digit:
+            # Assumes that only Digit attributes is using self.user_data.
+            # Split the elements based on the partmatch scores: the top
+            # 50%, and the bottom 50%.
+            # self.user_data: {str patchpath: float score}
+            # 0.) Check degenerate case
+            if len(self.elements) == 2:
+                return (GroupClass((self.elements[0],), is_digit=True,
+                                  user_data=self.user_data),
+                        GroupClass((self.elements[1],), is_digit=True,
+                                   user_data=self.user_data))
+            # 1.) Compute median score
+            scores = []
+            for (sampleid, rlist, patchpath) in self.elements:
+                if patchpath not in self.user_data:
+                    print "Uhoh, patchpath not in self.user_data."
+                    pdb.set_trace()
+                score = self.user_data[patchpath]
+                scores.append(score)
+            scores = sorted(scores)
+            median = scores[int(len(scores) / 2)]
+            print "MEDIAN WAS:", median
+            # 2.) Group high and low scores
+            elements1, elements2 = [], []
+            for (sampleid, rlist, patchpath) in self.elements:
+                score = self.user_data[patchpath]
+                if score > median:
+                    elements1.append((sampleid, rlist, patchpath))
+                else:
+                    elements2.append((sampleid, rlist, patchpath))
+            return (GroupClass(elements1, is_digit=True, user_data=self.user_data), GroupClass(elements2, is_digit=True, user_data=self.user_data))
+            
         groups = []
         new_elements = {}
         all_rankedlists = [t[1] for t in self.elements]
@@ -687,8 +730,8 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            groups.append(GroupClass(group1))
-            groups.append(GroupClass(group2))
+            groups.append(GroupClass(group1, user_data=self.user_data))
+            groups.append(GroupClass(group2, user_data=self.user_data))
             return groups
             
         if n == len(all_rankedlists[0]):
@@ -719,7 +762,7 @@ just doing a naive split."
 
         print 'number of new groups after split:', len(new_elements)
         for grouplabel, elements in new_elements.iteritems():
-            groups.append(GroupClass(elements))
+            groups.append(GroupClass(elements, user_data=self.user_data))
         return groups
 
 class TextInputDialog(wx.Dialog):

@@ -868,7 +868,8 @@ def munge_digit_results(results, all_attrtypes, project):
     groups, and munge them back into the results (i.e. jump from
     'digits' to 'precinct'.
     Input:
-        dict results: maps {grouplabel: list of GroupClasses}
+        dict results: maps {grouplabel: list of GroupClasses}. This
+                      contains all non-digitbased attributes.
         lst all_attrtypes: List of all attrtypes
     Output:
         dict that maps: {grouplabel: list of GroupClasses} but with

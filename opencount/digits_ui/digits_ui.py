@@ -489,6 +489,15 @@ digit.")
         examples = []
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
+        # patchpath_scores will be used to improve 'Split' behavior
+        # for digit-based attributes
+        proj = self.parent.parent.project  # TODO: breach of abstraction
+        patchpath_scoresP = pathjoin(proj.projdir_path, proj.digitpatchpath_scoresBlank)
+        # patchpath_scores maps {str patchpath: float score}
+        if os.path.exists(patchpath_scoresP):
+            patchpath_scores = pickle.load(open(patchpath_scoresP, 'rb'))
+        else:
+            patchpath_scores = {}
         global matchID
         matchID = get_last_matchID(self.digit_exemplars_outdir)
         for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
@@ -505,7 +514,9 @@ digit.")
             examples.append((filename, (grouplabel,), patchpath))
             self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
             matchID += 1
-        group = common.GroupClass(examples)
+            patchpath_scores[patchpath] = score2
+        pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
+        group = common.GroupClass(examples, is_digit=True, user_data=patchpath_scores)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification

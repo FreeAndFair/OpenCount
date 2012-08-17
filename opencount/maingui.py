@@ -1494,7 +1494,9 @@ class Project(object):
                      'accepted_hashes': 'accepted_hashes.p',
                      'custom_attrs': 'custom_attrs.p',
                      'digitpatch2temp': 'digitpatch2temp.p',
-                     'digitattrvals_blanks': 'digitattrvals_blanks.p'}
+                     'digitattrvals_blanks': 'digitattrvals_blanks.p',
+                     'digitpatchpath_scoresBlank': 'digitpatchpath_scoresBlank.p',
+                     'digitpatchpath_scoresVoted': 'digitpatchpath_scoresVoted.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
