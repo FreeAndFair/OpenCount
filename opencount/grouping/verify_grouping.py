@@ -505,6 +505,11 @@ Do you really want to re-run grouping?"""
                                  (YES, NO))
         statusval = dlg.ShowModal()
         if statusval == YES:
+            # Remember to remove state files
+            util_gui.remove_files(pathjoin(self.project.projdir_path,
+                                           self.project.rejected_hashes),
+                                  pathjoin(self.project.projdir_path,
+                                           self.project.accepted_hashes))
             self.start_grouping()
 
     def onButton_continue(self, evt):
@@ -863,7 +868,8 @@ def munge_digit_results(results, all_attrtypes, project):
     groups, and munge them back into the results (i.e. jump from
     'digits' to 'precinct'.
     Input:
-        dict results: maps {grouplabel: list of GroupClasses}
+        dict results: maps {grouplabel: list of GroupClasses}. This
+                      contains all non-digitbased attributes.
         lst all_attrtypes: List of all attrtypes
     Output:
         dict that maps: {grouplabel: list of GroupClasses} but with

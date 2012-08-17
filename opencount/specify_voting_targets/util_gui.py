@@ -209,6 +209,14 @@ def create_dirs(*dirs):
             os.makedirs(dir)
         except Exception as e:
             pass
+
+def remove_files(*filepaths):
+    """ Removes all files in filepaths (only files, not dirs). """
+    for filepath in filepaths:
+        try:
+            os.remove(filepath)
+        except Exception as e:
+            pass
     
 def get_filename(filepath):
     return os.path.splitext(os.path.split(filepath)[1])[0]
