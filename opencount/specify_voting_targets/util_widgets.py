@@ -141,8 +141,7 @@ class ImageMosaicPanel(ScrolledPanel):
         for i in range(self.num_rows):
             for j in range(self.num_cols):
                 cellpanel = CellPanel(self, i, j)
-                cellbitmap = cellpanel.cellbitmap
-                self.cells[i][j] = cellbitmap
+                self.cells[i][j] = cellpanel
                 self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -196,12 +195,12 @@ class ImageMosaicPanel(ScrolledPanel):
         for idx in range(start_idx, start_idx + (self.num_rows*self.num_cols)):
             if idx >= len(self.imgpaths):
                 # No more images to display, just display empty panels.
-                cell = self.cells[i][j]
+                cellpanel = self.cells[i][j]
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
-                cell.set_bitmap(dummybitmap)
-                cell.parent.set_txtlabel('No image.')
-                cell.parent.imgpath = None
+                cellpanel.set_bitmap(dummybitmap)
+                cellpanel.set_txtlabel('No image.')
+                cellpanel.imgpath = None
             else:
                 imgpath = self.imgpaths[idx]
                 img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
@@ -212,12 +211,12 @@ class ImageMosaicPanel(ScrolledPanel):
                         self.cell_width = new_w
                     img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
 
-                cell = self.cells[i][j]
-                cell.set_bitmap(wx.BitmapFromImage(img))
+                cellpanel = self.cells[i][j]
+                cellpanel.set_bitmap(wx.BitmapFromImage(img))
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
-                cell.parent.set_txtlabel(os.path.join(parentdir, imgname))
-                cell.parent.imgpath = imgpath
+                cellpanel.set_txtlabel(os.path.join(parentdir, imgname))
+                cellpanel.imgpath = imgpath
             j += 1
             if j >= self.num_cols:
                 j = 0
@@ -258,6 +257,9 @@ class CellPanel(wx.Panel):
         
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
+        
+    def set_bitmap(self, bitmap):
+        self.cellbitmap.set_bitmap(bitmap)
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
