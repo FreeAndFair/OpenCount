@@ -126,19 +126,55 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                                bb=bb, rejected_hashes=rejected_hashes,
                                                accepted_hashes=accepted_hashes)
             digitparse_results = get_best_side(results_side0, results_side1)
+        # TODO: The below loop takes a non-trivial amount of time.
+        #       Parallelize it for great victory.
+        # With PIL Crop: 3.63 s
+        # With scipy sh.standardImread: 19.174 s
+        # With scipy misc.imread: 6.59 s
+        print "== Extracting Voted Digit Patches..."
+        
         for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
             meta_out = []
             for (y1,y2,x1,x2, digit, digitimg, score) in meta:
                 rootdir = os.path.join(voteddigits_dir, digit)
                 util.create_dirs(rootdir)
                 outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
-                #scipy.misc.imsave(outpath, digitimg)
                 digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
                 Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
             ballotid = img2bal[imgpath]
             result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
+    return result, digitmatch_info
+
+def my_combfn(result, subresult):
+    """ The combfn used for partask.do_partask. """
+    comb_result, comb_digitmatch_info = dict(result[0]), list(result[1])
+    sub_result, sub_digitmatch_info = subresult
+    k = 0
+    for ballotid, lst in sub_result.iteritems():
+        k += len(lst)
+        comb_result.setdefault(ballotid, []).append(lst)
+    for patchpath, (bb, side) in sub_digitmatch_info.iteritems():
+        k += 1
+        comb_digitmatch_info[patchpath] = (bb, side)
+    return (comb_result, comb_digitmatch_info), k
+
+def extract_voted_digitpatches(stuff, (voteddigits_dir, img2bal)):
+    result = {}  # maps {str ballotid: [(digitattr_i, ocrstr_I, meta_i, flip_i, side_i), ...]}
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
+    for (imgpath, ocr_str, meta, isflip, side) in stuff:
+        meta_out = []
+        for (y1,y2,x1,x2, digit, digitimg, score) in meta:
+            rootdir = os.path.join(voteddigits_dir, digit)
+            util.create_dirs(rootdir)
+            outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
+            digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
+            Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
+            meta_out.append((y1,y2,x1,x2, digit, outpath, score))
+            ctr += 1
+        ballotid = img2bal[imgpath]
+        result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result, digitmatch_info
 
 def get_digitmatch_info(proj, patchpath):
