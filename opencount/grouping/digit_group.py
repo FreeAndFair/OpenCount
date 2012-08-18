@@ -130,6 +130,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         # With PIL Crop: 3.63 s
         # With scipy sh.standardImread: 19.174 s
         # With scipy misc.imread: 6.59 s
+        _t = time.time()
         print "== Extracting Voted Digit Patches..."
         # Note: I use pass_idx=True because I need to assign a unique
         #       ID to the {0}_votedextract.png patch paths.
@@ -143,7 +144,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
             result.setdefault(ballotid,[]).extend(lsts)
         for patchpath, (bb, side) in d.iteritems():
             digitmatch_info[patchpath] = (bb, side)
-        print "== Finished Extracting Voted Digit Patches."
+        print "== Finished Extracting Voted Digit Patches. Took {0}s.".format(time.time()-_t)
             
     return result, digitmatch_info
 
