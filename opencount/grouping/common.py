@@ -780,6 +780,8 @@ class TextInputDialog(wx.Dialog):
         """
         wx.Dialog.__init__(self, parent, title='Input required', *args, **kwargs)
         self.parent = parent
+
+        # self.results maps {str label: str value}
         self.results = {}
 
         self.input_pairs = []

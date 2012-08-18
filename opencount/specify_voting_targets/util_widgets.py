@@ -1,4 +1,6 @@
 import time, threading, sys, os, math, pdb
+sys.path.append('..')
+import grouping.common as common
 import wx
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
@@ -64,12 +66,21 @@ class MosaicPanel(ScrolledPanel):
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
 
+        self.page_txt = wx.StaticText(self, label="Page: 0 / 0")
+        btn_jumppage = wx.Button(self, label="Jump To...")
+        btn_jumppage.Bind(wx.EVT_BUTTON, self.onButton_jumppage)
+
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(btn_pageup)
         btn_sizer.Add(btn_pagedown)
+        btn_sizer.Add((20, 20))
+        btn_sizer.Add(self.page_txt)
+        btn_sizer.Add((20, 20))
+        btn_sizer.Add(btn_jumppage)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.imagemosaic, proportion=1, flag=wx.EXPAND)
+        sizer.Add((20, 20))
         sizer.Add(btn_sizer)
         
         self.SetSizer(sizer)
@@ -79,14 +90,45 @@ class MosaicPanel(ScrolledPanel):
 
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))        
+        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
 
     def onButton_pagedown(self, evt):
         self.imagemosaic.do_page_down()
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
+
+    def onButton_jumppage(self, evt):
+        lbl = "Page Number:"
+        dlg = common.TextInputDialog(self, caption="Jump to page...",
+                                     labels=(lbl,))
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        try:
+            pagenum = int(dlg.results[lbl])
+        except ValueError as e:
+            d = wx.MessageDialog(self, message="You must enter in a \
+valid integer. You put: {0}".format(dlg.results[lbl]), style=wx.OK)
+            d.ShowModal()
+            return
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        if pagenum < 0 or pagenum > (total_pages-1):
+            d = wx.MessageDialog(self, message="The Page Number {0} is \
+invalid.".format(pagenum), style=wx.OK)
+            d.ShowModal()
+            return
+        elif pagenum == self.imagemosaic.cur_page:
+            return
+        self.imagemosaic.jump_to_page(pagenum)
+        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum, total_pages-1))
 
     def set_images(self, imgpaths):
         self.imagemosaic.set_images(imgpaths)
         min_w = self.imagemosaic.cell_width * self.imagemosaic.num_cols
         min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        self.page_txt.SetLabel("Page: 0 / {0}".format(total_pages-1))
         self.SetMinSize((min_w, -1))
 
         self.SetupScrolling()
@@ -112,7 +154,6 @@ class MosaicPanel(ScrolledPanel):
         # For inspiration, see:
         #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
         pass
-
 
 class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
@@ -165,9 +206,19 @@ class ImageMosaicPanel(ScrolledPanel):
             self.cur_page += 1
             self.display_page(self.cur_page)
 
+    def jump_to_page(self, pagenum):
+        """ Jumps to the given page number. """
+        total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
+        if pagenum < 0 or pagenum > total_pages:
+            print "Can't jump to invalid page number:", pagenum
+            return
+        self.cur_page = pagenum
+        self.display_page(self.cur_page)
+
     def set_images(self, imgpaths):
         """Given a list of image paths, display them."""
         self.imgpaths = imgpaths
+        self.parent.page_txt.SetLabel("Page: 0 / {0}".format(len(imgpaths) - 1))
         # Reset the boxes_dict for all imgpaths
         self.boxes_dict = {}
         for imgpath in imgpaths:
@@ -339,8 +390,8 @@ def make_canonical(box):
     else:
         # LowerRight, UpperLeft
         return (xb, yb, xa, ya)
-    
 
+    
 class _TestMosaicFrame(wx.Frame):
     """
     Frame to demo the MosaicPanel.
