@@ -275,6 +275,7 @@ class ImageMosaicPanel(ScrolledPanel):
             if idx >= len(self.imgpaths):
                 # No more images to display, just display empty panels.
                 cellpanel = self.cells[i][j]
+                cellpanel.is_dummy = True
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
                 cellpanel.set_bitmap(dummybitmap)
@@ -292,6 +293,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 else:
                     c = 1.0
                 cellpanel = self.cells[i][j]
+                cellpanel.is_dummy = False
                 cellpanel.set_bitmap(wx.BitmapFromImage(img))
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
@@ -327,12 +329,13 @@ class CellPanel(wx.Panel):
     the imagepath of the blank ballot) and a CellBitmap (which
     displays the actual blank ballot image).
     """
-    def __init__(self, parent, i, j, imgpath=None, bitmap=None, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath=None, bitmap=None, is_dummy=False, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.i, self.j = i, j
         self.imgpath = imgpath
         self.bitmap = bitmap
+        self.is_dummy = is_dummy
 
         self.cellbitmap = CellBitmap(self, i, j, imgpath, bitmap)
         
@@ -346,7 +349,8 @@ class CellPanel(wx.Panel):
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
     def onLeftDown(self, evt):
-        self.parent.select_img(self.imgpath)
+        if not self.is_dummy:
+            self.parent.select_img(self.imgpath)
         
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
