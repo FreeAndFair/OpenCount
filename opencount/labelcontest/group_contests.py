@@ -487,7 +487,7 @@ def extract_contest(args):
         loadedimage = None
     final = do_extract(image_path.split("/")[-1], 
                        loadedimage, squares, giventargets)
-    exit(0)
+    #exit(0)
     if returnimage:
         return data, final
     else:
