@@ -21,7 +21,7 @@ Output:
 def get_rejected_hashes(project):
     """ Returns the rejected_hashes for the entire data set.
     Returns:
-        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i), ...]}}
+        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         or None if rejected_hashes.p doesn't exist yet.
     """
     rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
@@ -37,7 +37,7 @@ def save_rejected_hashes(project, rejected_hashes):
 def get_accepted_hashes(proj):
     """ Returns the accepted_hashes for the entire data set.
     Returns:
-        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i), ...]}}
+        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         or None if accepted_hashes.p doesn't exist yet.
     """
     filepath = os.path.join(proj.projdir_path, proj.accepted_hashes)
@@ -49,18 +49,3 @@ def save_accepted_hashes(proj, accepted_hashes):
     """ Saves the newer-version of accepted_hashes. """
     outpath = os.path.join(proj.projdir_path, proj.accepted_hashes)
     pickle.dump(accepted_hashes, open(outpath, 'wb'))
-
-def reject_match(imgpath, digit, bbBox, proj):
-    """
-    Re-run partmatch*, but with the new knowledge that the digit patch
-    'imgpath' is incorrect.
-    Input:
-        str imgpath:
-        str digit: 
-        tuple bb: (y1, y2, x1, x2)
-        obj proj:
-    Output:
-        New digit results.
-    """
-    pass
-

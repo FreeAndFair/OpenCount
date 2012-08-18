@@ -599,14 +599,14 @@ in queue: 0")
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-            # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
+            # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
             if accepted_hashes == None:
                 accepted_hashes = {}
                 partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
             digitmatch_info = digit_group.get_digitmatch_info(self.project)
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-                # digitinfo: ((y1,y2,x1,x2), str side)
+                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
                 accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
@@ -846,7 +846,7 @@ at a time."
         # b.) Construct rejected_hashes
         print "==== b.) Construct rejected_hashes"
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
+        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
         if rejected_hashes == None:
             # Hasn't been created yet.
@@ -860,8 +860,8 @@ at a time."
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            (bb, side) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
-            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side))
+            (bb, side, isflip) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
+            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side, isflip))
         print "== Saving rejected_hashes"
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "== Counting..."
