@@ -75,6 +75,8 @@ class MosaicPanel(ScrolledPanel):
         self.SetSizer(sizer)
         self.Layout()
 
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
 
@@ -98,13 +100,19 @@ class MosaicPanel(ScrolledPanel):
             dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
         """
         for imgpath, boxes in boxes_dict.iteritems():
-            # TODO: IMPLEMENT ME
-            self.imagemosaic
+            self.imagemosaic.set_boxes(imgpath, boxes)
 
     def select_image(self, imgpath):
         """ Selects an image within the ImageMosaicPanel. """
-        # TODO: IMPLEMENT ME
+        self.imagemosaic.select_img(imgpath)
+
+    def OnChildFocus(self, evt):
+        # If I don't override this child focus event, then wx will
+        # reset the scrollbars at extremely annoying times. Weird.
+        # For inspiration, see:
+        #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
         pass
+
 
 class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
@@ -141,7 +149,7 @@ class ImageMosaicPanel(ScrolledPanel):
         self.sizer.Add(self.gridsizer)
 
         self.SetSizer(self.sizer)
-        
+
     def do_page_up(self):
         """ Handles necessary logic of turning to the previous page. """
         if self.cur_page <= 0:
@@ -168,6 +176,16 @@ class ImageMosaicPanel(ScrolledPanel):
         self.cur_page = 0
         self.display_page(self.cur_page)
 
+    def set_boxes(self, imgpath, boxes):
+        """ Updates the list of boxes for imgpath.
+        Input:
+            str imgpath
+            list boxes: [(y1,y2,x1,x2), ...]
+        """
+        assert imgpath in self.boxes_dict
+        self.boxes_dict[imgpath] = list(boxes)
+        self.Refresh()
+
     def display_page(self, pagenum):
         """Sets up UI so that all images on the pagenum are displayed.
         """
@@ -177,12 +195,13 @@ class ImageMosaicPanel(ScrolledPanel):
         i, j = 0, 0
         for idx in range(start_idx, start_idx + (self.num_rows*self.num_cols)):
             if idx >= len(self.imgpaths):
+                # No more images to display, just display empty panels.
                 cell = self.cells[i][j]
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
                 cell.set_bitmap(dummybitmap)
                 cell.parent.set_txtlabel('No image.')
-                cell.parent.set_boxes([])
+                cell.parent.imgpath = None
             else:
                 imgpath = self.imgpaths[idx]
                 img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
@@ -195,10 +214,10 @@ class ImageMosaicPanel(ScrolledPanel):
 
                 cell = self.cells[i][j]
                 cell.set_bitmap(wx.BitmapFromImage(img))
-                cell.parent.set_boxes(self.boxes_dict[imgpath])
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
                 cell.parent.set_txtlabel(os.path.join(parentdir, imgname))
+                cell.parent.imgpath = imgpath
             j += 1
             if j >= self.num_cols:
                 j = 0
@@ -206,12 +225,16 @@ class ImageMosaicPanel(ScrolledPanel):
         self.SetupScrolling()
         self.Refresh()
 
+    def select_img(self, imgpath):
+        """ Selects the cell given by imgpath. """
+        print "IMAGE SELECTED:", imgpath
+
 class CellPanel(wx.Panel):
     """ A Panel that contains both a StaticText label (displaying
     the imagepath of the blank ballot) and a CellBitmap (which
     displays the actual blank ballot image).
     """
-    def __init__(self, parent, i, j, imgpath='', bitmap=None, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath=None, bitmap=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.i, self.j = i, j
@@ -231,13 +254,10 @@ class CellPanel(wx.Panel):
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
     def onLeftDown(self, evt):
         print "ON LEFT DOWN, CELL PANEL"
+        self.parent.select_img(self.imgpath)
         
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
-
-    def set_boxes(self, boxes):
-        self.cellbitmap.boxes = boxes
-        self.Refresh()
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
@@ -256,10 +276,11 @@ class CellBitmap(wx.Panel):
         self.bitmap = bitmap
         self.pil_img = pil_img
         self.i, self.j = i, j
-        self.boxes = []
+        #self.boxes = []
 
         self.SetMinSize(bitmap.GetSize())
 
+        self.Bind(wx.EVT_LEFT_DOWN, self.parent.onLeftDown)
         self.Bind(wx.EVT_PAINT, self.onPaint)
 
     def set_bitmap(self, bitmap):
@@ -269,8 +290,10 @@ class CellBitmap(wx.Panel):
         self.Refresh()
 
     def add_box(self, box):
-        assert box not in self.boxes
-        self.boxes.append(box)
+        #assert box not in self.boxes
+        #self.boxes.append(box)
+        assert box not in self.parent.boxes_dict[self.imgpath]
+        self.parent.boxes_dict[self.imgpath].append(box)
 
     def onPaint(self, evt):
         """ Refresh screen. """
@@ -279,13 +302,16 @@ class CellBitmap(wx.Panel):
         else:
             dc = wx.BufferedPaintDC(self)
         dc.DrawBitmap(self.bitmap, 0, 0)
-        self._draw_boxes(dc)
+        if self.imgpath == None:
+            return
+        my_boxes = self.parent.parent.boxes_dict[self.imgpath]
+        self._draw_boxes(dc, my_boxes)
         evt.Skip()
         
-    def _draw_boxes(self, dc):
+    def _draw_boxes(self, dc, boxes):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Green", 2))
-        for box in self.boxes:
+        for box in boxes:
             x1, y1, x2, y2 = Box.make_canonical(box)
             dc.DrawRectangle(x1, y1, box.width, box.height)
 
