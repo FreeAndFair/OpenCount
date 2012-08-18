@@ -176,18 +176,27 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal),
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result, digitmatch_info
 
-def get_digitmatch_info(proj, patchpath):
+def get_digitmatch_info(proj):
+    """ Loads the digitmatch_info data structure, which is of the form:
+        {str patchpath: ((y1,y2,x1,x2), str side)
+    """
+    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    return digitmatch_info
+
+def get_digitpatch_info(proj, patchpath, digitmatch_info=None):
     """ Given the path to a digit-patch (from a votedballot), return
     the ((y1,y2,x1,x2), side) region from the votedballot it was extracted
     from.
     Input:
         obj proj:
         str patchpath: Path of a digitpatch from some image
+        dict digitmatch_info: 
     Output:
         ((y1,y2,x1,x2), str side)
     """
-    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
-    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    if digitmatch_info == None:
+        digitmatch_info = get_digitmatch_info(proj)
     if patchpath not in digitmatch_info:
         print "Uhoh, couldn't find patchpath."
         pdb.set_trace()
