@@ -318,8 +318,10 @@ function correctly.""".format(len(lonely_tmpls))
         self.panel_mosaic.set_images(imgpaths)
 
         # Notify the MosaicPanel about the boxes
-        box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
-        self.panel_mosaic.set_boxes(box_locs)
+        #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
+        #self.panel_mosaic.set_boxes(box_locs)
+        self.panel_mosaic.set_boxes(self.world.box_locations,
+                                    transfn=make_transfn(self.project))
 
         # Display first template on BallotScreen
         imgpath = imgpaths[0]
@@ -431,8 +433,10 @@ function correctly.""".format(len(lonely_tmpls))
             self.world.add_boxes(templatepath, contest_boxes)
 
         # Notify the MosaicPanel about the new boxes
-        box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
-        self.panel_mosaic.set_boxes(box_locs)
+        #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
+        #self.panel_mosaic.set_boxes(box_locs)
+        self.panel_mosaic.set_boxes(self.world.box_locations,
+                                    transfn=make_transfn(self.project))
         self.Refresh()
 
     def sanity_check_grouping(self):
@@ -2207,6 +2211,16 @@ def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
                                                cur_ref_img, 
                                                confidence=confidence)
         queue.put((match_coords, img_array.shape, bounding_boxes, templateimgpath))
+
+def make_transfn(proj):
+    w_img, h_img = proj.imgsize
+    def fn(x1,y1,x2,y2):
+        x1 = int(round(x1 * w_img))
+        y1 = int(round(y1 * h_img))
+        x2 = int(round(x2 * w_img))
+        y2 = int(round(y2 * h_img))
+        return x1, y1, x2, y2
+    return fn
 
 def convert_boxes2mosaic(project, box_locations):
     """ Given the box_locations in [0,1] coordinates, return a new dict

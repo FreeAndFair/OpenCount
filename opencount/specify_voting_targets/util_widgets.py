@@ -155,15 +155,17 @@ invalid.".format(pagenum), style=wx.OK)
         self.SetupScrolling()
         self.Fit()
 
-    def set_boxes(self, boxes_dict):
+    def set_boxes(self, boxes_dict, transfn=None):
         """ Given a dict that tells us all boxes for all imgpaths,
         update the self.imagemosaic so that the boxes are correctly
         displayed.
         Input:
             dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
+            fn transfn: A function that, given (x1,y1,x2,y2), returns a
+                        new (x1,y1,x2,y2) to use instead. A bit of a hack.
         """
         for imgpath, boxes in boxes_dict.iteritems():
-            self.imagemosaic.set_boxes(imgpath, boxes)
+            self.imagemosaic.set_boxes(imgpath, boxes, transfn=transfn)
 
     def select_image(self, imgpath):
         """ Selects an image within the ImageMosaicPanel. """
@@ -204,6 +206,9 @@ class ImageMosaicPanel(ScrolledPanel):
         # is the CellPanel at row i, col j.
         self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
         self.gridsizer = wx.GridSizer(self.num_rows, self.num_cols)
+
+        # A fn: (x1,y1,x2,y2)->(x1,y1,x2,y2)'
+        self.transfn = None
 
         # Pre-populate the gridsizer with StaticBitmaps
         for i in range(self.num_rows):
@@ -254,14 +259,17 @@ class ImageMosaicPanel(ScrolledPanel):
         self.cur_page = 0
         self.display_page(self.cur_page)
 
-    def set_boxes(self, imgpath, boxes):
+    def set_boxes(self, imgpath, boxes, transfn=None):
         """ Updates the list of boxes for imgpath.
         Input:
             str imgpath
             list boxes: [(y1,y2,x1,x2), ...]
+            fn transfn: A function (x1,y1,x2,y2)->(x1,y1,x2,y2)'. A
+                        hack...
         """
         assert imgpath in self.boxes_dict
         self.boxes_dict[imgpath] = list(boxes)
+        self.transfn = transfn
         self.Refresh()
 
     def display_page(self, pagenum):
@@ -409,6 +417,9 @@ class CellBitmap(wx.Panel):
             color = box.color
             dc.SetPen(wx.Pen(color, 2))
             x1, y1, x2, y2 = make_canonical(box)
+            if self.parent.parent.transfn != None:
+                # Oh man, what a hack.
+                x1, y1, x2, y2 = self.parent.parent.transfn(x1, y1, x2, y2)
             x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.rszFac))), (x1,y1,x2,y2))
             w, h = int(abs(x1-x2)), int(abs(y1-y2))
             dc.DrawRectangle(x1, y1, w, h)
