@@ -86,7 +86,7 @@ def divy_list(lst, k):
         K tuples.
     """
     if len(lst) <= k:
-        return [lst]
+        return [[thing] for thing in lst]
     chunksize = math.floor(len(lst) / float(k))
     i = 0
     chunks = []
@@ -111,6 +111,14 @@ def square_nums(nums):
 
 def test0():
     nums = [random.random() for _ in range(1)]
+    nums_squared = do_partask(square_nums, nums)
+    print "Input nums:"
+    print nums
+    print "Output nums:"
+    print nums_squared
+
+def test0_a():
+    nums = [random.random() for _ in range(2)]
     nums_squared = do_partask(square_nums, nums)
     print "Input nums:"
     print nums
@@ -175,6 +183,9 @@ def run_tests():
     print "==== Running tests..."
     print "== 1.) Square 1 number."
     test0()
+
+    print "== 1.a.) Square 2 numbers."
+    test0_a()
 
     print "== 2.) Square 10,000 numbers."
     test1()
