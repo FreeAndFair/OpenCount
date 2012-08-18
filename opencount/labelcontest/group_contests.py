@@ -3,11 +3,12 @@ import os
 from random import random
 from collections import Counter
 import multiprocessing as mp
+import pickle
 
 black = 200
 
 do_save = False
-export = False
+export = True
 
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
@@ -386,13 +387,20 @@ def do_extract(name, img, squares, giventargets):
         if sq in targets: continue
         inside = [t for t in targets if area(intersect(sq, t)) == area(t)]
         if inside != []:
-            # Check if there are other targets inside of this contest bounding box.
-            otherinside = [t for t in giventargets if t not in inside and area(intersect(sq, t)) == area(t)]
-            if otherinside != []:
-                print "HAD AN ERROR ON", name
             contests.append(sq)
             targets = [x for x in targets if x not in inside]
 
+    keepgoing = True
+    while keepgoing:
+        keepgoing = False
+        for target in giventargets:
+            tomerge = [x for x in contests if intersect(x, target)]
+            if len(tomerge) != 1:
+                print "MERGING", tomerge
+                contests = [x for x in contests if x not in tomerge] + [reduce(union, tomerge)]
+                keepgoing = True
+                break
+    
     #print "C", contests
     for cont in contests:
         if export:
@@ -484,12 +492,14 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
     """
     sub = os.path.join(tmp+"", f.split("/")[-1].split(".")[0]+"-dir")
     #print "SUB IS", sub
-    os.mkdir(sub)
+    if not os.path.exists(sub):
+        os.mkdir(sub)
     res = []
     #print "CONTESTS", contests
     for c in contests:
         #print "TOMAKE", c
-        os.mkdir(os.path.join(sub, "-".join(map(str,c))))
+        if not os.path.exists(os.path.join(sub, "-".join(map(str,c)))):
+            os.mkdir(os.path.join(sub, "-".join(map(str,c))))
         t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
                                image, c, targets)
         res.append((i, c, t))
@@ -524,10 +534,12 @@ def compare_preprocess(lang, path, image, contest, targets):
             continue
         #print "POS", upper, lower
         #print len(cont_area[upper:lower])
-        img = num2pil(cont_area[upper:lower])
         name = os.path.join(path, str(upper)+".tif")
-        img.save(name)
-        os.popen("tesseract %s %s -l %s"%(name, name, lang))
+        if not os.path.exists(name):
+            img = num2pil(cont_area[upper:lower])
+            img.save(name)
+            os.popen("tesseract %s %s -l %s"%(name, name, lang))
+
         if os.path.exists(name+".txt"):
             #print "THIS BLOCK GOT", open(name+".txt").read().decode('utf8')
             blocks.append((istarget, open(name+".txt").read().decode('utf8')))
@@ -683,10 +695,8 @@ def merge_contests(ballot_data, fulltargets):
         for group in targets:
             #print 'targs is', group
             equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
-            equal_uniq = []
-            for e in equal:
-                if e not in equal_uniq: equal_uniq.append(e)
-            #print 'add', equal_uniq
+            equal_uniq = list(set(equal))
+            print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
             new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in list(set(equal))], merged))
         new_data.append(new_ballot)
@@ -736,7 +746,7 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
 
 def find_contests(t, paths, giventargets):
     global tmp
-    #print "ARGS", (t, paths, giventargets)
+    print "ARGS", (t, paths, giventargets)
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
@@ -747,6 +757,13 @@ def find_contests(t, paths, giventargets):
     ballots = pool.map(extract_contest, args)
     print "RETURNING", ballots
     return ballots
+
+def group_given_contests_map(arg):
+    lang_map,giventargets,(i,(f,conts)) = arg
+    print f
+    im = load_num(f)
+    lang = lang_map[f] if f in lang_map else 'eng'
+    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
         
 def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
@@ -756,21 +773,22 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
-    os.popen("rm -r "+tmp+"*")
-    ballots = []
-    #print "CONTESTARG", contests
-    for i,(f,conts) in enumerate(zip(paths,contests)):
-        print f
-        im = load_num(f)
-        lang = lang_map[f] if f in lang_map else 'eng'
-        get = ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
-        ballots.append(get)
+    #os.popen("rm -r "+tmp+"*")
+    pool = mp.Pool(mp.cpu_count())
+    args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
+    ballots = pool.map(group_given_contests_map, args)
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
 def final_grouping(ballots, giventargets):
+    print "RUNNING FINAL GROUPING"
+    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
-    return equ_class(ballots)                
+    print "NOW EQU CLASSES"
+    return equ_class(ballots)
+
+
+#final_grouping(*pickle.load(open("/tmp/bbb")))
 
 #marin/vbm-34.png
 #marin/vbm-85.png
