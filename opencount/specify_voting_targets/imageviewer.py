@@ -487,9 +487,11 @@ class ImageViewer(wx.ScrolledWindow):
     def _pubsub_updated_world(self, msg):
         """
         Triggered whenever the world changes. Check to see if any of
-        the boxes are selected.
+        the boxes are selected. Updates my internal data structs, but
+        don't modify the world itself.
         """
-        self.unselect_boxes()
+        #self.unselect_boxes()
+        self._sel_boxes = []
         for box in self.world.get_boxes(self.current_imgpath):
             if box.is_selected:
                 self.select_target(box)
@@ -957,7 +959,7 @@ unexpected mode given: {0}".format(mode))
         CIRCLE_RAD = 1 if self.scale == 1.0 else 3
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen(box.color, box.line_width))
-
+        
         w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
         x1, y1 = int(round(box.x1*w_img)), int(round(box.y1*h_img))
         x2, y2 = int(round(box.x2*w_img)), int(round(box.y2*h_img))
