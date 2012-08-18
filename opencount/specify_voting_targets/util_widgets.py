@@ -138,18 +138,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
-        '''
-        btn_pageup = wx.Button(self, label="Page Up")
-        btn_pagedown = wx.Button(self, label="Page Down")
-        btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
-        btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
-
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.Add(btn_pageup)
-        btn_sizer.Add(btn_pagedown)
-        '''
         self.sizer.Add(self.gridsizer)
-        #self.sizer.Add(btn_sizer)
 
         self.SetSizer(self.sizer)
         
