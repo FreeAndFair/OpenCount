@@ -5,8 +5,8 @@ from collections import Counter
 
 black = 200
 
-do_save = True
-export = True
+do_save = False
+export = False
 
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
