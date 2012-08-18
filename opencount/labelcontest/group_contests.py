@@ -782,7 +782,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
 
 def final_grouping(ballots, giventargets):
     print "RUNNING FINAL GROUPING"
-    pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
+    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     return equ_class(ballots)
