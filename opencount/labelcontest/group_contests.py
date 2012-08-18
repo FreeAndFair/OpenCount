@@ -808,8 +808,8 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     #os.popen("rm -r "+tmp+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    #ballots = pool.map(group_given_contests_map, args)
-    ballots = map(group_given_contests_map, args)
+    ballots = pool.map(group_given_contests_map, args)
+    #ballots = map(group_given_contests_map, args)
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
