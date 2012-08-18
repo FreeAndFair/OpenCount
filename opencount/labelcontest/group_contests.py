@@ -747,6 +747,13 @@ def find_contests(t, paths, giventargets):
     ballots = pool.map(extract_contest, args)
     print "RETURNING", ballots
     return ballots
+
+def group_given_contests_map(arg):
+    i,(f,conts) = arg
+    print f
+    im = load_num(f)
+    lang = lang_map[f] if f in lang_map else 'eng'
+    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
         
 def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
@@ -757,20 +764,16 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp+"*")
-    ballots = []
-    #print "CONTESTARG", contests
-    for i,(f,conts) in enumerate(zip(paths,contests)):
-        print f
-        im = load_num(f)
-        lang = lang_map[f] if f in lang_map else 'eng'
-        get = ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
-        ballots.append(get)
+    pool = mp.Pool(mp.cpu_count())
+    ballots = pool.map(group_given_contests_map, list(enumerate(zip(paths,contests))))
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
 def final_grouping(ballots, giventargets):
+    print "RUNNING FINAL GROUPING"
     ballots = merge_contests(ballots, giventargets)
-    return equ_class(ballots)                
+    print "NOW EQU CLASSES"
+    return equ_class(ballots)
 
 #marin/vbm-34.png
 #marin/vbm-85.png
