@@ -133,14 +133,14 @@ class SpecifyTargetsPanel(wx.Panel):
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().unsubscribe(callback, topic)
-        #self.panel_mosaic.unsubscribe_pubsubs()
+        self.panel_mosaic.unsubscribe_pubsubs()
         self.ballotviewer.unsubscribe_pubsubs()
         self.world.unsubscribe_pubsubs()
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().subscribe(callback, topic)
-        #self.panel_mosaic.subscribe_pubsubs()
+        self.panel_mosaic.subscribe_pubsubs()
         self.ballotviewer.subscribe_pubsubs()
         self.world.subscribe_pubsubs()
         
@@ -152,8 +152,8 @@ class SpecifyTargetsPanel(wx.Panel):
     def setup_widgets(self):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.world = WorldState()
-        #self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
-        self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
+        #self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
+        self.panel_mosaic = MosaicPanel2(self, self.world, style=wx.SIMPLE_BORDER)
         self.panel_mosaic.Hide()
         self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
         self.ballotviewer.Hide()
@@ -320,8 +320,10 @@ function correctly.""".format(len(lonely_tmpls))
         # Notify the MosaicPanel about the boxes
         #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         #self.panel_mosaic.set_boxes(box_locs)
-        self.panel_mosaic.set_boxes(self.world.box_locations,
-                                    transfn=make_transfn(self.project))
+        #self.panel_mosaic.set_boxes(self.world.box_locations,
+        #                            transfn=make_transfn(self.project))
+        self.panel_mosaic.set_transfn(make_transfn(self.project))
+        Publisher().sendMessage("broadcast.updated_world")
 
         # Display first template on BallotScreen
         imgpath = imgpaths[0]
@@ -435,8 +437,9 @@ function correctly.""".format(len(lonely_tmpls))
         # Notify the MosaicPanel about the new boxes
         #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         #self.panel_mosaic.set_boxes(box_locs)
-        self.panel_mosaic.set_boxes(self.world.box_locations,
-                                    transfn=make_transfn(self.project))
+        #self.panel_mosaic.set_boxes(self.world.box_locations,
+        #                            transfn=make_transfn(self.project))
+        self.panel_mosaic.set_transfn(make_transfn(self.project))
         self.Refresh()
 
     def sanity_check_grouping(self):
@@ -890,6 +893,7 @@ single voting target, which violates assumptions."
                 contestboxes.append(box)
             self.remove_contests(blankpath)
             self.world.add_boxes(blankpath, contestboxes)
+        Publisher().sendMessage("broadcast.updated_world")
             
                 
 class ThreadDoInferContests(threading.Thread):
@@ -953,6 +957,79 @@ def import_worldstate(csvdir, imgsize):
         world.add_boxes(temppath, box_locations)
     return world
                 
+class MosaicPanel2(util_widgets.MosaicPanel):
+    """
+    Behaves just like util_widget's MosaicPanel, but with a few
+    OpenCount-specific things added in (like Pubsub hooks).
+    """
+    def __init__(self, parent, world, *args, **kwargs):
+        util_widgets.MosaicPanel.__init__(self, parent, imgmosaicpanel=ImageMosaicPanel_OpenCount, 
+                                          _init_args=(world,), 
+                                          *args, **kwargs)
+        self.world = world
+        # Pubsubs
+        self.callbacks = [("signals.MosaicPanel.update_all_boxes", self._pubsub_update_all_boxes),
+                          ("signals.MosaicPanel.update_boxes", self._pubsub_update_boxes),
+                          ("broadcast.deleted_targets", self._pubsub_deleted_targets),
+                          ("broadcast.updated_world", self._pubsub_updated_world)]
+    def subscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().subscribe(callback, topic)
+        
+    def unsubscribe_pubsubs(self):
+        for (topic, callback) in self.callbacks:
+            Publisher().unsubscribe(callback, topic)
+
+    def _pubsub_update_all_boxes(self, msg):
+        """
+        Triggered usually when an operation is done that modifies 
+        BoundingBoxes for all template images (say, after a 
+        template-matching run).
+        msg.data = box_locations, where box_locations is a dict 
+        mapping templatepath to a list of BoundingBox instances.
+        """
+        box_locations = msg.data
+        self.Refresh()
+        #self.update_all_targets(box_locations)
+    def _pubsub_update_boxes(self, msg):
+        """
+        Used to update the box locations for only one template image.
+        msg.data := str templatepath, list box_locations
+        """
+        templatepath, box_locations = msg.data
+        self.Refresh()
+        #self.update_targets(templatepath, box_locations)
+    def _pubsub_deleted_targets(self, msg):
+        """
+        Triggered when the user deletes a BoundingBox (via 
+        MyBallotScreen).
+        msg.data := str templatepath, list BoundingBox
+        """
+        templatepath, boxes = msg.data
+        #self.remove_targets(templatepath, boxes)
+        self.Refresh()
+    def _pubsub_updated_world(self, msg):
+        """
+        Triggered whenever the WorldState gets updated. Since this
+        probably means box locations got changed, I should redraw
+        myself. For performance, it'd be a good idea to only redraw
+        things that have changed - but for now, just redraw everything.
+        """
+        print "MosaicPanel UpdatedWorld."
+        self.Refresh()
+        self.imagemosaic.Refresh()
+
+class ImageMosaicPanel_OpenCount(util_widgets.ImageMosaicPanel):
+    """
+    A class that is meant to be integrated directly into OpenCount.
+    """
+    def __init__(self, parent, world, *args, **kwargs):
+        util_widgets.ImageMosaicPanel.__init__(self, parent, *args, **kwargs)
+        self.world = world
+        
+    def get_boxes(self, imgpath):
+        return self.world.get_boxes(imgpath)
+
 class MosaicPanel(wx.Panel):
     """
     A panel that displays a grid (mosaic) of images.
