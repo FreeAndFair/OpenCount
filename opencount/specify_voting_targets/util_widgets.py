@@ -63,6 +63,8 @@ class MosaicPanel(ScrolledPanel):
         
         btn_pageup = wx.Button(self, label="Page Up")
         btn_pagedown = wx.Button(self, label="Page Down")
+        self.btn_pageup = btn_pageup
+        self.btn_pagedown = btn_pagedown
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
 
@@ -92,11 +94,13 @@ class MosaicPanel(ScrolledPanel):
         self.imagemosaic.do_page_up()
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))        
         self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
+        self.maybe_btn_toggle()
 
     def onButton_pagedown(self, evt):
         self.imagemosaic.do_page_down()
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
         self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
+        self.maybe_btn_toggle()
 
     def onButton_jumppage(self, evt):
         lbl = "Page Number:"
@@ -122,6 +126,22 @@ invalid.".format(pagenum), style=wx.OK)
             return
         self.imagemosaic.jump_to_page(pagenum)
         self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum, total_pages-1))
+        self.maybe_btn_toggle()
+
+    def maybe_btn_toggle(self):
+        """ Depending on the current pagenum (self.cur_page), disable
+        or enable certain buttons.
+        """
+        pagenum = self.imagemosaic.cur_page
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        if pagenum == 0:
+            self.btn_pageup.Disable()
+        else:
+            self.btn_pageup.Enable()
+        if pagenum == total_pages-1:
+            self.btn_pagedown.Disable()
+        else:
+            self.btn_pagedown.Enable()
 
     def set_images(self, imgpaths):
         self.imagemosaic.set_images(imgpaths)
@@ -129,6 +149,7 @@ invalid.".format(pagenum), style=wx.OK)
         min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
         self.page_txt.SetLabel("Page: 0 / {0}".format(total_pages-1))
+        self.btn_pageup.Disable()
         self.SetMinSize((min_w, -1))
 
         self.SetupScrolling()
@@ -147,6 +168,12 @@ invalid.".format(pagenum), style=wx.OK)
     def select_image(self, imgpath):
         """ Selects an image within the ImageMosaicPanel. """
         self.imagemosaic.select_img(imgpath)
+
+    def get_img_pagenum(self, imgpath):
+        """ Returns the page number of the given imgpath, assuming that
+        this MosaicPanel contains the image.
+        """
+        return self.imagemosaic.get_img_pagenum(imgpath)
 
     def OnChildFocus(self, evt):
         # If I don't override this child focus event, then wx will
@@ -197,6 +224,7 @@ class ImageMosaicPanel(ScrolledPanel):
         else:
             self.cur_page -= 1
             self.display_page(self.cur_page)
+
     def do_page_down(self):
         """ Handles necessary logic of turning to the next page. """
         total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
@@ -279,7 +307,20 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def select_img(self, imgpath):
         """ Selects the cell given by imgpath. """
+        print "imgpath: {0}".format(imgpath)
+        print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
         Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
+
+    def get_img_info(self, imgpath):
+        """ Returns the (pagenum, row, col) of the image. Assumes that 
+        I actually do display imgpath.
+        """
+        # Assumes that self.display_page populates the grid by rows
+        idx = self.imgpaths.index(imgpath)
+        pagenum = int(idx / (self.num_rows * self.num_cols))
+        row = int(idx / self.num_cols) - (pagenum * self.num_rows)
+        col = int(idx % self.num_cols)
+        return pagenum, row, col
 
 class CellPanel(wx.Panel):
     """ A Panel that contains both a StaticText label (displaying
