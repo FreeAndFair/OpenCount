@@ -7,8 +7,8 @@ import pickle
 
 black = 200
 
-do_save = True
-export = True
+do_save = False
+export = False
 
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
@@ -763,8 +763,8 @@ def find_contests(t, paths, giventargets):
     os.popen("rm -r "+tmp+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
-    #ballots = pool.map(extract_contest, args)
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
+    #ballots = map(extract_contest, args)
     print "RETURNING", ballots
     return ballots
 
