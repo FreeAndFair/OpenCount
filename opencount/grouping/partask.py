@@ -36,21 +36,31 @@ def do_partask(fn, jobs, _args=None, blocking=True, combfn=None, init=None):
 
     num_jobs = len(jobs)
     if combfn == None:
-        i = 0
         results = []
-        while i < num_jobs:
+        while True:
             subresults = queue.get()
+            if isinstance(subresults, POOL_CLOSED):
+                return results
             results.extend(subresults)
-            i += len(subresults)
         return results
     else:
-        i = 0
         results = init
-        while i < num_jobs:
+        while True:
             subresults = queue.get()
-            results, k = combfn(results, subresults)
-            i += k
+            if isinstance(subresults, POOL_CLOSED):
+                return results
+            results = combfn(results, subresults)
         return results
+
+class POOL_CLOSED:
+    """
+    A dummy class to use to signal that the pool is finished
+    processing.
+    """
+    def __init__(self):
+        pass
+
+_POOL_CLOSED = POOL_CLOSED()
 
 def spawn_jobs(queue, fn, jobs, _args=None):
     def handle_result(result):
@@ -65,6 +75,7 @@ def spawn_jobs(queue, fn, jobs, _args=None):
             pool.apply_async(fn, args=(job, _args), callback=handle_result)            
     pool.close()
     pool.join()
+    queue.put(POOL_CLOSED())
     
 def divy_list(lst, k):
     """ Divides input list into 'k' equally-sized chunks.
@@ -144,14 +155,12 @@ def count_occurs(strs):
 def count_combfn(d, subd):
     """ Combines two dictionaries. """
     final_d = dict(d.items())
-    n = 0
     for k, v in subd.iteritems():
-        n += v
         if k in final_d:
             final_d[k] += v
         else:
             final_d[k] = v
-    return final_d, n
+    return final_d
 
 def test3():
     strs = ('a', 'a', 'a', 'a', 'a', 'a',
@@ -162,7 +171,7 @@ def test3():
     counts = do_partask(count_occurs, strs, combfn=count_combfn, init={})
     print counts
 
-if __name__ == '__main__':
+def run_tests():
     print "==== Running tests..."
     print "== 1.) Square 1 number."
     test0()
@@ -177,3 +186,6 @@ if __name__ == '__main__':
     test3()
 
     print "==== Completed tests."
+
+if __name__ == '__main__':
+    run_tests()
