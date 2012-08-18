@@ -90,6 +90,13 @@ class MosaicPanel(ScrolledPanel):
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
+        Publisher().subscribe(self._pubsub_updated_world, "broadcast.updated_world")
+
+    def _pubsub_updated_world(self, msg):
+        print "UPDATED WORLD."
+        self.Refresh()
+        self.imagemosaic.Refresh()
+
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))        
@@ -201,7 +208,7 @@ class ImageMosaicPanel(ScrolledPanel):
         self.imgpaths = []
         self.cur_page = 0
 
-        self.boxes_dict = {}  # maps {str imgpath: list of (y1,y2,x1,x2)}
+        self.boxes_dict = {}  # maps {str imgpath: list of BoundingBox instances}
         # A 2-D array containing all CellPanels. self.cells[i][j]
         # is the CellPanel at row i, col j.
         self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
@@ -221,6 +228,12 @@ class ImageMosaicPanel(ScrolledPanel):
         self.sizer.Add(self.gridsizer)
 
         self.SetSizer(self.sizer)
+
+    def Refresh(self, *args, **kwargs):
+        ScrolledPanel.Refresh(self, *args, **kwargs)
+        for row in self.cells:
+            for cellpanel in row:
+                cellpanel.cellbitmap.Refresh()
 
     def do_page_up(self):
         """ Handles necessary logic of turning to the previous page. """
@@ -268,7 +281,7 @@ class ImageMosaicPanel(ScrolledPanel):
                         hack...
         """
         assert imgpath in self.boxes_dict
-        self.boxes_dict[imgpath] = list(boxes)
+        self.boxes_dict[imgpath] = boxes
         self.transfn = transfn
         self.Refresh()
 
