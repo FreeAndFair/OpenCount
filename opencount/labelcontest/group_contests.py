@@ -532,12 +532,17 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print "TEXT FOR", contest
     #print "bottom of box", d
     #print 'targets', targets
-    tops = [0]+sorted([a[1]-u-10 for a in targets])+[d]
+    tops = sorted([a[1]-u-10 for a in targets])+[d]
+    if tops[0] > 0:
+        tops = [0]+tops
+    else:
+        tops = [0]+tops[1:] # In case the top is negative.
     #print contest
     #print "USING", tops
     blocks = []
     for upper,lower in zip(tops, tops[1:]):
         istarget = (upper != 0)
+        print upper, lower
         if upper == lower:
             blocks.append((istarget, ""))
             continue
@@ -559,7 +564,7 @@ def compare_preprocess(lang, path, image, contest, targets):
             blocks.append((istarget, ""))
             
     
-    print blocks
+    #print blocks
     return blocks
 
 memo = {}
@@ -601,28 +606,36 @@ def compare(otexts1, otexts2):
     #print 'running with1', otexts1
     #print 'running with2', otexts2
     # text -> length
+    print 'a'
     texts1 = dict((y, len(y)) for x,y in otexts1)
     texts2 = dict((y, len(y)) for x,y in otexts2)
+    print 'b'
     # text -> target true/false
     istargs1 = dict((y,x) for x,y in otexts1)
     istargs2 = dict((y,x) for x,y in otexts2)
+    print 'c'
     # Text associated with targets only
     targtext1 = [y for x,y in otexts1 if x]
     targtext2 = [y for x,y in otexts2 if x]
+    print 'd'
     size = sum(texts1.values())+sum(texts2.values())
+    print 'e'
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
         return 0, []
     weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
-
+    print 'f'
     #for each in enumerate(targtext1): print each
     #for each in enumerate(targtext2): print each
 
     val = 0
     matching = []
     while texts1 != {} and texts2 != {}:
+        print 'g', len(texts1), len(texts2)
+        found = False
         for weight,a,b in weights:
             if a in texts1 and b in texts2 and istargs1[a] == istargs2[b]:
+                print 'h'
                 if istargs1[a] == True:
                     #print 'together', targtext1.index(a), targtext2.index(b)
                     matching.append((targtext1.index(a),
@@ -630,7 +643,13 @@ def compare(otexts1, otexts2):
                 val += weight
                 del texts1[a]
                 del texts2[b]
+                found = True
                 break
+        if not found:
+            print "---- FAILURE"
+            print otexts1
+            print otexts2
+            return 1<<30, None
     #print "MATCHING", matching
     return float(val+sum(texts1.values())+sum(texts1.values()))/size, matching
 
@@ -653,13 +672,14 @@ def split_to_equal(contests):
     put it in a class of its own.
     """
     sets = []
-    print len(contests)
-    print "CONTS", contests
+    print 'run up to', len(contests)
+    #print "CONTS", contests
     for i,each in enumerate(contests):
         print 'on', i, '#', len(sets)
         found = False
         for s in sets:
             # get a representitive, then get the non-matching part, then the text
+            print 'running compare of', len(s[0][0][2]), len(each[2])
             score, matching = compare(s[0][0][2], each[2])
             #score = compare(s[0][2], each[2])
             if score < .2:
@@ -670,6 +690,7 @@ def split_to_equal(contests):
         if not found:
             sets.append([(each, list(zip(range(len(each[2])), range(len(each[2])))))])
             #sets.append([each])
+    print 'done'
     return sets
     for s in sets:
         print '='*80
@@ -689,7 +710,8 @@ def equ_class(contests):
     result = []
     for group in groups:
         result += split_to_equal(group)
-    print "RETURNING", result
+        print "Finished one group"
+    print "RETURNING"#, result
     return result
 
 def merge_contests(ballot_data, fulltargets):
@@ -705,11 +727,11 @@ def merge_contests(ballot_data, fulltargets):
             #print 'targs is', group
             equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
             equal_uniq = list(set(equal))
-            print equal_uniq
+            #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
             new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in list(set(equal))], merged))
         new_data.append(new_ballot)
-    print new_data
+    #print new_data
     return new_data
 
 def extend_multibox(ballots, box1, box2, orders):
@@ -750,7 +772,7 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
         lang = lang_map[f] if f in lang_map else 'eng'
         get = ballot_preprocess(i, f, im, contests, sum(giventargets[i],[]), lang)
         ballots.append(get)
-    print "WORKING ON", ballots
+    #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
 def find_contests(t, paths, giventargets):
@@ -786,7 +808,8 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     #os.popen("rm -r "+tmp+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    ballots = pool.map(group_given_contests_map, args)
+    #ballots = pool.map(group_given_contests_map, args)
+    ballots = map(group_given_contests_map, args)
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
