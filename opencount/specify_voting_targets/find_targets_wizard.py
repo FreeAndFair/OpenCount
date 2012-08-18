@@ -133,14 +133,14 @@ class SpecifyTargetsPanel(wx.Panel):
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().unsubscribe(callback, topic)
-        #self.panel_mosaic.unsubscribe_pubsubs()
+        self.panel_mosaic.unsubscribe_pubsubs()
         self.ballotviewer.unsubscribe_pubsubs()
         self.world.unsubscribe_pubsubs()
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().subscribe(callback, topic)
-        #self.panel_mosaic.subscribe_pubsubs()
+        self.panel_mosaic.subscribe_pubsubs()
         self.ballotviewer.subscribe_pubsubs()
         self.world.subscribe_pubsubs()
         
@@ -152,8 +152,8 @@ class SpecifyTargetsPanel(wx.Panel):
     def setup_widgets(self):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.world = WorldState()
-        #self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
-        self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
+        #self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
+        self.panel_mosaic = MosaicPanel2(self, self.world, style=wx.SIMPLE_BORDER)
         self.panel_mosaic.Hide()
         self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
         self.ballotviewer.Hide()
@@ -320,8 +320,10 @@ function correctly.""".format(len(lonely_tmpls))
         # Notify the MosaicPanel about the boxes
         #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         #self.panel_mosaic.set_boxes(box_locs)
-        self.panel_mosaic.set_boxes(self.world.box_locations,
-                                    transfn=make_transfn(self.project))
+        #self.panel_mosaic.set_boxes(self.world.box_locations,
+        #                            transfn=make_transfn(self.project))
+        self.panel_mosaic.set_transfn(make_transfn(self.project))
+        Publisher().sendMessage("broadcast.updated_world")
 
         # Display first template on BallotScreen
         imgpath = imgpaths[0]
@@ -435,8 +437,9 @@ function correctly.""".format(len(lonely_tmpls))
         # Notify the MosaicPanel about the new boxes
         #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         #self.panel_mosaic.set_boxes(box_locs)
-        self.panel_mosaic.set_boxes(self.world.box_locations,
-                                    transfn=make_transfn(self.project))
+        #self.panel_mosaic.set_boxes(self.world.box_locations,
+        #                            transfn=make_transfn(self.project))
+        self.panel_mosaic.set_transfn(make_transfn(self.project))
         self.Refresh()
 
     def sanity_check_grouping(self):
@@ -890,6 +893,7 @@ single voting target, which violates assumptions."
                 contestboxes.append(box)
             self.remove_contests(blankpath)
             self.world.add_boxes(blankpath, contestboxes)
+        Publisher().sendMessage("broadcast.updated_world")
             
                 
 class ThreadDoInferContests(threading.Thread):
@@ -953,36 +957,21 @@ def import_worldstate(csvdir, imgsize):
         world.add_boxes(temppath, box_locations)
     return world
                 
-class MosaicPanel(wx.Panel):
+class MosaicPanel2(util_widgets.MosaicPanel):
     """
-    A panel that displays a grid (mosaic) of images.
+    Behaves just like util_widget's MosaicPanel, but with a few
+    OpenCount-specific things added in (like Pubsub hooks).
     """
-    
-    # Maximum height of all images in the mosaic
-    HEIGHT = 400
-    
-    # Maximum number of images to load into memory at once
-    NUM_MAX_IMGS = 16
-
     def __init__(self, parent, world, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-        
-        ## Instance variables
-        self.parent = parent
+        util_widgets.MosaicPanel.__init__(self, parent, imgmosaicpanel=ImageMosaicPanel_OpenCount, 
+                                          _init_args=(world,), 
+                                          *args, **kwargs)
         self.world = world
-        self.imgs = {}    # dict mapping {str imgpath: wxBitmap bitmap}
-        self.img_panels = {}   # dict mapping {str imgpath: Panel}
-        
-        self._cache_imgs_pil = {}
-        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
         # Pubsubs
         self.callbacks = [("signals.MosaicPanel.update_all_boxes", self._pubsub_update_all_boxes),
                           ("signals.MosaicPanel.update_boxes", self._pubsub_update_boxes),
                           ("broadcast.deleted_targets", self._pubsub_deleted_targets),
                           ("broadcast.updated_world", self._pubsub_updated_world)]
-
-        self.setup_widgets()
-        
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().subscribe(callback, topic)
@@ -991,147 +980,6 @@ class MosaicPanel(wx.Panel):
         for (topic, callback) in self.callbacks:
             Publisher().unsubscribe(callback, topic)
 
-    def OnChildFocus(self, evt):
-        # If I don't override this child focus event, then wx will
-        # reset the scrollbars at extremely annoying times. Weird.
-        # For inspiration, see:
-        #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
-        pass
-
-    def onScroll(self, evt):
-
-        evt.Skip()
-
-    def setup_widgets(self):
-        self.window = wx.ScrolledWindow(self)
-        self.window.Bind(wx.EVT_SCROLLWIN, self.onScroll)
-        self.window.sizer = wx.GridSizer(rows=0, cols=1, vgap=1, hgap=1)
-        self.window.SetSizer(self.window.sizer)
-        self.window.panels = [] # stores Panels that have NotStaticBmps
-        
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        # if proportion=0, then the mosaic is a tiny, tiny slice. >:(
-        self.sizer.Add(self.window, proportion=1, flag=wx.EXPAND | wx.ALL)
-        self.SetSizer(self.sizer)
-        self.Fit()
-
-    def reset(self):
-        self.imgs = {}
-        self.img_panels = {}
-        self.setup_widgets()
-        
-    def display_images(self, imgs):
-        """
-        Display images on the mosaic, in addition to each img's 
-        bounding boxes.
-        Input:
-            dict imgs: maps {str imgpath: list of BoundingBox instances},
-                       where 'coords' is relative.
-        """
-        self.imgs = imgs
-        cols = 1 if len(self.imgs) <= 1 else 2
-        self.window.sizer = wx.GridSizer(rows=0, cols=cols, vgap=1, hgap=1)
-        self.window.SetSizer(self.window.sizer)
-        self.window.panels = []
-        if not self.imgs:
-            # Display dummy placeholder images
-            for i in range(4):
-                panel = wx.Panel(self.window)
-                self.window.panels.append(panel)
-                panel.txt = wx.StaticText(panel, label="Dummy Image {0}".format(i))
-                blank_bitmap = util_gui.make_blank_bitmap((MosaicPanel.HEIGHT, MosaicPanel.HEIGHT / 2), 200)
-                static_bitmap = NotStaticBitmap(panel, blank_bitmap, "(Dummy Image {0})".format(i), self.world)
-                panel.static_bitmap = static_bitmap
-                self.img_panels[static_bitmap.imgpath] = panel
-                panel.sizer = wx.BoxSizer(wx.VERTICAL)
-                panel.sizer.Add(panel.txt, proportion=0, flag=wx.ALIGN_LEFT)
-                panel.sizer.Add(static_bitmap, proportion=0, flag=wx.ALL)
-                panel.SetSizer(panel.sizer)
-                panel.Fit()
-                panel.SetMinSize(panel.GetVirtualSize())
-                self.window.sizer.Add(panel, proportion=1, flag=wx.ALL)
-        else:
-            for imgpath in sorted(self.imgs):
-                bounding_boxes = self.imgs[imgpath]
-                _t = time.time()
-                pil_img = util_gui.open_as_grayscale(imgpath)
-                w_img, h_img = pil_img.size
-                if h_img != MosaicPanel.HEIGHT:
-                    new_w = int(round((MosaicPanel.HEIGHT / float(h_img)) * w_img))
-                    c = MosaicPanel.HEIGHT / float(h_img)
-                    pil_img = pil_img.resize((new_w, MosaicPanel.HEIGHT))
-                img_bitmap = util_gui.PilImageToWxBitmap(pil_img)
-                panel = wx.Panel(self.window, style=wx.SIMPLE_BORDER)
-                self.window.panels.append(panel)
-                panel.txt = wx.StaticText(panel, label=os.path.split(imgpath)[1])
-                static_bitmap = NotStaticBitmap(panel, img_bitmap, imgpath, self.world)
-                static_bitmap.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown_mosaicimg)
-                panel.static_bitmap = static_bitmap
-                self.img_panels[imgpath] = panel
-                panel.sizer = wx.BoxSizer(wx.VERTICAL)
-                panel.sizer.Add(panel.txt, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
-                panel.sizer.Add(static_bitmap, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
-                panel.SetSizer(panel.sizer)
-                panel.Fit()
-                #panel.SetMinSize((img_bitmap.GetWidth(), img_bitmap.GetHeight()))
-                self.window.sizer.Add(panel, proportion=0, flag=wx.ALIGN_TOP | wx.ALL, border=4)
-                
-        self.window.Fit()
-        self.Fit()
-        
-        w, h = self.GetVirtualSize()
-        num_scrolls = 20.0
-        x, y = round(w / num_scrolls), round(h / num_scrolls)
-        self.window.SetScrollbars(num_scrolls, num_scrolls, x, y)
-        
-        self.window.SetMinSize((w,600))
-        self.SetMinSize((w, 600))
-        self.Refresh()
-    
-    def update_targets(self, imgpath, targets):
-        """
-        Update one of the displayed images (given by imgpath), by
-        resetting the targets with 'targets'.
-        """
-        panel = self.img_panels[imgpath]
-        #panel.static_bitmap.match_coords = [(t.x1, t.y1, t.x2, t.y2) for t in targets]
-        bounding_boxes = []
-        
-        for box in targets:
-            bounding_boxes.append(box.copy())
-
-        panel.static_bitmap.bounding_boxes = bounding_boxes
-        #self.Refresh()
-    
-    def update_all_targets(self, box_locations):
-        """
-        Updates all box_locations, including voting targets and 
-        contest bboxes. 
-        Input:
-            dict box_locations: Maps templatepath to list of BoundingBoxes
-        """
-        for templatepath in box_locations:
-            panel = self.img_panels[templatepath]
-            panel.static_bitmap.bounding_boxes = box_locations[templatepath]
-        self.Refresh()
-        
-    def remove_targets(self, imgpath, boxes):
-        """
-        Removes all BoundingBoxes in 'boxes' from template image given
-        by 'imgpath'.
-        Input:
-            str imgpath
-            list boxes
-        """
-        panel_boxes = self.img_panels[imgpath].static_bitmap.bounding_boxes
-        for b in boxes:
-            if b not in panel_boxes:
-                print "MosaicPanel -- Warning: {0} was not found in {1}".format(b, imgpath)
-            else:
-                panel_boxes.remove(b)
-        self.Refresh()
-        
-    #### Pubsub
     def _pubsub_update_all_boxes(self, msg):
         """
         Triggered usually when an operation is done that modifies 
@@ -1167,83 +1015,20 @@ class MosaicPanel(wx.Panel):
         myself. For performance, it'd be a good idea to only redraw
         things that have changed - but for now, just redraw everything.
         """
+        print "MosaicPanel UpdatedWorld."
         self.Refresh()
-        
-    #### Event Handlers
-    
-    def onLeftDown_mosaicimg(self, evt):
-        self.SetFocus()
-        for static_bitmap in [panel.static_bitmap for panel in self.img_panels.values()]:
-            static_bitmap.unselect()
-        notstatic_bitmap = evt.GetEventObject()
-        notstatic_bitmap.select()
-        # Shift scrollbars so that the selected img is 'centered' in
-        # UL corner.
-        imgpath = notstatic_bitmap.imgpath
-        #pos_ul = MosaicPanel.HEIGHT * (sorted(self.img_panels.keys()).index(imgpath))
-        idx = sorted(self.img_panels.keys()).index(imgpath)
-        if idx % 2 == 1:
-            row = (idx-1) / 2
-        else:
-            row = idx / 2
-        col = idx % 2
-        width_panel = self.img_panels.values()[0].GetSize()[0] + 5 # '5' is from the border
-        height_panel = self.img_panels.values()[0].GetSize()[1] + 5 # '5' is from the border
-        pos_ul =  (width_panel * col, height_panel * row)
-        x_units = pos_ul[0] / self.window.GetScrollPixelsPerUnit()[0]
-        y_units = pos_ul[1] / self.window.GetScrollPixelsPerUnit()[1]
-        self.window.Scroll(x_units, y_units)
-        Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", notstatic_bitmap.imgpath)
+        self.imagemosaic.Refresh()
 
-    def onSize(self, evt):
-        self.ClearBackground()
-        self.Refresh()
-        evt.Skip()
-    def onPaint(self, evt):
-        self.ClearBackground()
-        evt.Skip()
-    
-class NotStaticBitmap(wx.Panel):
-    def __init__(self, parent, bmp, imgpath, world, *args, **kwargs):
-        """
-        bounding_boxes is a tuple of (x1,y1,x2,y2), and are relative.
-        """
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+class ImageMosaicPanel_OpenCount(util_widgets.ImageMosaicPanel):
+    """
+    A class that is meant to be integrated directly into OpenCount.
+    """
+    def __init__(self, parent, world, *args, **kwargs):
+        util_widgets.ImageMosaicPanel.__init__(self, parent, *args, **kwargs)
         self.world = world
-        self.SetBackgroundStyle(wx.BG_STYLE_CUSTOM)
-        self.bmp = bmp
-        self.imgpath = imgpath
-        self.is_selected = False
-        self.SetMinSize((bmp.GetWidth(), bmp.GetHeight()))
-        self.Bind(wx.EVT_PAINT, self.onPaint)
-    def select(self):
-        """
-        When a user clicks this bitmap, surround it with a border
-        in order to signify that it's selected.
-        """
-        self.is_selected = True
-        self.Refresh()
-    def unselect(self):
-        self.is_selected = False
-        self.Refresh()
-    def onPaint(self, evt):
-        dc = wx.AutoBufferedPaintDC(self)
-        dc.DrawBitmap(self.bmp, 0, 0)
-        dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        if self.is_selected:
-            # Draw Border
-            dc.SetPen(wx.Pen("Yellow", 10))
-            dc.DrawRectangle(0,0,self.bmp.GetWidth()-1,self.bmp.GetHeight()-15)
-        for bounding_box in self.world.get_boxes(self.imgpath):
-            x1, y1, x2, y2 = bounding_box.get_coords()
-            dc.SetPen(wx.Pen(bounding_box.color, bounding_box.line_width))
-            w_img, h_img = self.bmp.GetWidth(), self.bmp.GetHeight()
-            x1_client, y1_client = int(round(x1*w_img)), int(round(y1*h_img))
-            x2_client, y2_client = int(round(x2*w_img)), int(round(y2*h_img))
-            w_client, h_client = abs(x1_client - x2_client), abs(y1_client - y2_client)
-            dc.DrawRectangle(x1_client, y1_client, w_client, h_client)
-            #dc.SetPen(wx.Pen(BoundingBox.CIRCLE_COLOR, 1))
-            #dc.DrawCircle(x_client, y_client, BoundingBox.CIRCLE_RAD)        
+        
+    def get_boxes(self, imgpath):
+        return self.world.get_boxes(imgpath)
 
 class MyBallotScreen(BallotScreen):
     """
@@ -2202,6 +1987,8 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
             new_boxes.setdefault(templateimgpath, []).extend(new_bounding_boxes)
             numComplete += 1
         print 'Number of new voting targets detected:', _count
+
+    pool.close()
     return new_boxes
 
 def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):

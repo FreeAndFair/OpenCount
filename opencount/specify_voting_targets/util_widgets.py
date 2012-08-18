@@ -56,10 +56,16 @@ class MosaicPanel(ScrolledPanel):
     """ A widget that contains both an ImageMosaicPanel, and a simple
     button toolbar that allows pageup/pagedown.
     """
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, imgmosaicpanel=None, 
+                 _init_args=None,
+                 *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        self.imagemosaic = ImageMosaicPanel(self)
+        if imgmosaicpanel == None:
+            self.imagemosaic = ImageMosaicPanel(self)
+        else:
+            _init_args = () if _init_args == None else _init_args
+            self.imagemosaic = imgmosaicpanel(self, *_init_args)
         
         btn_pageup = wx.Button(self, label="Page Up")
         btn_pagedown = wx.Button(self, label="Page Down")
@@ -89,13 +95,6 @@ class MosaicPanel(ScrolledPanel):
         self.Layout()
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
-
-        Publisher().subscribe(self._pubsub_updated_world, "broadcast.updated_world")
-
-    def _pubsub_updated_world(self, msg):
-        print "UPDATED WORLD."
-        self.Refresh()
-        self.imagemosaic.Refresh()
 
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
@@ -162,17 +161,8 @@ invalid.".format(pagenum), style=wx.OK)
         self.SetupScrolling()
         self.Fit()
 
-    def set_boxes(self, boxes_dict, transfn=None):
-        """ Given a dict that tells us all boxes for all imgpaths,
-        update the self.imagemosaic so that the boxes are correctly
-        displayed.
-        Input:
-            dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
-            fn transfn: A function that, given (x1,y1,x2,y2), returns a
-                        new (x1,y1,x2,y2) to use instead. A bit of a hack.
-        """
-        for imgpath, boxes in boxes_dict.iteritems():
-            self.imagemosaic.set_boxes(imgpath, boxes, transfn=transfn)
+    def set_transfn(self, fn):
+        self.imagemosaic.set_transfn(fn)
 
     def select_image(self, imgpath):
         """ Selects an image within the ImageMosaicPanel. """
@@ -208,7 +198,6 @@ class ImageMosaicPanel(ScrolledPanel):
         self.imgpaths = []
         self.cur_page = 0
 
-        self.boxes_dict = {}  # maps {str imgpath: list of BoundingBox instances}
         # A 2-D array containing all CellPanels. self.cells[i][j]
         # is the CellPanel at row i, col j.
         self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
@@ -228,6 +217,14 @@ class ImageMosaicPanel(ScrolledPanel):
         self.sizer.Add(self.gridsizer)
 
         self.SetSizer(self.sizer)
+
+    def get_boxes(self, imgpath):
+        """ Given an imgpath that I contain, return the list of 
+        BoundingBoxes that my CellPanels should display (if any).
+        Depending on your widget use-case, you will have to implement
+        this somehow.
+        """
+        raise NotImplementedError
 
     def Refresh(self, *args, **kwargs):
         ScrolledPanel.Refresh(self, *args, **kwargs)
@@ -266,24 +263,16 @@ class ImageMosaicPanel(ScrolledPanel):
         self.imgpaths = imgpaths
         self.parent.page_txt.SetLabel("Page: 0 / {0}".format(len(imgpaths) - 1))
         # Reset the boxes_dict for all imgpaths
-        self.boxes_dict = {}
-        for imgpath in imgpaths:
-            self.boxes_dict.setdefault(imgpath, [])
         self.cur_page = 0
         self.display_page(self.cur_page)
 
-    def set_boxes(self, imgpath, boxes, transfn=None):
-        """ Updates the list of boxes for imgpath.
-        Input:
-            str imgpath
-            list boxes: [(y1,y2,x1,x2), ...]
-            fn transfn: A function (x1,y1,x2,y2)->(x1,y1,x2,y2)'. A
-                        hack...
+    def set_transfn(self, transfn):
+        """ Sets the transformation function, that maps coords
+        from (x1,y1,x2,y2)->(x1,y1,x2,y2)'. A kludgy hack to 
+        account for the fact that legacy code has BoundingBoxes in
+        [0,1] coordinates.
         """
-        assert imgpath in self.boxes_dict
-        self.boxes_dict[imgpath] = boxes
         self.transfn = transfn
-        self.Refresh()
 
     def display_page(self, pagenum):
         """Sets up UI so that all images on the pagenum are displayed.
@@ -333,6 +322,24 @@ class ImageMosaicPanel(ScrolledPanel):
         print "imgpath: {0}".format(imgpath)
         print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
         Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
+        self.unselect_all()
+        self.get_cellpanel(imgpath).select()
+
+    def unselect_all(self):
+        for row in self.cells:
+            for cellpanel in row:
+                cellpanel.unselect()
+
+    def get_cellpanel(self, imgpath):
+        """ Returns the CellPanel instance given by imgpath if it's 
+        currently displayed, or None otherwise.
+        """
+        pagenum, row, col = self.get_img_info(imgpath)
+        if pagenum != self.cur_page:
+            return None
+        cellpanel = self.cells[row][col]
+        assert cellpanel.imgpath == imgpath
+        return cellpanel
 
     def get_img_info(self, imgpath):
         """ Returns the (pagenum, row, col) of the image. Assumes that 
@@ -358,6 +365,10 @@ class CellPanel(wx.Panel):
         self.bitmap = bitmap
         self.is_dummy = is_dummy
 
+        # self.is_selected is True/False if this panel is selected.
+        # A selected CellPanel will have a yellow border drawn.
+        self.is_selected = False
+
         self.cellbitmap = CellBitmap(self, i, j, imgpath, bitmap)
         
         self.txtlabel = wx.StaticText(self, label="Label here.")
@@ -378,6 +389,13 @@ class CellPanel(wx.Panel):
         
     def set_bitmap(self, bitmap):
         self.cellbitmap.set_bitmap(bitmap)
+
+    def select(self):
+        self.is_selected = True
+        self.cellbitmap.Refresh()
+    def unselect(self):
+        self.is_selected = False
+        self.cellbitmap.Refresh()
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
@@ -420,8 +438,12 @@ class CellBitmap(wx.Panel):
         dc.DrawBitmap(self.bitmap, 0, 0)
         if self.parent.imgpath == None:
             return
-        my_boxes = self.parent.parent.boxes_dict[self.parent.imgpath]
+        my_boxes = self.parent.parent.get_boxes(self.parent.imgpath)
         self._draw_boxes(dc, my_boxes)
+        if self.parent.is_selected:
+            # Draw Border
+            dc.SetPen(wx.Pen("Yellow", 8))
+            dc.DrawRectangle(0,0,self.bitmap.GetWidth()-1,self.bitmap.GetHeight()-15)
         evt.Skip()
         
     def _draw_boxes(self, dc, boxes):
