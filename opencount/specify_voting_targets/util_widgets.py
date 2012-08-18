@@ -122,7 +122,7 @@ class ImageMosaicPanel(ScrolledPanel):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
-        self.num_rows = 4
+        self.num_rows = 12
         self.num_cols = 2
 
         self.cell_width = None    # set by display_page
