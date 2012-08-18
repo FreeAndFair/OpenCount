@@ -315,9 +315,23 @@ function correctly.""".format(len(lonely_tmpls))
             imgpaths = sorted(imgpaths)
             img_boxes = self.world.get_boxes_all()
             
-        #self.panel_mosaic.display_images(imgs_dict)
         self.panel_mosaic.set_images(imgpaths)
-        self.panel_mosaic.set_boxes(img_boxes)
+
+        # Notify the MosaicPanel about the boxes
+        w_img, h_img = self.project.imgsize
+        box_locs = {}
+        # Scale the coords to image coords.
+        for temppath, boxes in img_boxes.iteritems():
+            lst = []
+            for box in boxes:
+                b_cpy = box.copy()
+                b_cpy.x1 = int(round(box.x1 * w_img))
+                b_cpy.y1 = int(round(box.y1 * h_img))
+                b_cpy.x2 = int(round(box.x2 * w_img))
+                b_cpy.y2 = int(round(box.y2 * h_img))
+                lst.append(b_cpy)
+            box_locs[temppath] = lst
+        self.panel_mosaic.set_boxes(box_locs)
 
         # Display first template on BallotScreen
         imgpath = imgpaths[0]
@@ -361,9 +375,10 @@ function correctly.""".format(len(lonely_tmpls))
         Set the radio buttons according to the values in
         frontback_map for the given image.
         """
-        cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
-        side = self.frontback_map[cur_imgpath]
-        self.frontbackpanel.set_side(side)
+        if self.frontback_map:
+            cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
+            side = self.frontback_map[cur_imgpath]
+            self.frontbackpanel.set_side(side)
 
     def update_frontbackmap(self):
         cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
@@ -426,7 +441,22 @@ function correctly.""".format(len(lonely_tmpls))
                     print "Couldn't find a contest for this target."
             self.remove_contests(templatepath)
             self.world.add_boxes(templatepath, contest_boxes)
-            
+
+        # Notify the MosaicPanel about the new boxes
+        w_img, h_img = self.project.imgsize
+        box_locs = {}
+        # Scale the coords to image coords.
+        for temppath, boxes in self.world.box_locations.iteritems():
+            lst = []
+            for box in boxes:
+                b_cpy = box.copy()
+                b_cpy.x1 = int(round(box.x1 * w_img))
+                b_cpy.y1 = int(round(box.y1 * h_img))
+                b_cpy.x2 = int(round(box.x2 * w_img))
+                b_cpy.y2 = int(round(box.y2 * h_img))
+                lst.append(b_cpy)
+            box_locs[temppath] = lst
+        self.panel_mosaic.set_boxes(box_locs)
         self.Refresh()
 
     def sanity_check_grouping(self):
@@ -603,6 +633,8 @@ voting bubbles were missed.".format(ctr)
         self.export_bounding_boxes()
             
     def pubsub_mosaic_img_selected(self, msg):
+        """ Triggered when the user clicks a blank ballot in the Mosaic
+        panel. """
         imgpath = msg.data
         img = util_gui.open_as_grayscale(imgpath)
         target_locations = self.world.get_boxes(imgpath)

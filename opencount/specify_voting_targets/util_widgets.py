@@ -1,4 +1,4 @@
-import time, threading, sys, os, math
+import time, threading, sys, os, math, pdb
 import wx
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
@@ -95,7 +95,7 @@ class MosaicPanel(ScrolledPanel):
     def set_boxes(self, boxes_dict):
         """ Given a dict that tells us all boxes for all imgpaths,
         update the self.imagemosaic so that the boxes are correctly
-        displayed. 
+        displayed.
         Input:
             dict boxes_dict: maps {str imgpath: list of (y1, y2, x1, x2)}
         """
@@ -210,13 +210,15 @@ class ImageMosaicPanel(ScrolledPanel):
                     if self.cell_width == None:
                         self.cell_width = new_w
                     img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
-
+                else:
+                    c = 1.0
                 cellpanel = self.cells[i][j]
                 cellpanel.set_bitmap(wx.BitmapFromImage(img))
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
                 cellpanel.set_txtlabel(os.path.join(parentdir, imgname))
                 cellpanel.imgpath = imgpath
+                cellpanel.cellbitmap.rszFac = c
             j += 1
             if j >= self.num_cols:
                 j = 0
@@ -226,7 +228,7 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def select_img(self, imgpath):
         """ Selects the cell given by imgpath. """
-        print "IMAGE SELECTED:", imgpath
+        Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
 
 class CellPanel(wx.Panel):
     """ A Panel that contains both a StaticText label (displaying
@@ -252,7 +254,6 @@ class CellPanel(wx.Panel):
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
     def onLeftDown(self, evt):
-        print "ON LEFT DOWN, CELL PANEL"
         self.parent.select_img(self.imgpath)
         
     def set_txtlabel(self, label):
@@ -271,14 +272,12 @@ class CellBitmap(wx.Panel):
     def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, rszFac=1.0, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        self.imgpath = imgpath
         self.rszFac = rszFac
         if not bitmap:
             bitmap = wx.EmptyBitmap(50, 50, -1)
         self.bitmap = bitmap
         self.pil_img = pil_img
         self.i, self.j = i, j
-        #self.boxes = []
 
         self.SetMinSize(bitmap.GetSize())
 
@@ -292,10 +291,8 @@ class CellBitmap(wx.Panel):
         self.Refresh()
 
     def add_box(self, box):
-        #assert box not in self.boxes
-        #self.boxes.append(box)
-        assert box not in self.parent.boxes_dict[self.imgpath]
-        self.parent.boxes_dict[self.imgpath].append(box)
+        assert box not in self.parent.boxes_dict[self.parent.imgpath]
+        self.parent.boxes_dict[self.parent.imgpath].append(box)
 
     def onPaint(self, evt):
         """ Refresh screen. """
@@ -304,9 +301,9 @@ class CellBitmap(wx.Panel):
         else:
             dc = wx.BufferedPaintDC(self)
         dc.DrawBitmap(self.bitmap, 0, 0)
-        if self.imgpath == None:
+        if self.parent.imgpath == None:
             return
-        my_boxes = self.parent.parent.boxes_dict[self.imgpath]
+        my_boxes = self.parent.parent.boxes_dict[self.parent.imgpath]
         self._draw_boxes(dc, my_boxes)
         evt.Skip()
         
@@ -314,8 +311,35 @@ class CellBitmap(wx.Panel):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Green", 2))
         for box in boxes:
-            x1, y1, x2, y2 = Box.make_canonical(box)
-            dc.DrawRectangle(x1, y1, box.width, box.height)
+            if box.is_contest:
+                dc.SetPen(wx.Pen("Blue", 2))
+            else:
+                dc.SetPen(wx.Pen("Red", 2))
+            x1, y1, x2, y2 = make_canonical(box)
+            x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.rszFac))), (x1,y1,x2,y2))
+            w, h = int(abs(x1-x2)), int(abs(y1-y2))
+            dc.DrawRectangle(x1, y1, w, h)
+
+def make_canonical(box):
+    """ Takes two arbitrary (x,y) points and re-arranges them
+    such that we get:
+        (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
+    """
+    xa, ya, xb, yb = box.get_coords()
+    w, h = abs(xa - xb), abs(ya - yb)
+    if xa < xb and ya < yb:
+        # UpperLeft, LowerRight
+        return (xa, ya, xb, yb)
+    elif xa < xb and ya > yb:
+        # LowerLeft, UpperRight
+        return (xa, ya - h, xb, yb + h)
+    elif xa > xb and ya < yb:
+        # UpperRight, LowerLeft
+        return (xa - w, ya, xb + w, yb)
+    else:
+        # LowerRight, UpperLeft
+        return (xb, yb, xa, ya)
+    
 
 class _TestMosaicFrame(wx.Frame):
     """
