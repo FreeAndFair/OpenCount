@@ -328,6 +328,7 @@ in queue: 0")
             self.okayButton.Hide()
             self.quarantineButton.Hide()
             self.misclassifyButton.Hide()
+            self.misclassify_txt.Hide()
             self.rundigitgroupButton.Hide()
             self.manuallylabelButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
@@ -335,6 +336,7 @@ in queue: 0")
             self.no_button.Hide()
             self.quarantineButton.Hide()
             self.misclassifyButton.Hide()
+            self.misclassify_txt.Hide()
             self.rundigitgroupButton.Hide()
             self.templateImg.Hide()
             self.diffImg.Hide()
@@ -602,9 +604,10 @@ in queue: 0")
             if accepted_hashes == None:
                 accepted_hashes = {}
                 partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            digitmatch_info = digit_group.get_digitmatch_info(self.project)
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
                 # digitinfo: ((y1,y2,x1,x2), str side)
-                digitinfo = digit_group.get_digitmatch_info(self.project, patchpath)
+                digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
                 accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
 
@@ -823,6 +826,7 @@ at a time."
         w_img, h_img = self.project.imgsize
             
         bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        print "==== a.) Reconstruct digit attrs"
         # a.) Reconstruct digit_attrs
         digit_attrs = {} # maps {str attrtype: ((y1,y2,x1,x2),side)}
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
@@ -840,6 +844,7 @@ at a time."
             pdb.set_trace()
         assert len(digit_attrs) == 1
         # b.) Construct rejected_hashes
+        print "==== b.) Construct rejected_hashes"
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
@@ -849,14 +854,17 @@ at a time."
             pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
                                                        self.project.rejected_hashes),
                                               'wb'))
+        print "== Throw stuff in self.currentGroup.elements into rejected_hashes"
+        # Load in digitmatch_info once, since it can be quite large.
+        digitmatch_info = digit_group.get_digitmatch_info(self.project)
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            #rejected_hashes.setdefault(sampleid, {})[cur_digit] = digit_attrs[attrtypestr]
-            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digit_group.get_digitmatch_info(self.project, patchpath))
-        
+            (bb, side) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
+            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side))
+        print "== Saving rejected_hashes"
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
-
+        print "== Counting..."
         ct = 0
         for imgpath, digitsmap in rejected_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():

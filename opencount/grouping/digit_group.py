@@ -1,4 +1,4 @@
-import sys, os, pdb, time, pickle, shutil
+import sys, os, pdb, time, pickle, shutil, traceback
 import scipy, scipy.misc
 from os.path import join as pathjoin
 sys.path.append('..')
@@ -6,6 +6,7 @@ import specify_voting_targets.util_gui as util_gui
 import pixel_reg.shared as sh
 import util, common
 from PIL import Image
+import grouping.partask as partask
 
 def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                         rejected_hashes=None,
@@ -84,7 +85,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         return results
     if ignorelist == None:
         ignorelist = []
-    result = {}
+    result = {} # maps {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)}
     digit_exs = make_digithashmap(project)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
                                                  project.num_digitsmap),
@@ -95,8 +96,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     if os.path.exists(voteddigits_dir):
         print "Removing everything in:", voteddigits_dir
         shutil.rmtree(voteddigits_dir)
-    ctr = 0
     digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
+
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
@@ -126,33 +127,76 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                                bb=bb, rejected_hashes=rejected_hashes,
                                                accepted_hashes=accepted_hashes)
             digitparse_results = get_best_side(results_side0, results_side1)
-        for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
-            meta_out = []
-            for (y1,y2,x1,x2, digit, digitimg, score) in meta:
-                rootdir = os.path.join(voteddigits_dir, digit)
-                util.create_dirs(rootdir)
-                outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
-                #scipy.misc.imsave(outpath, digitimg)
-                digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
-                Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
-                meta_out.append((y1,y2,x1,x2, digit, outpath, score))
-                ctr += 1
-            ballotid = img2bal[imgpath]
-            result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
+        # With PIL Crop: 3.63 s
+        # With scipy sh.standardImread: 19.174 s
+        # With scipy misc.imread: 6.59 s
+        _t = time.time()
+        print "== Extracting Voted Digit Patches..."
+        # Note: I use pass_idx=True because I need to assign a unique
+        #       ID to the {0}_votedextract.png patch paths.
+        r, d = partask.do_partask(extract_voted_digitpatches,
+                                  digitparse_results,
+                                  _args=(bb, digitattr, voteddigits_dir, img2bal),
+                                  combfn=my_combfn,
+                                  init=({},{}),
+                                  pass_idx=True) 
+        for ballotid, lsts in r.iteritems():
+            result.setdefault(ballotid,[]).extend(lsts)
+        for patchpath, (bb, side) in d.iteritems():
+            digitmatch_info[patchpath] = (bb, side)
+        print "== Finished Extracting Voted Digit Patches. Took {0}s.".format(time.time()-_t)
+            
     return result, digitmatch_info
 
-def get_digitmatch_info(proj, patchpath):
+def my_combfn(result, subresult):
+    """ The combfn used for partask.do_partask. """
+    comb_result, comb_digitmatch_info = dict(result[0]), dict(result[1])
+    sub_result, sub_digitmatch_info = subresult
+    for ballotid, lsts in sub_result.iteritems():
+        comb_result.setdefault(ballotid, []).extend(lsts)
+    for patchpath, (bb, side) in sub_digitmatch_info.iteritems():
+        comb_digitmatch_info[patchpath] = (bb, side)
+    return (comb_result, comb_digitmatch_info)
+
+def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal), idx):
+    result = {}  # maps {str ballotid: [(digitattr_i, ocrstr_I, meta_i, flip_i, side_i), ...]}
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
+    ctr = 0
+    for (imgpath, ocr_str, meta, isflip, side) in stuff:
+        meta_out = []
+        for (y1,y2,x1,x2, digit, digitimg, score) in meta:
+            rootdir = os.path.join(voteddigits_dir, digit)
+            util.create_dirs(rootdir)
+            outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
+            digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
+            Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
+            meta_out.append((y1,y2,x1,x2, digit, outpath, score))
+            ctr += 1
+        ballotid = img2bal[imgpath]
+        result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
+    return result, digitmatch_info
+
+def get_digitmatch_info(proj):
+    """ Loads the digitmatch_info data structure, which is of the form:
+        {str patchpath: ((y1,y2,x1,x2), str side)
+    """
+    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    return digitmatch_info
+
+def get_digitpatch_info(proj, patchpath, digitmatch_info=None):
     """ Given the path to a digit-patch (from a votedballot), return
     the ((y1,y2,x1,x2), side) region from the votedballot it was extracted
     from.
     Input:
         obj proj:
         str patchpath: Path of a digitpatch from some image
+        dict digitmatch_info: 
     Output:
         ((y1,y2,x1,x2), str side)
     """
-    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
-    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    if digitmatch_info == None:
+        digitmatch_info = get_digitmatch_info(proj)
     if patchpath not in digitmatch_info:
         print "Uhoh, couldn't find patchpath."
         pdb.set_trace()

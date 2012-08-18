@@ -1,4 +1,4 @@
-import os, sys, math, csv, copy, pdb
+import os, sys, math, csv, copy, pdb, traceback
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -1177,7 +1177,7 @@ class BoundingBox(object):
         if self.is_contest:
             self.set_color("Blue")
         else:
-            self.set_color("Red")
+            self.set_color("Orange")
     def restore_line_width(self):
         """
         Depending on what kind of BoundingBox I am (voting target, or
@@ -2029,9 +2029,12 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                     Publisher().sendMessage("broadcast.updated_world")
                     Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, c1))
                     Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, c2))
+                    print "Split successful."
                     self.Refresh()
                 except TypeError as e:
                     # Split wasn't possible
+                    print "Split not successful."
+                    traceback.print_exc()
                     pass
             else:
                 pass
@@ -2084,6 +2087,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             else:
                 Publisher().sendMessage("broadcast.ballotscreen.added_target", 
                                         (self.current_imgpath, new_box))
+            Publisher().sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.is_select_target()):
@@ -2092,6 +2096,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, contest))
             self.disable_dragging()
             self._dragselectregion = []
+            Publisher().sendMessage("broadcast.updated_world")            
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
               and self._dragselectregion):
@@ -2108,6 +2113,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             boxes = util_gui.get_boxes_inside(self.get_boxes(), dragselectregion_rel)
             for box in boxes:
                 self.select_target(box)
+            Publisher().sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate == BallotScreen.STATE_AUTODETECT and self._autodet_rect):
             try:

@@ -133,14 +133,14 @@ class SpecifyTargetsPanel(wx.Panel):
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().unsubscribe(callback, topic)
-        self.panel_mosaic.unsubscribe_pubsubs()
+        #self.panel_mosaic.unsubscribe_pubsubs()
         self.ballotviewer.unsubscribe_pubsubs()
         self.world.unsubscribe_pubsubs()
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             Publisher().subscribe(callback, topic)
-        self.panel_mosaic.subscribe_pubsubs()
+        #self.panel_mosaic.subscribe_pubsubs()
         self.ballotviewer.subscribe_pubsubs()
         self.world.subscribe_pubsubs()
         
@@ -152,7 +152,8 @@ class SpecifyTargetsPanel(wx.Panel):
     def setup_widgets(self):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.world = WorldState()
-        self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
+        #self.panel_mosaic = MosaicPanel(self, self.world, style=wx.SIMPLE_BORDER)
+        self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
         self.panel_mosaic.Hide()
         self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
         self.ballotviewer.Hide()
@@ -166,6 +167,7 @@ class SpecifyTargetsPanel(wx.Panel):
         #self.sizer.Add(self.ballotviewer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
         #self.sizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL)
         self.SetSizer(self.sizer)
+        self.Fit()
         
     def _pubsub_freeze_contest(self, msg):
         """
@@ -295,23 +297,37 @@ function correctly.""".format(len(lonely_tmpls))
         self.subscribe_pubsubs()
         if not self.world.get_boxes_all():
             # User hasn't created boxes before
-            imgs_dict = {}
+            imgpaths = []
+            img_boxes = {}
             for dirpath, dirnames, filenames in os.walk(self.project.templatesdir):
                 for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                     imgpath = os.path.abspath(pathjoin(dirpath, imgname))
-                    imgs_dict[imgpath] = []
-            self.world.box_locations = imgs_dict
+                    imgpaths.append(imgpath)
+                    img_boxes[imgpath] = []
+            imgpaths = sorted(imgpaths)
+            self.world.box_locations = img_boxes
         else:
-            imgs_dict = self.world.get_boxes_all()
+            imgpaths = []
+            for dirpath, dirnames, filenames in os.walk(self.project.templatesdir):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    imgpath = os.path.abspath(pathjoin(dirpath, imgname))
+                    imgpaths.append(imgpath)
+            imgpaths = sorted(imgpaths)
+            img_boxes = self.world.get_boxes_all()
             
-        self.panel_mosaic.display_images(imgs_dict)
+        self.panel_mosaic.set_images(imgpaths)
+
+        # Notify the MosaicPanel about the boxes
+        #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
+        #self.panel_mosaic.set_boxes(box_locs)
+        self.panel_mosaic.set_boxes(self.world.box_locations,
+                                    transfn=make_transfn(self.project))
 
         # Display first template on BallotScreen
-        imgpath = sorted(self.panel_mosaic.imgs.keys())[0]
+        imgpath = imgpaths[0]
         img = util_gui.open_as_grayscale(imgpath)
         target_locations = self.world.get_boxes(imgpath)
-        img_panel = self.panel_mosaic.img_panels[imgpath]
-        img_panel.static_bitmap.select()
+        self.panel_mosaic.select_image(imgpath)
         Publisher().sendMessage("signals.ballotviewer.set_image_pil", (imgpath, img))
         Publisher().sendMessage("signals.BallotScreen.set_bounding_boxes", (imgpath, target_locations))        
         Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
@@ -349,9 +365,10 @@ function correctly.""".format(len(lonely_tmpls))
         Set the radio buttons according to the values in
         frontback_map for the given image.
         """
-        cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
-        side = self.frontback_map[cur_imgpath]
-        self.frontbackpanel.set_side(side)
+        if self.frontback_map:
+            cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
+            side = self.frontback_map[cur_imgpath]
+            self.frontbackpanel.set_side(side)
 
     def update_frontbackmap(self):
         cur_imgpath = self.ballotviewer.ballotscreen.current_imgpath
@@ -414,7 +431,12 @@ function correctly.""".format(len(lonely_tmpls))
                     print "Couldn't find a contest for this target."
             self.remove_contests(templatepath)
             self.world.add_boxes(templatepath, contest_boxes)
-            
+
+        # Notify the MosaicPanel about the new boxes
+        #box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
+        #self.panel_mosaic.set_boxes(box_locs)
+        self.panel_mosaic.set_boxes(self.world.box_locations,
+                                    transfn=make_transfn(self.project))
         self.Refresh()
 
     def sanity_check_grouping(self):
@@ -591,6 +613,8 @@ voting bubbles were missed.".format(ctr)
         self.export_bounding_boxes()
             
     def pubsub_mosaic_img_selected(self, msg):
+        """ Triggered when the user clicks a blank ballot in the Mosaic
+        panel. """
         imgpath = msg.data
         img = util_gui.open_as_grayscale(imgpath)
         target_locations = self.world.get_boxes(imgpath)
@@ -2188,3 +2212,37 @@ def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
                                                confidence=confidence)
         queue.put((match_coords, img_array.shape, bounding_boxes, templateimgpath))
 
+def make_transfn(proj):
+    w_img, h_img = proj.imgsize
+    def fn(x1,y1,x2,y2):
+        x1 = int(round(x1 * w_img))
+        y1 = int(round(y1 * h_img))
+        x2 = int(round(x2 * w_img))
+        y2 = int(round(y2 * h_img))
+        return x1, y1, x2, y2
+    return fn
+
+def convert_boxes2mosaic(project, box_locations):
+    """ Given the box_locations in [0,1] coordinates, return a new dict
+    with BoundingBoxes in img coordinates.
+    Input:
+        obj project;
+        dict box_locations: maps {str temppath: [BoundingBox_i, ...]}
+    Output:
+        A dictionary mapping {str temppath: [BoundingBox_i, ...]} but 
+        in image coordinates.
+    """
+    result = {}
+    w_img, h_img = project.imgsize
+    # Scale the coords to image coords.
+    for temppath, boxes in box_locations.iteritems():
+        lst = []
+        for box in boxes:
+            b_cpy = box.copy()
+            b_cpy.x1 = int(round(box.x1 * w_img))
+            b_cpy.y1 = int(round(box.y1 * h_img))
+            b_cpy.x2 = int(round(box.x2 * w_img))
+            b_cpy.y2 = int(round(box.y2 * h_img))
+            lst.append(b_cpy)
+        result[temppath] = lst
+    return result
