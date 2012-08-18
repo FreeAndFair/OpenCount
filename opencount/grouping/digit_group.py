@@ -7,8 +7,9 @@ import pixel_reg.shared as sh
 import util, common
 from PIL import Image
 
-def do_digitocr_patches(bal2imgs, digitattrs, project,
-                        rejected_hashes=None, ignorelist=None):
+def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
+                        rejected_hashes=None,
+                        accepted_hashes=None):
     """ For each digitbased attribute, run our NCC-OCR on the patch
     (using our digit exemplars).
     Input:
@@ -16,9 +17,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
         dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
         obj project
         dict rejected_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
-        list ignorelist: List of imagepaths to not process, i.e. if imgs
-                         have already been verified by the user. Should
-                         be sampleids.
+        dict accepted_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
+        lst ignorelist: List of images to ignore. UNUSED.
     Output:
         A dict that maps:
           {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
@@ -96,6 +96,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
         print "Removing everything in:", voteddigits_dir
         shutil.rmtree(voteddigits_dir)
     ctr = 0
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
         # add some border, for good measure
@@ -107,20 +108,23 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
               x2+int(round(w*c))]
         # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
         if not util.is_multipage(project):
-            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
+            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                                     digit_exs,
                                                     num_digits,
-                                                    bb=bb, rejected_hashes=rejected_hashes)
+                                                    bb=bb, rejected_hashes=rejected_hashes,
+                                                    accepted_hashes=accepted_hashes)
             digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
         else:
-            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
+            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb, rejected_hashes=rejected_hashes)
-            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1, ignorelist=ignorelist),
+                                               bb=bb, rejected_hashes=rejected_hashes,
+                                               accepted_hashes=accepted_hashes)
+            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
                                                digit_exs,
                                                num_digits,
-                                               bb=bb, rejected_hashes=rejected_hashes)
+                                               bb=bb, rejected_hashes=rejected_hashes,
+                                               accepted_hashes=accepted_hashes)
             digitparse_results = get_best_side(results_side0, results_side1)
         for (imgpath, ocr_str, meta, isflip, side) in digitparse_results:
             meta_out = []
@@ -129,28 +133,31 @@ def do_digitocr_patches(bal2imgs, digitattrs, project,
                 util.create_dirs(rootdir)
                 outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
                 #scipy.misc.imsave(outpath, digitimg)
+                digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
                 Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
                 meta_out.append((y1,y2,x1,x2, digit, outpath, score))
                 ctr += 1
             ballotid = img2bal[imgpath]
             result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
-    return result
+    return result, digitmatch_info
 
 def get_digitmatch_info(proj, patchpath):
     """ Given the path to a digit-patch (from a votedballot), return
-    the (y1,y2,x1,x2) region from the votedballot it was extracted
+    the ((y1,y2,x1,x2), side) region from the votedballot it was extracted
     from.
+    Input:
+        obj proj:
+        str patchpath: Path of a digitpatch from some image
+    Output:
+        ((y1,y2,x1,x2), str side)
     """
-    res_path = os.path.join(proj.projdir_path, proj.digitgroup_results)
-    digitgroup_results = pickle.load(open(res_path, 'rb'))
-    for ballotid, matches in digitgroup_results.iteritems():
-        for (digitattr, ocrstr, meta, isflip, side) in matches:
-            for (y1,y2,x1,x2,digit,outpath,score) in meta:
-                if patchpath == outpath:
-                    return (y1,y2,x1,x2), side
-    print "Uhoh, couldn't find patchpath."
-    pdb.set_trace()
-    return None
+    digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
+    if patchpath not in digitmatch_info:
+        print "Uhoh, couldn't find patchpath."
+        pdb.set_trace()
+    assert patchpath in digitmatch_info
+    return digitmatch_info[patchpath]
 
 def save_digitgroup_results(proj, digitgroup_results):
     """ Saves the results of doing grouping-by-digits.
@@ -163,6 +170,16 @@ def save_digitgroup_results(proj, digitgroup_results):
     """
     outpath = os.path.join(proj.projdir_path, proj.digitgroup_results)
     pickle.dump(digitgroup_results, open(outpath, 'wb'))
+
+def save_digitmatch_info(proj, digitmatch_info):
+    """ Saves the digitmatch_info dictionary, which contains information
+    about all extracted digit patches from voted ballots.
+    Input:
+        obj proj:
+        dict digitmatch_info: maps {str patchpath: ((y1,y2,x1,x2), str side)}
+    """
+    outpath = pathjoin(proj.projdir_path, proj.digitmatch_info)
+    pickle.dump(digitmatch_info, open(outpath, 'wb'))
 
 def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
     """ Converts the result of do_digitocr_patches to a list of 
@@ -180,6 +197,10 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
     if ignorelist == None:
         ignorelist = []
     bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
+    digitpatchpath_scoresP = pathjoin(proj.projdir_path,
+                                      proj.digitpatchpath_scoresVoted)
+    # maps {str patchpath: float score}, used for 'Split'
+    digitpatchpath_scores = {}
 
     digits_results = {} # maps {str digit: list of [ballotid, patchpath, isflip_i, side_i]}
     attr_types = common.get_attrtypes(proj)
@@ -219,6 +240,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
                                 digits_results.setdefault(digit, []).append((ballotid, digitpatchpath))
+                                digitpatchpath_scores[digitpatchpath] = score
                             break
     else:
         # Multipage
@@ -236,6 +258,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
                                 digits_results.setdefault(digit, []).append((sidepath, digitpatchpath))
+                                digitpatchpath_scores[digitpatchpath] = score
                             break
 
     groups = []
@@ -246,7 +269,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
         rankedlist = make_digits_rankedlist(digit, alldigits)
         for (ballotid, patchpath) in lst:
             elements.append((ballotid, rankedlist, patchpath))
-        group = common.GroupClass(elements)
+        group = common.GroupClass(elements, is_digit=True,
+                                  user_data=digitpatchpath_scores)
         groups.append(group)
     return groups
 

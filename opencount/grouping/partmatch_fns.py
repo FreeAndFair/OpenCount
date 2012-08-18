@@ -10,36 +10,18 @@ UI step, and the partmatch* function feedback loop.
 
 """
 Output:
-This script keeps track of all partmatch* metadata (mainly the
-'rejected_hash' dictionary).
+<projdir>/rejected_hashes.p
+    {str imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
 
-We mirror the directory structure of the voted
-ballots directory looks like:
-    napa_straight/votedballots/lib1/lib1_0.png
-    napa_straight/votedballots/lib1/lib1_1.png
-    napa_straight/votedballots/non1/non1_0.png
-    napa_straight/votedballots/non1/non1_1.png
+<projdir>/accepted_hashes.p
+    {str imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
 
-Then the partmatch metadata directoy would be:
-    napa_project/pm_metadata/lib1/lib1_0/precinct.p
-    napa_project/pm_metadata/lib1/lib1_1/precinct.p
-    napa_straight/votedballots/non1/non1_0/precinct.p
-    napa_straight/votedballots/non1/non1_1/precinct.p
-
-(or, rather, since only front-sides have a precinct patch):
-    napa_project/pm_metadata/lib1/lib1_0/precinct.p
-    napa_straight/votedballots/non1/non1_0/precinct.p
-
-Assuming that we were working with the 'precinct' digit-based
-attribute. Each '*.p' file could be a pickle'd object containing
-all the metadata that partmatch might need (like the rejected
-information, DP tables, etc).
 """
 
 def get_rejected_hashes(project):
     """ Returns the rejected_hashes for the entire data set.
     Returns:
-        {str imgpath: {str digit: ((y1,y2,x1,x2,side),...)}}
+        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i), ...]}}
         or None if rejected_hashes.p doesn't exist yet.
     """
     rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
@@ -51,6 +33,22 @@ def save_rejected_hashes(project, rejected_hashes):
     """ Saves the newer-version of rejected_hashes. """
     rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
     pickle.dump(rejected_hashes, open(rej_path, 'wb'))
+
+def get_accepted_hashes(proj):
+    """ Returns the accepted_hashes for the entire data set.
+    Returns:
+        {str imgpath: {str digit: [((y1,y2,x1,x2),side_i), ...]}}
+        or None if accepted_hashes.p doesn't exist yet.
+    """
+    filepath = os.path.join(proj.projdir_path, proj.accepted_hashes)
+    if not os.path.exists(filepath):
+        return None
+    return pickle.load(open(filepath, 'rb'))
+
+def save_accepted_hashes(proj, accepted_hashes):
+    """ Saves the newer-version of accepted_hashes. """
+    outpath = os.path.join(proj.projdir_path, proj.accepted_hashes)
+    pickle.dump(accepted_hashes, open(outpath, 'wb'))
 
 def reject_match(imgpath, digit, bbBox, proj):
     """

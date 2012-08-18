@@ -1,4 +1,5 @@
-import os, sys, math, csv, copy, random, threading, time, traceback, pickle, datetime, pdb, Queue
+import os, sys, math, csv, copy, random, threading, time, traceback
+import pickle, datetime, pdb, Queue, multiprocessing
 import numpy as np
 import scipy
 import scipy.misc
@@ -2099,15 +2100,51 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
     count = 0
     new_boxes = {}  # {str templatepath: list of BoundingBoxes}
     ref_imgs = [ref_img]
+    NUM_TEMPS = len(boxes)
+    numComplete = 0  # number of jobs finished so far
+    N = multiprocessing.cpu_count()
+    manager = multiprocessing.Manager()
+    queue = manager.Queue()
+    pool = multiprocessing.Pool()
+    
+    def divy_boxes(boxes, N):
+        """ Separates boxes into N jobs. Separate by templatepath.
+        Input:
+            dict boxes: {str templatepath: list BoundingBoxes}
+            int N: Number of processors
+        Output:
+            A list of N dicts of the form {str templatepath: list Boxes}
+        """
+        result = []
+        if len(boxes) < N:
+            # Degerate case, less jobs than procs
+            for temppath, tempboxes in boxes.iteritems():
+                d = {}
+                d[temppath] = tempboxes
+                result.append(d)
+            return result
+        k = int(math.floor(float(len(boxes) / float(N))))
+
+        cur = {}
+        for i, temppath in enumerate(boxes):
+            cur[temppath] = boxes[temppath]
+            if i % k == 0:
+                result.append(cur)
+                cur = {}
+        if cur:
+            result.append(cur)
+        return result
+
     for cur_ref_img in ref_imgs:
         _count = 0
-        for (templateimgpath, bounding_boxes) in boxes.items():
-            img_array = util_gui.open_img_scipy(templateimgpath)
-            match_coords = util_gui.template_match(img_array,
-                                                   cur_ref_img, 
-                                                   confidence=confidence)
+        jobs = divy_boxes(boxes, N)
+
+        for i, job_boxes in enumerate(jobs):
+            print "Process {0} got {1} jobs".format(i, len(job_boxes))
+            pool.apply_async(tempmatch_process, args=(job_boxes, cur_ref_img, queue, confidence))
+        while numComplete < NUM_TEMPS:
+            match_coords, (h_img, w_img), bounding_boxes, templateimgpath = queue.get()
             wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.tick")
-            h_img, w_img = img_array.shape
             new_bounding_boxes = []
             for (x,y) in match_coords:
                 x_rel, y_rel = x / float(w_img), y / float(h_img)
@@ -2139,6 +2176,15 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
             count += len(new_bounding_boxes)
             _count += len(new_bounding_boxes)
             new_boxes.setdefault(templateimgpath, []).extend(new_bounding_boxes)
+            numComplete += 1
         print 'Number of new voting targets detected:', _count
     return new_boxes
+
+def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
+    for (templateimgpath, bounding_boxes) in boxes.items():
+        img_array = util_gui.open_img_scipy(templateimgpath)
+        match_coords = util_gui.template_match(img_array,
+                                               cur_ref_img, 
+                                               confidence=confidence)
+        queue.put((match_coords, img_array.shape, bounding_boxes, templateimgpath))
 

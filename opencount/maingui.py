@@ -13,6 +13,7 @@ import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.sanity_check as sanity_check
 import pre_processing.straighten_ballots as straighten_ballots
 import grouping.common as common
+import grouping.label_attributes as label_attributes
 
 from tab_wrap import tab_wrap
 from threshold.threshold import ThresholdPanel
@@ -1199,20 +1200,20 @@ ahead to 'Label Digit Attributes'."
                 self.notebook.ChangeSelection(self.LABEL_DIGIT_ATTRS)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGIT_ATTRS)
             elif not groupattrs_already_done(self.project):
-                # Attr grouping is causing more problems than help,
-                # skipping it for now... LETS TRY IT NOW
                 f = GroupAttrsFrame(self, self.project, start_labelattrs)
                 f.SetSize((400, 500))
                 f.Show()
-                #start_labelattrs(None)
             else:
-                #start_labelattrs(None)    # Skip all attr grouping for now
-
                 dlg = wx.MessageDialog(self, message="Attribute Grouping \
 has already been run in a previous session. Would you like to re-run \
 attribute grouping? ", style=wx.YES | wx.NO)
                 retstatus = dlg.ShowModal()
                 if retstatus == wx.ID_YES:
+                    # Remember to delete the LabelAttributes state
+                    # TODO: Shift the LabelPanel.STATE_FILE path into 
+                    # the Project class, to keep everything consolidated.
+                    os.remove(pathjoin(self.project.projdir_path,
+                                       label_attributes.LabelPanel.STATE_FILE))
                     f = GroupAttrsFrame(self, self.project, start_labelattrs)
                     f.SetSize((400, 500))
                     f.Show()
@@ -1490,9 +1491,13 @@ class Project(object):
                      'multexemplars_map': 'multexemplars_map.p',
                      'ballot_to_page': 'ballot_to_page.p',
                      'rejected_hashes': 'rejected_hashes.p',
+                     'accepted_hashes': 'accepted_hashes.p',
                      'custom_attrs': 'custom_attrs.p',
                      'digitpatch2temp': 'digitpatch2temp.p',
-                     'digitattrvals_blanks': 'digitattrvals_blanks.p'}
+                     'digitattrvals_blanks': 'digitattrvals_blanks.p',
+                     'digitpatchpath_scoresBlank': 'digitpatchpath_scoresBlank.p',
+                     'digitpatchpath_scoresVoted': 'digitpatchpath_scoresVoted.p',
+                     'digitmatch_info': 'digitmatch_info.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
