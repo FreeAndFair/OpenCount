@@ -7,7 +7,9 @@ I've done the same pattern enough times to tire of doing it again...
 might as well abstract the pattern.
 """
 
-def do_partask(fn, jobs, _args=None, blocking=True, combfn=None, init=None):
+def do_partask(fn, jobs, _args=None, blocking=True,
+               combfn=None, init=None,
+               pass_idx=False):
     """ The developer-facing main function. do_partask will split up
     'jobs' into N equally-sized chunks C_i, and apply 'fn' to each
     C_i in parallel, in addition to (optionally) providing additional
@@ -23,6 +25,8 @@ def do_partask(fn, jobs, _args=None, blocking=True, combfn=None, init=None):
             combfn(T results, T* subresults) -> (T results*, int k)
         T init: Used with 'combfn', specifies the initial starting 
                 value.
+        bool pass_idx: If True, then the starting index w.r.t jobs will
+                       be passed to 'fn' as the last argument.
     Output:
         The return value of calling 'fn' on all things in 'jobs', in a
         flat-list.
@@ -31,7 +35,7 @@ def do_partask(fn, jobs, _args=None, blocking=True, combfn=None, init=None):
     manager = multiprocessing.Manager()
     queue = manager.Queue()
 
-    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args))
+    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx))
     p.start()
 
     num_jobs = len(jobs)
@@ -62,17 +66,22 @@ class POOL_CLOSED:
 
 _POOL_CLOSED = POOL_CLOSED()
 
-def spawn_jobs(queue, fn, jobs, _args=None):
+def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False):
     def handle_result(result):
         queue.put(result)
     pool = multiprocessing.Pool()
     n_procs = multiprocessing.cpu_count()
+    cnt = 0
     for i, job in enumerate(divy_list(jobs, n_procs)):
-        print "Process {0} got {1} tasks.".format(i, len(job))
-        if _args == None:
-            pool.apply_async(fn, args=(job,), callback=handle_result)
-        else:
-            pool.apply_async(fn, args=(job, _args), callback=handle_result)            
+        num_tasks = len(job)
+        print "Process {0} got {1} tasks.".format(i, num_tasks)
+        the_args = (job,)
+        if _args != None:
+            the_args += (_args,)
+        if pass_idx == True:
+            the_args += (cnt,)
+        pool.apply_async(fn, args=the_args, callback=handle_result)
+        cnt += num_tasks
     pool.close()
     pool.join()
     queue.put(POOL_CLOSED())
