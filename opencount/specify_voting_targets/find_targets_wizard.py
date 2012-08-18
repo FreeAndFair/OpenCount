@@ -1987,6 +1987,8 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
             new_boxes.setdefault(templateimgpath, []).extend(new_bounding_boxes)
             numComplete += 1
         print 'Number of new voting targets detected:', _count
+
+    pool.close()
     return new_boxes
 
 def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
