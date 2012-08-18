@@ -318,19 +318,7 @@ function correctly.""".format(len(lonely_tmpls))
         self.panel_mosaic.set_images(imgpaths)
 
         # Notify the MosaicPanel about the boxes
-        w_img, h_img = self.project.imgsize
-        box_locs = {}
-        # Scale the coords to image coords.
-        for temppath, boxes in img_boxes.iteritems():
-            lst = []
-            for box in boxes:
-                b_cpy = box.copy()
-                b_cpy.x1 = int(round(box.x1 * w_img))
-                b_cpy.y1 = int(round(box.y1 * h_img))
-                b_cpy.x2 = int(round(box.x2 * w_img))
-                b_cpy.y2 = int(round(box.y2 * h_img))
-                lst.append(b_cpy)
-            box_locs[temppath] = lst
+        box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         self.panel_mosaic.set_boxes(box_locs)
 
         # Display first template on BallotScreen
@@ -443,19 +431,7 @@ function correctly.""".format(len(lonely_tmpls))
             self.world.add_boxes(templatepath, contest_boxes)
 
         # Notify the MosaicPanel about the new boxes
-        w_img, h_img = self.project.imgsize
-        box_locs = {}
-        # Scale the coords to image coords.
-        for temppath, boxes in self.world.box_locations.iteritems():
-            lst = []
-            for box in boxes:
-                b_cpy = box.copy()
-                b_cpy.x1 = int(round(box.x1 * w_img))
-                b_cpy.y1 = int(round(box.y1 * h_img))
-                b_cpy.x2 = int(round(box.x2 * w_img))
-                b_cpy.y2 = int(round(box.y2 * h_img))
-                lst.append(b_cpy)
-            box_locs[temppath] = lst
+        box_locs = convert_boxes2mosaic(self.project, self.world.box_locations)
         self.panel_mosaic.set_boxes(box_locs)
         self.Refresh()
 
@@ -2232,3 +2208,27 @@ def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
                                                confidence=confidence)
         queue.put((match_coords, img_array.shape, bounding_boxes, templateimgpath))
 
+def convert_boxes2mosaic(project, box_locations):
+    """ Given the box_locations in [0,1] coordinates, return a new dict
+    with BoundingBoxes in img coordinates.
+    Input:
+        obj project;
+        dict box_locations: maps {str temppath: [BoundingBox_i, ...]}
+    Output:
+        A dictionary mapping {str temppath: [BoundingBox_i, ...]} but 
+        in image coordinates.
+    """
+    result = {}
+    w_img, h_img = project.imgsize
+    # Scale the coords to image coords.
+    for temppath, boxes in box_locations.iteritems():
+        lst = []
+        for box in boxes:
+            b_cpy = box.copy()
+            b_cpy.x1 = int(round(box.x1 * w_img))
+            b_cpy.y1 = int(round(box.y1 * h_img))
+            b_cpy.x2 = int(round(box.x2 * w_img))
+            b_cpy.y2 = int(round(box.y2 * h_img))
+            lst.append(b_cpy)
+        result[temppath] = lst
+    return result

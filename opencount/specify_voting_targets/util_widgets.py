@@ -405,12 +405,9 @@ class CellBitmap(wx.Panel):
         
     def _draw_boxes(self, dc, boxes):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        dc.SetPen(wx.Pen("Green", 2))
         for box in boxes:
-            if box.is_contest:
-                dc.SetPen(wx.Pen("Blue", 2))
-            else:
-                dc.SetPen(wx.Pen("Red", 2))
+            color = box.color
+            dc.SetPen(wx.Pen(color, 2))
             x1, y1, x2, y2 = make_canonical(box)
             x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.rszFac))), (x1,y1,x2,y2))
             w, h = int(abs(x1-x2)), int(abs(y1-y2))

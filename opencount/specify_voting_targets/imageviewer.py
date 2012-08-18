@@ -1177,7 +1177,7 @@ class BoundingBox(object):
         if self.is_contest:
             self.set_color("Blue")
         else:
-            self.set_color("Red")
+            self.set_color("Orange")
     def restore_line_width(self):
         """
         Depending on what kind of BoundingBox I am (voting target, or
