@@ -322,6 +322,24 @@ class ImageMosaicPanel(ScrolledPanel):
         print "imgpath: {0}".format(imgpath)
         print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
         Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
+        self.unselect_all()
+        self.get_cellpanel(imgpath).select()
+
+    def unselect_all(self):
+        for row in self.cells:
+            for cellpanel in row:
+                cellpanel.unselect()
+
+    def get_cellpanel(self, imgpath):
+        """ Returns the CellPanel instance given by imgpath if it's 
+        currently displayed, or None otherwise.
+        """
+        pagenum, row, col = self.get_img_info(imgpath)
+        if pagenum != self.cur_page:
+            return None
+        cellpanel = self.cells[row][col]
+        assert cellpanel.imgpath == imgpath
+        return cellpanel
 
     def get_img_info(self, imgpath):
         """ Returns the (pagenum, row, col) of the image. Assumes that 
@@ -347,6 +365,10 @@ class CellPanel(wx.Panel):
         self.bitmap = bitmap
         self.is_dummy = is_dummy
 
+        # self.is_selected is True/False if this panel is selected.
+        # A selected CellPanel will have a yellow border drawn.
+        self.is_selected = False
+
         self.cellbitmap = CellBitmap(self, i, j, imgpath, bitmap)
         
         self.txtlabel = wx.StaticText(self, label="Label here.")
@@ -367,6 +389,13 @@ class CellPanel(wx.Panel):
         
     def set_bitmap(self, bitmap):
         self.cellbitmap.set_bitmap(bitmap)
+
+    def select(self):
+        self.is_selected = True
+        self.cellbitmap.Refresh()
+    def unselect(self):
+        self.is_selected = False
+        self.cellbitmap.Refresh()
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
@@ -411,6 +440,10 @@ class CellBitmap(wx.Panel):
             return
         my_boxes = self.parent.parent.get_boxes(self.parent.imgpath)
         self._draw_boxes(dc, my_boxes)
+        if self.parent.is_selected:
+            # Draw Border
+            dc.SetPen(wx.Pen("Yellow", 8))
+            dc.DrawRectangle(0,0,self.bitmap.GetWidth()-1,self.bitmap.GetHeight()-15)
         evt.Skip()
         
     def _draw_boxes(self, dc, boxes):

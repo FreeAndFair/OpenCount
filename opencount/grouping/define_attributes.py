@@ -13,7 +13,6 @@ from specify_voting_targets.imageviewer import BallotViewer as BallotViewer
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from specify_voting_targets.imageviewer import ToolBar as ToolBar
-from specify_voting_targets.find_targets_wizard import MosaicPanel as MosaicPanel
 from specify_voting_targets import util_gui as util_gui
 from common import AttributeBox, IWorldState, TextInputDialog
 import common
