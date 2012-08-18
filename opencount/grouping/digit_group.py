@@ -161,13 +161,13 @@ def my_combfn(result, subresult):
 def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal), idx):
     result = {}  # maps {str ballotid: [(digitattr_i, ocrstr_I, meta_i, flip_i, side_i), ...]}
     digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side)}
-    ctr = idx
+    ctr = 0
     for (imgpath, ocr_str, meta, isflip, side) in stuff:
         meta_out = []
         for (y1,y2,x1,x2, digit, digitimg, score) in meta:
             rootdir = os.path.join(voteddigits_dir, digit)
             util.create_dirs(rootdir)
-            outpath = os.path.join(rootdir, '{0}_votedextract.png'.format(ctr))
+            outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side)
             Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
             meta_out.append((y1,y2,x1,x2, digit, outpath, score))
