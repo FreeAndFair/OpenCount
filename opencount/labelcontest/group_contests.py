@@ -603,55 +603,55 @@ def compare(otexts1, otexts2):
     The distance is sum of the edges picked, as well as the sum
     of the unused vertexes.
     """
-    #print 'running with1', otexts1
-    #print 'running with2', otexts2
-    # text -> length
-    print 'a'
-    texts1 = dict((y, len(y)) for x,y in otexts1)
-    texts2 = dict((y, len(y)) for x,y in otexts2)
-    print 'b'
-    # text -> target true/false
-    istargs1 = dict((y,x) for x,y in otexts1)
-    istargs2 = dict((y,x) for x,y in otexts2)
-    print 'c'
+
+    if len(otexts1) != len(otexts2):
+        print "Possible error: tried to compare distance of two contests with different number of targets."
+        return 1<<30
+
+    texts1 = [x for t,x in otexts1 if t]
+    texts2 = [x for t,x in otexts2 if t]
     # Text associated with targets only
-    targtext1 = [y for x,y in otexts1 if x]
-    targtext2 = [y for x,y in otexts2 if x]
-    print 'd'
-    size = sum(texts1.values())+sum(texts2.values())
-    print 'e'
+    ordering1 = range(len(texts1))
+    ordering2 = range(len(texts2))
+    size = sum(map(len,[x for _,x in otexts1]))+sum(map(len,[x for _,x in otexts2]))
+    print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
         return 0, []
     weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
-    print 'f'
-    #for each in enumerate(targtext1): print each
-    #for each in enumerate(targtext2): print each
 
-    val = 0
+    title1 = [x for t,x in otexts1 if not t][0]
+    title2 = [x for t,x in otexts2 if not t][0]
+    val = row_dist(title1, title2)
+    print 'dist of titles is', val
+
     matching = []
-    while texts1 != {} and texts2 != {}:
-        print 'g', len(texts1), len(texts2)
+
+    while texts1 != [] and texts2 != []:
         found = False
         for weight,a,b in weights:
-            if a in texts1 and b in texts2 and istargs1[a] == istargs2[b]:
-                print 'h'
-                if istargs1[a] == True:
-                    #print 'together', targtext1.index(a), targtext2.index(b)
-                    matching.append((targtext1.index(a),
-                                     targtext2.index(b)))
+            if a in texts1 and b in texts2:
+                print 'w', weight
+                print 'pair', a, b
+                matching.append((ordering1[texts1.index(a)],
+                                 ordering2[texts2.index(b)]))
+                del ordering1[texts1.index(a)]
+                del ordering2[texts2.index(b)]
+                del texts1[texts1.index(a)]
+                del texts2[texts2.index(b)]
                 val += weight
-                del texts1[a]
-                del texts2[b]
                 found = True
                 break
         if not found:
             print "---- FAILURE"
             print otexts1
             print otexts2
+            print texts1
+            print texts2
             return 1<<30, None
     #print "MATCHING", matching
-    return float(val+sum(texts1.values())+sum(texts1.values()))/size, matching
+    print "result weight", float(val)/size
+    return float(val)/size, matching
 
 def first_pass(contests):
     """
@@ -679,8 +679,12 @@ def split_to_equal(contests):
         found = False
         for s in sets:
             # get a representitive, then get the non-matching part, then the text
-            print 'running compare of', len(s[0][0][2]), len(each[2])
+            print 'running compare of'
+            print s[0][0][2]
+            print '---'
+            print each[2]
             score, matching = compare(s[0][0][2], each[2])
+            print 'the matching is', matching
             #score = compare(s[0][2], each[2])
             if score < .2:
                 s.append((each, matching))
