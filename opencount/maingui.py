@@ -697,6 +697,7 @@ class MainFrame(wx.Frame):
         self.project.has_straightener_ran = True
         self.Enable()
         self.panel_specify_voting_targets.start()
+        self.panel_specify_voting_targets.project = self.project
         self.panel_specify_voting_targets.SendSizeEvent()
         self.SendSizeEvent()
 
@@ -1136,6 +1137,7 @@ and active in order to access this.",
             #self.SendSizeEvent()
             #TIMER.start_task(('user', map_pages[self.SELECT_TARGETS]['user']))
             if self.project.are_blankballots_straightened:
+                self.panel_specify_voting_targets.project = self.project
                 self.panel_specify_voting_targets.start()
                 self.panel_specify_voting_targets.SendSizeEvent()
                 TIMER.start_task(('user', map_pages[self.SELECT_TARGETS]['user']))
