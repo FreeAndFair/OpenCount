@@ -451,7 +451,7 @@ in queue: 0")
             
         if self.queue:
             self.select_group(self.queue[0])
-
+        self.project.addCloseEvent(self.dump_state)
         self.mainPanel.Show()
         self.Fit()
 
