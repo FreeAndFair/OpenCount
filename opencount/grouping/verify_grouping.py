@@ -782,7 +782,7 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
         if len(possibles) == 0:
             print "== Error, determine_template couldn't find a blank ballot with a matching set"
             print "   of attributes. We're hosed.  Quarantining this voted ballot."
-            print "   ", samplepath
+            print "  ", samplepath
             pdb.set_trace()
             return None
         assert len(possibles) == 1
