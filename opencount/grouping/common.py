@@ -561,6 +561,9 @@ class GroupClass(object):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
         self.is_digit = is_digit
+        # self.is_misclassify: Used to mark a GroupClass that the user
+        # said was 'Misclassified'
+        self.is_misclassify = False
         # orderedAttrVals is a list of grouplabels, whose order is 
         # predetermined by some score-metric. Should not change after it
         # is first set.

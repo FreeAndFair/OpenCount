@@ -1212,8 +1212,13 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     # Remember to delete the LabelAttributes state
                     # TODO: Shift the LabelPanel.STATE_FILE path into 
                     # the Project class, to keep everything consolidated.
-                    os.remove(pathjoin(self.project.projdir_path,
-                                       label_attributes.LabelPanel.STATE_FILE))
+                    try:
+                        os.remove(pathjoin(self.project.projdir_path,
+                                           label_attributes.LabelPanel.STATE_FILE))
+                    except Exception as e:
+                        # Sometimes, the _labelpanelstate.p doesn't exist.
+                        # Don't crash if this is the case.
+                        pass
                     f = GroupAttrsFrame(self, self.project, start_labelattrs)
                     f.SetSize((400, 500))
                     f.Show()

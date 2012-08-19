@@ -520,7 +520,7 @@ digit.")
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.on_verifydone)
+        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.parent.parent.project, self.on_verifydone)
         self.f.Maximize()
         self.Disable()
         self.disable_cells()
@@ -898,15 +898,16 @@ class Box(object):
                 Box.is_overlap(box_b, box_a))
 
 class VerifyOverlayFrame(wx.Frame):
-    def __init__(self, parent, group, exemplar_paths, ondone):
+    def __init__(self, parent, group, exemplar_paths, project, ondone):
         wx.Frame.__init__(self, parent)
         self.parent = parent
         self.group = group
         self.exemplar_paths = exemplar_paths
         self.ondone = ondone
+        self.project = project # TODO: Breach of Abstraction
 
         verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
-        verifypanel.start((group,), exemplar_paths, ondone=ondone)
+        verifypanel.start((group,), exemplar_paths, self.project, ondone=ondone)
 
 class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple

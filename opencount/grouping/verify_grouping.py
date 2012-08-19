@@ -156,7 +156,8 @@ class GroupingMasterPanel(wx.Panel):
         self.verify_grouping.Show()
         if groups:
             exemplar_paths = get_exemplar_paths()
-            self.verify_grouping.start(groups, exemplar_paths, ondone=self.verifying_done)
+            self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
+            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.SendSizeEvent()
             self.SendSizeEvent()
             self.Refresh()
@@ -165,6 +166,8 @@ class GroupingMasterPanel(wx.Panel):
             #self.verify_grouping.start(groups, patches, exemplar_paths)
             self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
+            self.verify_grouping.project = self.project
+            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.ondone = self.verifying_done
             self.verify_grouping.load_exemplar_attrpatches(exemplar_paths)
             self.verify_grouping.start_verifygrouping()
@@ -178,6 +181,7 @@ class GroupingMasterPanel(wx.Panel):
         results is a dict of the form:
             {grouplabel: list of GroupClasses}
         """
+        self.project.removeCloseEvent(self.verify_grouping.dump_state)
         attr_types = set(common.get_attrtypes(self.project))
         # 0.) munge digit-grouping-results into results, since digitattrs
         #     are still in 'digit' form.

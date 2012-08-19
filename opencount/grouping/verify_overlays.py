@@ -354,7 +354,7 @@ in queue: 0")
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    def start(self, groups, exemplar_paths, outfilepath=None, ondone=None):
+    def start(self, groups, exemplar_paths, proj, outfilepath=None, ondone=None):
         """
         Start verifying the overlays. Groups is a list of 
         GroupClass objects, representing pre-determined clusters
@@ -371,6 +371,7 @@ in queue: 0")
         to a list of samples:
           {grouplabel: list of (sampleid, rankedlist, patchpath)}
         """
+        self.project = proj
         if exemplar_paths:
             self.load_exemplar_attrpatches(exemplar_paths)
         else:
@@ -391,6 +392,7 @@ in queue: 0")
     
     def dump_state(self):
         if self.project:
+            print "DUMPING VERIFY GROUP STATE"
             fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
             d = {}
             q = list(self.queue)
@@ -406,23 +408,35 @@ in queue: 0")
     def load_state(self):
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
             try:
+                self._mismatch_cnt = 0
                 fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
                 d = pickle.load(fstate)
                 todo = d['todo']
                 todo.extend(d['finished'])
                 for group in todo:
+                    # TODO: Code that handles legacy GroupClass instances
+                    #       that don't have the self.is_misclassify field.
+                    #       Remove me after awhile - is harmless to leave in.
+                    if not hasattr(group, 'is_misclassify'):
+                        # This is the legacy part
+                        group.is_misclassify = False
+                    elif group.is_misclassify == True:
+                        self._mismatch_cnt += len(group.elements)
                     self.add_group(group)
                 #self.queue = d['todo']
                 # Don't worry about keeping 'finished' separated from 'queue'
                 # for now.
                 #self.queue.extend(d['finished'])
-                self.finished = d['finished']
+                #self.finished = d['finished']  # This was present earlier -- why?
             except Exception as e:
                 # If you can't read in the state file, then just don't
                 # load in any state.
                 print e
                 return
- 
+
+        # Update the self.misclassify_txt label
+        self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
+
     def start_verifygrouping(self):
         """
         Called after sample ballots have been grouped by Kai's grouping
@@ -451,7 +465,7 @@ in queue: 0")
             
         if self.queue:
             self.select_group(self.queue[0])
-        self.project.addCloseEvent(self.dump_state)
+
         self.mainPanel.Show()
         self.Fit()
 
@@ -514,6 +528,11 @@ in queue: 0")
         group.index = final_index
         self.finished.append(group)
         self.finishedList.Append(group.label)
+
+    def add_misclassify_group(self, group):
+        """ Marks a GroupClass as being 'Misclassified.' """
+        group.is_misclassify = True
+        self.finished.append(group)
 
     def add_group(self, group):
         """
@@ -874,9 +893,11 @@ at a time."
         self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
 
         # Remove the current group, and display the next one
+        #self.remove_group(self.currentGroup)
+        self.add_misclassify_group(self.currentGroup)
         self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
-        
+
     def is_done_verifying(self):
         return not self.queue
         
