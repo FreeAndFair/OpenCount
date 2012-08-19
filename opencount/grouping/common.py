@@ -561,6 +561,9 @@ class GroupClass(object):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
         self.is_digit = is_digit
+        # self.is_misclassify: Used to mark a GroupClass that the user
+        # said was 'Misclassified'
+        self.is_misclassify = False
         # orderedAttrVals is a list of grouplabels, whose order is 
         # predetermined by some score-metric. Should not change after it
         # is first set.
@@ -880,10 +883,10 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
         dict digit_exs: maps {str digit: obj img}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
-        dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
-        dict accepted_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
+        dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
+        dict accepted_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
     Output:
-        list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
+        list of [(imgpath_i, ocrstr_i, meta_i, bool isflip_i), ...]
     """
     def get_best_flip(results_noflip, results_flip):
         """ Given the results of digitParse (both not flipped and
@@ -907,9 +910,9 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
             avg_score_noflip = sum([tup[6] for tup in meta_noflip]) / float(len(meta_noflip))
             avg_score_flip = sum([tup[6] for tup in meta_flip]) / float(len(meta_flip))
             if avg_score_noflip > avg_score_flip:
-                results.append((path_noflip, ocrstr_noflip, meta_noflip, 0))
+                results.append((path_noflip, ocrstr_noflip, meta_noflip, False))
             else:
-                results.append((path_flip, ocrstr_flip, meta_flip, 1))
+                results.append((path_flip, ocrstr_flip, meta_flip, True))
         assert len(results) == len(results_noflip)
         assert len(results) == len(results_flip)
         return results

@@ -71,8 +71,8 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
         int nDigits: number of digits to find
         hspace: 
         hackConstant:
-        dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i), ...]}
-        dict accepted_hash: maps {str digit: [((y1,y2,x1,x2), str side_i), ...]}
+        dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
+        dict accepted_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
     """
     # either load previously computed results or compute new
     reject_penalty = .2
@@ -86,7 +86,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
         #misc.imsave("_Iout_{0}.png".format(key), Iout)
         # mask out any part if given by param
         if rejected_hash and rejected_hash.has_key(key):
-            for (bbMask, side) in rejected_hash[key]:
+            for (bbMask, side, isflip) in rejected_hash[key]:
                 # TODO: I don't ever use the 'side'. Is it worth removing it
                 #       from rejected_hashes, or will it be used downstream?
                 h = bbMask[1] - bbMask[0]
@@ -100,7 +100,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
             #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
 
         if accepted_hash and accepted_hash.has_key(key):
-            for (bbMask, side) in accepted_hash[key]:
+            for (bbMask, side, isflip) in accepted_hash[key]:
                 # TODO: I don't ever use the 'side'. Is it worth removing it
                 #       from rejected_hashes, or will it be used downstream?
                 h = bbMask[1] - bbMask[0]
@@ -236,10 +236,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
         do_flip: If True, then flip the image.
         dict rejected_hashes: Contains all user rejections for each image,
                               maps:
-                                {imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
+                                {imgpath: {str digit: [((y1,y2,x1,x2),str side_i,bool isflip_i), ...]}}
         dict accepted_hashes: Contains all user accepts for each image,
                               maps:
-                                {imgpath: {str digit: [((y1,y2,x1,x2), str side_i), ...]}}
+                                {imgpath: {str digit: [((y1,y2,x1,x2),str side_i,bool isflip_i), ...]}}
     Output:
         A list of results of the form:
             [(imgpath_i, ocr_str_i, imgpatches_i, patchcoords_i, scores_i), ... ]

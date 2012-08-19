@@ -74,7 +74,8 @@ class GroupAttrsFrame(wx.Frame):
     def on_groupattrs_done(self):
         groups = self.queue.get()
         self.Maximize()
-        self.panel.start(groups, None, ondone=self.verify_done)
+        self.panel.start(groups, None, self.project, ondone=self.verify_done)
+        self.project.addCloseEvent(self.panel.dump_state)
         self.Fit()
         
     def verify_done(self, results):
@@ -113,6 +114,7 @@ together."
         print "== Reduction in effort: ({0} / {1}) = {2}".format(len(sum(results.values(), [])),
                                                                  num_elements,
                                                                  reduction)
+        self.project.removeCloseEvent(self.panel.dump_state)
         self.Close()
         self.ondone(results)
 

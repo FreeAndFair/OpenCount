@@ -354,7 +354,7 @@ in queue: 0")
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    def start(self, groups, exemplar_paths, outfilepath=None, ondone=None):
+    def start(self, groups, exemplar_paths, proj, outfilepath=None, ondone=None):
         """
         Start verifying the overlays. Groups is a list of 
         GroupClass objects, representing pre-determined clusters
@@ -371,6 +371,7 @@ in queue: 0")
         to a list of samples:
           {grouplabel: list of (sampleid, rankedlist, patchpath)}
         """
+        self.project = proj
         if exemplar_paths:
             self.load_exemplar_attrpatches(exemplar_paths)
         else:
@@ -391,6 +392,7 @@ in queue: 0")
     
     def dump_state(self):
         if self.project:
+            print "DUMPING VERIFY GROUP STATE"
             fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
             d = {}
             q = list(self.queue)
@@ -406,23 +408,35 @@ in queue: 0")
     def load_state(self):
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
             try:
+                self._mismatch_cnt = 0
                 fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
                 d = pickle.load(fstate)
                 todo = d['todo']
                 todo.extend(d['finished'])
                 for group in todo:
+                    # TODO: Code that handles legacy GroupClass instances
+                    #       that don't have the self.is_misclassify field.
+                    #       Remove me after awhile - is harmless to leave in.
+                    if not hasattr(group, 'is_misclassify'):
+                        # This is the legacy part
+                        group.is_misclassify = False
+                    elif group.is_misclassify == True:
+                        self._mismatch_cnt += len(group.elements)
                     self.add_group(group)
                 #self.queue = d['todo']
                 # Don't worry about keeping 'finished' separated from 'queue'
                 # for now.
                 #self.queue.extend(d['finished'])
-                self.finished = d['finished']
+                #self.finished = d['finished']  # This was present earlier -- why?
             except Exception as e:
                 # If you can't read in the state file, then just don't
                 # load in any state.
                 print e
                 return
- 
+
+        # Update the self.misclassify_txt label
+        self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
+
     def start_verifygrouping(self):
         """
         Called after sample ballots have been grouped by Kai's grouping
@@ -515,6 +529,11 @@ in queue: 0")
         self.finished.append(group)
         self.finishedList.Append(group.label)
 
+    def add_misclassify_group(self, group):
+        """ Marks a GroupClass as being 'Misclassified.' """
+        group.is_misclassify = True
+        self.finished.append(group)
+
     def add_group(self, group):
         """
         Adds a new GroupClass to internal datastructures, and updates
@@ -599,14 +618,14 @@ in queue: 0")
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-            # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side), ...]}}
+            # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
             if accepted_hashes == None:
                 accepted_hashes = {}
                 partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
             digitmatch_info = digit_group.get_digitmatch_info(self.project)
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-                # digitinfo: ((y1,y2,x1,x2), str side)
+                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
                 accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
@@ -846,7 +865,7 @@ at a time."
         # b.) Construct rejected_hashes
         print "==== b.) Construct rejected_hashes"
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
-        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
+        # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
         if rejected_hashes == None:
             # Hasn't been created yet.
@@ -860,8 +879,8 @@ at a time."
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            (bb, side) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
-            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side))
+            (bb, side, isflip) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
+            rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side, isflip))
         print "== Saving rejected_hashes"
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "== Counting..."
@@ -874,9 +893,11 @@ at a time."
         self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
 
         # Remove the current group, and display the next one
+        #self.remove_group(self.currentGroup)
+        self.add_misclassify_group(self.currentGroup)
         self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
-        
+
     def is_done_verifying(self):
         return not self.queue
         

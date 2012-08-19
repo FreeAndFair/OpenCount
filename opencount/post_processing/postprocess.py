@@ -167,6 +167,7 @@ class ResultsPanel(ScrolledPanel):
 
         for ballot in os.listdir(self.proj.ballot_metadata):
             meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
+
             if meta['ballot'] not in quarantined:
                 #print 'bal', meta['ballot']
                 template = meta['template']
@@ -184,6 +185,7 @@ class ResultsPanel(ScrolledPanel):
                     #print 'c', contest, targetid
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
+                    
     
                 #print 'voted a', voted
                 voted = dict((a,sorted(b)) for a,b in voted.items())
@@ -338,6 +340,7 @@ class ResultsPanel(ScrolledPanel):
                 res = {}
                 for a in lst:
                     if os.path.abspath(a[0]) not in attributes:
+                        pdb.set_trace()
                         raise Exception("Oh no. " + os.path.abspath(a[0]) + " was not in the grouping results.")
                     else:
                         try:
