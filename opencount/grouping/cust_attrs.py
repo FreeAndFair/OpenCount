@@ -82,7 +82,7 @@ def unmarshall_cust_attr(d):
                            is_tabulationonly=is_tab,
                            is_votedonly=is_votedonly)
 
-def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly):
+def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly=False):
     """ Adds a new SpreadSheet-based Custom Attribute """
     custom_attrs = load_custom_attrs(proj)
     if custom_attrs == None:

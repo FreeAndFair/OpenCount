@@ -50,17 +50,40 @@ class GroupAttrsFrame(wx.Frame):
 
     GROUP_ATTRS_JOB_ID = util.GaugeID("Group_Attrs_Job_ID")
 
-    def __init__(self, parent, project, ondone,*args, **kwargs):
-
+    def __init__(self, parent, project, ondone, *args, **kwargs):
+        """
+        obj parent:
+        obj project:
+        fn ondone: A callback function that is to be called after the
+                   grouping+verify step of Attrs has been completed.
+                   ondone should accept one argument, 'results', which
+                   is a dict mapping: {grouplabel: list GroupClasses}
+        """
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = project
         self.ondone = ondone
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_rungroup = wx.Button(self, label="Run Attribute Grouping...")
+        btn_rungroup.Bind(wx.EVT_BUTTON, self.onButton_rungroup)
+        btn_skip = wx.Button(self, label="Skip Attribute Grouping.")
+        btn_skip.Bind(wx.EVT_BUTTON, self.onButton_skipgroup)
+        btn_sizer.AddMany([(btn_rungroup,), (btn_skip,)])
+        self.btn_rungroup = btn_rungroup
+        self.btn_skip = btn_skip
+
+        self.sizer.Add(btn_sizer, border=5, flag=wx.ALL | wx.ALIGN_CENTER)
+
         self.panel = verify_overlays.VerifyPanel(self, verifymode=verify_overlays.VerifyPanel.MODE_YESNO2)
         self.sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
-        
+        self.panel.Hide()
+        self.SetSizer(self.sizer)
+
+    def start_grouping(self):
+        print "== Starting Attribute Grouping..."
+        self.panel.Show()
         attrdata = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         attrdata_nodigits = no_digitattrs(attrdata)
         self.queue = Queue.Queue()
@@ -70,6 +93,18 @@ class GroupAttrsFrame(wx.Frame):
                              job_id=self.GROUP_ATTRS_JOB_ID)
         t.start()
         gauge.Show()
+        
+    def skip_grouping(self):
+        print "== Skipping Attribute Grouping."
+        self.ondone(None)
+        self.Close()
+
+    def onButton_rungroup(self, evt):
+        self.btn_rungroup.Hide()
+        self.btn_skip.Hide()
+        self.start_grouping()
+    def onButton_skipgroup(self, evt):
+        self.skip_grouping()
 
     def on_groupattrs_done(self):
         groups = self.queue.get()
