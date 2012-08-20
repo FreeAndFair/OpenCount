@@ -70,11 +70,17 @@ def marshall_cust_attr(custattr):
     return marsh
 
 def unmarshall_cust_attr(d):
+    # Legacy CustomAttribute handling.
+    K1 = 'is_tabulationonly'
+    K2 = 'is_votedonly'
+    is_tab = d[K1] if K1 in d else False
+    is_votedonly = d[K2] if K2 in d else False
+
     return CustomAttribute(d['attrname'], mode=d['mode'], sspath=d['sspath'],
                            attrin=d['attrin'],
                            filename_regex=d['filename_regex'],
-                           is_tabulationonly=d['is_tabulationonly'],
-                           is_votedonly=d['is_votedonly'])
+                           is_tabulationonly=is_tab,
+                           is_votedonly=is_votedonly)
 
 def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly):
     """ Adds a new SpreadSheet-based Custom Attribute """
