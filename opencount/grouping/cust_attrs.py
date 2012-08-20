@@ -88,14 +88,16 @@ def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly):
     path = pathjoin(proj.projdir_path, proj.custom_attrs)
     dump_custom_attrs(proj, custom_attrs)
 
-def add_custom_attr_filename(proj, attrname, regex, is_tabulationonly):
+def add_custom_attr_filename(proj, attrname, regex, is_tabulationonly=False,
+                             is_votedonly=False):
     """ Adds a new Filename-based Custom Attribute. """
     custom_attrs = load_custom_attrs(proj)
     if custom_attrs == None:
         custom_attrs = []
     cattr = CustomAttribute(attrname, mode=CustomAttribute.M_FILENAME,
                             filename_regex=regex,
-                            is_tabulationonly=is_tabulationonly)
+                            is_tabulationonly=is_tabulationonly,
+                            is_votedonly=is_votedonly)
     custom_attrs.append(cattr)
     path = pathjoin(proj.projdir_path, proj.custom_attrs)
     dump_custom_attrs(proj, custom_attrs)

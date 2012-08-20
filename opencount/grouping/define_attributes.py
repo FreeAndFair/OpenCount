@@ -687,8 +687,8 @@ an Attribute Name.")
                 return
             attrname = dlg.attrname
             regex = dlg.regex
-            print 'attrname is:', attrname
-            print 'regex is:', regex
+            is_tabulationonly = dlg.is_tabulationonly
+            is_votedonly = dlg.is_votedonly
             proj = self.parent.parent.GetParent().project
             custom_attrs = cust_attrs.load_custom_attrs(proj)
             if cust_attrs.custattr_exists(proj, attrname):
@@ -697,7 +697,9 @@ exists as a Custom Attribute.".format(attrname))
                 d.ShowModal()
                 return
             cust_attrs.add_custom_attr_filename(self.parent.parent.GetParent().project,
-                                                attrname, regex)
+                                                attrname, regex, 
+                                                is_tabulationonly=is_tabulationonly,
+                                                is_votedonly=is_votedonly)
         
     def onButton_viewcustomattrs(self, evt):
         custom_attrs = cust_attrs.load_custom_attrs(self.parent.parent.GetParent().project)
@@ -992,6 +994,8 @@ class FilenameAttrDialog(wx.Dialog):
         self.attrname = None
         # self.regex is the user-inputted regex to use
         self.regex = None
+        self.is_tabulationonly = False
+        self.is_votedonly = False
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -1021,6 +1025,13 @@ regex that will match the attribute value.")
         sizer_input.Add(re_input, proportion=1, flag=wx.EXPAND)
 
         sizer.Add(sizer_input, proportion=1, flag=wx.EXPAND)
+
+        self.is_tabulationonly_chkbox = wx.CheckBox(self, label="Is this \
+for Tabulation Only?")
+        self.is_votedonly_chxbox = wx.CheckBox(self, label="Does this \
+only occur on voted ballots?")
+        sizer.Add(self.is_tabulationonly_chkbox)
+        sizer.Add(self.is_votedonly_chkbox)
         
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Ok")
@@ -1039,6 +1050,8 @@ regex that will match the attribute value.")
     def onButton_ok(self, evt):
         self.attrname = self.attrname_input.GetValue()
         self.regex = self.re_input.GetValue()
+        self.is_tabulationonly = self.is_tabulationonly_chkbox.GetValue()
+        self.is_votedonly = self.is_votedonly_chkbox.GetValue()
         self.EndModal(wx.ID_OK)
 
     def onButton_cancel(self, evt):
