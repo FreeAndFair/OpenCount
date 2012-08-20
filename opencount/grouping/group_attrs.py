@@ -40,9 +40,13 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
         for c_imgpath in dict(clusters):
             bb_c = bb_map[c_imgpath]
             img = shared.standardImread(c_imgpath, flatten=True)
+            patch = img[bb_c[0]:bb_c[1], bb_c[2]:bb_c[3]]
+            #scipy.misc.imsave("patch_{0}_{1}.png".format(os.path.split(c_imgpath)[1], time.time()),
+            #                  patch)
+            _bb = [0, patch.shape[0], 0, patch.shape[1]]
             _t = time.time()
             print "...calling find_patch_matchesV1..."
-            matches = shared.find_patch_matchesV1(img, bb_c,
+            matches = shared.find_patch_matchesV1(patch, _bb,
                                                   unclustered_imgpaths,
                                                   bbSearch=bb_c,
                                                   threshold=THRESHOLD)
