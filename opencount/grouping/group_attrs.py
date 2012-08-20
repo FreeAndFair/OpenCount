@@ -145,7 +145,6 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, jo
             _endt = time.time() - _t
             print "len(matches): {0}  time: {1}".format(len(matches),_endt)
             if matches:
-                flag = True
                 was_change = True
                 # Discard worst-scoring duplicates
                 bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
@@ -168,16 +167,16 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, jo
                 elements = munge_matches(bestmatches_lst, grouplabel, attrtype)
                 in_group = common.GroupClass(elements)
                 groups.append(in_group)
-            if not flag:
+            else:
                 # This is weird. We should have at least clustered
                 # one blank ballot (the one pointed by blankpath).
-                print "UH OH BAD."
+                print "UH OH BAD. Lowering threshold..."
                 THRESHOLD -= 0.1
                 #no_change = True
         n_iters += 1
     for attrtype in unlabeled_blanks:
         if len(unlabeled_blanks[attrtype]) != 0:
-            print "WAT"
+            print "WAT. Unlabeled blanks still exist."
             pdb.set_trace()
     print "== Total Time:", time.time() - _starttime
     return groups
