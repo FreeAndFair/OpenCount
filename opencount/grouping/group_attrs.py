@@ -32,12 +32,12 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
     else:
         clusters = dict(init_clusters)
     THRESHOLD = 0.7
-    C_NEW_CLUSTER = 0.75  # sc2 ranges from 0.0 - 1.0, where 0.0 is 'best'
+    C_NEW_CLUSTER = 0.1  # sc2 ranges from 0.0 - 1.0, where 0.0 is 'best'
     no_matches = False
     unclustered_imgpaths = [p for p in imgpaths if p not in clusters]
     while unclustered_imgpaths:
         no_matches = True
-        for c_imgpath in clusters:
+        for c_imgpath in dict(clusters):
             bb_c = bb_map[c_imgpath]
             img = shared.standardImread(c_imgpath, flatten=True)
             _t = time.time()
@@ -50,25 +50,27 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
             if matches:
                 # 0.) Retrieve best matches from matches (may have multiple
                 # matches for the same imagepath)
+                print "...number of pre-filtered matches: {0}".format(len(matches))
                 no_matches = False
-                bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
+                bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)}
                 for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
                     if filename not in bestmatches:
-                        bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
                     else:
                         old_sc2 = bestmatches[filename][2]
                         if sc2 < old_sc2:
-                            bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                            bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
                 # 1.) Decide whether to create a new cluster, or not
                 print "...found {0} matches".format(len(bestmatches))
                 for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
                     unclustered_imgpaths.remove(filename)
+                    print 'sc2 is:', sc2
                     if sc2 >= C_NEW_CLUSTER:
                         print "...created new cluster. num_clusters: {0}".format(len(clusters))
-                        cluster[filename] = [(filename, (y1,y2,x1,x2))]
+                        clusters[filename] = [(filename, (y1,y2,x1,x2))]
                     else:
                         print "...added element to a cluster C."
-                        clusters[c_imgpath].append((filename, (y1,y2,x2,x2)))
+                        clusters[c_imgpath].append((filename, (y1,y2,x1,x2)))
             else:
                 print "...no matches found."
         if no_matches == True:
