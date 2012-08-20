@@ -111,11 +111,11 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
         patch = I[bb[0]:bb[1], bb[2]:bb[3]]
         _t = time.time()
         print "...calling find_patch_matchesV1..."
-        matches = shared.find_patch_matchesV1(patch, (0, patch.shape[0],
-                                                      0, patch.shape[1]),
-                                              unlabeled_imgpaths,
-                                              bbSearch=bb,
-                                              threshold=THRESHOLD)
+        matches = partask.do_partask(findpatchmatches,
+                                     unlabeled_imgpaths,
+                                     _args=(patch,
+                                            (0, patch.shape[0], 0, patch.shape[1]),
+                                            bb, THRESHOLD))
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
         if matches:
             # 0.) Retrieve best matches from matches (may have multiple
@@ -141,6 +141,10 @@ happened."
             pdb.set_trace()
     print "...Completed clustering. Found {0} clusters.".format(len(clusters))
     return clusters
+
+def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
+    return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
+                                       threshold=threshold)
 
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator
