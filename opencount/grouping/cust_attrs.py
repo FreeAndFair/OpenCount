@@ -1,4 +1,4 @@
-import sys, os, pdb, pickle, csv
+import sys, os, pdb, pickle, csv, re
 from os.path import join as pathjoin
 sys.path.append('..')
 
@@ -34,10 +34,22 @@ class CustomAttribute:
     
     def __init__(self, attrname, mode=0, sspath=None, attrin=None,
                  filename_regex=None,
-                 is_tabulationonly=False):
+                 is_tabulationonly=False,
+                 is_votedonly=False):
+        """
+        str attrname:
+        int mode:
+        str sspath:
+        str attrin:
+        str filename_regex:
+        bool is_tabulationonly: 
+        bool is_votedonly: True if this CustomAttribute is only found
+                           on voted ballots.
+        """
         self.attrname = attrname
         self.mode = mode
         self.is_tabulationonly = is_tabulationonly
+        self.is_votedonly = is_votedonly
 
         """ M_SPREADSHEET """
         self.sspath = sspath
@@ -54,13 +66,15 @@ def marshall_cust_attr(custattr):
     marsh['sspath'] = custattr.sspath
     marsh['filename_regex'] = custattr.filename_regex
     marsh['is_tabulationonly'] = custattr.is_tabulationonly
+    marsh['is_votedonly'] = custattr.is_votedonly
     return marsh
 
 def unmarshall_cust_attr(d):
     return CustomAttribute(d['attrname'], mode=d['mode'], sspath=d['sspath'],
                            attrin=d['attrin'],
                            filename_regex=d['filename_regex'],
-                           is_tabulationonly=d['is_tabulationonly'])
+                           is_tabulationonly=d['is_tabulationonly'],
+                           is_votedonly=d['is_votedonly'])
 
 def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly):
     """ Adds a new SpreadSheet-based Custom Attribute """
@@ -147,4 +161,16 @@ def custattr_map_inval_ss(proj, attrname, attr_inval):
     print "Uhoh, attrname wasn't found in custom_attrs:", attrname
     pdb.set_trace()
     assert False
+
+def custattr_apply_filename(cattr, imgname):
+    """ Given a Filename-based CustomAttribute, extracts the relevant
+    value from the 'imgname'. 
+    Input:
+        obj cattr: A CustomAttribute
+        str imgname:
+    Output:
+        A value, inferred from the 'imgname'.
+    """
+    matches = re.search(cattr.filename_regex, imgname)
+    return matches.groups()[0]
 

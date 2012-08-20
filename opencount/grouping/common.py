@@ -249,7 +249,8 @@ def resize_img_norescale(img, size):
 
 def get_attrtypes(project):
     """
-    Returns all attribute types in this election.
+    Returns all attribute types in this election. Excludes CustomAttributes,
+    but does include DigitAttributes.
     """
     attrtypes = pickle.load(open(project.ballot_attributesfile, 'rb'))
     result = set()
@@ -257,6 +258,17 @@ def get_attrtypes(project):
         attrs_str = get_attrtype_str(attrdict['attrs'])
         result.add(attrs_str)
     return result
+
+def get_attrtypes_all(project):
+    """
+    Returns all attrtypes, including CustomAttributes.
+    """
+    attrtypes = get_attrtypes(project)
+    cattrs = cust_attrs.load_custom_attrs(project)
+    if cattrs != None:
+        for cattr in cattrs:
+            attrtypes.append(cattr.attrname)
+    return attrtypes
 
 def exists_imgattrs(proj):
     """ Returns True if there exists at least one image based attribute

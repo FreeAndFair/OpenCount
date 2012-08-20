@@ -187,8 +187,9 @@ class GroupingMasterPanel(wx.Panel):
         #     are still in 'digit' form.
         results = munge_digit_results(results, attr_types, self.project)
         # munge results -> results_foo
+        # results_foo has all attribute vals for all voted ballots
         results_foo = {} # {samplepath: {attrtype: (attrval, flip, imgorder)}}
-        # 1.) First, handle non-digit patches
+
         for grouplabel, groups in results.iteritems():
             # groups := list of GroupClass objects
             if not groups:
@@ -224,7 +225,12 @@ class GroupingMasterPanel(wx.Panel):
                         results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
                                                                             flip,
                                                                             imgorder)
-        fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
+        # Finally, add CustomAttributes to results_foo
+        results_foo = add_customattrs_info_voted(self.project, results_foo)
+            
+        fields = ('samplepath','templatepath')
+        fields += tuple(sorted(tuple(common.get_attrtypes_all(self.project))))
+        fields += ('flipped_front', 'flipped_back')
         # maps {str ballotid: {str attrtype: int imageorder}}
         # this is useful because we can then infer which 
         # voted image is front/back (in bal2imgs) by comparing
@@ -247,6 +253,9 @@ class GroupingMasterPanel(wx.Panel):
         # this info in.
         if common.get_digitbased_attrs(self.project):
             munged_patches = add_digitattr_info(self.project, munged_patches)
+        munged_patches = add_customattrs_info_blanks(self.project, munged_patches)
+        # Finally, for each voted ballot find its corresponding blank
+        # ballot.
         for samplepath, attrdict in results_foo.items():
             row = {}
             row['samplepath'] = samplepath
@@ -306,7 +315,7 @@ opportunity to manually group these ballots.\n""".format(len(hosed_bals))
             return
         if not self.is_done_verifying():
             return
-        attr_types = common.get_attrtypes(self.project)
+        attr_types = common.get_attrtypes_all(self.project)
         fields = ('samplepath','templatepath') + tuple(sorted(tuple(attr_types))) + ('flipped_front', 'flipped_back')
         csvfilepath = self.project.grouping_results
         csvfile = open(csvfilepath, 'wb')
@@ -747,13 +756,68 @@ def add_digitattr_info(proj, munged_patches):
             munged_patches.setdefault(tmpid, {})[digitattrtype] = (digitval, side)
     return munged_patches
 
+def add_customattrs_info_blanks(proj, munged_patches):
+    """ Aux function that adds CustomAttributes for blank ballots to
+    the input munged_patches.
+    Input:
+        obj proj:
+        dict munged_patches: maps {str temppath: {str attrtype: (str attrval, int side)}}
+    Output:
+        The (mutated) munged_patches.
+    """
+    custom_attrs = cust_attrs.load_custom_attrs(proj)
+    if custom_attrs == None:
+        return munged_patches
+    for temppath, attrdict in munged_patches.iteritems():
+        for cattr in custom_attrs:
+            if cattr.is_votedonly:
+                continue
+            elif cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                inval = attrdict[cattr.attrin]
+                attrval = cust_attrs.custattr_map_inval_ss(self.project,
+                                                           cattr.attrname,
+                                                           inval)
+                attrdict[cattr.attrname] = (attrval, 0) # side is irrelevant
+            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                temp_filename = os.path.split(temppath)[1]
+                attrval = cust_attrs.custattr_apply_filename(cattr, temp_filename)
+                attrdict[cattr.attrname] = (attrval, 0) # side is irrelevant
+    return munged_patches
+
+def add_customattrs_info_voted(proj, results_foo):
+    """ Adds CustomAttribute information for all voted ballots to
+    results_foo. Mutates input results_foo.
+    Input:
+        obj proj:
+        dict results_foo: Maps {str samplepath: {attrtype: (attrval, flip, imgorder)}}
+    Output:
+        The (mutated) results_foo.
+    """
+    # A list of CustomAttribute instances
+    custom_attrs = cust_attrs.load_custom_attrs(proj)
+    if custom_attrs == None:
+        return results_foo
+    for samplepath, attrdict in results_foo.iteritems():
+        for cattr in custom_attrs:
+            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                inval = attrdict[cattr.attrin]
+                attrval = cust_attrs.custattr_map_inval_ss(self.project,
+                                                           cattr.attrname,
+                                                           inval)
+                attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
+            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                temp_filename = os.path.split(temppath)[1]
+                attrval = cust_attrs.custattr_apply_filename(cattr, temp_filename)
+                attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
+    return results_foo
+
 def determine_template(sample_attrs, template_attrs, samplepath, project):
     """
     Given a sample image's attrtype->attrval mappings, return the
     template that has the same attrtype->attrval mapping.
     Input:
       dict sample_attrs: {str attrtype: (str attrval, int flip, int imageorder)}
-      dict template_attrs: {str temppath: {str attrtype: str attrval, int side}}
+      dict template_attrs: {str temppath: {str attrtype: (str attrval, int side)}}
       str samplepath: Imagepath to the sample ballot in question.
       obj project: 
     Output:
@@ -777,61 +841,18 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
         if flag:
             #return temppath
             possibles[temppath] = temp_attrdict
-    # 2.) Now, handle custom_attributes
-    custom_attrs = cust_attrs.load_custom_attrs(project)
-    if custom_attrs == None:
-        if len(possibles) > 1:
-            print "Uhoh, more than one possible blank ballot: {0} possibles.".format(len(possibles))
-            pdb.set_trace()
-        if len(possibles) == 0:
-            print "== Error, determine_template couldn't find a blank ballot with a matching set"
-            print "   of attributes. We're hosed.  Quarantining this voted ballot."
-            print "  ", samplepath
-            pdb.set_trace()
-            return None
-        assert len(possibles) == 1
-        return possibles.keys()[0]
-    for temppath, temp_attrdict in possibles.iteritems():
-        flag = True
-        for cattr in custom_attrs:
-            if cattr.is_tabulationonly == True:
-                continue
-            elif cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
-                attrname = cattr.attrname
-                sspath = cattr.sspath
-                attrin = cattr.attrin
-                sample_inval = sample_attrs[attrin][0]
-
-                if attrin not in temp_attrdict:
-                    print "Uhoh, attrin not in temp_attrdict:", attrin
-                    pdb.set_trace()
-                temp_inval = temp_attrdict[attrin][0]
-                sample_outval = cust_attrs.custattr_map_inval_ss(project, attrname, sample_inval)
-                temp_outval = cust_attrs.custattr_map_inval_ss(project, attrname, temp_inval)
-                if sample_outval != temp_outval:
-                    flag = False
-                    break
-            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
-                attrname = cattr.attrname
-                regex = cattr.filename_regex
-                sample_filename = os.path.split(samplepath)[1]
-                m1 = re.search(regex, sample_filename) 
-                sample_page = m1.groups()[0]
-                temp_filename = os.path.split(temppath)[1]
-                m = re.search(regex, temp_filename)
-                temp_page = m.groups()[0]
-                if sample_page != temp_page:
-                    flag = False
-                    break
-            else:
-                print "== Unknown CustomAttribute Type:", cattr.mode
-                print "What do I do? Hm..."
-                pdb.set_trace()
-        if flag:
-            return temppath
-    # if we get here, we're hosed
-    print "== Error, determine_template couldn't find a template. We're hosed."
-    return None
+    if len(possibles) > 1:
+        print "Uhoh, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+        pdb.set_trace()
+    if len(possibles) == 0:
+        print "== Error, determine_template couldn't find a blank ballot with a matching set"
+        print "   of attributes. We're hosed.  Quarantining this voted ballot."
+        print "  ", samplepath
+        print "== To proceed, type in 'c', and press ENTER."
+        pdb.set_trace()
+        return None
+    assert len(possibles) == 1
+    return possibles.keys()[0]
 
 def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     """
