@@ -6,6 +6,7 @@ import numpy as np
 sys.path.append('../')
 import common, util
 import verify_overlays
+import partask
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 
@@ -58,6 +59,7 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
                 no_matches = False
                 bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)}
                 for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                    y1, y2, x1, x2 = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
                     if filename not in bestmatches:
                         bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
                     else:
@@ -86,7 +88,59 @@ into an infinite loop. Decreasing THRESHOLD from {0} to {1}".format(THRESHOLD, n
     print "...Completed clustering. We found {0} clusters.".format(len(clusters))
     return clusters
                 
-
+def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
+    """ Given a list of imgpaths, and bounding boxes for each image,
+    cluster the bounding boxes from each image.
+    Input:
+        list imgpaths:
+        dict bb_map: maps {str imgpath: (y1,y2,x1,x2)}
+        list init_clusters: An initial set of cluster centers, of the form:
+            {imgpath_i: (imgpath_i, bb_i)}
+    Output:
+        A dict of the form:
+            {c_imgpath: [(imgpath_i, bb_i), ...}
+        where each c_imgpath is the 'center' of a given cluster C.
+    """
+    clusters = {}
+    unlabeled_imgpaths = list(imgpaths)
+    THRESHOLD = 0.7
+    while unlabeled_imgpaths:
+        curimgpath = unlabeled_imgpaths[0]
+        bb = bb_map[curimgpath]
+        I = shared.standardImread(curimgpath, flatten=True)
+        patch = I[bb[0]:bb[1], bb[2]:bb[3]]
+        _t = time.time()
+        print "...calling find_patch_matchesV1..."
+        matches = shared.find_patch_matchesV1(patch, (0, patch.shape[0],
+                                                      0, patch.shape[1]),
+                                              unlabeled_imgpaths,
+                                              bbSearch=bb,
+                                              threshold=THRESHOLD)
+        print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
+        if matches:
+            # 0.) Retrieve best matches from matches (may have multiple
+            # matches for the same imagepath)
+            print "...number of pre-filtered matches: {0}".format(len(matches))
+            bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)}
+            for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                y1, y2, x1, x2 = map(lambda c: int(round(c/rszFac)), (y1, y2, x1, x2))
+                if filename not in bestmatches:
+                    bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                else:
+                    old_sc2 = bestmatches[filename][2]
+                    if sc2 < old_sc2:
+                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+            print "...found {0} matches".format(len(bestmatches))
+            # 1.) Handle the best matches
+            for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+                unlabeled_imgpaths.remove(filename)
+                clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2)))
+        else:
+            print "...Uh oh, no matches found. This shouldnt' have \
+happened."
+            pdb.set_trace()
+    print "...Completed clustering. Found {0} clusters.".format(len(clusters))
+    return clusters
 
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator

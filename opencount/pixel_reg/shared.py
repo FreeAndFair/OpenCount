@@ -140,10 +140,13 @@ Output:
   score2: produced from local alignment. this score is much more reliable.
           Lower is better. Ranges from [0.0, 1.0].
 
-  I /think/ you don't have to rescale (i1,i2,j1,j2) by resize factor, i.e.
-  you can use (i1,i2,j1,j2) directly.
+  You must scale (i1,i2,j1,j2) by resize factor, i.e. you should do:
 
   Example:
+  i1 = int(round(i1 / rszFac))
+  i2 = int(round(i2 / rszFac))
+  j1 = int(round(j1 / rszFac))
+  j2 = int(round(j2 / rszFac))
   I1cropped=I1[i1:i2,j1:j2]
 
 '''
