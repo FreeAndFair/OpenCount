@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, wx, time, shutil, copy
+import sys, os, pickle, pdb, wx, time, shutil, copy, random
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
@@ -10,6 +10,65 @@ from specify_voting_targets import util_gui
 from pixel_reg import shared
 
 _i = 0
+
+def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
+    """ Given a list of imgpaths, and bounding boxes for each image,
+    cluster the bounding boxes from each image.
+    Input:
+        list imgpaths:
+        dict bb_map: maps {str imgpath: (y1,y2,x1,x2)}
+        list init_clusters: An initial set of cluster centers, of the form:
+            {imgpath_i: (imgpath_i, bb_i)}
+    Output:
+        A dict of the form:
+            {c_imgpath: [(imgpath_i, bb_i), ...}
+        where each c_imgpath is the 'center' of a given cluster C.
+    """
+    if init_clusters == None:
+        # Randomly select one image as the first cluster center
+        _imgpath = random.choice(imgpaths)
+        clusters[_imgpath] = [(_imgpath, bb_map[_imgpath])]
+    else:
+        clusters = dict(init_clusters)
+    THRESHOLD = 0.7
+    C_NEW_CLUSTER = 0.75  # sc2 ranges from 0.0 - 1.0, where 0.0 is 'best'
+    unclustered_imgpaths = [p for p in imgpaths if p not in clusters]
+    while True:
+        if not unclustered_imgpaths:
+            return clusters
+        for c_imgpath in clusters:
+            bb_c = clusters[c_imgpath][1]
+            img = shared.standardImread(c_imgpath, flatten=True)
+            matches = shared.find_patch_matchesV1(img, bb_c,
+                                                  unclustered_imgpaths,
+                                                  bbSearch=[y1,y2,x1,x2],
+                                                  threshold=THRESHOLD)
+            if matches:
+                # 0.) Retrieve best matches from matches (may have multiple
+                # matches for the same imagepath)
+                bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
+                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
+                    if filename not in bestmatches:
+                        bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                    else:
+                        old_sc2 = bestmatches[filename][2]
+                        if sc2 < old_sc2:
+                            bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                # QUESTION: Do I need to rescale x1,y1,x2,y2 by rszFac?
+                    I = scipy.misc.imread(filename, flatten=True)
+                    I_0 = I[y1:y2, x1:x2]
+                    x1,y1,x2,y2 = map(lambda n: int(round(n*rszFac)), (x1,y1,x2,y2))
+                    I_1 = I[y1:y2, x1:x2]
+                    print "== Which one is correct, I_0 or I_1?"
+                    pdb.set_trace()
+                # 1.) Decide whether to create a new cluster, or not
+                for _, (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in bestmatches.iteritems():
+                    if sc2 >= C_NEW_CLUSTER:
+                        cluster[filename] = [(filename, (y1,y2,x1,x2))]
+                    else:
+                        clusters[c_imgpath].append((filename, (y1,y2,x2,x2))) # TODO: Scale by rszFac?
+                
+
 
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator
