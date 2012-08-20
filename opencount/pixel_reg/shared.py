@@ -126,18 +126,22 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
 ''' 
 Input: 
   I0: full image
-  bb: bounding box of patch
+  bb: bounding box of patch (y1,y2,x1,x2)
   imList: list of full filenames for images to search
   threshold: only return matches above this value
   rszFac: downsampling factor for speed
-  region: bounding box to limit search for speed (TODO)
+  region: bounding box to limit search for speed (TODO) (y1,y2,x1,x2)
 
 Output:
   list of tuples, one for every match
   ((filename, score1, score2, patch, i1, i2, j1, j2, resize factor), (...) )
 
-  score1: result from NCC
+  score1: result from NCC. Higher is better. Ranges from [-1.0, 1.0].
   score2: produced from local alignment. this score is much more reliable.
+          Lower is better. Ranges from [0.0, 1.0].
+
+  I /think/ you don't have to rescale (i1,i2,j1,j2) by resize factor, i.e.
+  you can use (i1,i2,j1,j2) directly.
 
   Example:
   I1cropped=I1[i1:i2,j1:j2]

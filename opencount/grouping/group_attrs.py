@@ -24,6 +24,7 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
             {c_imgpath: [(imgpath_i, bb_i), ...}
         where each c_imgpath is the 'center' of a given cluster C.
     """
+    clusters = {}
     if init_clusters == None:
         # Randomly select one image as the first cluster center
         _imgpath = random.choice(imgpaths)
@@ -32,41 +33,52 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
         clusters = dict(init_clusters)
     THRESHOLD = 0.7
     C_NEW_CLUSTER = 0.75  # sc2 ranges from 0.0 - 1.0, where 0.0 is 'best'
+    no_matches = False
     unclustered_imgpaths = [p for p in imgpaths if p not in clusters]
-    while True:
-        if not unclustered_imgpaths:
-            return clusters
+    while unclustered_imgpaths:
+        no_matches = True
         for c_imgpath in clusters:
-            bb_c = clusters[c_imgpath][1]
+            bb_c = bb_map[c_imgpath]
             img = shared.standardImread(c_imgpath, flatten=True)
+            _t = time.time()
+            print "...calling find_patch_matchesV1..."
             matches = shared.find_patch_matchesV1(img, bb_c,
                                                   unclustered_imgpaths,
-                                                  bbSearch=[y1,y2,x1,x2],
+                                                  bbSearch=bb_c,
                                                   threshold=THRESHOLD)
+            print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
             if matches:
                 # 0.) Retrieve best matches from matches (may have multiple
                 # matches for the same imagepath)
+                no_matches = False
                 bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
-                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
+                for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
                     if filename not in bestmatches:
                         bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
                     else:
                         old_sc2 = bestmatches[filename][2]
                         if sc2 < old_sc2:
                             bestmatches[filename] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-                # QUESTION: Do I need to rescale x1,y1,x2,y2 by rszFac?
-                    I = scipy.misc.imread(filename, flatten=True)
-                    I_0 = I[y1:y2, x1:x2]
-                    x1,y1,x2,y2 = map(lambda n: int(round(n*rszFac)), (x1,y1,x2,y2))
-                    I_1 = I[y1:y2, x1:x2]
-                    print "== Which one is correct, I_0 or I_1?"
-                    pdb.set_trace()
                 # 1.) Decide whether to create a new cluster, or not
-                for _, (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in bestmatches.iteritems():
+                print "...found {0} matches".format(len(bestmatches))
+                for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+                    unclustered_imgpaths.remove(filename)
                     if sc2 >= C_NEW_CLUSTER:
+                        print "...created new cluster. num_clusters: {0}".format(len(clusters))
                         cluster[filename] = [(filename, (y1,y2,x1,x2))]
                     else:
-                        clusters[c_imgpath].append((filename, (y1,y2,x2,x2))) # TODO: Scale by rszFac?
+                        print "...added element to a cluster C."
+                        clusters[c_imgpath].append((filename, (y1,y2,x2,x2)))
+            else:
+                print "...no matches found."
+        if no_matches == True:
+            new_k = THRESHOLD - 0.1
+            print "... Uh oh, never found any matches. We could fall \
+into an infinite loop. Decreasing THRESHOLD from {0} to {1}".format(THRESHOLD, new_k)
+            print "... Trying another iteration."
+            THRESHOLD = new_k
+    print "...Completed clustering. We found {0} clusters.".format(len(clusters))
+    return clusters
                 
 
 
