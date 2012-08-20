@@ -5,7 +5,8 @@ sys.path.append('..')
 """
 Functions that handle the Custom Attributes extension. 
 
-Assumes that the input spreadsheetpaths are .csv-like files of the form:
+For SpreadSheet-based CustomAttributes, OpenCount assumes that the input
+spreadsheetpaths are .csv-like files of the form:
 
 in, out
 in_0, out_0
@@ -31,9 +32,12 @@ class CustomAttribute:
     M_SPREADSHEET = 0
     M_FILENAME = 1
     
-    def __init__(self, attrname, mode=0, sspath=None, attrin=None, filename_regex=None):
+    def __init__(self, attrname, mode=0, sspath=None, attrin=None,
+                 filename_regex=None,
+                 is_tabulationonly=False):
         self.attrname = attrname
         self.mode = mode
+        self.is_tabulationonly = is_tabulationonly
 
         """ M_SPREADSHEET """
         self.sspath = sspath
@@ -49,31 +53,35 @@ def marshall_cust_attr(custattr):
     marsh['attrin'] = custattr.attrin
     marsh['sspath'] = custattr.sspath
     marsh['filename_regex'] = custattr.filename_regex
+    marsh['is_tabulationonly'] = custattr.is_tabulationonly
     return marsh
 
 def unmarshall_cust_attr(d):
     return CustomAttribute(d['attrname'], mode=d['mode'], sspath=d['sspath'],
                            attrin=d['attrin'],
-                           filename_regex=d['filename_regex'])
+                           filename_regex=d['filename_regex'],
+                           is_tabulationonly=d['is_tabulationonly'])
 
-def add_custom_attr_ss(proj, attrname, sspath, attrin):
+def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly):
     """ Adds a new SpreadSheet-based Custom Attribute """
     custom_attrs = load_custom_attrs(proj)
     if custom_attrs == None:
         custom_attrs = []
     cattr = CustomAttribute(attrname, mode=CustomAttribute.M_SPREADSHEET,
-                            sspath=sspath, attrin=attrin)
+                            sspath=sspath, attrin=attrin,
+                            is_tabulationonly=is_tabulationonly)
     custom_attrs.append(cattr)
     path = pathjoin(proj.projdir_path, proj.custom_attrs)
     dump_custom_attrs(proj, custom_attrs)
 
-def add_custom_attr_filename(proj, attrname, regex):
+def add_custom_attr_filename(proj, attrname, regex, is_tabulationonly):
     """ Adds a new Filename-based Custom Attribute. """
     custom_attrs = load_custom_attrs(proj)
     if custom_attrs == None:
         custom_attrs = []
     cattr = CustomAttribute(attrname, mode=CustomAttribute.M_FILENAME,
-                            filename_regex=regex)
+                            filename_regex=regex,
+                            is_tabulationonly=is_tabulationonly)
     custom_attrs.append(cattr)
     path = pathjoin(proj.projdir_path, proj.custom_attrs)
     dump_custom_attrs(proj, custom_attrs)
@@ -120,8 +128,8 @@ def custattr_exists(proj, attrname):
     return False
 
 def custattr_map_inval_ss(proj, attrname, attr_inval):
-    """ Maps the attr_inval through the custom_attrs. Assumes that
-    attr_inval is a string. """
+    """ Maps the attr_inval through the SpreadSheet associated with the
+    custom_attr 'attrname'. Assumes that attr_inval is a string. """
     custom_attrs = load_custom_attrs(proj)
     ss_attrs = [cattr for cattr in custom_attrs if cattr.mode == CustomAttribute.M_SPREADSHEET]
     for cattr in ss_attrs:

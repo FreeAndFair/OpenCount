@@ -794,7 +794,9 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
     for temppath, temp_attrdict in possibles.iteritems():
         flag = True
         for cattr in custom_attrs:
-            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+            if cattr.is_tabulationonly == True:
+                continue
+            elif cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
                 attrname = cattr.attrname
                 sspath = cattr.sspath
                 attrin = cattr.attrin
