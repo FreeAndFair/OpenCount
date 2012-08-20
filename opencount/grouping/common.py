@@ -12,6 +12,7 @@ from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from util import encodepath
 import specify_voting_targets.util_gui as util_gui
+import cust_attrs
 
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
@@ -263,12 +264,12 @@ def get_attrtypes_all(project):
     """
     Returns all attrtypes, including CustomAttributes.
     """
-    attrtypes = get_attrtypes(project)
+    attrtypes = list(get_attrtypes(project))
     cattrs = cust_attrs.load_custom_attrs(project)
     if cattrs != None:
         for cattr in cattrs:
             attrtypes.append(cattr.attrname)
-    return attrtypes
+    return set(attrtypes)
 
 def exists_imgattrs(proj):
     """ Returns True if there exists at least one image based attribute

@@ -806,8 +806,8 @@ def add_customattrs_info_voted(proj, results_foo):
                                                            inval)
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
             elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
-                temp_filename = os.path.split(temppath)[1]
-                attrval = cust_attrs.custattr_apply_filename(cattr, temp_filename)
+                filename = os.path.split(samplepath)[1]
+                attrval = cust_attrs.custattr_apply_filename(cattr, filename)
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
     return results_foo
 

@@ -1028,7 +1028,7 @@ regex that will match the attribute value.")
 
         self.is_tabulationonly_chkbox = wx.CheckBox(self, label="Is this \
 for Tabulation Only?")
-        self.is_votedonly_chxbox = wx.CheckBox(self, label="Does this \
+        self.is_votedonly_chkbox = wx.CheckBox(self, label="Does this \
 only occur on voted ballots?")
         sizer.Add(self.is_tabulationonly_chkbox)
         sizer.Add(self.is_votedonly_chkbox)
