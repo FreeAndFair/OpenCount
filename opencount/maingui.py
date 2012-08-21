@@ -726,6 +726,10 @@ straightened, I'm now unlocking the UI."
             Publisher().sendMessage("broadcast.projupdate")
         else:
             imgsize, num = get_max_dimensions(self.project.raw_templatesdir)
+            if num == 0:
+                print "Uh oh, project.raw_templatesdir has no blank ballots?"
+                print "  raw_templatesdir:", self.project.raw_templatesdir
+                pdb.set_trace()
             if (self.project.imgsize != imgsize):
                 print 'Project imgsize was {0}, but newly computed \
 imgsize was {1}. Oh well, using new imgsize'.format(self.project.imgsize,
