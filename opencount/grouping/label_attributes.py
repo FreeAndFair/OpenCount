@@ -286,6 +286,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                 # TODO: Only extract+save the imge patches
                                 # when you /have/ to.
                                 img = shared.standardImread(imgpath, flatten=True)
+                                if abs(y1-y2) == 0 or abs(x1-x2) == 0:
+                                    print "Uh oh, about to crash. Why is this happening?"
+                                    print "    proj.imgsize:", self.project.imgsize
+                                    print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
+                                    pdb.set_trace()
                                 patch = img[y1:y2,x1:x2]
                                 scipy.misc.imsave(patchoutP, patch)
                             mapping.setdefault(imgpath, {})[attrtype_str] = patchoutP
