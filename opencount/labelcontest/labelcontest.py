@@ -403,10 +403,11 @@ class LabelContest(wx.Panel):
         def putresults(data):
             print "I get the data", data
             self.validequivs = dict(data)
-            
-        frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-        VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, putresults)
-        frame.Show()
+
+        if any(len(x) > 1 for x in self.equivs):
+            frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
+            VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, putresults)
+            frame.Show()
 
     def save(self):
         self.saveText(removeit=False)
