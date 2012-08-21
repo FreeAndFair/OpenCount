@@ -792,7 +792,10 @@ class LabelContest(wx.Panel):
             for i,each in enumerate(self.equivs):
                 if any(x in cur for x in each):
                     print 'found', each
-                    eqclass = [x for x,y in zip(each, self.validequivs[i]) if y]
+                    if i in self.validequivs:
+                        eqclass = [x for x,y in zip(each, self.validequivs[i]) if y]
+                    else:
+                        eqclass = each
                     break
             print 'diff', eqclass
             # Get the different one
