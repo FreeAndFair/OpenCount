@@ -572,10 +572,10 @@ def row_dist(a, b):
     """
     Compute the edit distance between two strings.
     """
-    global memo
+    #global memo
     if a == b: return 0
-    if (a,b) in memo: 
-        return memo[a,b]
+    #if (a,b) in memo: 
+    #    return memo[a,b]
     table = [[0]*(len(b)+2) for _ in range(len(a)+2)]
     for i in range(len(a)+2): table[i][0] = i
     for i in range(len(b)+2): table[0][i] = i
@@ -585,7 +585,7 @@ def row_dist(a, b):
             table[i][j] = min(table[i-1][j] + 1,
                               table[i][j-1] + 1,
                               table[i-1][j-1] + (a[i-1] != b[j-1]))
-    memo[a,b] = memo[b,a] = table[-2][-2]
+    #memo[a,b] = memo[b,a] = table[-2][-2]
     return table[-2][-2]
 
 count = 0
@@ -618,7 +618,6 @@ def compare(otexts1, otexts2):
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
         return 0, []
-    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
 
     title1 = [x for t,x in otexts1 if not t][0]
     title2 = [x for t,x in otexts2 if not t][0]
@@ -626,7 +625,12 @@ def compare(otexts1, otexts2):
     print 'dist of titles is', val
 
     matching = []
-
+    
+    weights = [row_dist(a,b) for a,b in zip(texts1, texts2)]
+    return float(sum(weights)+val)/size, zip(range(len(texts1)),range(len(texts1)))
+    
+    """
+    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
     while texts1 != [] and texts2 != []:
         found = False
         for weight,a,b in weights:
@@ -652,6 +656,7 @@ def compare(otexts1, otexts2):
     #print "MATCHING", matching
     print "result weight", float(val)/size
     return float(val)/size, matching
+    """
 
 def first_pass(contests):
     """

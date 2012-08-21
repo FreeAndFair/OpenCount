@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, wx, time, shutil, copy
+import sys, os, pickle, pdb, wx, time, shutil, copy, random
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
@@ -6,184 +6,180 @@ import numpy as np
 sys.path.append('../')
 import common, util
 import verify_overlays
+import partask
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 
 _i = 0
 
-def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
-    """ Using NCC, group all attributes to try to reduce operator
-    effort.
-      attrdata: A list of dicts (marshall'd AttributeBoxes)
-      project: A Project.
+def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
+    """ Given a list of imgpaths, and bounding boxes for each image,
+    cluster the bounding boxes from each image.
+    Input:
+        list imgpaths:
+        dict bb_map: maps {str imgpath: (y1,y2,x1,x2)}
+        list init_clusters: An initial set of cluster centers, of the form:
+            {imgpath_i: (imgpath_i, bb_i)}
+    Output:
+        A dict of the form:
+            {c_imgpath: [(imgpath_i, bb_i), ...}
+        where each c_imgpath is the 'center' of a given cluster C.
     """
-    OUTDIR_ATTRPATCHES = pathjoin(projdir_path, 'extract_attrs_templates')
-    def munge_matches(matches, grouplabel, attrtype_str, outdir='extract_attrs_templates'):
-        """ Given matches from find_patch_matches, convert it to
-        a format that GroupClass likes:
-          (sampleid, rankedlist, patchpath)
-        Also saves the registered patches to output dir.
-        """
-        results = []
-        for (filename, score1, score2, Ireg, y1,y2,x1,x2, rszFac) in matches:
-            relpath = os.path.relpath(filename)
-
-            # Save registered patch
-            relpath = os.path.relpath(filename)
-            outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
-            outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
-            results.append((relpath, (grouplabel,), outpath_full))
-            if not os.path.exists(outpath_full):
-                Ireg[0,0] = 0.99
-                Ireg[0,1] = 0.01
-                Ireg = np.nan_to_num(Ireg)
-                util_gui.create_dirs(outdir_full)
-                scipy.misc.imsave(outpath_full, Ireg)
-        return results
-    def get_temp_patches(d, temppaths, outdir='extract_attrs_templates'):
-        """Return a mapping that does:
-          {str filenname: str patchpath}
-        """
-        result = {}
-        for temppath in temppaths:
-            attrtype = tuple(sorted(d['attrs'].keys()))
-            relpath = os.path.relpath(temppath)
-            attrtype_str = '-'.join(attrtype)
-            outdir_full = os.path.join(projdir_path, outdir, attrtype_str)
-            outpath_full = os.path.join(outdir_full, util.encodepath(relpath)+'.png')
-            result[relpath] = outpath_full
-        return result
-    def missing_templates(matches, temppaths):
-        """ Returns templatepaths missing from matches. """
-        history = {}
-        result = []
-        for (filename, _, _, _, _, _, _) in matches:
-            history[filename] = True
-        for temppath in temppaths:
-            if temppath not in history:
-                result.append(temppath)
-        return result
-
-    if os.path.isdir(OUTDIR_ATTRPATCHES):
-        shutil.rmtree(OUTDIR_ATTRPATCHES)
-        
-    tmp2imgs = pickle.load(open(tmp2imgs_path, 'rb'))
-    groups = []
-    """
-    Fixed-point iteration.
-    """
-    no_change = False
-    history = set()
-    attrtype_ctr = {}
-    w_img, h_img = imgsize
-    n_iters = 0
-    _starttime = time.time()
+    clusters = {}
+    if init_clusters == None:
+        # Randomly select one image as the first cluster center
+        _imgpath = random.choice(imgpaths)
+        clusters[_imgpath] = [(_imgpath, bb_map[_imgpath])]
+    else:
+        clusters = dict(init_clusters)
     THRESHOLD = 0.7
-    def init_unlabeled_blanks(tmp2imgs, attrdicts, is_multipage):
-        result = {}
-        for attrdict in attrdicts:
-            side = attrdict['side']
-            attrtypestr = common.get_attrtype_str(attrdict['attrs'])
-            if not is_multipage or side == 'front':
-                result[attrtypestr] = list([paths[0] for paths in tmp2imgs.values()])
-            else:
-                result[attrtypestr] = list([paths[1] for paths in tmp2imgs.values()])
-        return result
-    def choose_blank(unlabeled_blanks, side):
-        for tempid, path in unlabeled_blanks.iteritems():
-            if side == 'front':
-                return path[0]
-            else:
-                return path[1]
-        print "wat"
-        pdb.set_trace()
-    def get_unlabeled_paths(unlabeled_blanks, side):
-        for tempid, path in unlabeled_blanks.iteritems():
-            if side == 'front':
-                yield path[0]
-            else:
-                yield path[1]
-        raise StopIteration
-    #unlabeled_blanks = tmp2imgs.copy()
-    # maps {attrtype: list of imgpaths}
-    unlabeled_blanks = init_unlabeled_blanks(tmp2imgs, attrdata, project.is_multipage)
-    labeled_blanks = {}  # maps {attrtype: list of imgpaths}
-    was_change = True
-    while was_change:
-        amidone = True
-        for attrtype, blankpaths in unlabeled_blanks.iteritems():
-            if blankpaths:
-                amidone=False
-                break
-        if amidone == True:
-            break
-        was_change = False
-        for attrdict in attrdata:
-            x1, y1 = int(round(attrdict['x1']*w_img)), int(round(attrdict['y1']*h_img))
-            x2, y2 = int(round(attrdict['x2']*w_img)), int(round(attrdict['y2']*h_img))
-            side = attrdict['side']
-            #attrtype = tuple(sorted(attrdict['attrs'].keys()))
-            #blankpath = choose_blank(unlabeled_blanks, side)
-            attrtype = common.get_attrtype_str(attrdict['attrs'])
-            # Grab an unclustered blank ballot for attrtype
-            ungrouped_blanks = unlabeled_blanks[attrtype]
-            if not ungrouped_blanks:
-                # we've grouped all blank ballots for this attrtype
-                continue
-            blankpath = ungrouped_blanks[0]
-            img = shared.standardImread(blankpath, flatten=True)
-            patch = img[y1:y2, x1:x2]
-            h, w = patch.shape
-            bb = [0, h, 0, w]
-            #temppaths = get_unlabeled_paths(unlabeled_blanks, side)
-            temppaths = ungrouped_blanks
+    C_NEW_CLUSTER = 0.1  # sc2 ranges from 0.0 - 1.0, where 0.0 is 'best'
+    no_matches = False
+    unclustered_imgpaths = [p for p in imgpaths if p not in clusters]
+    while unclustered_imgpaths:
+        no_matches = True
+        for c_imgpath in dict(clusters):
+            bb_c = bb_map[c_imgpath]
+            img = shared.standardImread(c_imgpath, flatten=True)
+            patch = img[bb_c[0]:bb_c[1], bb_c[2]:bb_c[3]]
+            #scipy.misc.imsave("patch_{0}_{1}.png".format(os.path.split(c_imgpath)[1], time.time()),
+            #                  patch)
+            _bb = [0, patch.shape[0], 0, patch.shape[1]]
             _t = time.time()
-            matches = shared.find_patch_matchesV1(patch, bb, 
-                                                  temppaths,
-                                                  bbSearch=[y1, y2, x1, x2],
+            print "...calling find_patch_matchesV1..."
+            matches = shared.find_patch_matchesV1(patch, _bb,
+                                                  unclustered_imgpaths,
+                                                  bbSearch=bb_c,
                                                   threshold=THRESHOLD)
-            _endt = time.time() - _t
-            print "len(matches): {0}  time: {1}".format(len(matches),_endt)
+            print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
             if matches:
-                was_change = True
-                # Discard worst-scoring duplicates
-                bestmatches = {} # maps {(attrtype, filename): (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)}
-                for (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac) in matches:
-                    key = (attrtype, filename)
-                    if key not in bestmatches:
-                        bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
+                # 0.) Retrieve best matches from matches (may have multiple
+                # matches for the same imagepath)
+                print "...number of pre-filtered matches: {0}".format(len(matches))
+                no_matches = False
+                bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)}
+                for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                    y1, y2, x1, x2 = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
+                    if filename not in bestmatches:
+                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
                     else:
-                        tup = bestmatches[key]
-                        sc = tup[2]
-                        if sc and sc2 < sc:
-                            bestmatches[key] = (filename,sc1,sc2,Ireg,x1,y1,x2,y2,rszFac)
-                bestmatches_lst = bestmatches.values()
-                # Now handle 'found' templates
-                for (filename, _, _, _,  _, _, _, _, rszFac) in bestmatches_lst:
-                    history.add((attrtype, filename))
-                    unlabeled_blanks[attrtype].remove(filename)
-                inc_counter(attrtype_ctr, attrtype)
-                grouplabel = common.make_grouplabel((attrtype, attrtype_ctr[attrtype]))
-                elements = munge_matches(bestmatches_lst, grouplabel, attrtype)
-                in_group = common.GroupClass(elements)
-                groups.append(in_group)
+                        old_sc2 = bestmatches[filename][2]
+                        if sc2 < old_sc2:
+                            bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                # 1.) Decide whether to create a new cluster, or not
+                print "...found {0} matches".format(len(bestmatches))
+                for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+                    unclustered_imgpaths.remove(filename)
+                    print 'sc2 is:', sc2
+                    if sc2 >= C_NEW_CLUSTER:
+                        print "...created new cluster. num_clusters: {0}".format(len(clusters))
+                        clusters[filename] = [(filename, (y1,y2,x1,x2), sc2)]
+                    else:
+                        print "...added element to a cluster C."
+                        clusters[c_imgpath].append((filename, (y1,y2,x1,x2), sc2))
             else:
-                # This is weird. We should have at least clustered
-                # one blank ballot (the one pointed by blankpath).
-                print "UH OH BAD. Lowering threshold..."
-                THRESHOLD -= 0.1
-                #no_change = True
-        n_iters += 1
-    for attrtype in unlabeled_blanks:
-        if len(unlabeled_blanks[attrtype]) != 0:
-            print "WAT. Unlabeled blanks still exist."
+                print "...no matches found."
+        if no_matches == True:
+            new_k = THRESHOLD - 0.1
+            print "... Uh oh, never found any matches. We could fall \
+into an infinite loop. Decreasing THRESHOLD from {0} to {1}".format(THRESHOLD, new_k)
+            print "... Trying another iteration."
+            THRESHOLD = new_k
+    print "...Completed clustering. We found {0} clusters.".format(len(clusters))
+    return clusters
+                
+def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
+    """ Given a list of imgpaths, and bounding boxes for each image,
+    cluster the bounding boxes from each image.
+    Input:
+        list imgpaths:
+        dict bb_map: maps {str imgpath: (y1,y2,x1,x2)}
+        list init_clusters: An initial set of cluster centers, of the form:
+            {imgpath_i: (imgpath_i, bb_i)}
+    Output:
+        A dict of the form:
+            {c_imgpath: [(imgpath_i, bb_i, score), ...}
+        where each c_imgpath is the 'center' of a given cluster C.
+    """
+    clusters = {}
+    unlabeled_imgpaths = list(imgpaths)
+    THRESHOLD = 0.85
+    while unlabeled_imgpaths:
+        curimgpath = unlabeled_imgpaths[0]
+        bb = bb_map[curimgpath]
+        I = shared.standardImread(curimgpath, flatten=True)
+        patch = I[bb[0]:bb[1], bb[2]:bb[3]]
+        _t = time.time()
+        print "...calling find_patch_matchesV1..."
+        matches = partask.do_partask(findpatchmatches,
+                                     unlabeled_imgpaths,
+                                     _args=(patch,
+                                            (0, patch.shape[0], 0, patch.shape[1]),
+                                            bb, THRESHOLD))
+        print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
+        if matches:
+            # 0.) Retrieve best matches from matches (may have multiple
+            # matches for the same imagepath)
+            print "...number of pre-filtered matches: {0}".format(len(matches))
+            bestmatches = {} # maps {imgpath: (imgpath,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)}
+            for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+                y1, y2, x1, x2 = map(lambda c: int(round(c/rszFac)), (y1, y2, x1, x2))
+                if filename not in bestmatches:
+                    bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                else:
+                    old_sc2 = bestmatches[filename][2]
+                    if sc2 < old_sc2:
+                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+            print "...found {0} matches".format(len(bestmatches))
+            # 1.) Handle the best matches
+            for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+                unlabeled_imgpaths.remove(filename)
+                clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
+        else:
+            print "...Uh oh, no matches found. This shouldnt' have \
+happened."
             pdb.set_trace()
-    print "== Total Time:", time.time() - _starttime
-    return groups
+    print "...Completed clustering. Found {0} clusters.".format(len(clusters))
+    return clusters
 
-def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
-    """ Alternative grouping algorithm. """
-    pass
+def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
+    return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
+                                       threshold=threshold)
+
+def group_attributes_V2(project, job_id=None):
+    """ Try to cluster all attribute patches from blank ballots into
+    groups, in order to reduce operator effort during 'Label Ballot
+    Attributes.'
+    Output:
+        dict mapping {str attrtype: {str c_imgpath: [(imgpath_i, bb_i), ...]}}
+    """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    w_img, h_img = project.imgsize
+    tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
+    attr_clusters = {} # maps {str attrtype: {str c_imgpath: [(imgpath_i, bb_i, score_i), ...]}}
+    bb_mapAll = {} # maps {attrtype: {imgpath: bb}}
+    for attr in ballot_attrs:
+        if attr['is_digitbased']:
+            continue
+        x1,y1,x2,y2 = attr['x1'],attr['y1'],attr['x2'],attr['y2']
+        x1 = int(round(x1*w_img))
+        y1 = int(round(y1*h_img))
+        x2 = int(round(x2*w_img))
+        y2 = int(round(y2*h_img))
+        side = attr['side']
+        attrtype = common.get_attrtype_str(attr['attrs'])
+        # TODO: Generalize to N-sided elections
+        if side == 'front': 
+            blank_imgpaths = [paths[0] for paths in tmp2imgs.values()]
+        else:
+            blank_imgpaths = [paths[1] for paths in tmp2imgs.values()]
+        bb_map = {} # maps {imgpath: (y1,y2,x1,x2)}
+        for imgpath in blank_imgpaths:
+            bb_map[imgpath] = (y1,y2,x1,x2)
+        bb_mapAll[attrtype] = bb_map
+        clusters = cluster_imgpatchesV2(blank_imgpaths, bb_map)
+        attr_clusters[attrtype] = clusters
+    return attr_clusters
 
 def cluster_patches(imgpaths):
     """ Given a list of imgpaths, where the number of groups are not

@@ -773,8 +773,8 @@ def add_customattrs_info_blanks(proj, munged_patches):
             if cattr.is_votedonly:
                 continue
             elif cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
-                inval = attrdict[cattr.attrin]
-                attrval = cust_attrs.custattr_map_inval_ss(self.project,
+                (inval, side) = attrdict[cattr.attrin]
+                attrval = cust_attrs.custattr_map_inval_ss(proj,
                                                            cattr.attrname,
                                                            inval)
                 attrdict[cattr.attrname] = (attrval, 0) # side is irrelevant
@@ -800,8 +800,8 @@ def add_customattrs_info_voted(proj, results_foo):
     for samplepath, attrdict in results_foo.iteritems():
         for cattr in custom_attrs:
             if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
-                inval = attrdict[cattr.attrin]
-                attrval = cust_attrs.custattr_map_inval_ss(self.project,
+                (inval, flip, imgorder) = attrdict[cattr.attrin]
+                attrval = cust_attrs.custattr_map_inval_ss(proj,
                                                            cattr.attrname,
                                                            inval)
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
