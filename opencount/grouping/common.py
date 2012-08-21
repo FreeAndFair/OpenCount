@@ -298,11 +298,17 @@ def exists_customattrs(proj):
 
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
+    # 1.) Try imgbased+digitbased attributes
     attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
     for attrdict in attrtypes_dicts:
         attrs_str = '_'.join(attrdict['attrs'])
         if attrs_str == attrtype:
             return attrdict['is_tabulationonly']
+    # 2.) Try custom attributes
+    customattrs = cust_attrs.load_custom_attrs(project)
+    for cattr in customattrs:
+        if cattr.attrname == attrtype:
+            return cattr.is_tabulationonly
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
@@ -313,6 +319,11 @@ def is_digitbased(project, attrtype):
         attrs_str = '_'.join(attrdict['attrs'])
         if attrs_str == attrtype:
             return attrdict['is_digitbased']
+    # 2.) Try custom attributes
+    customattrs = cust_attrs.load_custom_attrs(project)
+    for cattr in customattrs:
+        if cattr.attrname == attrtype:
+            return False
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
@@ -351,6 +362,11 @@ def get_attr_side(project, attrtype):
         attrstr = get_attrtype_str(attrdict['attrs'])
         if attrstr == attrtype:
             return attrdict['side']
+    customattrs = cust_attrs.load_custom_attrs(project)
+    for cattr in customattrs:
+        if cattr.attrname == attrtype:
+            # The side is irrelevant.
+            return 0
     print "Uhoh, couldn't find attribute:", attrtype
     pdb.set_trace()
     return None
