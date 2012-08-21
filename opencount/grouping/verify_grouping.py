@@ -801,7 +801,7 @@ def add_customattrs_info_voted(proj, results_foo):
         for cattr in custom_attrs:
             if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
                 inval = attrdict[cattr.attrin]
-                attrval = cust_attrs.custattr_map_inval_ss(self.project,
+                attrval = cust_attrs.custattr_map_inval_ss(proj,
                                                            cattr.attrname,
                                                            inval)
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant

@@ -156,7 +156,6 @@ def group_attributes_V2(project, job_id=None):
     ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
     w_img, h_img = project.imgsize
     tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
-    # 1.) First, compute independent clusterings
     attr_clusters = {} # maps {str attrtype: {str c_imgpath: [(imgpath_i, bb_i, score_i), ...]}}
     bb_mapAll = {} # maps {attrtype: {imgpath: bb}}
     for attr in ballot_attrs:
@@ -178,28 +177,6 @@ def group_attributes_V2(project, job_id=None):
         bb_mapAll[attrtype] = bb_map
         clusters = cluster_imgpatchesV2(blank_imgpaths, bb_map)
         attr_clusters[attrtype] = clusters
-    # 2.) Take each ind. clustering in attr_clusters, and 'merge' them
-    #     by taking the best-scoring clusters for each imgpath.
-    # (An imgpath_i could appear in attr_clusters multiple times...or
-    # even not at all!)
-    result_clusters = {} # maps {str attrtype: 
-    best_score = {} # maps {(imgpath, bb): (attrtype, score)}
-    for attrtype, clusters in attr_clusters.iteritems():
-        for _, (imgpath, bb, score) in clusters.iteritems():
-            key = (imgpath, bb)
-            if key in best_score:
-                attrtype_B, score_B = best_score[key]
-                if score < score_B:
-                    best_score[key] = attrtype, score
-            else:
-                best_score[key] = (attrtype, score)
-    # 3.) Catch any img patches that might not be present at all.
-    for attrtype, bbmap in bb_mapAll.iteritems():
-        for imgpath, bb in bbmap.iteritems():
-            key = (imgpath, bb)
-            if key not in best_score:
-                best_score[key] = (attrtype, -1.0)
-
     return attr_clusters
 
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):

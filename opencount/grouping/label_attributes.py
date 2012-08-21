@@ -1,4 +1,4 @@
-import os, sys, pdb, wx, threading, Queue
+import os, sys, pdb, wx, threading, Queue, time
 from os.path import join as pathjoin
 from wx.lib.pubsub import Publisher
 import wx.lib.scrolledpanel
@@ -16,6 +16,7 @@ import common
 import util
 import verify_overlays
 import group_attrs
+import partask
 
 DUMMY_ROW_ID = -42
 
@@ -28,15 +29,63 @@ class GroupAttributesThread(threading.Thread):
         self.queue = queue
 
     def run(self):
-        # groups is dict {str attrtype: {c_imgpath: [(imgpath_i, bb_i), ...]}}
-        groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
-                                              self.project.projdir_path,
-                                              self.project.template_to_images,
-                                              self.project,
-                                              job_id=self.job_id)
+        # attrgroups is dict {str attrtype: {c_imgpath: [(imgpath_i, bb_i), ...]}}
+        attrgroups = group_attrs.group_attributes_V2(self.project)
+        #groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
+        #                                      self.project.projdir_path,
+        #                                      self.project.template_to_images,
+        #                                      self.project,
+        #                                      job_id=self.job_id)
+        print "...converting attrgroups to groupclasses."
+        _t = time.time()
+        groups = clusters_to_groupclasses(self.project, attrgroups)
+        print "...finished converting attrgroups to groupclasses ({0} s).".format(time.time() - _t)
         # Convert 'groups' to a list of GroupClass instances
         self.queue.put(groups)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
+
+def clusters_to_groupclasses(proj, attrgroups):
+    """ Converts the result of attribute clustering into a list of
+    GroupClass instances. As a side effect, this also extracts all
+    attribute patches, and saves them in proj.extract_attrs_templates.
+    Input:
+        obj proj:
+        dict attrgroups: {attrtype: {clusterID: [(imgpath_i, bb_i, score_i), ...]}}
+    Output:
+        A list of GroupClass instances.
+    """
+    groups = []
+    extract_tasks = []
+    for attrtype, cluster in attrgroups.iteritems():
+        for i, (clusterID, c_elements) in enumerate(cluster.iteritems()):
+            elements = [] # [(imgpath_i, rlist_i, patchpath_i), ...]
+            for (imgpath, bb, score) in c_elements:
+                relpath = os.path.relpath(imgpath)
+                basedir = os.path.join(proj.projdir_path,
+                                       proj.extract_attrs_templates,
+                                       attrtype)
+                util_gui.create_dirs(basedir)
+                patchpath = os.path.join(basedir,
+                                         util.encodepath(relpath)) + '.png'
+                extract_tasks.append((imgpath, patchpath, bb))
+                grouplabel = common.make_grouplabel((attrtype, i))
+                elements.append((imgpath, (grouplabel,), patchpath))
+            groups.append(common.GroupClass(elements))
+    print "...saving attribute patches to {0}".format(proj.extract_attrs_templates)
+    _t = time.time()
+    partask.do_partask(extract_attrpatches, extract_tasks)
+    print "...finished saving attributes patches to {0} ({1} s).".format(proj.extract_attrs_templates,
+                                                                         time.time() - _t)
+    return groups
+    
+def extract_attrpatches(tasks):
+    for (imgpath, outpath, bb) in tasks:
+        bb = map(lambda c: int(round(c)), bb)
+        img = Image.open(imgpath)
+        img = img.convert('L')
+        img = img.crop((bb[2], bb[0], bb[3], bb[1]))
+        img.save(outpath)
+    return []
 
 def no_digitattrs(attrdata):
     res = []
