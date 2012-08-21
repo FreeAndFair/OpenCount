@@ -721,7 +721,7 @@ straightened, I'm now unlocking the UI."
         """
         # First update self.project.imgsize, which contains the 
         # 'max' dimensions of all blank ballots
-        if not self.project.imgsize:
+        if self.project.imgsize == (0,0):
             self.project.imgsize, num = get_max_dimensions(self.project.raw_templatesdir)
             Publisher().sendMessage("broadcast.projupdate")
         else:
