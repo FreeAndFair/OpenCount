@@ -103,7 +103,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
     """
     clusters = {}
     unlabeled_imgpaths = list(imgpaths)
-    THRESHOLD = 0.7
+    THRESHOLD = 0.85
     while unlabeled_imgpaths:
         curimgpath = unlabeled_imgpaths[0]
         bb = bb_map[curimgpath]
