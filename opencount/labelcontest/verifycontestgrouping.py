@@ -55,6 +55,8 @@ class VerifyContestGrouping(wx.Panel):
         self.group_index = 0
         self.is_valid = {}
         self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
+        self.compareimage = None
+        self.testimage = None
 
         self.load_next_group(0)
         self.show()
@@ -125,13 +127,27 @@ class VerifyContestGrouping(wx.Panel):
         print self.is_valid
         self.sofar.SetLabel("On item %d of %d in group %d of %d."%(self.index+1,len(self.orderedpaths),self.group_index+1,len(self.processgroups)))
         curpaths = self.orderedpaths[self.index]
-        self.imagearea.DestroyChildren()
+        imgs = map(Image.open, curpaths)
+        height = sum(x.size[1] for x in imgs)
+        width = max(x.size[0] for x in imgs)
+        showimg = Image.new("RGB", (width, height))
         pos = 0
-        for path in curpaths:
-            pilimg = Image.open(path)
-            img = wx.StaticBitmap(self.imagearea, -1, pil2wxb(Image.open(path)),
-                                  pos=(0, pos))
-            pos += pilimg.size[1]
+        for img in imgs:
+            showimg.paste(img, (0, pos))
+            pos += img.size[1]
+
+        if self.testimage != None:
+            self.testimage.Destroy()
+
+        if self.index == 0:
+            if self.compareimage != None:
+                self.compareimage.Destroy()
+            self.compareimage = wx.StaticBitmap(self.imagearea, -1, 
+                                                pil2wxb(showimg), pos=(0, 0))
+
+        self.testimage = wx.StaticBitmap(self.imagearea, -1, pil2wxb(showimg),
+                                         pos=(512, 0))
+        
 
 
 

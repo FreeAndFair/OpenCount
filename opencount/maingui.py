@@ -1154,14 +1154,14 @@ and active in order to access this.",
         elif new == self.DEFINE_ATTRIBUTES:
             if self.get_num_template_ballots() == 1:
                 msg = "The step 'Define Ballot Attributes' is unnecessary \
-because the current election has only one template. Skipping ahead to 'Run'."
+because the current election has only one template. Skipping ahead to 'Label Contests'."
                 dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
                 self.Disable()
                 dlg.ShowModal()
                 self.Enable()
                 old_page = self.notebook.GetSelection()
-                self.notebook.ChangeSelection(self.RUN)
-                self.notebook.SendPageChangedEvent(old_page, self.RUN)
+                self.notebook.ChangeSelection(self.LABEL_CONTESTS)
+                self.notebook.SendPageChangedEvent(old_page, self.LABEL_CONTESTS)
             else:
                 self.panel_define_attrs.start()
                 self.panel_define_attrs.Show()
@@ -1187,11 +1187,11 @@ because the current election has only one template. Skipping ahead to 'Run'."
             if self.get_num_template_ballots() == 1:
                 msg = "The step 'Specify Precinct Paches' (along with \
 'Correct Grouping') is unnecessary because the current election only has \
-one template. \nSkipping ahead to 'Run'."
+one template. \nSkipping ahead to 'Label Contests'."
                 dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
                 dlg.ShowModal()
-                self.notebook.ChangeSelection(self.RUN)
-                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.RUN)
+                self.notebook.ChangeSelection(self.LABEL_CONTESTS)
+                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_CONTESTS)
                 return
             elif not common.exists_imgattrs(self.project):
                 msg = "The step 'Label Ballot Attributes' is unnecessary, \
