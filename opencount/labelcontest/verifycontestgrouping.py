@@ -8,9 +8,10 @@ from util import pil2wxb
 
 
 class VerifyContestGrouping(wx.Panel):
-    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse):
+    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, callback):
         wx.Panel.__init__(self, parent, wx.ID_ANY)
         self.frame = parent
+        self.callback = callback
 
         self.ocrdir = ocrdir
         self.dirList = dirList
@@ -70,6 +71,7 @@ class VerifyContestGrouping(wx.Panel):
         if self.group_index >= len(self.processgroups):
             print "DONE"
             self.group_index = 0
+            self.callback([(self.processgroups[k],v) for k,v in self.is_valid.items()])
             self.frame.Close(True)
 
         for ballot,contest in self.equivs[self.processgroups[self.group_index]]:

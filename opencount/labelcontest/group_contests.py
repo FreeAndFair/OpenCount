@@ -618,7 +618,6 @@ def compare(otexts1, otexts2):
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
         return 0, []
-    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
 
     title1 = [x for t,x in otexts1 if not t][0]
     title2 = [x for t,x in otexts2 if not t][0]
@@ -626,7 +625,12 @@ def compare(otexts1, otexts2):
     print 'dist of titles is', val
 
     matching = []
-
+    
+    weights = [row_dist(a,b) for a,b in zip(texts1, texts2)]
+    return float(sum(weights)+val)/size, zip(range(len(texts1)),range(len(texts1)))
+    
+    """
+    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
     while texts1 != [] and texts2 != []:
         found = False
         for weight,a,b in weights:
@@ -652,6 +656,7 @@ def compare(otexts1, otexts2):
     #print "MATCHING", matching
     print "result weight", float(val)/size
     return float(val)/size, matching
+    """
 
 def first_pass(contests):
     """

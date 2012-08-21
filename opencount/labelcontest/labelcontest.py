@@ -400,10 +400,13 @@ class LabelContest(wx.Panel):
         print "REORDER_INVERSE", self.reorder_inverse
         print "EQUIVS", self.equivs
 
+        def putresults(data):
+            print "I get the data", data
+            self.validequivs = dict(data)
+            
         frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-        VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse)
+        VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, putresults)
         frame.Show()
-
 
     def save(self):
         self.saveText(removeit=False)
@@ -786,10 +789,10 @@ class LabelContest(wx.Panel):
         if any(x in y for x in cur for y in self.equivs):
             print 'yes'
             # Find the equivilance class
-            for each in self.equivs:
+            for i,each in enumerate(self.equivs):
                 if any(x in cur for x in each):
-                    print 'found'
-                    eqclass = each
+                    print 'found', each
+                    eqclass = [x for x,y in zip(each, self.validequivs[i]) if y]
                     break
             print 'diff', eqclass
             # Get the different one
