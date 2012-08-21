@@ -402,7 +402,7 @@ def do_extract(name, img, squares, giventargets):
             #print 'this target', target
             tomerge = [x for x in contests if intersect(x, target)]
             if len(tomerge) > 1:
-                print "MERGING", tomerge
+                #print "MERGING", tomerge
                 contests = [x for x in contests if x not in tomerge] + [reduce(union, tomerge)]
                 keepgoing = True
                 break
@@ -632,7 +632,7 @@ def compare(otexts1, otexts2):
         for weight,a,b in weights:
             if a in texts1 and b in texts2:
                 print 'w', weight
-                print 'pair', a, b
+                #print 'pair', a, b
                 matching.append((ordering1[texts1.index(a)],
                                  ordering2[texts2.index(b)]))
                 del ordering1[texts1.index(a)]
@@ -644,10 +644,10 @@ def compare(otexts1, otexts2):
                 break
         if not found:
             print "---- FAILURE"
-            print otexts1
-            print otexts2
-            print texts1
-            print texts2
+            #print otexts1
+            #print otexts2
+            #print texts1
+            #print texts2
             return 1<<30, None
     #print "MATCHING", matching
     print "result weight", float(val)/size
@@ -680,9 +680,9 @@ def split_to_equal(contests):
         for s in sets:
             # get a representitive, then get the non-matching part, then the text
             print 'running compare of'
-            print s[0][0][2]
-            print '---'
-            print each[2]
+            #print s[0][0][2]
+            #print '---'
+            #print each[2]
             score, matching = compare(s[0][0][2], each[2])
             print 'the matching is', matching
             #score = compare(s[0][2], each[2])
@@ -696,13 +696,6 @@ def split_to_equal(contests):
             #sets.append([each])
     print 'done'
     return sets
-    for s in sets:
-        print '='*80
-        print 'NEW EQU CLASS'
-        print '='*80
-        for ss in s:
-            print "-"*40
-            print ss[0]+"."+str(ss[1])
             
 def equ_class(contests):
     #print map(len, contests)
@@ -791,7 +784,7 @@ def find_contests(t, paths, giventargets):
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
     #ballots = map(extract_contest, args)
-    print "RETURNING", ballots
+    #print "RETURNING", ballots
     return ballots
 
 def group_given_contests_map(arg):
