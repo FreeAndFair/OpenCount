@@ -159,6 +159,8 @@ def group_attributes_V2(project, job_id=None):
     attr_clusters = {} # maps {str attrtype: {str c_imgpath: [(imgpath_i, bb_i, score_i), ...]}}
     bb_mapAll = {} # maps {attrtype: {imgpath: bb}}
     for attr in ballot_attrs:
+        if attr['is_digitbased']:
+            continue
         x1,y1,x2,y2 = attr['x1'],attr['y1'],attr['x2'],attr['y2']
         x1 = int(round(x1*w_img))
         y1 = int(round(y1*h_img))
