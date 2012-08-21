@@ -28,11 +28,13 @@ class GroupAttributesThread(threading.Thread):
         self.queue = queue
 
     def run(self):
+        # groups is dict {str attrtype: {c_imgpath: [(imgpath_i, bb_i), ...]}}
         groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
                                               self.project.projdir_path,
                                               self.project.template_to_images,
                                               self.project,
                                               job_id=self.job_id)
+        # Convert 'groups' to a list of GroupClass instances
         self.queue.put(groups)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
 

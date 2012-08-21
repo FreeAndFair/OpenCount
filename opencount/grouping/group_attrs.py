@@ -73,10 +73,10 @@ def cluster_imgpatches(imgpaths, bb_map, init_clusters=None):
                     print 'sc2 is:', sc2
                     if sc2 >= C_NEW_CLUSTER:
                         print "...created new cluster. num_clusters: {0}".format(len(clusters))
-                        clusters[filename] = [(filename, (y1,y2,x1,x2))]
+                        clusters[filename] = [(filename, (y1,y2,x1,x2), sc2)]
                     else:
                         print "...added element to a cluster C."
-                        clusters[c_imgpath].append((filename, (y1,y2,x1,x2)))
+                        clusters[c_imgpath].append((filename, (y1,y2,x1,x2), sc2))
             else:
                 print "...no matches found."
         if no_matches == True:
@@ -98,7 +98,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
             {imgpath_i: (imgpath_i, bb_i)}
     Output:
         A dict of the form:
-            {c_imgpath: [(imgpath_i, bb_i), ...}
+            {c_imgpath: [(imgpath_i, bb_i, score), ...}
         where each c_imgpath is the 'center' of a given cluster C.
     """
     clusters = {}
@@ -134,7 +134,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
             # 1.) Handle the best matches
             for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
                 unlabeled_imgpaths.remove(filename)
-                clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2)))
+                clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
         else:
             print "...Uh oh, no matches found. This shouldnt' have \
 happened."
@@ -145,6 +145,62 @@ happened."
 def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
     return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
                                        threshold=threshold)
+
+def group_attributes_V2(project, job_id=None):
+    """ Try to cluster all attribute patches from blank ballots into
+    groups, in order to reduce operator effort during 'Label Ballot
+    Attributes.'
+    Output:
+        dict mapping {str attrtype: {str c_imgpath: [(imgpath_i, bb_i), ...]}}
+    """
+    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
+    w_img, h_img = project.imgsize
+    tmp2imgs = pickle.load(open(project.template_to_images, 'rb'))
+    # 1.) First, compute independent clusterings
+    attr_clusters = {} # maps {str attrtype: {str c_imgpath: [(imgpath_i, bb_i, score_i), ...]}}
+    bb_mapAll = {} # maps {attrtype: {imgpath: bb}}
+    for attr in ballot_attrs:
+        x1,y1,x2,y2 = attr['x1'],attr['y1'],attr['x2'],attr['y2']
+        x1 = int(round(x1*w_img))
+        y1 = int(round(y1*h_img))
+        x2 = int(round(x2*w_img))
+        y2 = int(round(y2*h_img))
+        side = attr['side']
+        attrtype = common.get_attrtype_str(attr['attrs'])
+        # TODO: Generalize to N-sided elections
+        if side == 'front': 
+            blank_imgpaths = [paths[0] for paths in tmp2imgs.values()]
+        else:
+            blank_imgpaths = [paths[1] for paths in tmp2imgs.values()]
+        bb_map = {} # maps {imgpath: (y1,y2,x1,x2)}
+        for imgpath in blank_imgpaths:
+            bb_map[imgpath] = (y1,y2,x1,x2)
+        bb_mapAll[attrtype] = bb_map
+        clusters = cluster_imgpatchesV2(blank_imgpaths, bb_map)
+        attr_clusters[attrtype] = clusters
+    # 2.) Take each ind. clustering in attr_clusters, and 'merge' them
+    #     by taking the best-scoring clusters for each imgpath.
+    # (An imgpath_i could appear in attr_clusters multiple times...or
+    # even not at all!)
+    result_clusters = {} # maps {str attrtype: 
+    best_score = {} # maps {(imgpath, bb): (attrtype, score)}
+    for attrtype, clusters in attr_clusters.iteritems():
+        for _, (imgpath, bb, score) in clusters.iteritems():
+            key = (imgpath, bb)
+            if key in best_score:
+                attrtype_B, score_B = best_score[key]
+                if score < score_B:
+                    best_score[key] = attrtype, score
+            else:
+                best_score[key] = (attrtype, score)
+    # 3.) Catch any img patches that might not be present at all.
+    for attrtype, bbmap in bb_mapAll.iteritems():
+        for imgpath, bb in bbmap.iteritems():
+            key = (imgpath, bb)
+            if key not in best_score:
+                best_score[key] = (attrtype, -1.0)
+
+    return attr_clusters
 
 def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, job_id=None):
     """ Using NCC, group all attributes to try to reduce operator
@@ -315,10 +371,6 @@ def group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path, project, jo
             pdb.set_trace()
     print "== Total Time:", time.time() - _starttime
     return groups
-
-def group_attributes_V2(attrdata, imgsize, projdirpath, tmp2imgs_path, job_id=None):
-    """ Alternative grouping algorithm. """
-    pass
 
 def cluster_patches(imgpaths):
     """ Given a list of imgpaths, where the number of groups are not
