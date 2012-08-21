@@ -572,10 +572,10 @@ def row_dist(a, b):
     """
     Compute the edit distance between two strings.
     """
-    global memo
+    #global memo
     if a == b: return 0
-    if (a,b) in memo: 
-        return memo[a,b]
+    #if (a,b) in memo: 
+    #    return memo[a,b]
     table = [[0]*(len(b)+2) for _ in range(len(a)+2)]
     for i in range(len(a)+2): table[i][0] = i
     for i in range(len(b)+2): table[0][i] = i
@@ -585,7 +585,7 @@ def row_dist(a, b):
             table[i][j] = min(table[i-1][j] + 1,
                               table[i][j-1] + 1,
                               table[i-1][j-1] + (a[i-1] != b[j-1]))
-    memo[a,b] = memo[b,a] = table[-2][-2]
+    #memo[a,b] = memo[b,a] = table[-2][-2]
     return table[-2][-2]
 
 count = 0
