@@ -396,8 +396,6 @@ def get_numdigits(project, attr):
                                               project.num_digitsmap),
                                      'rb'))
     if attr not in numdigits_map:
-        print "Uhoh, {0} not in numdigits_map".format(attr)
-        pdb.set_trace()
         return None
     return int(numdigits_map[attr])
 
