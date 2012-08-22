@@ -516,7 +516,7 @@ digit.")
             matchID += 1
             patchpath_scores[patchpath] = score2
         pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
-        group = common.GroupClass(examples, is_digit=True, user_data=patchpath_scores)
+        group = common.DigitGroupClass(examples, user_data=patchpath_scores)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
@@ -789,7 +789,6 @@ class ThreadDoTempMatch(threading.Thread):
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                print 'template matching over:', pathjoin(dirpath, imgname)
                 regions.append(pathjoin(dirpath, imgname))
         try:
             matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.8)

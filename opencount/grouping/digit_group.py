@@ -317,8 +317,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
         rankedlist = make_digits_rankedlist(digit, alldigits)
         for (ballotid, patchpath) in lst:
             elements.append((ballotid, rankedlist, patchpath))
-        group = common.GroupClass(elements, is_digit=True,
-                                  user_data=digitpatchpath_scores)
+        group = common.DigitGroupClass(elements,
+                                       user_data=digitpatchpath_scores)
         groups.append(group)
     return groups
 

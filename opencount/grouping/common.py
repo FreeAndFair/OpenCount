@@ -1,5 +1,6 @@
-import sys, os, csv, pickle, pdb
+import sys, os, csv, pickle, pdb, time
 import numpy as np
+import scipy.cluster.vq
 from os.path import join as pathjoin
 from scipy import misc
 sys.path.append('../')
@@ -13,6 +14,7 @@ from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from util import encodepath
 import specify_voting_targets.util_gui as util_gui
 import cust_attrs
+import cluster_imgs
 
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
@@ -566,7 +568,7 @@ class GroupClass(object):
     """
     # A dict mapping {str label: int count}
     ctrs = {}
-    def __init__(self, elements, no_overlays=False, is_digit=False, user_data=None):
+    def __init__(self, elements, no_overlays=False, user_data=None):
         """
         TODO: Is it really 'sampleid'? Or what?
 
@@ -577,7 +579,6 @@ class GroupClass(object):
                  should be at index 0).
                  imgpatch is a path to the image that this element
                  represents.
-        bool is_digit: True if this is a digit, False o.w.
         user_data: Whatever you want it to be. For 'Digit' attributes,
                    this will be a dict that maps:
                      {str patchpath: float score}
@@ -589,7 +590,6 @@ class GroupClass(object):
             if not issubclass(type(elements[i][1]), list):
                 self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
-        self.is_digit = is_digit
         # self.is_misclassify: Used to mark a GroupClass that the user
         # said was 'Misclassified'
         self.is_misclassify = False
@@ -720,38 +720,6 @@ not equal."
                                                                    reverse=True)]
         
     def split(self):
-        if self.is_digit:
-            # Assumes that only Digit attributes is using self.user_data.
-            # Split the elements based on the partmatch scores: the top
-            # 50%, and the bottom 50%.
-            # self.user_data: {str patchpath: float score}
-            # 0.) Check degenerate case
-            if len(self.elements) == 2:
-                return (GroupClass((self.elements[0],), is_digit=True,
-                                  user_data=self.user_data),
-                        GroupClass((self.elements[1],), is_digit=True,
-                                   user_data=self.user_data))
-            # 1.) Compute median score
-            scores = []
-            for (sampleid, rlist, patchpath) in self.elements:
-                if patchpath not in self.user_data:
-                    print "Uhoh, patchpath not in self.user_data."
-                    pdb.set_trace()
-                score = self.user_data[patchpath]
-                scores.append(score)
-            scores = sorted(scores)
-            median = scores[int(len(scores) / 2)]
-            print "MEDIAN WAS:", median
-            # 2.) Group high and low scores
-            elements1, elements2 = [], []
-            for (sampleid, rlist, patchpath) in self.elements:
-                score = self.user_data[patchpath]
-                if score > median:
-                    elements1.append((sampleid, rlist, patchpath))
-                else:
-                    elements2.append((sampleid, rlist, patchpath))
-            return (GroupClass(elements1, is_digit=True, user_data=self.user_data), GroupClass(elements2, is_digit=True, user_data=self.user_data))
-            
         groups = []
         new_elements = {}
         all_rankedlists = [t[1] for t in self.elements]
@@ -796,6 +764,82 @@ just doing a naive split."
         for grouplabel, elements in new_elements.iteritems():
             groups.append(GroupClass(elements, user_data=self.user_data))
         return groups
+
+class DigitGroupClass(GroupClass):
+    """
+    A class that represents a potential group of digits.
+    """
+    def __init__(self, elements, no_overlays=False, user_data=None,
+                 *args, **kwargs):
+        GroupClass.__init__(self, elements, no_overlays=no_overlays,
+                            user_data=user_data)
+    def split_medianwise(self):
+        # Assumes that only Digit attributes is using self.user_data.
+        # Split the elements based on the partmatch scores: the top
+        # 50%, and the bottom 50%.
+        # self.user_data: {str patchpath: float score}
+        # 0.) Check degenerate case
+        if len(self.elements) == 2:
+            return (DigitGroupClass((self.elements[0],),
+                                    user_data=self.user_data),
+                    DigitGroupClass((self.elements[1],),
+                                    user_data=self.user_data))
+        # 1.) Compute median score
+        scores = []
+        for (sampleid, rlist, patchpath) in self.elements:
+            if patchpath not in self.user_data:
+                print "Uhoh, patchpath not in self.user_data."
+                pdb.set_trace()
+            score = self.user_data[patchpath]
+            scores.append(score)
+        scores = sorted(scores)
+        median = scores[int(len(scores) / 2)]
+        print "MEDIAN WAS:", median
+        # 2.) Group high and low scores
+        elements1, elements2 = [], []
+        for (sampleid, rlist, patchpath) in self.elements:
+            score = self.user_data[patchpath]
+            if score > median:
+                elements1.append((sampleid, rlist, patchpath))
+            else:
+                elements2.append((sampleid, rlist, patchpath))
+        return (DigitGroupClass(elements1, user_data=self.user_data),
+                DigitGroupClass(elements2, user_data=self.user_data))
+
+    def split_kmeans(self):
+        """ Uses k-means (k=2) to try to split this group. """
+        K = 2
+        if len(self.elements) == 2:
+            return (DigitGroupClass((self.elements[0],),
+                                    user_data=self.user_data),
+                    DigitGroupClass((self.elements[1],),
+                                    user_data=self.user_data))
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running k-means."
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        print "...Completed running k-means ({0} s).".format(time.time() - _t)
+        # 3.) Create DigitGroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            groups.append(DigitGroupClass(elements,
+                                          user_data=self.user_data))
+        assert len(groups) == K
+        return groups
+        
+    def split(self):
+        return self.split_kmeans()
 
 class TextInputDialog(wx.Dialog):
     """
