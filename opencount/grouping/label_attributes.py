@@ -232,76 +232,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         Input:
             dict groupresults: maps {grouplabel: List of GroupClass objects}
         """
-        def extract_attr_patches(project, outdir):
-            """Extract all attribute patches from all blank ballots into
-            the specified outdir.
-            """
-            templatesdir = project.templatesdir
-            w_img, h_img = project.imgsize
-            # list of marshall'd attrboxes (i.e. dicts)
-            ballot_attributes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
-            frontback_map = pickle.load(open(self.project.frontback_map, 'rb'))
-            mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
-            inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
-            patchpaths = set()
-            for dirpath, dirnames, filenames in os.walk(templatesdir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    imgpath = pathjoin(dirpath, imgname)
-                    imgpath_abs = os.path.abspath(imgpath)
-                    for attrdict in ballot_attributes:
-                        if attrdict['is_digitbased']:
-                            continue
-                        side = attrdict['side']
-                        x1 = int(round(attrdict['x1']*w_img))
-                        y1 = int(round(attrdict['y1']*h_img))
-                        x2 = int(round(attrdict['x2']*w_img))
-                        y2 = int(round(attrdict['y2']*h_img))
-                        attrtype_str = common.get_attrtype_str(attrdict['attrs'])
-                        if imgpath_abs not in frontback_map:
-                            print "Uhoh, {0} not in frontback_map".format(imgpath_abs)
-                            pdb.set_trace()
-                        blankballot_side = frontback_map[imgpath_abs]
-                        assert type(side) == str
-                        assert type(blankballot_side) == str
-                        assert side in ('front', 'back')
-                        assert blankballot_side in ('front', 'back')
-                        if frontback_map[imgpath_abs] == side:
-                            # patchP: if outdir is: 'labelattrs_patchesdir',
-                            # imgpath is: '/media/data1/election/blanks/foo/1.png',
-                            # project.templatesdir is: '/media/data1/election/blanks/
-                            tmp = self.project.templatesdir
-                            if not tmp.endswith('/'):
-                                tmp += '/'
-                            partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
-                            patchrootDir = pathjoin(project.projdir_path,
-                                                    outdir,
-                                                    partdir,
-                                                    os.path.splitext(imgname)[0])
-                            # patchrootDir: labelattrs_patchesdir/foo/1/
-                            util_gui.create_dirs(patchrootDir)
-                            patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
-                                                                                    attrtype_str))
-                            if not os.path.exists(patchoutP):
-                            #if True:
-                                # TODO: Only extract+save the imge patches
-                                # when you /have/ to.
-                                img = shared.standardImread(imgpath, flatten=True)
-                                if abs(y1-y2) == 0 or abs(x1-x2) == 0:
-                                    print "Uh oh, about to crash. Why is this happening?"
-                                    print "    proj.imgsize:", self.project.imgsize
-                                    print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
-                                    pdb.set_trace()
-                                patch = img[y1:y2,x1:x2]
-                                scipy.misc.imsave(patchoutP, patch)
-                            mapping.setdefault(imgpath, {})[attrtype_str] = patchoutP
-                            inv_mapping[patchoutP] = (imgpath, attrtype_str)
-                            assert patchoutP not in patchpaths
-                            patchpaths.add(patchoutP)
-            return mapping, inv_mapping, tuple(patchpaths)
         self.project = project
         if groupresults == None:
             # We are manually labeling everything
-            self.mapping, self.inv_mapping, patchpaths = extract_attr_patches(self.project, self.project.labelattrs_patchesdir)
+            self.mapping, self.inv_mapping, patchpaths = do_extract_attr_patches(self.project)
         else:
             self.mapping, self.inv_mapping, patchpaths = self.handle_grouping_results(groupresults)
         # outfilepath isn't used at the moment.
@@ -689,3 +623,95 @@ Implies that imgpath is present in imageslist more than once."
             row = {'imgpath': imgpath, 'label': label}
             dictwriter.write_row(row)
         f.close()
+
+def do_extract_attr_patches(proj):
+    """Extract all attribute patches from all blank ballots into
+    the specified outdir.
+    Output:
+        (dict mapping, dict inv_mapping, tuple patchpaths), where:
+          mapping is {imgpath: {str attrtype: str patchpath}}
+          inv_mapping is {str patchpath: (imgpath, attrtype)}
+          patchpaths: (patchpath_i, ...)
+    """
+    tmp2imgs = pickle.load(open(proj.template_to_images, 'rb'))
+    blanks = tmp2imgs.values() # list of ((pathside0, pathside1,...), ...)
+    return partask.do_partask(extract_attr_patches,
+                              blanks,
+                              _args=(proj,),
+                              combfn=_extract_combfn,
+                              init=({}, {}, ()))
+    
+def _extract_combfn(result, subresult):
+    mapping, invmapping, patchpaths = result
+    mapping_sub, invmapping_sub, patchpaths_sub = subresult
+    new_mapping = dict(mapping.items() + mapping_sub.items())
+    new_invmapping = dict(invmapping.items() + invmapping_sub.items())
+    new_patchpaths = patchpaths + patchpaths_sub
+    return (new_mapping, new_invmapping, new_patchpaths)
+
+def extract_attr_patches(blanks, (proj,)):
+    """
+    Extracts all image-based attributes from blank ballots, and saves
+    the patches to the outdir proj.labelattrs_patchesdir.
+    Input:
+        list blanks: Of the form ((frontpath_i, backpath_i), ...)
+        obj proj:
+    Output:
+        (dict mapping, dict inv_mapping, tuple patchpaths)
+    """
+    outdir = proj.labelattrs_patchesdir
+    w_img, h_img = proj.imgsize
+    # list of marshall'd attrboxes (i.e. dicts)
+    ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
+    inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
+    patchpaths = set()
+    for blankpaths in blanks:
+        for blankside, imgpath in enumerate(blankpaths):
+            for attr in ballot_attributes:
+                if attr['is_digitbased']:
+                    continue
+                imgname = os.path.split(imgpath)[1]
+                attrside = attr['side']
+                assert type(attrside) == str # 'front' or 'back'
+                attrside = 0 if attrside == 'front' else 1
+                x1 = int(round(attr['x1']*w_img))
+                y1 = int(round(attr['y1']*h_img))
+                x2 = int(round(attr['x2']*w_img))
+                y2 = int(round(attr['y2']*h_img))
+                attrtype = common.get_attrtype_str(attr['attrs'])
+                if blankside == attrside:
+                    # patchP: if outdir is: 'labelattrs_patchesdir',
+                    # imgpath is: '/media/data1/election/blanks/foo/1.png',
+                    # proj.templatesdir is: '/media/data1/election/blanks/
+                    tmp = proj.templatesdir
+                    if not tmp.endswith('/'):
+                        tmp += '/'
+                    partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
+                    patchrootDir = pathjoin(proj.projdir_path,
+                                            outdir,
+                                            partdir,
+                                            os.path.splitext(imgname)[0])
+                    # patchrootDir: labelattrs_patchesdir/foo/1/
+                    util_gui.create_dirs(patchrootDir)
+                    patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
+                                                                            attrtype))
+                    if not os.path.exists(patchoutP):
+                    #if True:
+                        # TODO: Only extract+save the imge patches
+                        # when you /have/ to.
+                        img = shared.standardImread(imgpath, flatten=True)
+                        if abs(y1-y2) == 0 or abs(x1-x2) == 0:
+                            print "Uh oh, about to crash. Why is this happening?"
+                            print "    proj.imgsize:", proj.imgsize
+                            print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
+                            pdb.set_trace()
+                        patch = img[y1:y2,x1:x2]
+                        scipy.misc.imsave(patchoutP, patch)
+                    mapping.setdefault(imgpath, {})[attrtype] = patchoutP
+                    inv_mapping[patchoutP] = (imgpath, attrtype)
+                    assert patchoutP not in patchpaths
+                    patchpaths.add(patchoutP)
+    return mapping, inv_mapping, tuple(patchpaths)
+
+                    
