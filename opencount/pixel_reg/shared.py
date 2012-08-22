@@ -518,10 +518,8 @@ def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
         # Don't want to grow the image.
         return 1.0
     scaleFactor = c / float(largestDim)
-    d = smallestDim * scaleFactor
-    if d < MIN_DIM:
-        scaleFactor = scaleFactor / (d / float(MIN_DIM))
-    return scaleFactor
+    minScaleFactor = MIN_DIM / smallestDim;
+    return max(scaleFactor,minScaleFactor)
 
 def rgb2gray(I):
     if len(I.shape)<3:
