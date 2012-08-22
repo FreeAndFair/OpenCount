@@ -116,6 +116,17 @@ def evalPatchSimilarity(I,patch):
     return (-err,YX,diff)
     
 def dist2patches(patchTuples,scale,debug=False):
+    """
+    Input:
+        list patchTuples: EITHER (!) of the form:
+              ((imgpatch_i, attrpatch_i, str attval_i, isflip_i), ...)
+            or
+              ((imgpatch_i, attrpatch_i, str attrval_i, int page_i, isflip_i), ...)
+            I'm not entirely sure when it's a 4-tuple or a 5-tuple...but beware.
+        float scale: Current scale factor.
+    Output:
+        (scores, locs)
+    """
     # patchTuples ((K img super regions),(K template patches))
     # for each pair, compute avg distance at scale sc
     scores=np.zeros(len(patchTuples))
@@ -126,12 +137,18 @@ def dist2patches(patchTuples,scale,debug=False):
         pdb.set_trace()
 
     for idx in range(len(patchTuples)):
+        # pt is either 4-tuple:
+        #     ((imgpatch_i,attrpatch_i,attrval_i,isflip_i), ...)
+        # or a 5-tuple:
+        #     ((imgpatch_i,attrpatch_i,attrval_i,page_i,isflip_i), ...)
         pt=patchTuples[idx]
+        imgpatch = pt[0]
+        attrpatch = pt[1]
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
-        I=np.round(sh.fastResize(pt[0],scale)*255.)/255.
+        I=np.round(sh.fastResize(imgpatch,scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
         #I[I==1.0]=.999; I[I==0.0]=.001
-        patch=np.round(sh.fastResize(pt[1],scale)*255.)/255.
+        patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
         #patch[patch==1.0]=.999; patch[patch==0.0]=.001
         try:
             res=evalPatchSimilarity(I,patch)
@@ -145,6 +162,7 @@ def dist2patches(patchTuples,scale,debug=False):
 
 # input: image, patch images, super-region
 # output: tuples of cropped image, patch image, template index, and flipped bit
+#    ((I_i, attrexemplarpatch_i, str attrval, isflip_i), ...)
 def createPatchTuples(I,attr2pat,R,flip=False):
     pFac=1;
     (rOut,rOff)=sh.expand(R[0],R[1],R[2],R[3],I.shape[0],I.shape[1],pFac)
@@ -168,7 +186,10 @@ def createPatchTuples(I,attr2pat,R,flip=False):
     return patchTuples
 
 def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
-
+    """
+    Output:
+        ((imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
+    """
     pFac=1;
     patchTuples=[];
 
@@ -216,7 +237,8 @@ def templateSSWorker(job):
     sidx=sidx[::-1]
     trackIdx=sidx[0]
 
-    sc1=sc0-sStep
+    # sc1 is the 'scale' that we're currently working with.
+    sc1=sc0-sStep  # Starting scale.
 
     while sc1>minSc:
         try:
@@ -228,6 +250,7 @@ def templateSSWorker(job):
             while os.path.exists(path):
                 new_i = int(path.split("_")[-1]) + 1
                 path = '_errdict_{0}'.format(str(new_i))
+            print '...outputting debug info to:', path
             pickle.dump(d, open(path, 'wb'))
             '''
             print "Exiting."
@@ -240,6 +263,7 @@ def templateSSWorker(job):
         if sum(0+(dumpIdx==trackIdx))>0:
             break
         else:
+            # decrease the scale
             sc1=sc1-sStep
 
     # write scale to file
@@ -417,6 +441,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
 
     jobs=[]
     nProc=sh.numProcs()
+
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
         jobs.append([attr2pat, superRegion, balKey, balL, scale,

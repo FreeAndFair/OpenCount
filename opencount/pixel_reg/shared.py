@@ -32,6 +32,16 @@ def prepOpenCV(I):
     return I
 
 def fastResize(I,rszFac,sig=-1):
+    """ Resizes the input image I by factor 'rszFac'. 'rszFac' should be
+    a float greater than 0.0, where smaller values leads to shrunken
+    versions of I, and values greater than 1.0 lead to bigger-versions of
+    I.
+    Input:
+        obj I: scipy img
+        float rszFac:
+    Output:
+        A resized image Iout.
+    """
     if rszFac==1:
         return I
     else:
@@ -479,12 +489,36 @@ def maskTargets(I,bbs,pf=.05):
 
     return IM
 
-def resizeOrNot(shape,c):
+def resizeOrNot(shape, c, MIN_DIM=12):
+    """ Given an image shape, and an integer 'c', returns the
+    appropriate scaling factor required to make the largest
+    dimension of 'shape' be at most 'c'.
+    For instance, if shape is (500, 1000), and c is 800, then this
+    outputs '0.8'. 
+    If shape is (500, 1000), and c is 20, then this outputs
+    '0.02'.
+    Also makes sure that any dimension is at least MIN_DIM large,
+    to avoid problems where skinny image patches get downsized to
+    tiny 2x500 slivers, causing problems with image computation.
+        shape: (500, 1000), c is 20, sc = '0.02'
+        
+        
+    Input:
+        tuple shape: (height, width)
+        int c:
+    Output:
+        A suggested scale.
+    """
     largestDim=max(shape[0:2])
+    smallestDim = min(shape[0:2])
     if largestDim<c:
-        return 1
-    else:
-        return c/(largestDim+0.0)
+        # Don't want to grow the image.
+        return 1.0
+    scaleFactor = c / float(largestDim)
+    d = smallestDim * scaleFactor
+    if d < MIN_DIM:
+        scaleFactor = scaleFactor / (d / float(MIN_DIM))
+    return scaleFactor
 
 def rgb2gray(I):
     if len(I.shape)<3:

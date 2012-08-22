@@ -442,6 +442,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         
         self.imagelabels = {}   # maps {imagepath: str label}
+        self.imagecaptions = {} # maps {imagepath: str caption}
 
         self.imagepaths = []  # ordered list of imagepaths
         self.cur_imgidx = 0  # which image we're currently at

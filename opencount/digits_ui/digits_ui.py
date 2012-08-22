@@ -79,7 +79,10 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                                   project.extracted_digitpatch_dir)
         digit_ex_fulldir = pathjoin(project.projdir_path, project.digit_exemplars_outdir)
         precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
+        _t = time.time()
+        print "Extracting Digit Patches..."
         patch2temp = self.extract_digitbased_patches(extracted_digitpatches_fulldir)
+        print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
         pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
                                               project.digitpatch2temp),
                                      'wb'))
@@ -106,6 +109,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
             A dict mapping {str patchpath: (templatepath, attrs_sortedstr, bb, int side)}.
         """
         # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
+        # TODO: Parallelize this.
         all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
         digit_attrtypes = []  # list of (attrs,x1,y1,x2,y2,side)
         for attrbox_dict in all_attrtypes:
@@ -157,7 +161,6 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 bb = (y1, y2, x1, x2)
                 patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
                 i += 1
-        print "Finished extracting patch dirs."
         return patch2temp
 
     def export_results(self):
