@@ -607,7 +607,7 @@ Implies that imgpath is present in imageslist more than once."
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
 
-        self.SetClientSize(self.parent.GetClientSize())
+        #self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
         self.SendSizeEvent()
 
@@ -628,7 +628,7 @@ Implies that imgpath is present in imageslist more than once."
         self.imagepaths = imagepaths
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx, no_overwrite=True)
-        self.SetClientSize(self.parent.GetClientSize())
+        #self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
         self.SendSizeEvent()
         #self.Fit()
