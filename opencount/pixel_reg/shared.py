@@ -18,6 +18,9 @@ COARSE_BALLOT_REG_HEIGHT=500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
+# The minimum required dimension of any image dimension.
+MIN_IMG_DIM = 12
+
 def joinImages(I1,I2):
     newHeight = max(I1.shape[0],I2.shape[0])
     canvas = np.zeros((newHeight,I1.shape[1]+I2.shape[1]))
@@ -489,7 +492,7 @@ def maskTargets(I,bbs,pf=.05):
 
     return IM
 
-def resizeOrNot(shape, c, MIN_DIM=12):
+def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
     """ Given an image shape, and an integer 'c', returns the
     appropriate scaling factor required to make the largest
     dimension of 'shape' be at most 'c'.
