@@ -512,7 +512,6 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.outpath = 'labelpanelout.csv'
 
         self._init_ui()
-        self.Fit()
 
     def _init_ui(self):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -607,8 +606,10 @@ Implies that imgpath is present in imageslist more than once."
 
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
+
         self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
+        self.SendSizeEvent()
 
     def restore_session(self, statefile=None):
         """ Tries to restore the state of a previous session. If this
@@ -627,7 +628,10 @@ Implies that imgpath is present in imageslist more than once."
         self.imagepaths = imagepaths
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx, no_overwrite=True)
-        self.Fit()
+        self.SetClientSize(self.parent.GetClientSize())
+        self.SetupScrolling()
+        self.SendSizeEvent()
+        #self.Fit()
         return True
 
     def save_session(self, statefile=None):
