@@ -287,7 +287,7 @@ class LabelContest(wx.Panel):
 
     def load_languages(self):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
-        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi-sim', 'vietnamese': 'vie'}
+        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
         for f in os.listdir(self.proj.patch_loc_dir):
             print "AND I GET", f, f[-4:]
