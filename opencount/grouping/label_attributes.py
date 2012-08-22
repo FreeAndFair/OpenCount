@@ -595,7 +595,7 @@ Implies that imgpath is present in imageslist more than once."
                 print "    imgpath is:", imgpath
                 print "    self.imagelabels[imgpath] is:", self.imagelabels[imgpath]
                 pdb.set_trace()
-            if imgpath in self.imagepaths
+            if imgpath in self.imagepaths:
                 print "Uhoh, imgpath was already self.imagepaths. \
 Implies that imgpath is present in imageslist more than once."
                 print "    imgpath is:", imgpath
