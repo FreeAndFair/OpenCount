@@ -319,8 +319,8 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def select_img(self, imgpath):
         """ Selects the cell given by imgpath. """
-        print "imgpath: {0}".format(imgpath)
-        print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
+        #print "imgpath: {0}".format(imgpath)
+        #print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
         Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
         self.unselect_all()
         self.get_cellpanel(imgpath).select()

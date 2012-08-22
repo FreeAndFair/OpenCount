@@ -1015,7 +1015,6 @@ class MosaicPanel2(util_widgets.MosaicPanel):
         myself. For performance, it'd be a good idea to only redraw
         things that have changed - but for now, just redraw everything.
         """
-        print "MosaicPanel UpdatedWorld."
         self.Refresh()
         self.imagemosaic.Refresh()
 
