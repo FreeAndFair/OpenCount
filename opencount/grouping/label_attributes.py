@@ -572,14 +572,34 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         else:
             self.display_img(self.cur_imgidx - 1)
 
+    def reset(self):
+        """ Resets my state to a 'clean' slate. """
+        # TODO: Reset UI also.
+        self.imagelabels = {}
+        self.imagepaths = []
+        self.cur_imgidx = 0
+
     def start(self, imageslist, outfile='labelpanelout.csv'):
         """Given a dict of imagepaths to label, set up the UI, and
-        allow the user to start labeling things.
+        allow the user to start labeling things. This will reset all
+        state to be a 'clean slate'.
         Input:
             lst imageslist: list of image paths
             outfile: Output file to write results to.
         """
+        self.reset()
         for imgpath in imageslist:
+            if imgpath in self.imagelabels:
+                print "Uhoh, imgpath was already in self.imagelabels. \
+Implies that imgpath is present in imageslist more than once."
+                print "    imgpath is:", imgpath
+                print "    self.imagelabels[imgpath] is:", self.imagelabels[imgpath]
+                pdb.set_trace()
+            if imgpath in self.imagepaths
+                print "Uhoh, imgpath was already self.imagepaths. \
+Implies that imgpath is present in imageslist more than once."
+                print "    imgpath is:", imgpath
+                pdb.set_trace()
             assert imgpath not in self.imagelabels
             assert imgpath not in self.imagepaths
             self.imagelabels[imgpath] = ''
