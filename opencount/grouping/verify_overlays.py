@@ -605,7 +605,7 @@ in queue: 0")
         else:
             self.splitButton.Enable()
         
-        self.parent.Fit()
+        #self.parent.Fit() # Causes UI issues
         self.fitPanel()
     
     def OnClickOK(self, event):
@@ -996,7 +996,7 @@ at a time."
         self.remove_group(self.currentGroup)
         self.select_group(self.queue[0])
         self.queueList.Fit()
-        self.parent.Fit()
+        #self.parent.Fit() # Causes UI issues
         self.fitPanel()
         
     def OnClickDebug(self, event):
