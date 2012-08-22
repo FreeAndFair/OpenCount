@@ -25,14 +25,13 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2):
     """
     if bb_map == None:
         bb_map = {}
-        bb_big = None
+        h_big, w_big = get_largest_img_dims(imgpaths)
     else:
         bb_big = get_largest_bb(bb_map.values())
-
+        h_big = int(abs(bb_big[0] - bb_big[1]))
+        w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxN array, where M is the number
     #     of images, and N is the number of pixels of each image.
-    h_big = int(abs(bb_big[0] - bb_big[1]))
-    w_big = int(abs(bb_big[2] - bb_big[3]))
     data = np.zeros((len(imgpaths), h_big*w_big))
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
@@ -55,7 +54,17 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2):
     for i, clusterid in enumerate(idx):
         clusters.setdefault(clusterid, []).append(imgpaths[i])
     return clusters
-            
+
+def get_largest_img_dims(imgpaths):
+    """ Returns the largest dimensions of the images in imgpaths. """
+    h, w = None, None
+    for imgpath in imgpaths:
+        img = scipy.misc.imread(imgpath)
+        if h == None or img.shape[0] > h:
+            h = img.shape[0]
+        if w == None or img.shape[1] > w:
+            w = img.shape[1]
+    return (h, w)
 def get_largest_bb(bbs):
     """ Returns the largest bb in bb_map.
     Input:
