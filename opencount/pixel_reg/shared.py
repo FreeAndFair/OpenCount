@@ -19,7 +19,7 @@ LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
 # The minimum required dimension of any image dimension.
-MIN_IMG_DIM = 12
+MIN_IMG_DIM = 4
 
 def joinImages(I1,I2):
     newHeight = max(I1.shape[0],I2.shape[0])
