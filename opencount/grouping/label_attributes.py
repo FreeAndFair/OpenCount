@@ -238,9 +238,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.project = project
         if groupresults == None:
             # We are manually labeling everything
-            self.mapping, self.inv_mapping, patchpaths = do_extract_attr_patches(self.project)
+            self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
         else:
-            self.mapping, self.inv_mapping, patchpaths = self.handle_grouping_results(groupresults)
+            self.mapping, self.inv_mapping = self.handle_grouping_results(groupresults)
         # outfilepath isn't used at the moment.
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
@@ -286,16 +286,14 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         Input:
             dict groupresults: maps {grouplabel: list of GroupClass instances}
         Output:
-            dict mapping, dict inv_mapping, list patchpaths, but only for
+            dict mapping, dict inv_mapping, but only for
             one exemplar from each group, where mapping is:
               {str votedpath: {attrtype: patchpath}}
             inv_mapping is:
               {str patchpath: (imgpath, attrtype)}
-            patchpaths is a list of all patchpaths.
         """
         mapping = {}  # maps {imgpath: {attrtypestr: patchpath}}
         inv_mapping = {}  # maps {patchpath: (imgpath, attrtypestr)}
-        patchpaths = []
         for grouplabel, groups in groupresults.iteritems():
             attrtypestr = tuple(grouplabel)[0][0] # why do i do this?!
             flag = True
@@ -304,11 +302,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     for votedpath, rankedlist, patchpath in group.elements:
                         mapping.setdefault(votedpath, {})[attrtypestr] = patchpath
                         inv_mapping[patchpath] = (votedpath, attrtypestr)
-                        patchpaths.append(patchpath)
                 elif flag:
                     # grab one exemplar
                     votedpath_exemplar, _, patchpath_exemplar = groups[0].elements[0]
-                    patchpaths.append(patchpath_exemplar)
                     mapping.setdefault(votedpath_exemplar, {})[attrtypestr] = patchpath_exemplar
                     inv_mapping[patchpath_exemplar] = (votedpath_exemplar, attrtypestr)
                     flag = False
@@ -319,7 +315,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     for votedpath, rankedlist, patchpath in group.elements:
                         self.patch_groups.setdefault(patchpath_exemplar, []).append(votedpath)
 
-        return mapping, inv_mapping, patchpaths
+        return mapping, inv_mapping
 
     def stop(self):
         """ Saves some state. """
@@ -724,10 +720,9 @@ def do_extract_attr_patches(proj):
     """Extract all attribute patches from all blank ballots into
     the specified outdir.
     Output:
-        (dict mapping, dict inv_mapping, tuple patchpaths), where:
+        (dict mapping, dict inv_mapping, where:
           mapping is {imgpath: {str attrtype: str patchpath}}
           inv_mapping is {str patchpath: (imgpath, attrtype)}
-          patchpaths: (patchpath_i, ...)
     """
     tmp2imgs = pickle.load(open(proj.template_to_images, 'rb'))
     blanks = tmp2imgs.values() # list of ((pathside0, pathside1,...), ...)
@@ -735,23 +730,22 @@ def do_extract_attr_patches(proj):
                               blanks,
                               _args=(proj,),
                               combfn=_extract_combfn,
-                              init=({}, {}, ()))
+                              init=({}, {}))
     
 def _extract_combfn(result, subresult):
     """ Aux. function used for the partask.do_partask interface.
     Input:
-        result: (dict mapping_0, dict invmapping_0, list patchpaths_0)
-        subresult: (dict mapping_1, dict invmapping_1, list patchpaths_1)
+        result: (dict mapping_0, dict invmapping_0)
+        subresult: (dict mapping_1, dict invmapping_1)
     Output:
         The result of 'combining' result and subresult:
-            (dict mapping*, dict invmapping*, list patchpaths*)
+            (dict mapping*, dict invmapping*)
     """
-    mapping, invmapping, patchpaths = result
-    mapping_sub, invmapping_sub, patchpaths_sub = subresult
+    mapping, invmapping = result
+    mapping_sub, invmapping_sub = subresult
     new_mapping = dict(mapping.items() + mapping_sub.items())
     new_invmapping = dict(invmapping.items() + invmapping_sub.items())
-    new_patchpaths = patchpaths + patchpaths_sub
-    return (new_mapping, new_invmapping, new_patchpaths)
+    return (new_mapping, new_invmapping)
 
 def extract_attr_patches(blanks, (proj,)):
     """
@@ -761,7 +755,7 @@ def extract_attr_patches(blanks, (proj,)):
         list blanks: Of the form ((frontpath_i, backpath_i), ...)
         obj proj:
     Output:
-        (dict mapping, dict inv_mapping, tuple patchpaths)
+        (dict mapping, dict inv_mapping)
     """
     outdir = proj.labelattrs_patchesdir
     w_img, h_img = proj.imgsize
@@ -769,7 +763,6 @@ def extract_attr_patches(blanks, (proj,)):
     ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
     inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
-    patchpaths = set()
     for blankpaths in blanks:
         for blankside, imgpath in enumerate(blankpaths):
             for attr in ballot_attributes:
@@ -814,9 +807,7 @@ def extract_attr_patches(blanks, (proj,)):
                         scipy.misc.imsave(patchoutP, patch)
                     mapping.setdefault(imgpath, {})[attrtype] = patchoutP
                     inv_mapping[patchoutP] = (imgpath, attrtype)
-                    assert patchoutP not in patchpaths
-                    patchpaths.add(patchoutP)
-    return mapping, inv_mapping, tuple(patchpaths)
+    return mapping, inv_mapping
 
 def get_ordered_patchpaths(inv_mapping):
     """ Given an input 'inv_mapping', output a list of patchpaths such
