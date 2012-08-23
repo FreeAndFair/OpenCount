@@ -1,4 +1,11 @@
-import sys, os, pdb, time, pickle, shutil, traceback
+import sys, os, pdb, time, shutil, traceback
+
+try:
+    import cPickle as pickle
+except ImportError as e:
+    print "Can't import cPickle, falling back to pickle."
+    import pickle
+
 import scipy, scipy.misc
 from os.path import join as pathjoin
 sys.path.append('..')

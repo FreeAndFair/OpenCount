@@ -578,8 +578,8 @@ in queue: 0")
         else:
             self.set_patch_layout('horizontal')
 
-        self.minOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMin * 255.0))
-        self.maxOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMax * 255.0))
+        self.minOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMin)) #* 255.0))
+        self.maxOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMax)) #* 255.0))
         
         self.tNumBallots.SetValue("{0}".format(len(elements)))
         
@@ -611,38 +611,60 @@ in queue: 0")
     def OnClickOK(self, event):
         """ Used for MODE_NORMAL. Indicates that the currentGroup is 
         indeed represented by the current exemplar. """
+        startTime = time.time()
+        times = {} # maps {str job: float duration}
+        _t = time.time()
         index = self.templateChoice.GetCurrentSelection()
         self.add_finalize_group(self.currentGroup, index)
-  
+        _dur = time.time() - _t
+        times['pre_step'] = _dur
+
         if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit') != None:
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
+            _t = time.time()
             accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
             if accepted_hashes == None:
                 accepted_hashes = {}
                 partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
             digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            _dur = time.time() - _t
+            times['load_data'] = _dur
+            _t = time.time()
+            print "Updating accepted hashes..."
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
                 # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
                 accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
+            _dur = time.time() - _t
+            print "...Finished Updating accepted hashes. ({0} s).".format(_dur)
+            times['update_acceptedhashes'] = _dur
+            _t = time.time()
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            _dur = time.time() - _t
+            times['save_accepted'] = _dur
 
-            cnt = 0
-            for imgpath, digitmap in accepted_hashes.iteritems():
-                for digit, lst in digitmap.iteritems():
-                    cnt += len(lst)
-            print "Total number of accepted regions:", cnt
-
+        _t = time.time()
         self.remove_group(self.currentGroup)
+        _dur = time.time() - _t
+        times['post_step'] = _dur
 
+        _t = time.time()
         if self.is_done_verifying():
             self.currentGroup = None
             self.done_verifying()
         else:
             self.select_group(self.queue[0])
+        _dur = time.time() - _t
+        times['select_group'] = _dur
+
+        totalTime = time.time() - startTime
+        print "==== Total time to process 'Ok': {0} s".format(totalTime)
+        for job, duration in times.iteritems():
+            print "    job {0} took {1}%.".format(job, 100.0*float(duration / totalTime))
+
 
     def OnClickYes(self, event):
         """ Used for MODE_YESNO. Indicates that the currentGroup does

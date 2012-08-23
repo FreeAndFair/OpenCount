@@ -1,4 +1,11 @@
-import sys, os, pdb, pickle
+import sys, os, pdb
+
+try:
+    import cPickle as pickle
+except ImportError as e:
+    print "Can't import cPickle. Falling back to pickle."
+    import pickle
+
 sys.path.append('../')
 
 import pixel_reg.part_match as part_match

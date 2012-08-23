@@ -1,4 +1,11 @@
-import sys, os, csv, pickle, pdb, time
+import sys, os, csv, pdb, time
+
+try:
+    import cPickle as pickle
+except ImportError as e:
+    print "Can't import cPickle. Falling back to pickle."
+    import pickle
+
 import numpy as np
 import scipy.cluster.vq
 from os.path import join as pathjoin
@@ -845,8 +852,8 @@ def _generate_overlays(elements):
             overlayMax = np.fmax(overlayMax, img)
 
     rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-    overlayMax = sh.fastResize(overlayMax, rszFac) / 255.0
-    overlayMin = sh.fastResize(overlayMin, rszFac) / 255.0
+    overlayMax = sh.fastResize(overlayMax, rszFac) #/ 255.0
+    overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
     return overlayMin, overlayMax
 def _my_combfn_overlays(result, subresult):
     """ result, subresult are (np img_min, np img_max). Overlay the
