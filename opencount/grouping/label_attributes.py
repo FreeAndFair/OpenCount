@@ -247,7 +247,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         statefilepath = pathjoin(self.project.projdir_path,
                                  LabelPanel.STATE_FILE)
         if not self.labelpanel.restore_session(statefile=statefilepath):
-            self.labelpanel.start(patchpaths, outfile=outfilepath)
+            imagecaptions = {} # maps {str patchpath: str attrtype}
+            for patchpath, (imgpath, attrtype) in self.inv_mapping.iteritems():
+                imagecaptions[patchpath] = attrtype
+            self.labelpanel.start(patchpaths, captions=imagecaptions,
+                                  outfile=outfilepath)
         self.check_state()
         self.Fit()
         self.SetupScrolling()
@@ -489,14 +493,18 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.caption_txt = wx.StaticText(self, label="Foo.")
         sizer_img.Add(self.caption_txt)
 
+        sizer_lstbox = wx.BoxSizer(wx.VERTICAL)
+        txt_listbox = wx.StaticText(self, label="Previously entered \
+values for this caption...")
         self.listbox = wx.ListBox(self, choices=[])
+        sizer_lstbox.Add(txt_listbox)
+        sizer_lstbox.Add(self.listbox)
 
-        #self.sizer2.Add(self.imgpatch, proportion=0)
         self.sizer2.Add(sizer_img)
         self.sizer2.Add((40, 40))
         self.sizer2.Add(sizer3, proportion=0)
         self.sizer2.Add((40, 40))
-        self.sizer2.Add(self.listbox)
+        self.sizer2.Add(sizer_lstbox)
         
         self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
 
@@ -513,7 +521,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             self.caption_txt.SetLabel("Caption: {0}.".format(caption))
 
     def update_listbox(self, imgidx):
-        """ Updates the self.listbox ListBox widget, and display sall
+        """ Updates the self.listbox ListBox widget, and displays all
         previously-entered labels that have the same caption.
         """
         if imgidx >= len(self.imagepaths):
@@ -524,10 +532,14 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         imgpath = self.imagepaths[imgidx]
         if imgpath in self.imagecaptions:
             caption = self.imagecaptions[imgpath]
-            labels = self.captionlabels.get(imgpath, None)
+            labels = self.captionlabels.get(caption, None)
             if labels == None:
+                self.listbox.SetItems([])
                 return
+            print list(labels)
             self.listbox.SetItems(list(labels))
+        else:
+            self.listbox.SetItems([])
 
     def add_label(self, imgpath, label):
         """ Adds the 'label' for the given image by updating internal
