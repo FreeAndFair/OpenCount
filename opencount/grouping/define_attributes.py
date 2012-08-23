@@ -612,6 +612,7 @@ class IToolBar(ToolBar):
         self.btn_splitcontest.GetParent().Hide()
         self.btn_undo.GetParent().Hide()
         self.btn_infercontests.GetParent().Hide()
+        self.btn_sanitycheck.GetParent().Hide()
 
     def onButton_customattr(self, evt):
         """ User clicked the 'Create Custom Attribute' button. """

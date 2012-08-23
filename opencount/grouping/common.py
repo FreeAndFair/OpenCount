@@ -15,6 +15,7 @@ from util import encodepath
 import specify_voting_targets.util_gui as util_gui
 import cust_attrs
 import cluster_imgs
+import partask
 
 DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
 
@@ -627,35 +628,12 @@ class GroupClass(object):
 
     def get_overlays(self):
         """ Returns overlayMin, overlayMax """
-        overlayMin, overlayMax = None, None
-        for element in self.elements:
-            path = element[2]
-            if not self.no_overlays:
-                try:
-                    img = misc.imread(path, flatten=1)
-                    if (overlayMin == None):
-                        overlayMin = img
-                    else:
-                        if overlayMin.shape != img.shape:
-                            h, w = overlayMin.shape
-                            img = resize_img_norescale(img, (w,h))
-                        overlayMin = np.fmin(overlayMin, img)
-                    if (overlayMax == None):
-                        overlayMax = img
-                    else:
-                        if overlayMax.shape != img.shape:
-                            h, w = overlayMax.shape
-                            img = resize_img_norescale(img, (w,h))
-                        overlayMax = np.fmax(overlayMax, img)
-                except Exception as e:
-                    print e
-                    print "Cannot open patch @ {0}".format(path)
-                    pdb.set_trace()
-
-        rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-        overlayMax = sh.fastResize(overlayMax, rszFac) / 255.0
-        overlayMin = sh.fastResize(overlayMin, rszFac) / 255.0
-
+        if self.no_overlays:
+            return None, None
+        print "Generating min/max overlays..."
+        _t = time.time()
+        overlayMin, overlayMax = do_generate_overlays(self)
+        print "...Finished Generating min/max overlays. ({0} s)".format(time.time() - _t)
         return overlayMin, overlayMax
 
     def __eq__(self, o):
@@ -838,6 +816,59 @@ class DigitGroupClass(GroupClass):
         
     def split(self):
         return self.split_kmeans()
+
+def do_generate_overlays(group):
+    """ Given a GroupClass, generate the Min/Max overlays. """
+    return partask.do_partask(_generate_overlays,
+                              group.elements,
+                              combfn=_my_combfn_overlays,
+                              init=(None, None))
+
+def _generate_overlays(elements):
+    overlayMin, overlayMax = None, None
+    for element in elements:
+        path = element[2]
+        img = misc.imread(path, flatten=1)
+        if (overlayMin == None):
+            overlayMin = img
+        else:
+            if overlayMin.shape != img.shape:
+                h, w = overlayMin.shape
+                img = resize_img_norescale(img, (w,h))
+            overlayMin = np.fmin(overlayMin, img)
+        if (overlayMax == None):
+            overlayMax = img
+        else:
+            if overlayMax.shape != img.shape:
+                h, w = overlayMax.shape
+                img = resize_img_norescale(img, (w,h))
+            overlayMax = np.fmax(overlayMax, img)
+
+    rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
+    overlayMax = sh.fastResize(overlayMax, rszFac) / 255.0
+    overlayMin = sh.fastResize(overlayMin, rszFac) / 255.0
+    return overlayMin, overlayMax
+def _my_combfn_overlays(result, subresult):
+    """ result, subresult are (np img_min, np img_max). Overlay the
+    min's and max's together.
+    """
+    imgmin, imgmax = result
+    imgmin_sub, imgmax_sub = subresult
+    if imgmin == None:
+        imgmin = imgmin_sub
+    else:
+        if imgmin.shape != imgmin_sub.shape:
+            h, w = imgmin.shape
+            imgmin_sub = resize_img_norescale(imgmin_sub, (w,h))
+        imgmin = np.fmin(imgmin, imgmin_sub)
+    if imgmax == None:
+        imgmax = imgmax_sub
+    else:
+        if imgmax.shape != imgmax_sub.shape:
+            h, w = imgmax.shape
+            imgmax_sub = resize_img_norescale(imgmax_sub, (w,h))
+        imgmax = np.fmax(imgmax, imgmax_sub)
+    return imgmin, imgmax
 
 class TextInputDialog(wx.Dialog):
     """

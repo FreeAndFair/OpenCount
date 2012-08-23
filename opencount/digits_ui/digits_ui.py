@@ -1095,6 +1095,7 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, imgsize, proj), idx):
     i = 0
     w_img, h_img = imgsize
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
+    patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, str side)}
     for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
         x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
         y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
