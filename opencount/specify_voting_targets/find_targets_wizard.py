@@ -456,7 +456,6 @@ function correctly.""".format(len(lonely_tmpls))
                 atleastone = True
                 assoc_targets = util_gui.associated_targets(contest, self.world.get_boxes(temppath))
                 if len(assoc_targets) == 1:
-                    print "MOO"
                     contest.set_color("Red")
                     imgpaths.append(temppath)
                     ctr += 1
@@ -475,9 +474,17 @@ Press 'Ok' to jump to a blank ballot with a problematic contest.".format(ctr)
             path = None
             for imgpath in imgpaths:
                 pagenumA, rowA, colA = self.panel_mosaic.get_img_info(imgpath)
-                if pagenum == None or pagenumA < pagenum and rowA < row and colA < col:
-                    pagenum, row, col = pagenumA, rowA, colA
+                if pagenum == None or pagenumA < pagenum:
+                    pagenum,row,col = pagenumA, rowA, colA
                     path = imgpath
+                elif pagenumA == pagenum:
+                    if rowA < row:
+                        pagenum,row,col = pagenumA, rowA, colA
+                        path = imgpath
+                    elif rowA == row:
+                        if colA < col:
+                            pagenum,row,col = pagenumA, rowA, colA
+                            path = imgpath
             print "Jumping to page {0} -- selected blank ballot is on \
 row {1}, col {2}".format(pagenum, row, col)
             dlg = wx.MessageDialog(self, message="Jumping to page {0}. \

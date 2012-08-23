@@ -665,9 +665,9 @@ def import_box_locations(csvdir, imgsize):
                     x2 = x1 + (float(row['width']) / float(w_img))
                     y2 = y1 + (float(row['height']) / float(h_img))
                     is_contest = True if int(row['is_contest']) == 1 else False
-                    contest_id = row['contest_id']
+                    contest_id = int(row['contest_id'])
                     try:
-                        target_id = row['target_id']
+                        target_id = int(row['target_id'])
                     except:
                         # This csvfile is not recent, has no target_id col
                         target_id = None
