@@ -5,6 +5,8 @@ from itertools import repeat, ifilter
 """
 For compatibility with Python 2.6, including the Counter class in this
 file.
+Counter class is pulled from:
+    http://code.activestate.com/recipes/576611/
 """
 
 class Counter(dict):
