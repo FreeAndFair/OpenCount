@@ -12,7 +12,7 @@ sys.path.append('..')
 import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
-from grouping import common, verify_overlays
+from grouping import common, verify_overlays, partask
 
 """
 Assumes extracted_dir looks like:
@@ -81,7 +81,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
         _t = time.time()
         print "Extracting Digit Patches..."
-        patch2temp = self.extract_digitbased_patches(extracted_digitpatches_fulldir)
+        patch2temp = do_extract_digitbased_patches(self.project)
         print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
         pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
                                               project.digitpatch2temp),
@@ -98,70 +98,6 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                              self.project.labeldigitstate)
         self.mainpanel.start(statefile=statefile)
         self.project.addCloseEvent(lambda: self.mainpanel.digitpanel.save_session(statefile=statefile))
-
-    def extract_digitbased_patches(self, outdir):
-        """ Extract all digit-based attributes into the outdir. This
-        will be the input to the Digit-Labeling UI.
-        Input:
-            str outdir: This directory will look like:
-                <outdir>/attr_i/*.png
-        Output:
-            A dict mapping {str patchpath: (templatepath, attrs_sortedstr, bb, int side)}.
-        """
-        # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
-        # TODO: Parallelize this.
-        all_attrtypes = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
-        digit_attrtypes = []  # list of (attrs,x1,y1,x2,y2,side)
-        for attrbox_dict in all_attrtypes:
-            if attrbox_dict['is_digitbased']:
-                attrs = attrbox_dict['attrs']
-                x1 = attrbox_dict['x1']
-                y1 = attrbox_dict['y1']
-                x2 = attrbox_dict['x2']
-                y2 = attrbox_dict['y2']
-                side = attrbox_dict['side']
-                digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
-        tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
-        patch2temp = {}  # maps {patchpath: temlatepath}
-        i = 0
-        w_img, h_img = self.project.imgsize
-        FACTOR = 0.0
-        expand_x = int(round(abs(x1-x2)*FACTOR*w_img))
-        expand_y = int(round(abs(y1-y2)*FACTOR*h_img))
-        for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
-            x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
-            y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
-            x1 = max(int(abs(x1 - expand_x)), 0)
-            x2 = min(int(abs(x2 + expand_x)), w_img-1)
-            y1 = max(int(abs(y1 - expand_y)), 0)
-            y2 = min(int(abs(y2 + expand_y)), h_img-1)
-            for templateid, path in tmp2imgs.iteritems():
-                # Grab the correct image...
-                if self.project.is_multipage:
-                    frontpath, backpath = path
-                    if side == 'front':
-                        imgpath = frontpath
-                        img = shared.standardImread(frontpath, flatten=True)
-                    else:
-                        imgpath = backpath
-                        img = shared.standardImread(backpath, flatten=True)
-                else:
-                    imgpath = path[0]
-                    img = shared.standardImread(path[0], flatten=True)
-                patch = img[y1:y2, x1:x2]
-                attrs_sorted = sorted(attrs.keys())
-                attrs_sortedstr = '_'.join(attrs_sorted)
-                util_gui.create_dirs(pathjoin(outdir,
-                                              attrs_sortedstr))
-                outfilename = '{0}_exemplar.png'.format(i)
-                outfilepath = pathjoin(outdir,
-                                       attrs_sortedstr,
-                                       outfilename)
-                scipy.misc.imsave(outfilepath, patch)
-                bb = (y1, y2, x1, x2)
-                patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
-                i += 1
-        return patch2temp
 
     def export_results(self):
         self.mainpanel.export_results()
@@ -1096,7 +1032,6 @@ def too_close(b1, b2):
             is_overlap(b1, b2) or 
             is_overlap(b2, b1))
 
-
 def autocrop_img(img):
     """ Given an image, try to find the bounding box. """
     def new_argwhere(a):
@@ -1120,6 +1055,77 @@ def autocrop_img(img):
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
 
+def do_extract_digitbased_patches(proj):
+    """ Extracts all digit-based attribute patches, and stores them
+    in the proj.extracted_digitpatch_dir directory.
+    Input:
+        obj proj:
+    Output:
+        Returns a dict mapping {str patchpath: (templatepath, attrtype, bb, int side)}
+    """
+
+    # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
+    
+    all_attrtypes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    digit_attrtypes = []  # list of (attrs,x1,y1,x2,y2,side)
+    for attrbox_dict in all_attrtypes:
+        if attrbox_dict['is_digitbased']:
+            attrs = attrbox_dict['attrs']
+            x1 = attrbox_dict['x1']
+            y1 = attrbox_dict['y1']
+            x2 = attrbox_dict['x2']
+            y2 = attrbox_dict['y2']
+            side = attrbox_dict['side']
+            digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
+    tmp2imgs = pickle.load(open(proj.template_to_images, 'rb'))
+    patch2temp = {}  # maps {patchpath: templatepath}
+    w_img, h_img = proj.imgsize
+    tasks = [(templateid,path) for (templateid,path) in tmp2imgs.iteritems()]
+    return partask.do_partask(extract_digitbased_patches,
+                              tasks,
+                              _args=(digit_attrtypes, (w_img,h_img), proj),
+                              combfn=_my_combfn,
+                              init={},
+                              pass_idx=True)
+
+def _my_combfn(results, subresults):
+    return dict(results.items() + subresults.items())
+
+def extract_digitbased_patches(tasks, (digit_attrtypes, imgsize, proj), idx):
+    i = 0
+    w_img, h_img = imgsize
+    outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
+    for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
+        x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
+        y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
+        for templateid, path in tasks:
+            # Grab the correct image...
+            if proj.is_multipage:
+                frontpath, backpath = path
+                if side == 'front':
+                    imgpath = frontpath
+                    img = shared.standardImread(frontpath, flatten=True)
+                else:
+                    imgpath = backpath
+                    img = shared.standardImread(backpath, flatten=True)
+            else:
+                imgpath = path[0]
+                img = shared.standardImread(path[0], flatten=True)
+            patch = img[y1:y2, x1:x2]
+            attrs_sorted = sorted(attrs.keys())
+            attrs_sortedstr = '_'.join(attrs_sorted)
+            util_gui.create_dirs(pathjoin(outdir,
+                                          attrs_sortedstr))
+            outfilename = '{0}_{1}_exemplar.png'.format(idx, i)
+            outfilepath = pathjoin(outdir,
+                                   attrs_sortedstr,
+                                   outfilename)
+            scipy.misc.imsave(outfilepath, patch)
+            bb = (y1, y2, x1, x2)
+            patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
+            i += 1
+    return patch2temp
+    
 def main():
     args = sys.argv[1:]
     if not args:
