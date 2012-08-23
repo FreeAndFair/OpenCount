@@ -164,6 +164,12 @@ invalid.".format(pagenum), style=wx.OK)
     def set_transfn(self, fn):
         self.imagemosaic.set_transfn(fn)
 
+    def display_page(self, pagenum):
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        self.imagemosaic.jump_to_page(pagenum)
+        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum, total_pages-1))
+        self.maybe_btn_toggle()
+
     def select_image(self, imgpath):
         """ Selects an image within the ImageMosaicPanel. """
         self.imagemosaic.select_img(imgpath)
@@ -173,6 +179,10 @@ invalid.".format(pagenum), style=wx.OK)
         this MosaicPanel contains the image.
         """
         return self.imagemosaic.get_img_pagenum(imgpath)
+
+    def get_img_info(self, imgpath):
+        """ Returns the (pagenum, row, col) of the given imgpath. """
+        return self.imagemosaic.get_img_info(imgpath)
 
     def OnChildFocus(self, evt):
         # If I don't override this child focus event, then wx will
@@ -254,6 +264,8 @@ class ImageMosaicPanel(ScrolledPanel):
         total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
         if pagenum < 0 or pagenum > total_pages:
             print "Can't jump to invalid page number:", pagenum
+            return
+        elif pagenum == self.cur_page:
             return
         self.cur_page = pagenum
         self.display_page(self.cur_page)

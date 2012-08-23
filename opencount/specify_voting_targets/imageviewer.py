@@ -1367,6 +1367,7 @@ class ToolBar(wx.Panel):
         self.btn_addcontest.Bind(wx.EVT_BUTTON, self.onButton_addcontest)
         self.btn_splitcontest.Bind(wx.EVT_BUTTON, self.onButton_splitcontest)
         self.btn_infercontests.Bind(wx.EVT_BUTTON, self.onButton_infercontests)
+        self.btn_sanitycheck.Bind(wx.EVT_BUTTON, self.onButton_sanitycheck)
         
     def _resize_icons(self, iconpaths):
         """ Rescale all icon images to have height Toolbar.SIZE_ICON """
@@ -1408,6 +1409,7 @@ class ToolBar(wx.Panel):
         panel_splitcontest = wx.Panel(self)
         panel_select = wx.Panel(self)
         panel_infercontest = wx.Panel(self)
+        panel_sanitycheck = wx.Panel(self)
         self.btn_zoomin = wx.BitmapButton(panel_zoomin, bitmap=zoomin_unsel,
                                            id=wx.ID_ZOOM_IN,
                                            size=(zoomin_unsel.GetWidth()+8,
@@ -1450,6 +1452,7 @@ class ToolBar(wx.Panel):
                                                 size=(infercontest_unsel.GetWidth()+8,
                                                       infercontest_unsel.GetHeight()+8),
                                                 name='btn_infercontest')
+        self.btn_sanitycheck = wx.Button(panel_sanitycheck, label="Sanity Check...")
 
         font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         sizer_zoomin = wx.BoxSizer(wx.VERTICAL)
@@ -1508,6 +1511,13 @@ class ToolBar(wx.Panel):
         sizer_infercontest.Add(self.btn_infercontests)
         sizer_infercontest.Add(txt8, flag=wx.ALIGN_CENTER)
 
+        sizer_sanitycheck = wx.BoxSizer(wx.VERTICAL)
+        panel_sanitycheck.SetSizer(sizer_sanitycheck)
+        txt9 = wx.StaticText(panel_sanitycheck, label="Run Sanity Check...", style=wx.ALIGN_CENTER)
+        txt9.SetFont(font)
+        sizer_sanitycheck.Add(self.btn_sanitycheck)
+        sizer_sanitycheck.Add(txt9, flag=wx.ALIGN_CENTER)
+
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(panel_zoomin)
         self.sizer.Add(panel_zoomout)
@@ -1517,6 +1527,7 @@ class ToolBar(wx.Panel):
         self.sizer.Add(panel_undo)
         self.sizer.Add(panel_select)
         self.sizer.Add(panel_infercontest)
+        self.sizer.Add(panel_sanitycheck)
         self.SetSizer(self.sizer)
         self.SetAutoLayout(1)
                           
@@ -1624,6 +1635,18 @@ class ToolBar(wx.Panel):
         # Call SpecifyTargetsPanel.do_infer_contests
         self.parent.parent.do_infer_contests()
 
+    def onButton_sanitycheck(self, event):
+        result = self.parent.parent.sanity_check_grouping()
+        if result == True:
+            dlg = wx.MessageDialog(self, message="OpenCount wasn't able \
+to find any incomplete blank ballots. However, this isn't a guarantee \
+that all voting-targets have been detected. If you are confident that \
+all voting targets have been detected, then it's safe to proceed to the \
+next step.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            
     def onEnter_zoomin(self, event):
         Publisher().sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
         event.Skip()

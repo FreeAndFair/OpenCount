@@ -446,32 +446,58 @@ function correctly.""".format(len(lonely_tmpls))
         """
         Apply sanity checks to the target grouping. Assumes that
         self.apply_target_grouping has already been called.
+        Returns True if everything was ok, False o.w.
         """
         atleastone = False
         ctr = 0
+        imgpaths = []
         for temppath, boxes in self.world.get_boxes_all().items():
             for contest in [b for b in boxes if b.is_contest]:
                 atleastone = True
                 assoc_targets = util_gui.associated_targets(contest, self.world.get_boxes(temppath))
                 if len(assoc_targets) == 1:
+                    print "MOO"
                     contest.set_color("Red")
+                    imgpaths.append(temppath)
                     ctr += 1
         Publisher().sendMessage("broadcast.cant_proceed")
         if ctr > 0:
             msg = "Warning: There were {0} contests with only one voting \
 bubble detected. \nDouble check these contests (colored Red) to see if any \
-voting bubbles were missed.".format(ctr)
+voting bubbles were missed. \n\
+Press 'Ok' to jump to a blank ballot with a problematic contest.".format(ctr)
             dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
             self.parent.Disable()
             dlg.ShowModal()
             self.parent.Enable()
+            # Jump to the 'first' blank ballot with a problem.
+            pagenum, row, col = None, None, None
+            path = None
+            for imgpath in imgpaths:
+                pagenumA, rowA, colA = self.panel_mosaic.get_img_info(imgpath)
+                if pagenum == None or pagenumA < pagenum and rowA < row and colA < col:
+                    pagenum, row, col = pagenumA, rowA, colA
+                    path = imgpath
+            print "Jumping to page {0} -- selected blank ballot is on \
+row {1}, col {2}".format(pagenum, row, col)
+            dlg = wx.MessageDialog(self, message="Jumping to page {0}. \
+The problematic blank ballot is on row {1}, col {2}".format(pagenum,row,col),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            self.panel_mosaic.display_page(pagenum)
+            self.panel_mosaic.select_image(path)
+            self.Refresh()
+            return False
         elif atleastone:
             # User may be done with this task, so emit a message
             # to allow UI to signal to user to move on.
             # '1' stands for my index in the NoteBook's tabs list
             Publisher().sendMessage("broadcast.can_proceed")
         self.Refresh()
-                                                   
+        return True
+
     def remove_contests(self, templatepath):
         """
         Remove all contests from self.box_locations that are for
