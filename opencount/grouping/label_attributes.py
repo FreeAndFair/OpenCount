@@ -246,6 +246,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                self.project.labelattrs_out)
         statefilepath = pathjoin(self.project.projdir_path,
                                  LabelPanel.STATE_FILE)
+        # 'sort' patchpaths by attribute type
+        patchpaths = get_ordered_patchpaths(self.inv_mapping)
         if not self.labelpanel.restore_session(statefile=statefilepath):
             imagecaptions = {} # maps {str patchpath: str attrtype}
             for patchpath, (imgpath, attrtype) in self.inv_mapping.iteritems():
@@ -536,7 +538,6 @@ values for this caption...")
             if labels == None:
                 self.listbox.SetItems([])
                 return
-            print list(labels)
             self.listbox.SetItems(list(labels))
         else:
             self.listbox.SetItems([])
@@ -817,4 +818,19 @@ def extract_attr_patches(blanks, (proj,)):
                     patchpaths.add(patchoutP)
     return mapping, inv_mapping, tuple(patchpaths)
 
-                    
+def get_ordered_patchpaths(inv_mapping):
+    """ Given an input 'inv_mapping', output a list of patchpaths such
+    that the patchpaths is sorted by attribute type.
+    Input:
+        dict inv_mapping: maps {str patchpath: (imgpath, attrtype)}
+    Output:
+        A list of patchpaths.
+    """
+    attrtypes = {} # maps {str attrtype: (patchpath_i, ...)}
+    for patchpath, (imgpath, attrtype) in inv_mapping.iteritems():
+        attrtypes.setdefault(attrtype, []).append(patchpath)
+    patchpaths = []
+    for attrtype, paths in attrtypes.iteritems():
+        patchpaths.extend(paths)
+    return patchpaths
+
