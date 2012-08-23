@@ -1,7 +1,10 @@
 from PIL import Image, ImageDraw
 import os
 from random import random
-from collections import Counter
+try:
+    from collections import Counter
+except ImportError as e:
+    from utilcounter import Counter
 import multiprocessing as mp
 import pickle
 
