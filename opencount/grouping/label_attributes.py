@@ -441,8 +441,17 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         
+        # self.imagelabels keeps track of the labels that the user has
+        # given to each image.
         self.imagelabels = {}   # maps {imagepath: str label}
+
+        # self.imagecaptions keeps track of the caption that the UI 
+        # should display to the user.
         self.imagecaptions = {} # maps {imagepath: str caption}
+
+        # self.captionlabels keeps track of all labels given to a
+        # specific caption.
+        self.captionlabels = {} # maps {str caption: (str label_i, ...)}
 
         self.imagepaths = []  # ordered list of imagepaths
         self.cur_imgidx = 0  # which image we're currently at
@@ -475,18 +484,66 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         sizer3.Add(prevbtn)
         sizer3.Add(self.progress_txt)
 
-        self.sizer2.Add(self.imgpatch, proportion=0)
+        sizer_img = wx.BoxSizer(wx.VERTICAL)
+        sizer_img.Add(self.imgpatch, proportion=0)
+        self.caption_txt = wx.StaticText(self, label="Foo.")
+        sizer_img.Add(self.caption_txt)
+
+        self.listbox = wx.ListBox(self, choices=[])
+
+        #self.sizer2.Add(self.imgpatch, proportion=0)
+        self.sizer2.Add(sizer_img)
         self.sizer2.Add((40, 40))
         self.sizer2.Add(sizer3, proportion=0)
+        self.sizer2.Add((40, 40))
+        self.sizer2.Add(self.listbox)
         
         self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
 
+    def update_caption_txt(self, imgidx):
+        """ Updates the self.caption_txt StaticText widget. """
+        if imgidx >= len(self.imagepaths):
+            print "Uh oh, imgidx out of range."
+            print "== Press 'c' to continue."
+            pdb.set_trace()
+            return
+        imgpath = self.imagepaths[imgidx]
+        if imgpath in self.imagecaptions:
+            caption = self.imagecaptions[imgpath]
+            self.caption_txt.SetLabel("Caption: {0}.".format(caption))
+
+    def update_listbox(self, imgidx):
+        """ Updates the self.listbox ListBox widget, and display sall
+        previously-entered labels that have the same caption.
+        """
+        if imgidx >= len(self.imagepaths):
+            print "Uh oh, imgidx out of range."
+            print "== Press 'c' to continue."
+            pdb.set_trace()
+            return
+        imgpath = self.imagepaths[imgidx]
+        if imgpath in self.imagecaptions:
+            caption = self.imagecaptions[imgpath]
+            labels = self.captionlabels.get(imgpath, None)
+            if labels == None:
+                return
+            self.listbox.SetItems(list(labels))
+
+    def add_label(self, imgpath, label):
+        """ Adds the 'label' for the given image by updating internal
+        data structures. 
+        """
+        self.imagelabels[imgpath] = label
+        caption = self.imagecaptions.get(imgpath, None)
+        if caption != None:
+            self.captionlabels.setdefault(caption, set()).add(label)
+
     def onInputEnter(self, evt):
-        """ Triggered when the user hits 'enter' when inputting text
+        """ Triggered when the user hits 'enter' when inputting text.
         """
         curimgpath = self.imagepaths[self.cur_imgidx]
         cur_val = self.inputctrl.GetValue()
-        self.imagelabels[curimgpath] = cur_val
+        self.add_label(curimgpath, cur_val)
         if (self.cur_imgidx+1) >= len(self.imagepaths):
             return
         self.display_img(self.cur_imgidx + 1)
@@ -495,7 +552,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if (self.cur_imgidx+1) >= len(self.imagepaths):
             curimgpath = self.imagepaths[self.cur_imgidx]
             cur_val = self.inputctrl.GetValue()
-            self.imagelabels[curimgpath] = cur_val
+            self.add_label(curimgpath, cur_val)
             return
         else:
             self.display_img(self.cur_imgidx + 1)
@@ -504,7 +561,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if self.cur_imgidx <= 0:
             curimgpath = self.imagepaths[self.cur_imgidx]
             cur_val = self.inputctrl.GetValue()
-            self.imagelabels[curimgpath] = cur_val
+            self.add_label(curimgpath, cur_val)
             return
         else:
             self.display_img(self.cur_imgidx - 1)
@@ -514,16 +571,22 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         # TODO: Reset UI also.
         self.imagelabels = {}
         self.imagepaths = []
+        self.imagecaptions = {}
+        self.captionlabels = {}
         self.cur_imgidx = 0
 
-    def start(self, imageslist, outfile='labelpanelout.csv'):
+    def start(self, imageslist, captions=None, outfile='labelpanelout.csv'):
         """Given a dict of imagepaths to label, set up the UI, and
         allow the user to start labeling things. This will reset all
         state to be a 'clean slate'.
         Input:
             lst imageslist: list of image paths
+            dict captions: A dict mapping {str imgpath: str caption}.
+                           If you want to display some caption for an
+                           image to the user, provide it here.
             outfile: Output file to write results to.
         """
+        captions = captions if captions != None else {}
         self.reset()
         for imgpath in imageslist:
             if imgpath in self.imagelabels:
@@ -541,6 +604,8 @@ Implies that imgpath is present in imageslist more than once."
             assert imgpath not in self.imagepaths
             self.imagelabels[imgpath] = ''
             self.imagepaths.append(imgpath)
+            caption = captions.get(imgpath, "An Image.")
+            self.imagecaptions[imgpath] = caption
 
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
@@ -562,8 +627,18 @@ Implies that imgpath is present in imageslist more than once."
         state = pickle.load(open(statefile, 'rb'))
         imagelabels = state['imagelabels']
         imagepaths = state['imagepaths']
+
+        ## TODO: Legacy-handling code follows.
+        if 'imagecaptions' not in state:
+            state['imagecaptions'] = {}
+        if 'captionlabels' not in state:
+            state['captionlabels'] = {}
+        # END Legacy-handling code.
+
         self.imagelabels = imagelabels
         self.imagepaths = imagepaths
+        self.imagecaptions = state['imagecaptions']
+        self.captionlabels = state['captionlabels']
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx, no_overwrite=True)
         #self.SetClientSize(self.parent.GetClientSize())
@@ -583,6 +658,8 @@ Implies that imgpath is present in imageslist more than once."
         state = {}
         state['imagelabels'] = self.imagelabels
         state['imagepaths'] = self.imagepaths
+        state['imagecaptions'] = self.imagecaptions
+        state['captionlabels'] = self.captionlabels
         f = open(statefile, 'wb')
         pickle.dump(state, f)
         f.close()
@@ -614,6 +691,8 @@ Implies that imgpath is present in imageslist more than once."
         self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
                                                                              len(self.imagepaths)))
         self.inputctrl.SetValue(self.imagelabels[imgpath])
+        self.update_caption_txt(self.cur_imgidx)
+        self.update_listbox(self.cur_imgidx)
         #self.Fit()
         self.SetupScrolling()
         
@@ -646,6 +725,14 @@ def do_extract_attr_patches(proj):
                               init=({}, {}, ()))
     
 def _extract_combfn(result, subresult):
+    """ Aux. function used for the partask.do_partask interface.
+    Input:
+        result: (dict mapping_0, dict invmapping_0, list patchpaths_0)
+        subresult: (dict mapping_1, dict invmapping_1, list patchpaths_1)
+    Output:
+        The result of 'combining' result and subresult:
+            (dict mapping*, dict invmapping*, list patchpaths*)
+    """
     mapping, invmapping, patchpaths = result
     mapping_sub, invmapping_sub, patchpaths_sub = subresult
     new_mapping = dict(mapping.items() + mapping_sub.items())
