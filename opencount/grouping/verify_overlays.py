@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os
+import sys, csv, copy, pdb, os, textwrap
 import threading, time
 import timeit
 sys.path.append('../')
@@ -260,7 +260,6 @@ class VerifyPanel(wx.Panel):
         self.templateChoice = wx.ComboBox(self.mainPanel, choices=[], style=wx.CB_READONLY)
         self.okayButton = wx.Button(self.mainPanel, label='OK')
         self.splitButton = wx.Button(self.mainPanel, label='Split')
-        self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         misclassify_sizer = wx.BoxSizer(wx.VERTICAL)
         self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
@@ -268,9 +267,17 @@ class VerifyPanel(wx.Panel):
 in queue: 0")
         misclassify_sizer.Add(self.misclassifyButton)
         misclassify_sizer.Add(self.misclassify_txt)
+        digitgroup_sizer = wx.BoxSizer(wx.VERTICAL)
         self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
         self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
+        self.forcedigitgroupButton = wx.Button(self.mainPanel, label="Force Digit Grouping")
+        self.forcedigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickForceDigitGroup)
+        digitgroup_sizer.Add(self.rundigitgroupButton)
+        digitgroup_sizer.Add(self.forcedigitgroupButton)
+        quarantine_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
+        quarantine_sizer.AddMany([(self.debugButton,), (self.quarantineButton,)])
 
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
@@ -285,13 +292,10 @@ in queue: 0")
         hbox5.Add(self.okayButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
         hbox5.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((25,-1))
-        hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
-        hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(quarantine_sizer, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(misclassify_sizer, flag=wx.LEFT | wx.CENTRE)
-        #hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add(self.rundigitgroupButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(digitgroup_sizer, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
@@ -340,6 +344,8 @@ in queue: 0")
             self.misclassify_txt.Hide()
             self.rundigitgroupButton.Hide()
             self.manuallylabelButton.Hide()
+            self.quarantineButton.Hide()
+            self.forcedigitgroupButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -351,6 +357,8 @@ in queue: 0")
             self.diffImg.Hide()
             self.st3.Hide()
             self.st4.Hide()
+            self.quarantineButton.Hide()
+            self.forcedigitgroupButton.Hide()
 
         self.mainPanel.SetSizer(hbox7)
         self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
@@ -739,6 +747,30 @@ OpenCount claims you're 'done'. Uh oh."
         """ Used for MODE_NORMAL, for digitbased attributes. Signals
         that the user wants to re-run the digitparsing.
         """
+        self.run_digit_grouping()
+
+    def OnClickForceDigitGroup(self, evt):
+        dlg = ForceDigitGroupDialog(self)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        if status == wx.ID_CANCEL:
+            return
+        elif status == ForceDigitGroupDialog.ID_SMARTFORCE:
+            self.run_digit_grouping(force=True, do_smartforce=True)
+        elif status == ForceDigitGroupDialog.ID_BRUTEFORCE:
+            self.run_digit_grouping(force=True, do_smartforce=False)
+
+    def run_digit_grouping(self, force=False, do_smartforce=True):
+        """ Runs an iteration of DigitGrouping.
+        Input:
+            bool force: If True, then this forces an iteration.
+            bool do_smartforce: If True, then the forced digitgroup 
+                iteration will only run on voted ballots 'touched'
+                by either an 'Ok' or a 'Misclassify' (i.e. it won't
+                run on voted ballots that would possibly change the
+                digit group results).
+        """
         def get_digitattrtypes(project):
             attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
             digitattrs = []
@@ -802,16 +834,14 @@ at a time."
         print "Number of rejected regions:", ct
 
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
-        if len(rejected_hashes) == 0:
+        if not force and len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
             dlg = wx.MessageDialog(self, message="No need to re-run \
-DigitGrouping yet. \nIf you want to force DigitGrouping on all voted \
-ballots, choose 'Cancel'.", style=wx.OK | wx.CANCEL)
+DigitGrouping yet.", style=wx.OK)
             self.Disable()
-            status = dlg.ShowModal()
+            dlg.ShowModal()
             self.Enable()
-            if status == wx.ID_OK:
-                return
+            return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
         accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
@@ -838,23 +868,40 @@ rejected_hashes..."
             imgs = bal2imgs[ballotid]
             bal2imgs_todo[ballotid] = imgs
             todo_jobs += 1
-        if todo_jobs == 0:
+        if force and do_smartforce:
+            # Only run on voted ballots that have been touched by a
+            # "Yes" or a "MisClassify"
+            for votedpath, count in self._ok_history.iteritems():
+                ballotid = img2bal[votedpath]
+                imgs = bal2imgs[ballotid]
+                bal2imgs_todo[ballotid] = imgs
+                todo_jobs += 1
+        elif force and not do_smartforce:
+            bal2imgs_todo = bal2imgs
+            todo_jobs = len(bal2imgs)
+        elif todo_jobs == 0:
             dlg = wx.MessageDialog(self, message="No need to run \
 DigitGrouping - there's no new information. You must have performed a \
 'MisClassify' action in order for DigitGrouping to result in any \
 change. \nHowever, if you'd like to force a DigitGroup re-run (say, \
-you mistakenely labeled a digit), then choose 'Cancel'. Note that this \
-will re-run DigitGrouping on all voted ballots.",
-                                   style=wx.OK | wx.CANCEL)
+you mistakenely labeled a digit), then choose the 'Force Digit Grouping' \
+button in the previous screen.", style=wx.OK)
             self.Disable()
-            status = dlg.ShowModal()
+            dlg.ShowModal()
             self.Enable()
-            if status == wx.ID_OK:
-                return
-
-            bal2imgs_todo = bal2imgs
+            return
 
         print "==== Number of Jobs fed to do_digitocrpatches: {0}".format(todo_jobs)
+        if todo_jobs == 0:
+            print "== ...oh wait, no jobs here, return."
+            dlg = wx.MessageDialog(self, message="No need to re-run \
+DigitGrouping. If you /really/ want to re-run DigitGrouping, try \
+choosing the 'Force Digit Group' button.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+
         digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs_todo, digit_attrs, self.project,
                                                                               rejected_hashes=rejected_hashes,
                                                                               accepted_hashes=accepted_hashes)
@@ -1173,4 +1220,53 @@ OpenCount claims you're 'done'. Uh oh."
     def OnSize(self, event):
         self.fitPanel()
         event.Skip()
+
+class ForceDigitGroupDialog(wx.Dialog):
+    ID_SMARTFORCE = 78
+    ID_BRUTEFORCE = 79
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        msg0 = "Warning: This will re-run \
+Digit Grouping on all voted ballots (even if it's not necessary to run \
+Digit Grouping). This can take a few hours of computation time."
+        
+        msg1 = "If you want to run Digit Grouping only on a subset of the set of voted \
+ballots, choose 'Cancel', then the 'Run Digit Grouping' button. \
+This is the 'normal' mode of operation."
+        
+        msg2 = "If you wish to force-run Digit Grouping on only voted ballots \
+that you've marked either with an 'Ok' or a 'MisClassify', then \
+choose 'Smart Force'."
+        msg3 = "If you definitely want to force-run Digit Grouping on /all/ voted \
+ballots, choose 'Brute Yes'."
+
+        msg0 = textwrap.fill(msg0, 70)
+        msg1 = textwrap.fill(msg1, 70)
+        msg2 = textwrap.fill(msg2, 70)
+        msg3 = textwrap.fill(msg3, 70)
+        msg = msg0 + "\n\n" + msg1 + "\n" + msg2 + "\n" + msg3
+        txt = wx.StaticText(self, label=msg)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_cancel.SetDefault()
+        btn_smartforce = wx.Button(self, label="Smart Force")
+        btn_smartforce.Bind(wx.EVT_BUTTON, self.onButton_smartforce)
+        btn_bruteforce = wx.Button(self, label="Brute Force")
+        btn_bruteforce.Bind(wx.EVT_BUTTON, self.onButton_bruteforce)
+        btn_sizer.AddMany([(btn_cancel,), (btn_smartforce,), (btn_bruteforce,)])
+        sizer.Add(txt)
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
+    def onButton_smartforce(self, evt):
+        self.EndModal(self.ID_SMARTFORCE)
+    def onButton_bruteforce(self, evt):
+        self.EndModal(self.ID_BRUTEFORCE)
 
