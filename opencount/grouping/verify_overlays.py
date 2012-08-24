@@ -141,9 +141,18 @@ class VerifyPanel(wx.Panel):
                             # when verifying is done
         self.outfilepath = None   # An optional filepath to output
                                   # grouping results to.
+
+        ## The following are only used for digit-based attributes 
+
         # self._mismatch_cnt: Keeps track of the current number of 'new'
         # MisClassified overlays currently in the queue.
         self._mismatch_cnt = 0
+        # self._ok_history: Keeps track of how many times the user clicked
+        # 'Ok', for a voted ballot B
+        self._ok_history = {} # maps {str votedpath: int count}
+        # self._misclassify_history
+        self._misclassify_history = {} # maps {str votedpath: int count}
+
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
@@ -406,6 +415,8 @@ in queue: 0")
             pickle.dump(d, fqueue)
         
     def load_state(self):
+        # TODO: Move the 'verifygroupstate' to the Project class, to 
+        #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
             try:
                 self._mismatch_cnt = 0
@@ -638,11 +649,17 @@ in queue: 0")
                 # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
                 accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
+                if sampleid in self._ok_history:
+                    self._ok_history[sampleid] += 1
+                else:
+                    self._ok_history[sampleid] = 1
             _dur = time.time() - _t
             print "...Finished Updating accepted hashes. ({0} s).".format(_dur)
             times['update_acceptedhashes'] = _dur
             _t = time.time()
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+
+            self._ok_history
             _dur = time.time() - _t
             times['save_accepted'] = _dur
 
@@ -731,7 +748,7 @@ at a time."
             pdb.set_trace()
             assert False
 
-        attrtypestr = digitattrs[0]  # Assume only one digit-based attr
+        attrtypestr = digitattrs[0]  # TODO: Assume only one digit-based attr
         num_digits = common.get_numdigits(self.project, attrtypestr)
         w_img, h_img = self.project.imgsize
             
@@ -787,6 +804,16 @@ at a time."
 
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
+        # Filter out ballotids from bal2imgs that we don't need to process.
+        # VotedBallots we must process:
+        #    i.) If B has any 'mis classify'
+        bal2imgs_todo = {} # maps {str ballotid: (path_i, ...)}
+        img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+        for votedpath, count in self._misclassify_history.iteritems():
+            ballotid = img2bal[votedpath]
+            imgs = bal2imgs[ballotid]
+            bal2imgs_todo[ballotid] = imgs
+        
         digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
                                                                               rejected_hashes=rejected_hashes,
                                                                               accepted_hashes=accepted_hashes)
@@ -812,6 +839,8 @@ rejected_hashes..."
                 if common.get_propval(grouplabel, 'digit') != None:
                     self.finished.remove(group)
                     break
+        self._ok_history = {}
+        self._misclassify_history = {}
         # 2.) Now, add in all new 'digit' Groups
         # TODO: Discard all matches that deal with already-verified
         #       patches, or tell partmatch to not search these imgs.
@@ -903,6 +932,10 @@ at a time."
             # TODO: Is it sampleid, or imgpath?
             (bb, side, isflip) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
             rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side, isflip))
+            if sampleid in self._misclassify_history:
+                self._misclassify_history[sampleid] += 1
+            else:
+                self._misclassify_history[sampleid] = 1
         print "== Saving rejected_hashes"
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "== Counting..."

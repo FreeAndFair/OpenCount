@@ -573,10 +573,11 @@ The problematic blank ballot is on row {1}, col {2}".format(pagenum,row,col),
         h_target = int(round(h_target * h_img))
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for imgpath in self.world.get_boxes_all():
-            ## Comment this out to avoid breaking things downstream,
+            ## We comment this out to avoid breaking things downstream,
             ## but at some point this change will be necessary
             ## to handle blank ballots that have the same filenames
             ## (as in Napa)
+            # TODO: Apply this change.
             #tdir = self.project.templatesdir
             #if tdir[-1] != '/':
             #    tdir += '/'

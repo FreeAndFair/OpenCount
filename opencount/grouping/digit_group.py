@@ -26,7 +26,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         obj project
         dict rejected_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         dict accepted_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
-        lst ignorelist: List of images to ignore. UNUSED.
+        lst ignorelist: List of ballotid's to ignore. UNUSED.
     Output:
         A dict that maps:
           {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)
@@ -57,10 +57,11 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         """ Generate all ballot images for either side 0 or 1. """
         # TODO: Generalize to N-sided ballots
         paths = []
+        ignorelist = ignorelist if ignorelist != None else []
         for ballotid, path in bal2imgs.iteritems():
-            if ignorelist != None and ballotid in ignorelist:
+            if ballotid in ignorelist:
                 continue
-            if side == 0:
+            elif side == 0:
                 paths.append(path[0])
             else:
                 paths.append(path[1])
@@ -101,8 +102,16 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                      project.voteddigits_dir)
     img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
     if os.path.exists(voteddigits_dir):
-        print "Removing everything in:", voteddigits_dir
-        shutil.rmtree(voteddigits_dir)
+        # {str ballotid: ((attrtype_i,ocrstr_i,meta_i,flip_i,side_i), ...)}
+        digitgroup_results = load_digitgroup_results(project)
+        if digitgroup_results == None:
+            shutil.rmtree(voteddigits_dir)
+        else:
+            for ballotid, tuples in digitgroup_results.iteritems():
+                # This is indeed 'ballotid', not 'votedpath'.
+                for (digitattr,ocrstr,meta,isflip,side) in tuples:
+                    for (y1,y2,x1,x2,digit,digitimgpath,score) in meta:
+                        os.remove(digitimgpath)
     digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, isflip)}
 
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
@@ -116,19 +125,19 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
               x2+int(round(w*c))]
         # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
         if not util.is_multipage(project):
-            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
+            digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
                                                     digit_exs,
                                                     num_digits,
                                                     bb=bb, rejected_hashes=rejected_hashes,
                                                     accepted_hashes=accepted_hashes)
             digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
         else:
-            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0),
+            results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
                                                digit_exs,
                                                num_digits,
                                                bb=bb, rejected_hashes=rejected_hashes,
                                                accepted_hashes=accepted_hashes)
-            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1),
+            results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1, ignorelist=ignorelist),
                                                digit_exs,
                                                num_digits,
                                                bb=bb, rejected_hashes=rejected_hashes,
@@ -143,7 +152,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         #       ID to the {0}_votedextract.png patch paths.
         r, d = partask.do_partask(extract_voted_digitpatches,
                                   digitparse_results,
-                                  _args=(bb, digitattr, voteddigits_dir, img2bal),
+                                  _args=(bb, digitattr, voteddigits_dir, img2bal, project.samplesdir),
                                   combfn=my_combfn,
                                   init=({},{}),
                                   pass_idx=True) 
@@ -165,7 +174,17 @@ def my_combfn(result, subresult):
         comb_digitmatch_info[patchpath] = (bb, side, isflip)
     return (comb_result, comb_digitmatch_info)
 
-def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal), idx):
+def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, voteddir), idx):
+    """ Extracts each digit from each voted ballot, saves them to an
+    output directory, and stores some meta-data.
+    Input:
+        list stuff: ((imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...)
+    Output:
+        (dict result, digt digitmatch_info), where result is:
+            {str ballotid: ((digitattr_i, ocrstr_i, meta_i, flip_i, side_i), ...)}
+        and digitmatch_info is:
+            {str patchpath: ((y1,y2,x1,x2), side, bool isflip)}
+    """
     result = {}  # maps {str ballotid: [(digitattr_i, ocrstr_I, meta_i, flip_i, side_i), ...]}
     digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, bool is_flip)}
     ctr = 0
@@ -173,10 +192,17 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal),
         meta_out = []
         for (y1,y2,x1,x2, digit, digitimg, score) in meta:
             rootdir = os.path.join(voteddigits_dir, digit)
+            # Recreate directory structure
+            voteddir_abs = os.path.abspath(voteddir)
+            if voteddir_abs[-1] != '/':
+                voteddir_abs += '/'
+            imgpath_abs = os.path.abspath(imgpath)
+            rootdir = os.path.join(rootdir, imgpath_abs[len(voteddir_abs):])
             util.create_dirs(rootdir)
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip)
             assert isinstance(isflip, bool)
+            # TODO_PERF: Use OpenCV to do this digit extraction+saving
             if isflip == True:
                 Image.open(imgpath).rotate(180).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
             else:
@@ -213,6 +239,20 @@ def get_digitpatch_info(proj, patchpath, digitmatch_info=None):
         pdb.set_trace()
     assert patchpath in digitmatch_info
     return digitmatch_info[patchpath]
+
+def load_digitgroup_results(proj):
+    """ Loads the results of doing grouping-by-digits.
+    Input:
+        obj proj
+    Output:
+        {str ballotid: ((digitattr_i, ocrstr_i, meta_i, isflip_i, side_i), ...])} if
+        it exists, or None o.w.
+    """
+    path = pathjoin(proj.projdir_path, proj.digitgroup_results)
+    if os.path.exists(path):
+        return pickle.load(open(path, 'rb'))
+    else:
+        return None
 
 def save_digitgroup_results(proj, digitgroup_results):
     """ Saves the results of doing grouping-by-digits.

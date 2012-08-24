@@ -202,6 +202,8 @@ def load_attrboxes(filepath):
     f.close()
     return [AttributeBox.unmarshall(b) for b in listdata]
 
+
+
 def marshall_iworldstate(world):
     """
     Marshall world.box_locations such that it's 

@@ -154,6 +154,7 @@ class GroupingMasterPanel(wx.Panel):
 
         self.run_grouping.Hide()
         self.verify_grouping.Show()
+
         if groups:
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
@@ -163,6 +164,24 @@ class GroupingMasterPanel(wx.Panel):
             self.Refresh()
             self.Fit()
         else:
+            verifyoverlay_stateP = pathjoin(self.project.projdir_path,
+                                            'verifygroupstate.p')
+            if not os.path.exists(verifyoverlay_stateP):
+                # If grouping computation completes, but the VerifyOverlay
+                # UI Crashes, and doesn't save its statefile, then
+                # regenerate the state required for the UI.
+                groups = to_groupclasses(self.project)
+                digitgroup_results = digit_group.load_digitgroup_results(self.project)
+                groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
+                exemplar_paths = get_exemplar_paths()
+                self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
+                self.project.addCloseEvent(self.verify_grouping.dump_state)
+                self.verify_grouping.SendSizeEvent()
+                self.SendSizeEvent()
+                self.Refresh()
+                self.Fit()
+                return
+                
             #self.verify_grouping.start(groups, patches, exemplar_paths)
             self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
