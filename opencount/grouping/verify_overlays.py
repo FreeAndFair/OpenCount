@@ -806,7 +806,7 @@ at a time."
 rejected_hashes..."
         # Filter out ballotids from bal2imgs that we don't need to process.
         # VotedBallots we must process:
-        #    i.) If B has any 'mis classify'
+        #    i.) If B has any 'mis classify' actions upon it
         bal2imgs_todo = {} # maps {str ballotid: (path_i, ...)}
         img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
         for votedpath, count in self._misclassify_history.iteritems():
