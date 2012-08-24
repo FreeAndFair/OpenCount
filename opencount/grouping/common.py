@@ -985,7 +985,8 @@ class SingleChoiceDialog(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
-                rejected_hashes=None, accepted_hashes=None):
+                rejected_hashes=None, accepted_hashes=None,
+                digitdist=20):
     """ Basically does what sh.digitParse does, but checks to see if
     the image might be flipped, and if it is, to flip it and return
     the match with the best response.
@@ -996,6 +997,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
                   restricts the ocr search to the given bb.
         dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         dict accepted_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
+        int digitdist: The expected distance between adjacent digits.
     Output:
         list of [(imgpath_i, ocrstr_i, meta_i, bool isflip_i), ...]
     """
@@ -1034,11 +1036,13 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
                                            num_digits, do_flip=False,
                                            rejected_hashes=rejected_hashes,
-                                           accepted_hashes=accepted_hashes)
+                                           accepted_hashes=accepted_hashes,
+                                           hspace=digitdist)
     results_flip = part_match.digitParse(digit_exs, imgpaths, bb,
                                          num_digits, do_flip=True,
                                          rejected_hashes=rejected_hashes,
-                                         accepted_hashes=accepted_hashes)
+                                         accepted_hashes=accepted_hashes,
+                                         hspace=digitdist)
     results_noflip = munge_pm_results(results_noflip)
     results_flip = munge_pm_results(results_flip)
     results_best = get_best_flip(results_noflip, results_flip)

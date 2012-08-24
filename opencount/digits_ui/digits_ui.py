@@ -104,7 +104,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def ondone(self, results):
         """ Called when the user is finished labeling digit-based
-        attributes. Currently doesn't do much at all.
+        attributes.
         Input:
             dict results: maps {str patchpath: str precinct number}
         """

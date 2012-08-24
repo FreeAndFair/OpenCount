@@ -128,25 +128,29 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
               y2+int(round(h*c)),
               max(0, x1-int(round(w*c))),
               x2+int(round(w*c))]
+        median_dist = compute_median_dist(project, digitattr)
         # a list of results [(imgpath_i, ocr_str_i, meta_i, isflip_i, side_i), ...]
         if not util.is_multipage(project):
             digitparse_results = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
                                                     digit_exs,
                                                     num_digits,
                                                     bb=bb, rejected_hashes=rejected_hashes,
-                                                    accepted_hashes=accepted_hashes)
+                                                    accepted_hashes=accepted_hashes,
+                                                    digitdist=median_dist)
             digitparse_results = [tuple(thing)+(0,) for thing in digitparse_results]
         else:
             results_side0 = common.do_digitocr(all_ballotimgs(bal2imgs, 0, ignorelist=ignorelist),
                                                digit_exs,
                                                num_digits,
                                                bb=bb, rejected_hashes=rejected_hashes,
-                                               accepted_hashes=accepted_hashes)
+                                               accepted_hashes=accepted_hashes,
+                                               digitdist=median_dist)
             results_side1 = common.do_digitocr(all_ballotimgs(bal2imgs, 1, ignorelist=ignorelist),
                                                digit_exs,
                                                num_digits,
                                                bb=bb, rejected_hashes=rejected_hashes,
-                                               accepted_hashes=accepted_hashes)
+                                               accepted_hashes=accepted_hashes,
+                                               digitdist=median_dist)
             digitparse_results = get_best_side(results_side0, results_side1)
         # With PIL Crop: 3.63 s
         # With scipy sh.standardImread: 19.174 s
@@ -217,6 +221,51 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             ctr += 1
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result, digitmatch_info
+
+def compute_median_dist(proj, digitattr):
+    """ Computes the median (horiz) distance between adjacent digits,
+    based off of the digits from the blank ballots.
+    Input:
+        obj proj:
+        str digitattr: Which digit-based attribute to compute the
+                       median-distance for.
+    Output:
+        int distance, in pixels.
+    """
+    digit_med_dists = load_digit_median_dists(proj)
+    if digit_med_dists == None:
+        digit_med_dists = {}
+    dist = digit_med_dists.get(digitattr, None)
+    if dist != None:
+        return dist
+    
+    median_dist = 20 # TODO: Actually compute this.
+    digit_med_dists[digitattr] = median_dist
+    save_digit_median_dists(proj, digit_med_dists)
+    return median_dist
+
+def load_digit_median_dists(proj):
+    """ Returns the digit median distances if it exists, or None o.w.
+    Input:
+        obj proj:
+    Output:
+        A dict {str digittype: int median_distance}
+    """
+    digit_med_distsP = pathjoin(proj.projdir_path,
+                                proj.digit_median_dists)
+    if not os.path.exists(digit_med_distsP):
+        return None
+    digit_med_dists = pickle.load(open(digit_med_distsP, 'rb'))
+    return digit_med_dists
+
+def save_digit_median_dists(proj, digit_median_dists):
+    """ Stores the digit_median_dists dict to an output file.
+    Input:
+        obj proj:
+        dict digit_median_dists: maps {str digitattr: int median_distance}
+    """
+    digit_med_distsP = pathjoin(proj.projdir_path, proj.digit_median_dists)
+    pickle.dump(digit_median_dists, open(digit_med_distsP, 'wb'))
 
 def get_digitmatch_info(proj):
     """ Loads the digitmatch_info data structure, which is of the form:
