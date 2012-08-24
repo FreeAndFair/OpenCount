@@ -619,10 +619,8 @@ in queue: 0")
         #self.parent.Fit() # Causes UI issues
         if self.mode == VerifyPanel.MODE_NORMAL and type(self.currentGroup) == common.DigitGroupClass:
             self.misclassifyButton.Enable()
-            self.rundigitgroupButton.Enable()
         else:
             self.misclassifyButton.Disable()
-            self.rundigitgroupButton.Disable()
         self.fitPanel()
     
     def OnClickOK(self, event):
@@ -999,11 +997,14 @@ at a time."
         given.
         """
         print "DONE Verifying!"
-        dlg = wx.MessageDialog(self, message="Grouping verification \
+        if self.mode == VerifyPanel.MODE_NORMAL:
+            dlg = wx.MessageDialog(self, message="Grouping verification \
 finished! Press 'Ok', then you may continue to the next step.",
-                               style=wx.OK)
-        self.Disable()
-        dlg.ShowModal()
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+        else:
+            self.Disable()
         # First populate results
         results = {} # {grouplabel: list of GroupClasses}
         if self.mode == VerifyPanel.MODE_YESNO2:

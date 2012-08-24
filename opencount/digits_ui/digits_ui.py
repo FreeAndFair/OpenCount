@@ -516,7 +516,12 @@ digit.")
         present only the cells that probably still have digits-to-be-
         labeled.
         """
-        pass
+        self.Disable()
+        dlg = wx.MessageDialog(self, message="Sorry, this feature \
+hasn't been implemented yet. Stay tuned!",
+                               style=wx.OK)
+        dlg.ShowModal()
+        self.Enable()
                 
     def on_done(self):
         """When the user decides that he/she has indeed finished
@@ -549,7 +554,9 @@ digit.")
         return result
 
     def export_precinct_nums(self, result):
-        """ Export precinct nums to a specified outfile.
+        """ Export precinct nums to a specified outfile. Saves a data
+        structure dict of the form:
+            {str blankpath: {attrtype: (str digitval, (y1,y2,x1,x2), int side)}}
         Input:
             dict result: maps {str patchpath: str digitval}
             str outpath:

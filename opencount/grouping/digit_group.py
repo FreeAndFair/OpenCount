@@ -238,8 +238,25 @@ def compute_median_dist(proj, digitattr):
     dist = digit_med_dists.get(digitattr, None)
     if dist != None:
         return dist
-    
-    median_dist = 20 # TODO: Actually compute this.
+    # Bit hacky - peer into LabelDigit's 'matches' internal state
+    labeldigits_stateP = pathjoin(proj.projdir_path, proj.labeldigitstate)
+    # matches maps {str regionpath: ((patchpath_i,matchID_i,y1,y2,x1,x2,rszFac_i), ...)
+    matches = pickle.load(open(labeldigits_stateP, 'rb'))['matches']
+    dists = [] # stores adjacent distances
+    for regionpath, tuples in matches.iteritems():
+        x1_all = []
+        for (patchpath, matchID, y1, y2, x1, x2, rszFac) in tuples:
+            x1_all.append(int(round(x1 / rszFac)))
+        x1_all = sorted(x1_all)
+        for i, x1 in enumerate(x1_all[:-1]):
+            x1_i = x1_all[i+1]
+            dists.append(int(round(abs(x1 - x1_i))))
+    dists = sorted(dists)
+    if len(dists) <= 2:
+        median_dist = min(dists)
+    else:
+        median_dist = dists[int(len(dists) / 2)]
+    print '=== median_dist is:', median_dist
     digit_med_dists[digitattr] = median_dist
     save_digit_median_dists(proj, digit_med_dists)
     return median_dist
