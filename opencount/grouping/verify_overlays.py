@@ -804,6 +804,11 @@ at a time."
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         if len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
+            dlg = wx.MessageDialog(self, message="No need to re-run \
+DigitGrouping yet.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
             return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
@@ -835,11 +840,18 @@ rejected_hashes..."
             dlg = wx.MessageDialog(self, message="No need to run \
 DigitGrouping - there's no new information. You must have performed a \
 'MisClassify' action in order for DigitGrouping to result in any \
-change.")
+change. \nHowever, if you'd like to force a DigitGroup re-run (say, \
+you mistakenely labeled a digit), then choose 'Cancel'. Note that this \
+will re-run DigitGrouping on all voted ballots.",
+                                   style=wx.OK | wx.CANCEL)
             self.Disable()
-            dlg.ShowModal()
+            status = dlg.ShowModal()
             self.Enable()
-            return
+            if status == wx.ID_OK:
+                return
+
+            bal2imgs_todo = bal2imgs
+
         print "==== Number of Jobs fed to do_digitocrpatches: {0}".format(todo_jobs)
         digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs_todo, digit_attrs, self.project,
                                                                               rejected_hashes=rejected_hashes,
@@ -1158,4 +1170,3 @@ OpenCount claims you're 'done'. Uh oh."
     def OnSize(self, event):
         self.fitPanel()
         event.Skip()
-
