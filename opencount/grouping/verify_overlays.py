@@ -983,6 +983,7 @@ at a time."
         print "== Throw stuff in self.currentGroup.elements into rejected_hashes"
         # Load in digitmatch_info once, since it can be quite large.
         digitmatch_info = digit_group.get_digitmatch_info(self.project)
+        common.log_misclassify_ballots(self.project, self.currentGroup.elements)
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
@@ -1170,3 +1171,4 @@ OpenCount claims you're 'done'. Uh oh."
     def OnSize(self, event):
         self.fitPanel()
         event.Skip()
+

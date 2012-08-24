@@ -1095,3 +1095,12 @@ if __name__ == '__main__':
     frame = MyFrame(None)
     frame.Show()
     app.MainLoop()
+
+def log_misclassify_ballots(proj, elements):
+    """ Logs misclassified ballots to a logfile. """
+    try:
+        logfile = open(os.path.join(proj.projdir_path, 'misclassify.log'), 'a')
+        for sampleid, rlist, patchpath in elements:
+            print >>logfile, sampleid
+    except Exception as e:
+        print e
