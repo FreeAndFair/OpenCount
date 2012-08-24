@@ -906,14 +906,19 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                                                                               rejected_hashes=rejected_hashes,
                                                                               accepted_hashes=accepted_hashes)
         prev_digitgroup_results = digit_group.load_digitgroup_results(self.project)
-        if prev_digitgroup_results != None:
+        def _merge_previous_results(digitgroup_results, digitmatch_info,
+                                    prev_digitgroup_results, proj):
+            if prev_digitgroup_results == None:
+                return digitgroup_results, digitmatch_info
+            elif force and not do_smartforce:
+                return digitgroup_results, digitmatch_info
             ## Merge previous results of digitgrouping with the current
             ## digitgrouping results.
             # digitgroup_results,digitmatch_info will only have results for
             # ballotids from bal2imgs_todo. We need to populate these data
             # structures with the other ballotids that we didn't re-run
             # digitgrouping on.
-            prev_digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            prev_digitmatch_info = digit_group.get_digitmatch_info(proj)
             for b_id, tuples in prev_digitgroup_results.iteritems():
                 # This is actually b_id (ballotid), not votedpath.
                 if b_id not in bal2imgs_todo:
@@ -922,6 +927,12 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                 # TODO: Assumes only one digitattribute.
                 if b_id not in bal2imgs_todo:
                     digitmatch_info[patchpath] = (bb, side, isflip, b_id)
+            return digitgroup_results, digitmatch_info
+
+        digitgroup_results, digitmatch_info = _merge_previous_results(digitgroup_results,
+                                                                      digitmatch_info,
+                                                                      prev_digitgroup_results,
+                                                                      self.project)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
         digit_group.save_digitmatch_info(self.project, digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
