@@ -40,12 +40,36 @@ Output Files:
      'finished': At one point, intended to store all labeled GroupClass
                  instances, but this is unused - should always be the
                  empty list [].}
+
 - <projdir>/<VeriyPanel.outfilepath>
   Stores the raw results of completing the overlay verification, as a
   pickle'd dictionary, where the keys are grouplabels, and the values
   are a list of GroupClass instances:
     {grouplabel: list of GroupClass's}
   For OpenCount, I don't think it uses/saves this. 
+
+Digit-related Output Files
+
+- <projdir>/accepted_hashes.p
+- <projdir>/rejected_hashes.p
+
+These store the regions on voted ballots for which the user clicked 'Ok'
+or 'Misclassified' for. Dictionaries are of the form:
+    {str imgpath: {str digit: [(bb_i, side, isflip), ...]}}
+
+- <projdir>/digitgroup_results.p
+
+This is the result of digit_group.do_digitocr_patches. Is a dict of the
+form:
+    {str ballotid: [(digitattr_i, ocrstr_i, meta_i, isflip_i, side_i), ...]}
+where meta_i is numDigits-tuples of the form:
+    [(y1,y2,x1,x2, digit_i, outpath_i, score_i), ...]
+
+- <projdir>/digitmatch_info.p
+
+This is from the result of digit_group.do_digitocr_patches, and maps
+{str patchpath: (bb, side, isflip, ballotid)}
+
 """
 
 """
@@ -266,6 +290,7 @@ class VerifyPanel(wx.Panel):
         self.misclassify_txt = wx.StaticText(self.mainPanel, label="Mismatches \
 in queue: 0")
         misclassify_sizer.Add(self.misclassifyButton)
+        misclassify_sizer.Add((20, 20))
         misclassify_sizer.Add(self.misclassify_txt)
         digitgroup_sizer = wx.BoxSizer(wx.VERTICAL)
         self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
@@ -273,6 +298,7 @@ in queue: 0")
         self.forcedigitgroupButton = wx.Button(self.mainPanel, label="Force Digit Grouping")
         self.forcedigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickForceDigitGroup)
         digitgroup_sizer.Add(self.rundigitgroupButton)
+        digitgroup_sizer.Add((20, 20))
         digitgroup_sizer.Add(self.forcedigitgroupButton)
         quarantine_sizer = wx.BoxSizer(wx.VERTICAL)
         self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
@@ -294,7 +320,9 @@ in queue: 0")
         hbox5.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(quarantine_sizer, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((40, -1))
         hbox5.Add(misclassify_sizer, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((60, -1))
         hbox5.Add(digitgroup_sizer, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))

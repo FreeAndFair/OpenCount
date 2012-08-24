@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, re
+import sys, csv, copy, pdb, os, re, shutil
 import threading, time
 import timeit
 sys.path.append('../')
@@ -399,6 +399,25 @@ class RunGroupingPanel(wx.Panel):
             print e
             print "grouping.RunGroupingPanel can't output time to TIMER."
         self.run_button.Disable()
+        # Remember to remove state files
+        projdir = self.project.projdir_path
+        util_gui.remove_files(self.project.grouping_results,
+                              pathjoin(projdir,
+                                       self.project.ballot_to_page),
+                              pathjoin(projdir,
+                                       'verifygroupstate.p'),
+                              pathjoin(projdir,
+                                       self.project.digitgroup_results),
+                              pathjoin(projdir,
+                                       self.project.digitmatch_info),
+                              pathjoin(projdir,
+                                       self.project.rejected_hashes),
+                              pathjoin(projdir,
+                                       self.project.accepted_hashes))
+        voteddigits_dir = pathjoin(projdir, 'voteddigits_dir')
+        if os.path.exists(voteddigits_dir):
+            shutil.rmtree(pathjoin(projdir,
+                                   'voteddigits_dir'))
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
@@ -466,12 +485,8 @@ class RunGroupingPanel(wx.Panel):
             print "== Performing DigitOCR..."
             digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
             print "== Finished DigitOCR."
-            outpath = os.path.join(self.project.projdir_path, 
-                                   self.project.digitgroup_results)
-            f = open(outpath, 'wb')
-            pickle.dump(digitgroup_results, f)
+            digit_group.save_digitgroup_results(self.project, digitgroup_results)
             digit_group.save_digitmatch_info(self.project, digitmatch_info)
-            f.close()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
     def start_grouping(self):
@@ -539,10 +554,24 @@ Do you really want to re-run grouping?"""
         statusval = dlg.ShowModal()
         if statusval == YES:
             # Remember to remove state files
-            util_gui.remove_files(pathjoin(self.project.projdir_path,
+            projdir = self.project.projdir_path
+            util_gui.remove_files(self.project.grouping_results,
+                                  pathjoin(projdir,
+                                           self.project.ballot_to_page),
+                                  pathjoin(projdir,
+                                           'verifygroupstate.p'),
+                                  pathjoin(projdir,
+                                           self.project.digitgroup_results),
+                                  pathjoin(projdir,
+                                           self.project.digitmatch_info),
+                                  pathjoin(projdir,
                                            self.project.rejected_hashes),
-                                  pathjoin(self.project.projdir_path,
+                                  pathjoin(projdir,
                                            self.project.accepted_hashes))
+            voteddigits_dir = pathjoin(projdir, 'voteddigits_dir')
+            if os.path.exists(voteddigits_dir):
+                shutil.rmtree(pathjoin(projdir,
+                                       'voteddigits_dir'))
             self.start_grouping()
 
     def onButton_continue(self, evt):
@@ -611,6 +640,7 @@ Do you really want to re-run grouping?"""
             if not os.path.exists(digitgroup_resultsP):
                 print "Digit Grouping hasn't been done yet:".format(digitgroup_resultsP)
                 return False
+            
         return True
 
     def _pubsub_project(self, msg):
