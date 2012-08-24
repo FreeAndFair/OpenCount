@@ -677,6 +677,17 @@ in queue: 0")
         if self.is_done_verifying():
             self.currentGroup = None
             self.done_verifying()
+        elif len(self.queue) == 0:
+            if self._mismatch_cnt != 0:
+                msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+            else:
+                msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         else:
             self.select_group(self.queue[0])
         _dur = time.time() - _t
@@ -987,7 +998,11 @@ at a time."
         self.select_group(self.queue[0])
 
     def is_done_verifying(self):
-        return not self.queue
+        """ Return True iff overlay verification is complete. False o.w. """
+        if not self.queue and self._mismatch_cnt == 0:
+            return True
+        else:
+            return False
         
     def done_verifying(self):
         """
@@ -1116,6 +1131,17 @@ finished! Press 'Ok', then you may continue to the next step.",
             self.quarantine_group(self.currentGroup)
             if self.is_done_verifying():
                 self.done_verifying()
+            elif len(self.queue) == 0:
+                if self._mismatch_cnt != 0:
+                    msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+                else:
+                    msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+                dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
             else:
                 self.select_group(self.queue[0])
     
