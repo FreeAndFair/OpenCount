@@ -805,11 +805,13 @@ at a time."
         if len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
             dlg = wx.MessageDialog(self, message="No need to re-run \
-DigitGrouping yet.", style=wx.OK)
+DigitGrouping yet. \nIf you want to force DigitGrouping on all voted \
+ballots, choose 'Cancel'.", style=wx.OK | wx.CANCEL)
             self.Disable()
-            dlg.ShowModal()
+            status = dlg.ShowModal()
             self.Enable()
-            return
+            if status == wx.ID_OK:
+                return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
         accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
