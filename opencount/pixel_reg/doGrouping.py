@@ -148,12 +148,17 @@ def dist2patches(patchTuples,scale,debug=False):
         I=np.round(sh.fastResize(imgpatch,scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
         #I[I==1.0]=.999; I[I==0.0]=.001
+        #patchScale = sh.resizeOrNot(attrpatch.shape, int(round(max(attrpatch.shape)*scale)))
         patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
         #patch[patch==1.0]=.999; patch[patch==0.0]=.001
         try:
             res=evalPatchSimilarity(I,patch)
         except Exception as e:
             print "CRASHED AT IDX:", idx
+            print "    Scale was: {0}".format(scale)
+            print "    patchScale was: {0}".format(patchScale)
+            print "    I.shape: {0} patch.shape: {1}".format(I.shape, patch.shape)
+            print "    imgpatch: {0} attrpatch: {1}".format(imgpatch.shape, attrpatch.shape)
             raise e
         scores[idx]=res[0]
         locs.append((res[1][0]/scale,res[1][1]/scale))
