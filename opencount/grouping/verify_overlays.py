@@ -646,9 +646,10 @@ in queue: 0")
             _t = time.time()
             print "Updating accepted hashes..."
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
+                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip, str ballotid)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
-                accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
+                (bb, side, isflip) = digitinfo[0], digitinfo[1], digitinfo[2]
+                accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb,side,isflip))
                 if sampleid in self._ok_history:
                     self._ok_history[sampleid] += 1
                 else:
@@ -809,14 +810,42 @@ rejected_hashes..."
         #    i.) If B has any 'mis classify' actions upon it
         bal2imgs_todo = {} # maps {str ballotid: (path_i, ...)}
         img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+        todo_jobs = 0
         for votedpath, count in self._misclassify_history.iteritems():
             ballotid = img2bal[votedpath]
             imgs = bal2imgs[ballotid]
             bal2imgs_todo[ballotid] = imgs
-        
-        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+            todo_jobs += 1
+        if todo_jobs == 0:
+            dlg = wx.MessageDialog(self, message="No need to run \
+DigitGrouping - there's no new information. You must have performed a \
+'MisClassify' action in order for DigitGrouping to result in any \
+change.")
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        print "==== Number of Jobs fed to do_digitocrpatches: {0}".format(todo_jobs)
+        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs_todo, digit_attrs, self.project,
                                                                               rejected_hashes=rejected_hashes,
                                                                               accepted_hashes=accepted_hashes)
+        prev_digitgroup_results = digit_group.load_digitgroup_results(self.project)
+        if prev_digitgroup_results != None:
+            ## Merge previous results of digitgrouping with the current
+            ## digitgrouping results.
+            # digitgroup_results,digitmatch_info will only have results for
+            # ballotids from bal2imgs_todo. We need to populate these data
+            # structures with the other ballotids that we didn't re-run
+            # digitgrouping on.
+            prev_digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            for b_id, tuples in prev_digitgroup_results.iteritems():
+                # This is actually b_id (ballotid), not votedpath.
+                if b_id not in bal2imgs_todo:
+                    digitgroup_results.setdefault(b_id, []).extend(tuples)
+            for patchpath, (bb, side, isflip, b_id) in prev_digitmatch_info.iteritems():
+                # TODO: Assumes only one digitattribute.
+                if b_id not in bal2imgs_todo:
+                    digitmatch_info[patchpath] = (bb, side, isflip, b_id)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
         digit_group.save_digitmatch_info(self.project, digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
@@ -930,7 +959,7 @@ at a time."
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            (bb, side, isflip) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
+            (bb, side, isflip, b_id) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
             rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side, isflip))
             if sampleid in self._misclassify_history:
                 self._misclassify_history[sampleid] += 1

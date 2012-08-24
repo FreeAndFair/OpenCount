@@ -1694,8 +1694,8 @@ def make_optionparser():
     return parser
 
 def main():
-    logger = multiprocessing.log_to_stderr()
-    logger.setLevel(logging.INFO)
+    #logger = multiprocessing.log_to_stderr()
+    #logger.setLevel(logging.INFO)
 
     parser = make_optionparser()
     options, args = parser.parse_args()

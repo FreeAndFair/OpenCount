@@ -109,10 +109,15 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         else:
             for ballotid, tuples in digitgroup_results.iteritems():
                 # This is indeed 'ballotid', not 'votedpath'.
-                for (digitattr,ocrstr,meta,isflip,side) in tuples:
-                    for (y1,y2,x1,x2,digit,digitimgpath,score) in meta:
-                        os.remove(digitimgpath)
-    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, isflip)}
+                if ballotid in bal2imgs:
+                    print "== Removing digit patches for {0}".format(ballotid)
+                    for (digitattr,ocrstr,meta,isflip,side) in tuples:
+                        for (y1,y2,x1,x2,digit,digitimgpath,score) in meta:
+                            try:
+                                os.remove(digitimgpath)
+                            except OSError as e:
+                                pass
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, isflip, ballotid)}
 
     for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
         num_digits = numdigitsmap[digitattr]
@@ -158,8 +163,8 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                   pass_idx=True) 
         for ballotid, lsts in r.iteritems():
             result.setdefault(ballotid,[]).extend(lsts)
-        for patchpath, (bb, side, isflip) in d.iteritems():
-            digitmatch_info[patchpath] = (bb, side, isflip)
+        for patchpath, (bb, side, isflip, ballotid) in d.iteritems():
+            digitmatch_info[patchpath] = (bb, side, isflip, ballotid)
         print "== Finished Extracting Voted Digit Patches. Took {0}s.".format(time.time()-_t)
             
     return result, digitmatch_info
@@ -170,8 +175,8 @@ def my_combfn(result, subresult):
     sub_result, sub_digitmatch_info = subresult
     for ballotid, lsts in sub_result.iteritems():
         comb_result.setdefault(ballotid, []).extend(lsts)
-    for patchpath, (bb, side, isflip) in sub_digitmatch_info.iteritems():
-        comb_digitmatch_info[patchpath] = (bb, side, isflip)
+    for patchpath, (bb, side, isflip, ballotid) in sub_digitmatch_info.iteritems():
+        comb_digitmatch_info[patchpath] = (bb, side, isflip, ballotid)
     return (comb_result, comb_digitmatch_info)
 
 def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, voteddir), idx):
@@ -183,12 +188,13 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
         (dict result, digt digitmatch_info), where result is:
             {str ballotid: ((digitattr_i, ocrstr_i, meta_i, flip_i, side_i), ...)}
         and digitmatch_info is:
-            {str patchpath: ((y1,y2,x1,x2), side, bool isflip)}
+            {str patchpath: ((y1,y2,x1,x2), side, bool isflip, ballotid)}
     """
     result = {}  # maps {str ballotid: [(digitattr_i, ocrstr_I, meta_i, flip_i, side_i), ...]}
-    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, bool is_flip)}
+    digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, bool is_flip, str ballotid)}
     ctr = 0
     for (imgpath, ocr_str, meta, isflip, side) in stuff:
+        ballotid = img2bal[imgpath]
         meta_out = []
         for (y1,y2,x1,x2, digit, digitimg, score) in meta:
             rootdir = os.path.join(voteddigits_dir, digit)
@@ -196,11 +202,11 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             voteddir_abs = os.path.abspath(voteddir)
             if voteddir_abs[-1] != '/':
                 voteddir_abs += '/'
-            imgpath_abs = os.path.abspath(imgpath)
-            rootdir = os.path.join(rootdir, imgpath_abs[len(voteddir_abs):])
+            ballotid_abs = os.path.abspath(ballotid)
+            rootdir = os.path.join(rootdir, ballotid_abs[len(voteddir_abs):])
             util.create_dirs(rootdir)
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
-            digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip)
+            digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip, ballotid)
             assert isinstance(isflip, bool)
             # TODO_PERF: Use OpenCV to do this digit extraction+saving
             if isflip == True:
@@ -209,13 +215,12 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
                 Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
             meta_out.append((y1,y2,x1,x2, digit, outpath, score))
             ctr += 1
-        ballotid = img2bal[imgpath]
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result, digitmatch_info
 
 def get_digitmatch_info(proj):
     """ Loads the digitmatch_info data structure, which is of the form:
-        {str patchpath: ((y1,y2,x1,x2), str side, bool isflip)
+        {str patchpath: ((y1,y2,x1,x2), str side, bool isflip, str ballotid)
     """
     digitmatch_infoP = pathjoin(proj.projdir_path, proj.digitmatch_info)
     digitmatch_info = pickle.load(open(digitmatch_infoP, 'rb'))
@@ -223,14 +228,14 @@ def get_digitmatch_info(proj):
 
 def get_digitpatch_info(proj, patchpath, digitmatch_info=None):
     """ Given the path to a digit-patch (from a votedballot), return
-    the ((y1,y2,x1,x2), side, bool isflip) region from the votedballot it was extracted
+    the ((y1,y2,x1,x2), side, bool isflip, ballotid) region from the votedballot it was extracted
     from.
     Input:
         obj proj:
         str patchpath: Path of a digitpatch from some image
         dict digitmatch_info: 
     Output:
-        ((y1,y2,x1,x2), str side, bool isflip)
+        ((y1,y2,x1,x2), str side, bool isflip, str ballotid)
     """
     if digitmatch_info == None:
         digitmatch_info = get_digitmatch_info(proj)
@@ -271,7 +276,7 @@ def save_digitmatch_info(proj, digitmatch_info):
     about all extracted digit patches from voted ballots.
     Input:
         obj proj:
-        dict digitmatch_info: maps {str patchpath: ((y1,y2,x1,x2), str side, bool isflip)}
+        dict digitmatch_info: maps {str patchpath: ((y1,y2,x1,x2), str side, bool isflip, str ballotid)}
     """
     outpath = pathjoin(proj.projdir_path, proj.digitmatch_info)
     pickle.dump(digitmatch_info, open(outpath, 'wb'))
@@ -331,6 +336,10 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                 if ballotid in ignorelist:
                     continue
                 if common.is_digitbased(proj, attr_type):
+                    if ballotid not in digitgroup_results:
+                        # This is OK, it means that we did not have to
+                        # run digitocr on ballotid.
+                        continue
                     for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[ballotid]:
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2, digit, digitpatchpath, score) in meta_i:
@@ -347,8 +356,9 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
                     # Note: digitgroup_results has correct side info
                     sidepath = frontpath if frontpath in digitgroup_results else backpath
                     if sidepath not in digitgroup_results:
-                        print "Uhoh, sidepath not in digitgroup_results"
-                        pdb.set_trace()
+                        # This is OK, it means that we didn't have to
+                        # run digitocr on ballotid.
+                        continue
                     for (attrtype_i, ocr_str_i, meta_i, isflip_i, side_i) in digitgroup_results[sidepath]:
                         if attrtype_i == attr_type:
                             for (y1,y2,x1,x2,digit,digitpatchpath,score) in meta_i:
