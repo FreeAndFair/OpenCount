@@ -93,7 +93,8 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.mainpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
-        self.Fit()
+        #self.Fit()
+
         statefile = pathjoin(self.project.projdir_path,
                              self.project.labeldigitstate)
         self.mainpanel.start(statefile=statefile)
@@ -142,8 +143,9 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
 
+        self.SetClientSize(self.parent.GetClientSize())
+
     def start(self, statefile=None):
-        self.Fit()
         if not self.digitpanel.restore_session(statefile=statefile):
             self.digitpanel.start()
 
@@ -203,31 +205,17 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.SetSizer(self.sizer)
 
         self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
-        self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        self.sizer.Add(self.gridsizer)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
 
         self.rszFac = None
         
-        def compute_dc_size():
-            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    imgpath = pathjoin(dirpath, imgname)
-                    pil_img = util_gui.open_as_grayscale(imgpath)
-                    w, h = pil_img.size
-                    c = float(w) / self.MAX_WIDTH
-                    w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                    if not self.cellh:
-                        self.cellh = h_scaled
-                    return self.cellw * self.NUM_COLS, self.cellh * self.NUM_ROWS
-            return None
-        
-        w, h = compute_dc_size()
-
         self.i, self.j = 0, 0    # Keeps track of all boxes
         self.i_cur, self.j_cur = 0, 0  # Keeps track of currently
                                        # displayed boxes
-        self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
+
         self.imgID2cell = {} # Maps {str imgID: (i,j)}
         self.cell2imgID = {} # Maps {(i,j): str imgID}
 
@@ -343,6 +331,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Reads in the digit patches (given by self.extracted_dir),
         and displays them on a grid.
         """
+        w, h = self.GetClientSize()
+        w_suggested = int(round(w / self.NUM_COLS))
+        self.MAX_WIDTH = w_suggested
+        self.cell_w = w_suggested
+
         for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 imgpath = pathjoin(dirpath, imgname)
