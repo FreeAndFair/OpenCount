@@ -99,6 +99,11 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                              self.project.labeldigitstate)
         self.mainpanel.start(statefile=statefile)
         self.project.addCloseEvent(lambda: self.mainpanel.digitpanel.save_session(statefile=statefile))
+        self.Bind(wx.EVT_SIZE, self.onSize)
+        self.SetupScrolling()
+
+    def onSize(self, evt):
+        self.SetupScrolling()
 
     def export_results(self):
         self.mainpanel.export_results()
@@ -127,6 +132,10 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.button_sort.Bind(wx.EVT_BUTTON, self.onButton_sort)
         self.button_done = wx.Button(self, label="I'm Done.")
         self.button_done.Bind(wx.EVT_BUTTON, self.onButton_done)
+        btn_zoomin = wx.Button(self, label="Zoom In.")
+        btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
+        btn_zoomout = wx.Button(self, label="Zoom Out.")
+        btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
 
         self.digitpanel = DigitLabelPanel(self, extracted_dir,
                                           digit_exemplars_outdir,
@@ -137,6 +146,10 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         sizerbtns.Add(self.button_sort)
         sizerbtns.Add((20,20))
         sizerbtns.Add(self.button_done)
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(btn_zoomin)
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(btn_zoomout)
         
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizerbtns, border=10, flag=wx.EXPAND | wx.ALL)
@@ -144,6 +157,11 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.SetSizer(self.sizer)
 
         self.SetClientSize(self.parent.GetClientSize())
+        self.SetupScrolling()
+        self.Bind(wx.EVT_SIZE, self.onSize)
+    
+    def onSize(self, evt):
+        self.SetupScrolling()
 
     def start(self, statefile=None):
         if not self.digitpanel.restore_session(statefile=statefile):
@@ -157,6 +175,11 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def onButton_done(self, evt):
         self.digitpanel.on_done()
+
+    def onButton_zoomin(self, evt):
+        pass
+    def onButton_zoomout(self, evt):
+        pass
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
@@ -222,6 +245,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self._box = None # A Box that is being created
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
+        self.Bind(wx.EVT_SIZE, self.onSize)
+
+    def onSize(self, evt):
+        self.SetupScrolling()
 
     def onChildFocus(self, evt):
         # If I don't override this child focus event, then wx will
@@ -253,7 +280,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         digits = state['digits']
         self.start()
         for regionpath, digits_str in digits.iteritems():
-            self.precinct_txts[regionpath].SetLabel("Precinct Number:"+digits_str)
+            i, j = self.imgID2cell[regionpath]
+            k = (self.NUM_COLS * i) + j
+            self.precinct_txts[regionpath].SetLabel("{0}: Precinct Number: {1}".format(str(k),
+                                                                                       digits_str))
         #for regionpath, boxes in cell_boxes.iteritems():
         #    self.cells[regionpath].boxes = boxes
         # For awhile, a bug happened where self.matches could become 
@@ -357,7 +387,9 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """ Updates the 'Precinct Num:' StaticText. """
         txt = self.precinct_txts[imgpath]
         cell = self.cells[imgpath]
-        txt.SetLabel("Precinct Number: {0}".format(cell.get_digits()))
+        i, j = self.imgID2cell[imgpath]
+        k = (self.NUM_COLS * i) + j
+        txt.SetLabel("{0} Precinct Number: {1}".format(str(k), cell.get_digits()))
 
     def start_tempmatch(self, imgpatch, cell):
         """ The user has selected a digit (imgpatch). Now we want to
