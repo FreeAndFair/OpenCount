@@ -710,15 +710,9 @@ def add_flipinfo(project, correctedflips, fields, csvpath):
     writer.writerows(newrows)
     writefile.close()
 def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips):
-    """
-    TODO: Instead of mutating the ballot_to_images.p mapping (which is
-    used by widgets previous in the pipeline), just create a new
-    mapping ballot_to_page.p, that maps:
-        {str ballotimgpath: int sidenumber}
-    This will fix the problem where the wrong ballot gets quarantined if
-    you re-run grouping on OpenCount.
-    
-    Fix the ordering in the ballot_to_images mapping.
+    """    
+    Creates the 'ballot_to_page' dictionary, which maps voted imgpath
+    to which 'side' it is on.
     dict bal2tmp: {str ballotid: str templateid}
     dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}
     dict patches: {str temppath: list of ((y1,y2,x1,x2),attrtype,attrval,side, is_digitbased,is_tabulationonly)}
