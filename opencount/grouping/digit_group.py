@@ -7,6 +7,7 @@ except ImportError as e:
     import pickle
 
 import scipy, scipy.misc
+import cv
 from os.path import join as pathjoin
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
@@ -110,7 +111,6 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
             for ballotid, tuples in digitgroup_results.iteritems():
                 # This is indeed 'ballotid', not 'votedpath'.
                 if ballotid in bal2imgs:
-                    print "== Removing digit patches for {0}".format(ballotid)
                     for (digitattr,ocrstr,meta,isflip,side) in tuples:
                         for (y1,y2,x1,x2,digit,digitimgpath,score) in meta:
                             try:
@@ -212,11 +212,16 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip, ballotid)
             assert isinstance(isflip, bool)
-            # TODO_PERF: Use OpenCV to do this digit extraction+saving
+            img = cv.LoadImage(imgpath, False)
             if isflip == True:
-                Image.open(imgpath).rotate(180).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
-            else:
-                Image.open(imgpath).crop((int(bb[2]+x1),int(bb[0]+y1),int(bb[2]+x2),int(bb[0]+y2))).save(outpath)
+                cv.Flip(img)
+            # _y1, etc. are coordinates of digit patch w.r.t image coords.
+            _y1 = int(bb[0]+y1)
+            _y2 = int(bb[0]+y2)
+            _x1 = int(bb[2]+x1)
+            _x2 = int(bb[2]+x2)
+            outdigitpatch = img[_y1:_y2, _x1:_x2]
+            cv.SaveImage(outpath, outdigitpatch)
             meta_out.append((y1,y2,x1,x2, digit, outpath, score))
             ctr += 1
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
