@@ -346,6 +346,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             exemplars = group_attrs.cluster_bkgd(attrval_map)
+            print "==== For Attribute {0}, {1} exemplars were found.".format(attrtype,
+                                                                             len(exemplars))
             attrtype_exemplars[attrtype] = exemplars
 
         # Save the patches to outdir

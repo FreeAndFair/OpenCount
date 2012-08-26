@@ -422,7 +422,7 @@ def cluster_attributes(blankpatches):
         all_exemplars[attrtype] = attrval_exemplars
     return all_exemplars
 
-def cluster_bkgd(mapping, D=35):
+def cluster_bkgd(mapping, D=5):
     """ Given a mapping {str label: list of imgpaths}, for each label L,
     generates N exemplar images, where each img in N (hopefully) 
     contains a different backgroung coloring.
