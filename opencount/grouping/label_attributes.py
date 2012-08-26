@@ -362,43 +362,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             
         # TODO: Call group_attrs.cluster_bkgd on /all/ blank ballots,
         #       not just attribute exemplars.
+        # blank attribute patches are stored in:
+        #   <projdir>/extract_attrs_templates/*
 
-        # TODO: This code below is garbage! I've already extracted all
-        # blank ballot attr patches to:
-        #    projdir/extract_attrs_templates/<ATTRTYPE>
-        # I should just those. Find where it's saving those, and also
-        # keep track of templatepath -> FILENAME.png.
-        # Then, pass those in as input to group_attrs.cluster_bkgd.
-        # But I'll also have to use the internal mappings (since attribute
-        # grouping has been run, probably.), to get attribute values.
-        
-        # 0. Save all template patches to a directory
-        tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
-        tasks = []
-        for attr in attrs:
-            attrtype = common.get_attrtype_str(attr)
-            x1 = int(round(attr['x1'] * w_img))
-            y1 = int(round(attr['y1'] * h_img))
-            x2 = int(round(attr['x2'] * w_img))
-            y2 = int(round(attr['y2'] * h_img))
-            side = attr['side']
-            # TODO: Generalize to N-sides
-            assert side in ('front', 'back')
-            for i, (templateid, paths) in enumerate(tmp2imgs.iteritems()):
-                if side == 'front':
-                    temppath = paths[0]
-                else:
-                    temppath = paths[1]
-                outpath = os.path.join(proj.projdir_path, 
-                                       '_all_blank_attrpatches',
-                                       attrtype,
-                                       '{0}_{1}.png'.format(i, os.path.splitext(os.path.split(templateid)[1])[0]))
-                tasks.append((temppath, (y1,y2,x1,x2), outpath))
-        print "...Extracting all attribute patches to '_all_blank_attrpatches'..."
-        _t = time.time()
-        common.par_extract_patches(tasks)
-        print "...Finished extracting all attribute patches to '_all_blank_attrpatches' ({0} s).".format(time.time() - _t)
-            
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             exemplars = group_attrs.cluster_bkgd(attrval_map)
