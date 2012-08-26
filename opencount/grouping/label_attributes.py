@@ -335,7 +335,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         'eng' and 'span', and some language patches have a white or
         dark gray background, then this algorithm should discover two
         clusters within 'eng' (white backs, gray backs) and within 'span'
-        (white backs, gray backs). CURRENTLY NOT USED.
+        (white backs, gray backs).
         """
         blankpatches = {} # maps {attrtype: {attrval: (patchpath_i, ...)}}
         patchlabels = self.labelpanel.imagelabels
@@ -343,6 +343,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
             
+        # TODO: Call group_attrs.cluster_bkgd on /all/ blank ballots,
+        #       not just attribute exemplars.
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             exemplars = group_attrs.cluster_bkgd(attrval_map)
