@@ -118,12 +118,12 @@ class VerifyContestGrouping(wx.Panel):
 
         if self.group_index not in self.is_valid:
             self.is_valid[self.group_index] = [None]*len(self.orderedpaths)
-        return
 
     def back(self, x=None):
         self.index -= 1
         if self.index < 0:
             self.load_next_group(-1)
+            self.show()
             self.index = len(self.orderedpaths)-1
         self.show()
         
