@@ -337,26 +337,27 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         clusters within 'eng' (white backs, gray backs) and within 'span'
         (white backs, gray backs). CURRENTLY NOT USED.
         """
-        blankpatches = {} # maps {attrtype: {attrval: list of blank paths}}
+        blankpatches = {} # maps {attrtype: {attrval: (blankpath_i, ...)}}
         patchlabels = self.labelpanel.imagelabels
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(imgpath)
-        # maps {attrtype: {attrval: ((imgpath_i,y1,y2,x1,x2,rszFac), ...)}}
-        exemplars = group_attrs.cluster_attributesV2(blankpatches, self.project)
+            
+        attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
+        for attrtype, attrval_map in blankpatches.iteritems():
+            exemplars = group_attrs.cluster_bkgd(attrval_map)
+            attrtype_exemplars[attrtype] = exemplars
         # Save the patches to outdir
         outfile_map = {} # maps {attrtype: {attrval: patchpath}}
-        for attrtype, thedict in exemplars.iteritems():
+        for attrtype, thedict in attrtype_exemplars.iteritems():
             for attrval, exemplars in thedict.iteritems():
                 rootdir = os.path.join(outdir, attrtype)
                 util_gui.create_dirs(rootdir)
-                for i, (imgpath,y1,y2,x1,x2,rszFac) in enumerate(exemplars):
-                    img = scipy.misc.imread(imgpath, flatten=True)
-                    y1,y2,x1,x2 = map(lambda c: c / rszFac, (y1,y2,x1,x2))
-                    patch = img[y1:y2,x1:x2]
+                for i, patchpath in enumerate(exemplars):
+                    img = scipy.misc.imread(patchpath, flatten=True)
                     outfilename = "{0}_{1}.png".format(attrval, i)
                     fulloutpath = os.path.join(rootdir, outfilename)
-                    scipy.misc.imsave(fulloutpath, patch)
+                    scipy.misc.imsave(fulloutpath, img)
                     outfile_map.setdefault(attrtype, {}).setdefault(attrval, []).append(fulloutpath)
         # Also save out the outfile_map
         pickle.dump(outfile_map, open(pathjoin(self.project.projdir_path,

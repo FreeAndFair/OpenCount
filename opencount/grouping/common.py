@@ -260,16 +260,20 @@ def resize_img_norescale(img, size):
     newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
     return newimg
 
-def get_attrtypes(project):
+def get_attrtypes(project, with_digits=True):
     """
     Returns all attribute types in this election. Excludes CustomAttributes,
-    but does include DigitAttributes.
+    but does include DigitAttributes (if with_digits is True).
     """
     attrtypes = pickle.load(open(project.ballot_attributesfile, 'rb'))
     result = set()
     for attrdict in attrtypes:
-        attrs_str = get_attrtype_str(attrdict['attrs'])
-        result.add(attrs_str)
+        if not attrdict['is_digitbased']:
+            attrs_str = get_attrtype_str(attrdict['attrs'])
+            result.add(attrs_str)
+        elif with_digits and attrdict['is_digitbased']:
+            attrs_str = get_attrtype_str(attrdict['attrs'])
+            result.add(attrs_str)
     return result
 
 def get_attrtypes_all(project):

@@ -1085,12 +1085,15 @@ and active in order to access this.",
             TIMER.stop_task(('user', map_pages[self.LABEL_ATTRS]['user']))
             self.panel_label_attrs.stop()
             self.panel_label_attrs.export_results()
-            print "Currently skipping finding multiple exemplars..."
-            #print "Finding multiple exemplars..."
-            #outdir = os.path.join(self.project.projdir_path,
-            #                      self.project.attrexemplars_dir)
-            #self.panel_label_attrs.cluster_attr_patches(outdir)
-            #print "Finished finding multiple exemplars, can be found at:", outdir
+
+            print "Finding multiple exemplars..."
+            _t = time.time()
+            outdir = os.path.join(self.project.projdir_path,
+                                  self.project.attrexemplars_dir)
+            self.panel_label_attrs.cluster_attr_patches(outdir)
+            print "...Finished finding multiple exemplars ({0} s).".format(time.time() - _t)
+            print "    Results can be found at: ", outdir
+
             if (not self.panel_label_attrs.checkCanMoveOn()) and new > old:
                 dlg = wx.MessageDialog(self,
                                        message="Can't move along yet.", 
