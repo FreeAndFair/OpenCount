@@ -93,18 +93,24 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.mainpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
-        self.Fit()
+        #self.Fit()
+
         statefile = pathjoin(self.project.projdir_path,
                              self.project.labeldigitstate)
         self.mainpanel.start(statefile=statefile)
         self.project.addCloseEvent(lambda: self.mainpanel.digitpanel.save_session(statefile=statefile))
+        self.Bind(wx.EVT_SIZE, self.onSize)
+        self.SetupScrolling()
+
+    def onSize(self, evt):
+        self.SetupScrolling()
 
     def export_results(self):
         self.mainpanel.export_results()
 
     def ondone(self, results):
         """ Called when the user is finished labeling digit-based
-        attributes. Currently doesn't do much at all.
+        attributes.
         Input:
             dict results: maps {str patchpath: str precinct number}
         """
@@ -126,6 +132,10 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.button_sort.Bind(wx.EVT_BUTTON, self.onButton_sort)
         self.button_done = wx.Button(self, label="I'm Done.")
         self.button_done.Bind(wx.EVT_BUTTON, self.onButton_done)
+        btn_zoomin = wx.Button(self, label="Zoom In.")
+        btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
+        btn_zoomout = wx.Button(self, label="Zoom Out.")
+        btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
 
         self.digitpanel = DigitLabelPanel(self, extracted_dir,
                                           digit_exemplars_outdir,
@@ -136,14 +146,24 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         sizerbtns.Add(self.button_sort)
         sizerbtns.Add((20,20))
         sizerbtns.Add(self.button_done)
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(btn_zoomin)
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(btn_zoomout)
         
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizerbtns, border=10, flag=wx.EXPAND | wx.ALL)
         self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
 
+        self.SetClientSize(self.parent.GetClientSize())
+        self.SetupScrolling()
+        self.Bind(wx.EVT_SIZE, self.onSize)
+    
+    def onSize(self, evt):
+        self.SetupScrolling()
+
     def start(self, statefile=None):
-        self.Fit()
         if not self.digitpanel.restore_session(statefile=statefile):
             self.digitpanel.start()
 
@@ -155,6 +175,11 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def onButton_done(self, evt):
         self.digitpanel.on_done()
+
+    def onButton_zoomin(self, evt):
+        pass
+    def onButton_zoomout(self, evt):
+        pass
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
@@ -203,37 +228,27 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.SetSizer(self.sizer)
 
         self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
-        self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        self.sizer.Add(self.gridsizer)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
 
         self.rszFac = None
         
-        def compute_dc_size():
-            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    imgpath = pathjoin(dirpath, imgname)
-                    pil_img = util_gui.open_as_grayscale(imgpath)
-                    w, h = pil_img.size
-                    c = float(w) / self.MAX_WIDTH
-                    w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                    if not self.cellh:
-                        self.cellh = h_scaled
-                    return self.cellw * self.NUM_COLS, self.cellh * self.NUM_ROWS
-            return None
-        
-        w, h = compute_dc_size()
-
         self.i, self.j = 0, 0    # Keeps track of all boxes
         self.i_cur, self.j_cur = 0, 0  # Keeps track of currently
                                        # displayed boxes
-        self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
+
         self.imgID2cell = {} # Maps {str imgID: (i,j)}
         self.cell2imgID = {} # Maps {(i,j): str imgID}
 
         self._box = None # A Box that is being created
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
+        self.Bind(wx.EVT_SIZE, self.onSize)
+
+    def onSize(self, evt):
+        self.SetupScrolling()
 
     def onChildFocus(self, evt):
         # If I don't override this child focus event, then wx will
@@ -265,7 +280,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         digits = state['digits']
         self.start()
         for regionpath, digits_str in digits.iteritems():
-            self.precinct_txts[regionpath].SetLabel("Precinct Number:"+digits_str)
+            i, j = self.imgID2cell[regionpath]
+            k = (self.NUM_COLS * i) + j
+            self.precinct_txts[regionpath].SetLabel("{0}: Precinct Number: {1}".format(str(k),
+                                                                                       digits_str))
         #for regionpath, boxes in cell_boxes.iteritems():
         #    self.cells[regionpath].boxes = boxes
         # For awhile, a bug happened where self.matches could become 
@@ -343,6 +361,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Reads in the digit patches (given by self.extracted_dir),
         and displays them on a grid.
         """
+        w, h = self.GetClientSize()
+        w_suggested = int(round(w / self.NUM_COLS))
+        self.MAX_WIDTH = w_suggested
+        self.cell_w = w_suggested
+
         for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 imgpath = pathjoin(dirpath, imgname)
@@ -364,7 +387,9 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """ Updates the 'Precinct Num:' StaticText. """
         txt = self.precinct_txts[imgpath]
         cell = self.cells[imgpath]
-        txt.SetLabel("Precinct Number: {0}".format(cell.get_digits()))
+        i, j = self.imgID2cell[imgpath]
+        k = (self.NUM_COLS * i) + j
+        txt.SetLabel("{0} Precinct Number: {1}".format(str(k), cell.get_digits()))
 
     def start_tempmatch(self, imgpatch, cell):
         """ The user has selected a digit (imgpatch). Now we want to
@@ -516,7 +541,12 @@ digit.")
         present only the cells that probably still have digits-to-be-
         labeled.
         """
-        pass
+        self.Disable()
+        dlg = wx.MessageDialog(self, message="Sorry, this feature \
+hasn't been implemented yet. Stay tuned!",
+                               style=wx.OK)
+        dlg.ShowModal()
+        self.Enable()
                 
     def on_done(self):
         """When the user decides that he/she has indeed finished
@@ -549,7 +579,9 @@ digit.")
         return result
 
     def export_precinct_nums(self, result):
-        """ Export precinct nums to a specified outfile.
+        """ Export precinct nums to a specified outfile. Saves a data
+        structure dict of the form:
+            {str blankpath: {attrtype: (str digitval, (y1,y2,x1,x2), int side)}}
         Input:
             dict result: maps {str patchpath: str digitval}
             str outpath:

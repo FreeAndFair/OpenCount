@@ -505,7 +505,6 @@ def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
     tiny 2x500 slivers, causing problems with image computation.
         shape: (500, 1000), c is 20, sc = '0.02'
         
-        
     Input:
         tuple shape: (height, width)
         int c:
@@ -518,7 +517,7 @@ def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
         # Don't want to grow the image.
         return 1.0
     scaleFactor = c / float(largestDim)
-    minScaleFactor = MIN_DIM / smallestDim;
+    minScaleFactor = MIN_DIM / float(smallestDim);
     return max(scaleFactor,minScaleFactor)
 
 def rgb2gray(I):

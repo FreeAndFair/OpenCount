@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os
+import sys, csv, copy, pdb, os, textwrap
 import threading, time
 import timeit
 sys.path.append('../')
@@ -40,12 +40,36 @@ Output Files:
      'finished': At one point, intended to store all labeled GroupClass
                  instances, but this is unused - should always be the
                  empty list [].}
+
 - <projdir>/<VeriyPanel.outfilepath>
   Stores the raw results of completing the overlay verification, as a
   pickle'd dictionary, where the keys are grouplabels, and the values
   are a list of GroupClass instances:
     {grouplabel: list of GroupClass's}
   For OpenCount, I don't think it uses/saves this. 
+
+Digit-related Output Files
+
+- <projdir>/accepted_hashes.p
+- <projdir>/rejected_hashes.p
+
+These store the regions on voted ballots for which the user clicked 'Ok'
+or 'Misclassified' for. Dictionaries are of the form:
+    {str imgpath: {str digit: [(bb_i, side, isflip), ...]}}
+
+- <projdir>/digitgroup_results.p
+
+This is the result of digit_group.do_digitocr_patches. Is a dict of the
+form:
+    {str ballotid: [(digitattr_i, ocrstr_i, meta_i, isflip_i, side_i), ...]}
+where meta_i is numDigits-tuples of the form:
+    [(y1,y2,x1,x2, digit_i, outpath_i, score_i), ...]
+
+- <projdir>/digitmatch_info.p
+
+This is from the result of digit_group.do_digitocr_patches, and maps
+{str patchpath: (bb, side, isflip, ballotid)}
+
 """
 
 """
@@ -141,9 +165,18 @@ class VerifyPanel(wx.Panel):
                             # when verifying is done
         self.outfilepath = None   # An optional filepath to output
                                   # grouping results to.
+
+        ## The following are only used for digit-based attributes 
+
         # self._mismatch_cnt: Keeps track of the current number of 'new'
         # MisClassified overlays currently in the queue.
         self._mismatch_cnt = 0
+        # self._ok_history: Keeps track of how many times the user clicked
+        # 'Ok', for a voted ballot B
+        self._ok_history = {} # maps {str votedpath: int count}
+        # self._misclassify_history
+        self._misclassify_history = {} # maps {str votedpath: int count}
+
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
@@ -251,17 +284,26 @@ class VerifyPanel(wx.Panel):
         self.templateChoice = wx.ComboBox(self.mainPanel, choices=[], style=wx.CB_READONLY)
         self.okayButton = wx.Button(self.mainPanel, label='OK')
         self.splitButton = wx.Button(self.mainPanel, label='Split')
-        self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         misclassify_sizer = wx.BoxSizer(wx.VERTICAL)
         self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
         self.misclassify_txt = wx.StaticText(self.mainPanel, label="Mismatches \
 in queue: 0")
         misclassify_sizer.Add(self.misclassifyButton)
+        misclassify_sizer.Add((20, 20))
         misclassify_sizer.Add(self.misclassify_txt)
+        digitgroup_sizer = wx.BoxSizer(wx.VERTICAL)
         self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
         self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
+        self.forcedigitgroupButton = wx.Button(self.mainPanel, label="Force Digit Grouping")
+        self.forcedigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickForceDigitGroup)
+        digitgroup_sizer.Add(self.rundigitgroupButton)
+        digitgroup_sizer.Add((20, 20))
+        digitgroup_sizer.Add(self.forcedigitgroupButton)
+        quarantine_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
+        quarantine_sizer.AddMany([(self.debugButton,), (self.quarantineButton,)])
 
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
@@ -276,13 +318,12 @@ in queue: 0")
         hbox5.Add(self.okayButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
         hbox5.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((25,-1))
-        hbox5.Add(self.debugButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
-        hbox5.Add(self.quarantineButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(quarantine_sizer, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((40, -1))
         hbox5.Add(misclassify_sizer, flag=wx.LEFT | wx.CENTRE)
-        #hbox5.Add(self.misclassifyButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add(self.rundigitgroupButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((60, -1))
+        hbox5.Add(digitgroup_sizer, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
@@ -331,6 +372,8 @@ in queue: 0")
             self.misclassify_txt.Hide()
             self.rundigitgroupButton.Hide()
             self.manuallylabelButton.Hide()
+            self.quarantineButton.Hide()
+            self.forcedigitgroupButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -342,6 +385,8 @@ in queue: 0")
             self.diffImg.Hide()
             self.st3.Hide()
             self.st4.Hide()
+            self.quarantineButton.Hide()
+            self.forcedigitgroupButton.Hide()
 
         self.mainPanel.SetSizer(hbox7)
         self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
@@ -406,6 +451,8 @@ in queue: 0")
             pickle.dump(d, fqueue)
         
     def load_state(self):
+        # TODO: Move the 'verifygroupstate' to the Project class, to 
+        #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
             try:
                 self._mismatch_cnt = 0
@@ -486,6 +533,7 @@ in queue: 0")
         if self.mode == VerifyPanel.MODE_YESNO2:
             # We don't have exemplar patches
             return
+        # TODO: Don't compute overlayMin/Max twice.
         overlayMin, overlayMax = self.currentGroup.get_overlays()
         templates = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
@@ -606,6 +654,10 @@ in queue: 0")
             self.splitButton.Enable()
         
         #self.parent.Fit() # Causes UI issues
+        if self.mode == VerifyPanel.MODE_NORMAL and type(self.currentGroup) == common.DigitGroupClass:
+            self.misclassifyButton.Enable()
+        else:
+            self.misclassifyButton.Disable()
         self.fitPanel()
     
     def OnClickOK(self, event):
@@ -635,14 +687,21 @@ in queue: 0")
             _t = time.time()
             print "Updating accepted hashes..."
             for (sampleid, rlist, patchpath) in self.currentGroup.elements:
-                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip)
+                # digitinfo: ((y1,y2,x1,x2), str side, bool isflip, str ballotid)
                 digitinfo = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
-                accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append(digitinfo)
+                (bb, side, isflip) = digitinfo[0], digitinfo[1], digitinfo[2]
+                accepted_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb,side,isflip))
+                if sampleid in self._ok_history:
+                    self._ok_history[sampleid] += 1
+                else:
+                    self._ok_history[sampleid] = 1
             _dur = time.time() - _t
             print "...Finished Updating accepted hashes. ({0} s).".format(_dur)
             times['update_acceptedhashes'] = _dur
             _t = time.time()
             partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+
+            self._ok_history
             _dur = time.time() - _t
             times['save_accepted'] = _dur
 
@@ -655,6 +714,17 @@ in queue: 0")
         if self.is_done_verifying():
             self.currentGroup = None
             self.done_verifying()
+        elif len(self.queue) == 0:
+            if self._mismatch_cnt != 0:
+                msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+            else:
+                msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         else:
             self.select_group(self.queue[0])
         _dur = time.time() - _t
@@ -706,6 +776,30 @@ in queue: 0")
         """ Used for MODE_NORMAL, for digitbased attributes. Signals
         that the user wants to re-run the digitparsing.
         """
+        self.run_digit_grouping()
+
+    def OnClickForceDigitGroup(self, evt):
+        dlg = ForceDigitGroupDialog(self)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        if status == wx.ID_CANCEL:
+            return
+        elif status == ForceDigitGroupDialog.ID_SMARTFORCE:
+            self.run_digit_grouping(force=True, do_smartforce=True)
+        elif status == ForceDigitGroupDialog.ID_BRUTEFORCE:
+            self.run_digit_grouping(force=True, do_smartforce=False)
+
+    def run_digit_grouping(self, force=False, do_smartforce=True):
+        """ Runs an iteration of DigitGrouping.
+        Input:
+            bool force: If True, then this forces an iteration.
+            bool do_smartforce: If True, then the forced digitgroup 
+                iteration will only run on voted ballots 'touched'
+                by either an 'Ok' or a 'Misclassify' (i.e. it won't
+                run on voted ballots that would possibly change the
+                digit group results).
+        """
         def get_digitattrtypes(project):
             attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
             digitattrs = []
@@ -731,7 +825,7 @@ at a time."
             pdb.set_trace()
             assert False
 
-        attrtypestr = digitattrs[0]  # Assume only one digit-based attr
+        attrtypestr = digitattrs[0]  # TODO: Assume only one digit-based attr
         num_digits = common.get_numdigits(self.project, attrtypestr)
         w_img, h_img = self.project.imgsize
             
@@ -769,8 +863,13 @@ at a time."
         print "Number of rejected regions:", ct
 
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
-        if len(rejected_hashes) == 0:
+        if not force and len(rejected_hashes) == 0:
             print "No need to re-run partmatch, rejected_hashes is empty."
+            dlg = wx.MessageDialog(self, message="No need to re-run \
+DigitGrouping yet.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
             return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
@@ -787,9 +886,82 @@ at a time."
 
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
-        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digit_attrs, self.project,
+        # Filter out ballotids from bal2imgs that we don't need to process.
+        # VotedBallots we must process:
+        #    i.) If B has any 'mis classify' actions upon it
+        bal2imgs_todo = {} # maps {str ballotid: (path_i, ...)}
+        img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+        todo_jobs = 0
+        for votedpath, count in self._misclassify_history.iteritems():
+            ballotid = img2bal[votedpath]
+            imgs = bal2imgs[ballotid]
+            bal2imgs_todo[ballotid] = imgs
+            todo_jobs += 1
+        if force and do_smartforce:
+            # Only run on voted ballots that have been touched by a
+            # "Yes" or a "MisClassify"
+            for votedpath, count in self._ok_history.iteritems():
+                ballotid = img2bal[votedpath]
+                imgs = bal2imgs[ballotid]
+                bal2imgs_todo[ballotid] = imgs
+                todo_jobs += 1
+        elif force and not do_smartforce:
+            bal2imgs_todo = bal2imgs
+            todo_jobs = len(bal2imgs)
+        elif todo_jobs == 0:
+            dlg = wx.MessageDialog(self, message="No need to run \
+DigitGrouping - there's no new information. You must have performed a \
+'MisClassify' action in order for DigitGrouping to result in any \
+change. \nHowever, if you'd like to force a DigitGroup re-run (say, \
+you mistakenely labeled a digit), then choose the 'Force Digit Grouping' \
+button in the previous screen.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+
+        print "==== Number of Jobs fed to do_digitocrpatches: {0}".format(todo_jobs)
+        if todo_jobs == 0:
+            print "== ...oh wait, no jobs here, return."
+            dlg = wx.MessageDialog(self, message="No need to re-run \
+DigitGrouping. If you /really/ want to re-run DigitGrouping, try \
+choosing the 'Force Digit Group' button.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+
+        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs_todo, digit_attrs, self.project,
                                                                               rejected_hashes=rejected_hashes,
                                                                               accepted_hashes=accepted_hashes)
+        prev_digitgroup_results = digit_group.load_digitgroup_results(self.project)
+        def _merge_previous_results(digitgroup_results, digitmatch_info,
+                                    prev_digitgroup_results, proj):
+            if prev_digitgroup_results == None:
+                return digitgroup_results, digitmatch_info
+            elif force and not do_smartforce:
+                return digitgroup_results, digitmatch_info
+            ## Merge previous results of digitgrouping with the current
+            ## digitgrouping results.
+            # digitgroup_results,digitmatch_info will only have results for
+            # ballotids from bal2imgs_todo. We need to populate these data
+            # structures with the other ballotids that we didn't re-run
+            # digitgrouping on.
+            prev_digitmatch_info = digit_group.get_digitmatch_info(proj)
+            for b_id, tuples in prev_digitgroup_results.iteritems():
+                # This is actually b_id (ballotid), not votedpath.
+                if b_id not in bal2imgs_todo:
+                    digitgroup_results.setdefault(b_id, []).extend(tuples)
+            for patchpath, (bb, side, isflip, b_id) in prev_digitmatch_info.iteritems():
+                # TODO: Assumes only one digitattribute.
+                if b_id not in bal2imgs_todo:
+                    digitmatch_info[patchpath] = (bb, side, isflip, b_id)
+            return digitgroup_results, digitmatch_info
+
+        digitgroup_results, digitmatch_info = _merge_previous_results(digitgroup_results,
+                                                                      digitmatch_info,
+                                                                      prev_digitgroup_results,
+                                                                      self.project)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
         digit_group.save_digitmatch_info(self.project, digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
@@ -812,6 +984,8 @@ rejected_hashes..."
                 if common.get_propval(grouplabel, 'digit') != None:
                     self.finished.remove(group)
                     break
+        self._ok_history = {}
+        self._misclassify_history = {}
         # 2.) Now, add in all new 'digit' Groups
         # TODO: Discard all matches that deal with already-verified
         #       patches, or tell partmatch to not search these imgs.
@@ -898,11 +1072,16 @@ at a time."
         print "== Throw stuff in self.currentGroup.elements into rejected_hashes"
         # Load in digitmatch_info once, since it can be quite large.
         digitmatch_info = digit_group.get_digitmatch_info(self.project)
+        common.log_misclassify_ballots(self.project, self.currentGroup.elements)
         for (sampleid, rlist, patchpath) in self.currentGroup.elements:
             # TODO: Do I append sampleid, or patchpath? 
             # TODO: Is it sampleid, or imgpath?
-            (bb, side, isflip) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
+            (bb, side, isflip, b_id) = digit_group.get_digitpatch_info(self.project, patchpath, digitmatch_info)
             rejected_hashes.setdefault(sampleid, {}).setdefault(cur_digit, []).append((bb, side, isflip))
+            if sampleid in self._misclassify_history:
+                self._misclassify_history[sampleid] += 1
+            else:
+                self._misclassify_history[sampleid] = 1
         print "== Saving rejected_hashes"
         partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
         print "== Counting..."
@@ -918,10 +1097,30 @@ at a time."
         #self.remove_group(self.currentGroup)
         self.add_misclassify_group(self.currentGroup)
         self.remove_group(self.currentGroup)
-        self.select_group(self.queue[0])
+
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        elif len(self.queue) == 0:
+            if self._mismatch_cnt != 0:
+                msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+            else:
+                msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+        else:
+            self.select_group(self.queue[0])
 
     def is_done_verifying(self):
-        return not self.queue
+        """ Return True iff overlay verification is complete. False o.w. """
+        if not self.queue and self._mismatch_cnt == 0:
+            return True
+        else:
+            return False
         
     def done_verifying(self):
         """
@@ -930,9 +1129,16 @@ at a time."
         Outputs grouping results into the specified out-directory, if
         given.
         """
-        # First populate results
         print "DONE Verifying!"
-        self.Disable()
+        if self.mode == VerifyPanel.MODE_NORMAL:
+            dlg = wx.MessageDialog(self, message="Grouping verification \
+finished! Press 'Ok', then you may continue to the next step.",
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+        else:
+            self.Disable()
+        # First populate results
         results = {} # {grouplabel: list of GroupClasses}
         if self.mode == VerifyPanel.MODE_YESNO2:
             # Hack: Treat each GroupClass as separate categories,
@@ -1043,6 +1249,17 @@ at a time."
             self.quarantine_group(self.currentGroup)
             if self.is_done_verifying():
                 self.done_verifying()
+            elif len(self.queue) == 0:
+                if self._mismatch_cnt != 0:
+                    msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+                else:
+                    msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+                dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
             else:
                 self.select_group(self.queue[0])
     
@@ -1059,4 +1276,53 @@ at a time."
     def OnSize(self, event):
         self.fitPanel()
         event.Skip()
+
+class ForceDigitGroupDialog(wx.Dialog):
+    ID_SMARTFORCE = 78
+    ID_BRUTEFORCE = 79
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        msg0 = "Warning: This will re-run \
+Digit Grouping on all voted ballots (even if it's not necessary to run \
+Digit Grouping). This can take a few hours of computation time."
+        
+        msg1 = "If you want to run Digit Grouping only on a subset of the set of voted \
+ballots, choose 'Cancel', then the 'Run Digit Grouping' button. \
+This is the 'normal' mode of operation."
+        
+        msg2 = "If you wish to force-run Digit Grouping on only voted ballots \
+that you've marked either with an 'Ok' or a 'MisClassify', then \
+choose 'Smart Force'."
+        msg3 = "If you definitely want to force-run Digit Grouping on /all/ voted \
+ballots, choose 'Brute Yes'."
+
+        msg0 = textwrap.fill(msg0, 70)
+        msg1 = textwrap.fill(msg1, 70)
+        msg2 = textwrap.fill(msg2, 70)
+        msg3 = textwrap.fill(msg3, 70)
+        msg = msg0 + "\n\n" + msg1 + "\n" + msg2 + "\n" + msg3
+        txt = wx.StaticText(self, label=msg)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_cancel.SetDefault()
+        btn_smartforce = wx.Button(self, label="Smart Force")
+        btn_smartforce.Bind(wx.EVT_BUTTON, self.onButton_smartforce)
+        btn_bruteforce = wx.Button(self, label="Brute Force")
+        btn_bruteforce.Bind(wx.EVT_BUTTON, self.onButton_bruteforce)
+        btn_sizer.AddMany([(btn_cancel,), (btn_smartforce,), (btn_bruteforce,)])
+        sizer.Add(txt)
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.Fit()
+
+    def onButton_cancel(self, evt):
+        self.EndModal(wx.ID_CANCEL)
+    def onButton_smartforce(self, evt):
+        self.EndModal(self.ID_SMARTFORCE)
+    def onButton_bruteforce(self, evt):
+        self.EndModal(self.ID_BRUTEFORCE)
 

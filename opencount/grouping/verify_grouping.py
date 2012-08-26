@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, re
+import sys, csv, copy, pdb, os, re, shutil
 import threading, time
 import timeit
 sys.path.append('../')
@@ -154,6 +154,7 @@ class GroupingMasterPanel(wx.Panel):
 
         self.run_grouping.Hide()
         self.verify_grouping.Show()
+
         if groups:
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
@@ -163,6 +164,24 @@ class GroupingMasterPanel(wx.Panel):
             self.Refresh()
             self.Fit()
         else:
+            verifyoverlay_stateP = pathjoin(self.project.projdir_path,
+                                            'verifygroupstate.p')
+            if not os.path.exists(verifyoverlay_stateP):
+                # If grouping computation completes, but the VerifyOverlay
+                # UI Crashes, and doesn't save its statefile, then
+                # regenerate the state required for the UI.
+                groups = to_groupclasses(self.project)
+                digitgroup_results = digit_group.load_digitgroup_results(self.project)
+                groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
+                exemplar_paths = get_exemplar_paths()
+                self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
+                self.project.addCloseEvent(self.verify_grouping.dump_state)
+                self.verify_grouping.SendSizeEvent()
+                self.SendSizeEvent()
+                self.Refresh()
+                self.Fit()
+                return
+                
             #self.verify_grouping.start(groups, patches, exemplar_paths)
             self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
@@ -380,6 +399,25 @@ class RunGroupingPanel(wx.Panel):
             print e
             print "grouping.RunGroupingPanel can't output time to TIMER."
         self.run_button.Disable()
+        # Remember to remove state files
+        projdir = self.project.projdir_path
+        util_gui.remove_files(self.project.grouping_results,
+                              pathjoin(projdir,
+                                       self.project.ballot_to_page),
+                              pathjoin(projdir,
+                                       'verifygroupstate.p'),
+                              pathjoin(projdir,
+                                       self.project.digitgroup_results),
+                              pathjoin(projdir,
+                                       self.project.digitmatch_info),
+                              pathjoin(projdir,
+                                       self.project.rejected_hashes),
+                              pathjoin(projdir,
+                                       self.project.accepted_hashes))
+        voteddigits_dir = pathjoin(projdir, 'voteddigits_dir')
+        if os.path.exists(voteddigits_dir):
+            shutil.rmtree(pathjoin(projdir,
+                                   'voteddigits_dir'))
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
@@ -447,12 +485,8 @@ class RunGroupingPanel(wx.Panel):
             print "== Performing DigitOCR..."
             digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
             print "== Finished DigitOCR."
-            outpath = os.path.join(self.project.projdir_path, 
-                                   self.project.digitgroup_results)
-            f = open(outpath, 'wb')
-            pickle.dump(digitgroup_results, f)
+            digit_group.save_digitgroup_results(self.project, digitgroup_results)
             digit_group.save_digitmatch_info(self.project, digitmatch_info)
-            f.close()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
     def start_grouping(self):
@@ -520,10 +554,24 @@ Do you really want to re-run grouping?"""
         statusval = dlg.ShowModal()
         if statusval == YES:
             # Remember to remove state files
-            util_gui.remove_files(pathjoin(self.project.projdir_path,
+            projdir = self.project.projdir_path
+            util_gui.remove_files(self.project.grouping_results,
+                                  pathjoin(projdir,
+                                           self.project.ballot_to_page),
+                                  pathjoin(projdir,
+                                           'verifygroupstate.p'),
+                                  pathjoin(projdir,
+                                           self.project.digitgroup_results),
+                                  pathjoin(projdir,
+                                           self.project.digitmatch_info),
+                                  pathjoin(projdir,
                                            self.project.rejected_hashes),
-                                  pathjoin(self.project.projdir_path,
+                                  pathjoin(projdir,
                                            self.project.accepted_hashes))
+            voteddigits_dir = pathjoin(projdir, 'voteddigits_dir')
+            if os.path.exists(voteddigits_dir):
+                shutil.rmtree(pathjoin(projdir,
+                                       'voteddigits_dir'))
             self.start_grouping()
 
     def onButton_continue(self, evt):
@@ -592,6 +640,7 @@ Do you really want to re-run grouping?"""
             if not os.path.exists(digitgroup_resultsP):
                 print "Digit Grouping hasn't been done yet:".format(digitgroup_resultsP)
                 return False
+            
         return True
 
     def _pubsub_project(self, msg):
@@ -661,15 +710,9 @@ def add_flipinfo(project, correctedflips, fields, csvpath):
     writer.writerows(newrows)
     writefile.close()
 def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips):
-    """
-    TODO: Instead of mutating the ballot_to_images.p mapping (which is
-    used by widgets previous in the pipeline), just create a new
-    mapping ballot_to_page.p, that maps:
-        {str ballotimgpath: int sidenumber}
-    This will fix the problem where the wrong ballot gets quarantined if
-    you re-run grouping on OpenCount.
-    
-    Fix the ordering in the ballot_to_images mapping.
+    """    
+    Creates the 'ballot_to_page' dictionary, which maps voted imgpath
+    to which 'side' it is on.
     dict bal2tmp: {str ballotid: str templateid}
     dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}
     dict patches: {str temppath: list of ((y1,y2,x1,x2),attrtype,attrval,side, is_digitbased,is_tabulationonly)}

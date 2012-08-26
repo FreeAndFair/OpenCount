@@ -422,6 +422,54 @@ def cluster_attributes(blankpatches):
         all_exemplars[attrtype] = attrval_exemplars
     return all_exemplars
 
+def cluster_bkgd(mapping, D=35):
+    """ Given a mapping {str label: list of imgpaths}, for each label L,
+    generates N exemplar images, where each img in N (hopefully) 
+    contains a different backgroung coloring.
+    Input:
+        dict mapping: {str label: (imgpath_i, ...)}
+        int D: A constant threshold used to determine whether or not
+               to create a new cluster. For large values of D, this
+               will tend to not create new clusters. For very small
+               values of D (i.e. ~1-5), this will almost always
+               create a new cluster.
+    Output:
+        A (hopefully) smaller dict mapping {label: (imgpath_i, ...)}.
+    """
+    exemplars = {}  # maps {str label: [imgpath_i, ...]}
+    clustervals = {} # maps {str label: {str imgpath: float feat}}
+    for label, imgpaths in mapping.iteritems():
+        clusters = [] # [[(str imgpath_i0, float feat_i0), ...], [(str imgpath_i1, float feat_i1), ...], ...]
+        imgpaths = list(imgpaths)
+        # 0.) Seed clusters with random center
+        firstP = imgpaths.pop(random.randrange(0, len(imgpaths)))
+        img = scipy.misc.imread(firstP, flatten=True)
+        median = np.median(img)
+        clusters.append([(firstP, median), ])
+        # 1.) Iteratively either add each I to a previous cluster, or
+        #     create a new cluster for I.
+        while imgpaths:
+            imgP = imgpaths.pop()
+            img = scipy.misc.imread(imgP, flatten=True)
+            median = np.median(img)
+            best_idx, best_dist = None, None
+            for idx, cluster in enumerate(clusters):
+                exemplarP, exemplarFeat = cluster[0]
+                dist = abs(median - exemplarFeat)
+                if dist <= D:
+                    if best_idx == None or dist < best_dist:
+                        # a.) Merge I into cluster
+                        best_idx = idx
+                        best_dist = dist
+                        cluster.append((imgP, median))
+            if best_idx == None:
+                # b.) Create a new cluster.
+                clusters.append([(imgP, median)])
+        # 2.) Emit a single exemplar from each cluster
+        for cluster in clusters:
+            exemplars.setdefault(label, []).append(cluster[0][0])
+    return exemplars
+
 def compute_exemplars(mapping):
     """ Given a mapping {str label: list of imgpaths}, extracts a subset
     of the imgpaths {str label: list of imgpaths} such that these
