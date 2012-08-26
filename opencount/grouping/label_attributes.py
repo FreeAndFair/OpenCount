@@ -341,7 +341,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         patchlabels = self.labelpanel.imagelabels
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
-            blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(imgpath)
+            blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
             
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
