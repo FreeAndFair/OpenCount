@@ -533,6 +533,7 @@ in queue: 0")
         if self.mode == VerifyPanel.MODE_YESNO2:
             # We don't have exemplar patches
             return
+        # TODO: Don't compute overlayMin/Max twice.
         overlayMin, overlayMax = self.currentGroup.get_overlays()
         templates = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
