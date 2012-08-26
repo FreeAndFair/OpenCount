@@ -229,6 +229,12 @@ class LabelContest(wx.Panel):
             for bid in range(len(self.grouping_cached)):
                 order = []
                 for cid in range(len(self.grouping_cached[bid])-1):
+                    print (bid,cid)
+                    print self.multiboxcontests
+                    if any((bid,cid) in mult for mult in self.multiboxcontests):
+                        continue
+                    if any((bid,cid+1) in mult for mult in self.multiboxcontests):
+                        continue
                     m1 = self.mapping_inverse[(bid,self.contest_order[bid][cid])]
                     m2 = self.mapping_inverse[(bid,self.contest_order[bid][cid+1])]
                     order.append((m1,m2))
