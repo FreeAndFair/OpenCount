@@ -481,6 +481,7 @@ class RunGroupingPanel(wx.Panel):
                        self.project.extracted_precinct_dir, 
                        self.project.ballot_grouping_metadata, 
                        stopped,
+                       self.project,
                        deleteall=deleteall)
         print "== finished groupImagesMAP"
         if digitmunged:

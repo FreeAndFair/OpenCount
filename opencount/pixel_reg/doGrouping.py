@@ -353,6 +353,12 @@ def listAttributes(patchesH):
     return list(attrL)
 
 def listAttributesNEW(patchesH):
+    """
+    Input:
+        dict patchesH:
+    Output:
+        A dict mapping {str attrtype: {str attrval: (bb, int side, k)}}
+    """
     # tuple ((key=attrType, patchesH tuple))
     attrMap = {}
     for k in patchesH.keys():
@@ -414,15 +420,16 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
     scale=min(max(sList)+2*sStep,rszFac)
     return scale
 
-def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=False, deleteall=True):
+def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, verbose=False, deleteall=True):
     """
     Input:
         dict bal2imgs: maps {str ballotid: (sidepath_i, ...)}
         str attrName: the current attribute type
-        dict attrMap: maps {str attrval: (bb, str side, blankpath)}
+        dict attrMap: maps {str attrtype: {str attrval: (bb, str side, blankpath)}}
         str destDir: A directory, i.e. 'extracted_precincts-ballottype'
         str metaDir: A directory, i.e. 'ballot_grouping_metadata-ballottype'
         fn stopped:
+        obj proj:
     options:
         bool deleteall: if True, this will first remove all output files
                          before computing.
@@ -450,10 +457,36 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
     # maps {(str temppath, str attrval): str temppath}
     attr2tem={}
     superRegion=(float('inf'),0,float('inf'),0)
+    # attrValMap: {str attrval: (bb, str side, blankpath)}
     attrValMap=attrMap[attrName]
     # 0.) First, grab an exemplar patch for each attrval. Add them to
     #     attr2pat, and save them to directories like:
     #         ballot_grouping_metadata-ballottype_exemplars/013.png
+    # multexemplars_map: maps {attrtype: {attrval: ((str patchpath_i, str blankpath_i, bb_i), ...)}}
+    multexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                  proj.multexemplars_map),
+                                         'rb'))
+    exemplar_dict = multexemplars_map[attrName]
+    for attrval, exemplars in exemplar_dict.iteritems():
+        for (patchpath, blankpath, bb) in exemplars:
+            P = sh.standardImread(patchpath, flatten=True)
+            # TODO: I noticed that:
+            # fooI = scipy.misc.imread(blankpath, flatten=True)
+            # fooI = fooI[bb[0]:bb[1], bb[2]:bb[3]]
+            # fooI.shape
+            # fooI has a height that is 1 pixel greater (or smaller?)
+            # than P, even though they should both be the same size.
+            # Is this bad? Will it break things in strange and mysterious
+            # ways?
+            attr2pat[attrval] = P
+            attr2tem[attrval] = blankpath
+            superRegion = sh.bbUnion(superRegion, bb)
+            # TODO: Don't re-save the patch to a separate directory.
+            # I'm doing this just to ease integration with the existing
+            # code base.
+            sh.imsave(pathjoin(exmDir, attrval + '.png'), P)
+        
+    '''
     for attrVal in attrValMap.keys():
         attrTuple=attrValMap[attrVal]
         bb = attrTuple[0]
@@ -464,7 +497,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
         superRegion=sh.bbUnion(superRegion,bb)
         # store exemplar patch
         sh.imsave(pathjoin(exmDir,attrVal+'.png'),P);
-
+    '''
     # 1.) Estimate smallest viable scale (for performance)
     if len(attr2pat)>2:
         scale = estimateScale(attr2pat,attr2tem,superRegion,initDir,sh.MAX_PRECINCT_PATCH_DIM,stopped)
@@ -476,7 +509,6 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
-
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
@@ -514,7 +546,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
     print 'ATTR: ', attrName, ': done'
     return True
 
-def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verbose=False, deleteall=True):
+def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, proj, verbose=False, deleteall=True):
     """
     Input:
       patchesH: A dict mapping:
@@ -524,6 +556,7 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
       destDir:
       metaDir:
       stopped:
+      obj proj: 
     """
     # NOTE: assuming each ballot has same number of attributes
 
@@ -539,7 +572,7 @@ def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, verb
     attrMap=listAttributesNEW(patchesH)
 
     for attrName in attrMap.keys():
-        groupByAttr(bal2imgs,attrName,attrMap,destDir,metaDir,stopped,verbose=verbose,deleteall=deleteall)
+        groupByAttr(bal2imgs,attrName,attrMap,destDir,metaDir,stopped, proj, verbose=verbose,deleteall=deleteall)
 
 def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
