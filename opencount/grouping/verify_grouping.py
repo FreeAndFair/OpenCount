@@ -423,15 +423,7 @@ class RunGroupingPanel(wx.Panel):
     def groupBallotsProcess(self, stopped, deleteall):
         """ Performs grouping of both img-based and digit-based
         attributes.
-        In addition, this performs bkgd-clustering, which produces
-        multiple exemplars for a given attribute value. This is helpful
-        if the blank ballot has a varying background.
         """
-        # 1.) Perform bkgd-clustering
-        blank_attrpatches = {} # maps {attrtype: {attrval: (imgpath_i, ...)}}
-        
-
-        # 2.) Perform Grouping
         num = 0
         for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
             for f in filenames:

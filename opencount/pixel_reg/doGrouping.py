@@ -192,8 +192,17 @@ def createPatchTuples(I,attr2pat,R,flip=False):
 
 def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
     """
+    Sort of creates 'tasks' for groupImagesWorkerMAP, where each task
+    is a tuple of the form:
+        (imgpatch_i, attrpath_i, attrval_i, side_i, isflip_i)
+    And you create one task for each side of a voted ballot (i.e. one
+    for side0, another for side1, ...), to figure out the imgorder.
+    Input:
+        tuple balL: (sidepath_i, ...)
+        dict attr2pat: maps {str attrval: obj imgpatch}
+        tuple R: (y1, y2, x1, x2). A 'super' region.
     Output:
-        ((imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
+        ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
     """
     pFac=1;
     patchTuples=[];
@@ -278,15 +287,24 @@ def templateSSWorker(job):
     file.close()
 
 def groupImagesWorkerMAP(job):
+    # dict attr2pat: maps {str attrval: obj imgpatch}
+    # tuple superRegion: (y1, y2, x1, x2)
+    # str balKey: ballotid
+    # tuple balL: (sidepath_i, ...)
+    # float scale:
+    # str destDir:
+    # str metaDir:
+    # str attrName: Current attribute type we're grouping on.
     (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
-    patchTuples=createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
+    # ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
+    patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
     
     firstPat=attr2pat.values()[0]
     rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
     sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
 
-    finalOrder=[]
+    finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
 
     # 2. process
     #    Workers:
@@ -321,6 +339,7 @@ def groupImagesWorkerMAP(job):
     I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
     rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
     IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
+
     doWriteMAP(finalOrder, IO[1], IO[2], attrName , destDir, metaDir, balKey)
 
 def listAttributes(patchesH):
@@ -397,6 +416,13 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
 
 def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=False, deleteall=True):
     """
+    Input:
+        dict bal2imgs: maps {str ballotid: (sidepath_i, ...)}
+        str attrName: the current attribute type
+        dict attrMap: maps {str attrval: (bb, str side, blankpath)}
+        str destDir: A directory, i.e. 'extracted_precincts-ballottype'
+        str metaDir: A directory, i.e. 'ballot_grouping_metadata-ballottype'
+        fn stopped:
     options:
         bool deleteall: if True, this will first remove all output files
                          before computing.
@@ -425,6 +451,9 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
     attr2tem={}
     superRegion=(float('inf'),0,float('inf'),0)
     attrValMap=attrMap[attrName]
+    # 0.) First, grab an exemplar patch for each attrval. Add them to
+    #     attr2pat, and save them to directories like:
+    #         ballot_grouping_metadata-ballottype_exemplars/013.png
     for attrVal in attrValMap.keys():
         attrTuple=attrValMap[attrVal]
         bb = attrTuple[0]
@@ -436,7 +465,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
         # store exemplar patch
         sh.imsave(pathjoin(exmDir,attrVal+'.png'),P);
 
-    # estimate smallest viable scale
+    # 1.) Estimate smallest viable scale (for performance)
     if len(attr2pat)>2:
         scale = estimateScale(attr2pat,attr2tem,superRegion,initDir,sh.MAX_PRECINCT_PATCH_DIM,stopped)
     else:
@@ -444,14 +473,17 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, verbose=
 
     print 'ATTR: ', attrName,': using starting scale:',scale
 
+    # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
+
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
         jobs.append([attr2pat, superRegion, balKey, balL, scale,
                      destDir, metaDir, attrName])
     
+    # 3.) Perform jobs.
     if nProc < 2:
         # default behavior for non multiproc machines
         for job in jobs:
