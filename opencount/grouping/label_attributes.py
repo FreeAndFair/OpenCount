@@ -51,6 +51,8 @@ def clusters_to_groupclasses(proj, attrgroups):
     """ Converts the result of attribute clustering into a list of
     GroupClass instances. As a side effect, this also extracts all
     attribute patches, and saves them in proj.extract_attrs_templates.
+    They are saved in the following directory structure:
+        projdir/extract_attrs_templates/ATTRTYPE/TEMPDIRSTRUCTURE/*.png
     Input:
         obj proj:
         dict attrgroups: {attrtype: {clusterID: [(imgpath_i, bb_i, score_i), ...]}}
@@ -63,13 +65,25 @@ def clusters_to_groupclasses(proj, attrgroups):
         for i, (clusterID, c_elements) in enumerate(cluster.iteritems()):
             elements = [] # [(imgpath_i, rlist_i, patchpath_i), ...]
             for (imgpath, bb, score) in c_elements:
+                imgname = os.path.split(imgpath)[1]
+                imgname_noext = os.path.splitext(imgname)[0]
                 relpath = os.path.relpath(imgpath)
                 basedir = os.path.join(proj.projdir_path,
                                        proj.extract_attrs_templates,
                                        attrtype)
-                util_gui.create_dirs(basedir)
-                patchpath = os.path.join(basedir,
-                                         util.encodepath(relpath)) + '.png'
+                # Recreate directory structure
+                tmp = proj.templatesdir
+                if not tmp.endswith('/'):
+                    tmp += '/'
+                partdir = os.path.split(imgpath[len(tmp):])[0]
+                patchrootDir = pathjoin(basedir,
+                                        partdir,
+                                        os.path.splitext(os.path.split(imgpath)[1])[0])
+                util_gui.create_dirs(patchrootDir)
+                patchpath = pathjoin(patchrootDir,
+                                     "{0}_{1}.png".format(imgname_noext, attrtype))
+                #patchpath = os.path.join(patchrootDir,
+                #                         util.encodepath(relpath)) + '.png'
                 extract_tasks.append((imgpath, patchpath, bb))
                 grouplabel = common.make_grouplabel((attrtype, i))
                 elements.append((imgpath, (grouplabel,), patchpath))
@@ -339,12 +353,52 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """
         blankpatches = {} # maps {attrtype: {attrval: (patchpath_i, ...)}}
         patchlabels = self.labelpanel.imagelabels
+        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        w_img, h_img = self.project.imgsize
+
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
             
         # TODO: Call group_attrs.cluster_bkgd on /all/ blank ballots,
         #       not just attribute exemplars.
+
+        # TODO: This code below is garbage! I've already extracted all
+        # blank ballot attr patches to:
+        #    projdir/extract_attrs_templates/<ATTRTYPE>
+        # I should just those. Find where it's saving those, and also
+        # keep track of templatepath -> FILENAME.png.
+        # Then, pass those in as input to group_attrs.cluster_bkgd.
+        # But I'll also have to use the internal mappings (since attribute
+        # grouping has been run, probably.), to get attribute values.
+        
+        # 0. Save all template patches to a directory
+        tmp2imgs = pickle.load(open(self.project.template_to_images, 'rb'))
+        tasks = []
+        for attr in attrs:
+            attrtype = common.get_attrtype_str(attr)
+            x1 = int(round(attr['x1'] * w_img))
+            y1 = int(round(attr['y1'] * h_img))
+            x2 = int(round(attr['x2'] * w_img))
+            y2 = int(round(attr['y2'] * h_img))
+            side = attr['side']
+            # TODO: Generalize to N-sides
+            assert side in ('front', 'back')
+            for i, (templateid, paths) in enumerate(tmp2imgs.iteritems()):
+                if side == 'front':
+                    temppath = paths[0]
+                else:
+                    temppath = paths[1]
+                outpath = os.path.join(proj.projdir_path, 
+                                       '_all_blank_attrpatches',
+                                       attrtype,
+                                       '{0}_{1}.png'.format(i, os.path.splitext(os.path.split(templateid)[1])[0]))
+                tasks.append((temppath, (y1,y2,x1,x2), outpath))
+        print "...Extracting all attribute patches to '_all_blank_attrpatches'..."
+        _t = time.time()
+        common.par_extract_patches(tasks)
+        print "...Finished extracting all attribute patches to '_all_blank_attrpatches' ({0} s).".format(time.time() - _t)
+            
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             exemplars = group_attrs.cluster_bkgd(attrval_map)
@@ -354,7 +408,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # Save the patches to outdir
         outfile_map = {} # maps {attrtype: {attrval: ((str patchpath_i, str blankpath_i, bb_i), ...)}}
-        attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+
         for attrtype, thedict in attrtype_exemplars.iteritems():
             attr = None
             for attrdict in attrs:
@@ -364,7 +418,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             if attr == None:
                 print "Uhoh, couldn't find attrtype {0}.".format(attrtype)
                 pdb.set_trace()
-            w_img, h_img = self.project.imgsize
+
             x1 = int(round(attr['x1'] * w_img))
             y1 = int(round(attr['y1'] * h_img))
             x2 = int(round(attr['x2'] * w_img))
@@ -740,7 +794,8 @@ Implies that imgpath is present in imageslist more than once."
 
 def do_extract_attr_patches(proj):
     """Extract all attribute patches from all blank ballots into
-    the specified outdir.
+    the specified outdir. Saves them to:
+        <projdir>/extract_attrs_templates/ATTRTYPE/*.png
     Output:
         (dict mapping, dict inv_mapping, where:
           mapping is {imgpath: {str attrtype: str patchpath}}
@@ -779,56 +834,60 @@ def extract_attr_patches(blanks, (proj,)):
     Output:
         (dict mapping, dict inv_mapping)
     """
-    outdir = proj.labelattrs_patchesdir
-    w_img, h_img = proj.imgsize
-    # list of marshall'd attrboxes (i.e. dicts)
-    ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
-    inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
-    for blankpaths in blanks:
-        for blankside, imgpath in enumerate(blankpaths):
-            for attr in ballot_attributes:
-                if attr['is_digitbased']:
-                    continue
-                imgname = os.path.split(imgpath)[1]
-                attrside = attr['side']
-                assert type(attrside) == str # 'front' or 'back'
-                attrside = 0 if attrside == 'front' else 1
-                x1 = int(round(attr['x1']*w_img))
-                y1 = int(round(attr['y1']*h_img))
-                x2 = int(round(attr['x2']*w_img))
-                y2 = int(round(attr['y2']*h_img))
-                attrtype = common.get_attrtype_str(attr['attrs'])
-                if blankside == attrside:
-                    # patchP: if outdir is: 'labelattrs_patchesdir',
-                    # imgpath is: '/media/data1/election/blanks/foo/1.png',
-                    # proj.templatesdir is: '/media/data1/election/blanks/
-                    tmp = proj.templatesdir
-                    if not tmp.endswith('/'):
-                        tmp += '/'
-                    partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
-                    patchrootDir = pathjoin(proj.projdir_path,
-                                            outdir,
-                                            partdir,
-                                            os.path.splitext(imgname)[0])
-                    # patchrootDir: labelattrs_patchesdir/foo/1/
-                    util_gui.create_dirs(patchrootDir)
-                    patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
-                                                                            attrtype))
-                    if not os.path.exists(patchoutP):
-                    #if True:
-                        # TODO: Only extract+save the imge patches
-                        # when you /have/ to.
-                        img = shared.standardImread(imgpath, flatten=True)
-                        if abs(y1-y2) == 0 or abs(x1-x2) == 0:
-                            print "Uh oh, about to crash. Why is this happening?"
-                            print "    proj.imgsize:", proj.imgsize
-                            print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
-                            pdb.set_trace()
-                        patch = img[y1:y2,x1:x2]
-                        scipy.misc.imsave(patchoutP, patch)
-                    mapping.setdefault(imgpath, {})[attrtype] = patchoutP
-                    inv_mapping[patchoutP] = (imgpath, attrtype)
+    try:
+        outdir = os.path.join(proj.projdir_path,
+                              proj.extract_attrs_templates)
+        w_img, h_img = proj.imgsize
+        # list of marshall'd attrboxes (i.e. dicts)
+        ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+        mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
+        inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
+        for blankpaths in blanks:
+            for blankside, imgpath in enumerate(blankpaths):
+                for attr in ballot_attributes:
+                    if attr['is_digitbased']:
+                        continue
+                    imgname =  os.path.split(imgpath)[1]
+                    attrside = attr['side']
+                    assert type(attrside) == str # 'front' or 'back'
+                    attrside = 0 if attrside == 'front' else 1
+                    x1 = int(round(attr['x1']*w_img))
+                    y1 = int(round(attr['y1']*h_img))
+                    x2 = int(round(attr['x2']*w_img))
+                    y2 = int(round(attr['y2']*h_img))
+                    attrtype = common.get_attrtype_str(attr['attrs'])
+                    if blankside == attrside:
+                        # patchP: if outdir is: 'labelattrs_patchesdir',
+                        # imgpath is: '/media/data1/election/blanks/foo/1.png',
+                        # proj.templatesdir is: '/media/data1/election/blanks/
+                        tmp = proj.templatesdir
+                        if not tmp.endswith('/'):
+                            tmp += '/'
+                        partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
+                        patchrootDir = pathjoin(outdir,
+                                                partdir,
+                                                os.path.splitext(imgname)[0])
+                        # patchrootDir: labelattrs_patchesdir/foo/1/
+                        util_gui.create_dirs(patchrootDir)
+                        patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
+                                                                                attrtype))
+                        if not os.path.exists(patchoutP):
+                        #if True:
+                            # TODO: Only extract+save the imge patches
+                            # when you /have/ to.
+                            img = shared.standardImread(imgpath, flatten=True)
+                            if abs(y1-y2) == 0 or abs(x1-x2) == 0:
+                                print "Uh oh, about to crash. Why is this happening?"
+                                print "    proj.imgsize:", proj.imgsize
+                                print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
+                                pdb.set_trace()
+                            patch = img[y1:y2,x1:x2]
+                            scipy.misc.imsave(patchoutP, patch)
+                        mapping.setdefault(imgpath, {})[attrtype] = patchoutP
+                        inv_mapping[patchoutP] = (imgpath, attrtype)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
     return mapping, inv_mapping
 
 def get_ordered_patchpaths(inv_mapping):

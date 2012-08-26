@@ -1084,6 +1084,18 @@ during LabelDigitAttrs?"
         out.append((imgpath, ocrstr, meta))
     return out
 
+def par_extract_patches(tasks):
+    """ Parallelizes the following task:
+    For N images, extract a boundingbox from each image, and store it
+    to disk.
+    Input:
+        list tasks: ((imgpath_i, bb_i, outpath_i), ...)
+    """
+    # TODO: I should probably be nuked.
+    partask.do_partask(imgmap)
+                       
+        
+
 if __name__ == '__main__':
     class MyFrame(wx.Frame):
         def __init__(self, parent, *args, **kwargs):
