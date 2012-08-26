@@ -163,6 +163,12 @@ class VerifyContestGrouping(wx.Panel):
         for img in imgs:
             showimg.paste(img, (0, pos))
             pos += img.size[1]
+        print showimg.size
+        x,y = showimg.size
+        if y > 1024:
+            factor = float(y)/1024
+            print factor
+            showimg = showimg.resize((int(x/factor), int(y/factor)))
 
         if self.testimage != None:
             self.testimage.Destroy()
