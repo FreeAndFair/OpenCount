@@ -1513,7 +1513,9 @@ class Project(object):
                      'digitpatchpath_scoresVoted': 'digitpatchpath_scoresVoted.p',
                      'digitmatch_info': 'digitmatch_info.p',
                      'extract_attrs_templates': 'extract_attrs_templates',
-                     'digit_median_dists': 'digit_median_dists.p'}
+                     'digit_median_dists': 'digit_median_dists.p',
+                     'blank2attrpatch': 'blank2attrpatch.p',
+                     'invblank2attrpatch': 'invblank2attrpatch.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
