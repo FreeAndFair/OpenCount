@@ -65,10 +65,15 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
     pickle.dump(toWrite, file)
     file.close()
 
-def evalPatchSimilarity(I,patch):
+def evalPatchSimilarity(I,patch, debug=False):
     # perform template matching and return the best match in expanded region
     I_in = np.copy(I)
     patch_in = np.copy(patch)
+
+    if debug == True:
+        print "...stepping into evalPatchSimilarity."
+        pdb.set_trace()
+
     I=sh.prepOpenCV(I)
     patch=sh.prepOpenCV(patch)
     # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
@@ -93,6 +98,14 @@ def evalPatchSimilarity(I,patch):
     IO=imagesAlign(I1c,patch,type='rigid')
 
     Ireg=IO[1]
+    Ireg = np.nan_to_num(Ireg)
+    # TODO: Ireg is frequently just a competely-black image (due to
+    # presence of Nan's?). By inserting the line:
+    #     Ireg = np.nan_to_num(Ireg)
+    # This stopped an apparent bug in Marin, where various attribute
+    # patches would erroneously be matched to the wrong side of the
+    # ballot.
+
     # C := num pixels to discard around border. This used to be C=5,
     #      but this caused issues if one of the 'patch' dimensions was
     #      <= 10, causing an ill-formed image patch.
@@ -146,6 +159,15 @@ def dist2patches(patchTuples,scale,debug=False):
         pt=patchTuples[idx]
         imgpatch = pt[0]
         attrpatch = pt[1]
+        attrval = pt[2]
+        flag = False
+        
+        if attrval == 'mail' and pt[-1] == 0:
+            print pt[2:]
+            if len(pt) == 5:
+                if pt[3] == 0:
+                    print 'mail, and:', pt[2:]
+
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
         I=np.round(sh.fastResize(imgpatch,scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
@@ -154,7 +176,7 @@ def dist2patches(patchTuples,scale,debug=False):
         patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
         #patch[patch==1.0]=.999; patch[patch==0.0]=.001
         try:
-            res=evalPatchSimilarity(I,patch)
+            res=evalPatchSimilarity(I,patch, debug=flag)
         except Exception as e:
             traceback.print_exc()
             print "CRASHED AT IDX:", idx
@@ -348,14 +370,16 @@ def groupImagesWorkerMAP(job):
     # I1c is the purported attrpatch on I1 (voted ballot)
     I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
     rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
+    # IO := [transmatrix (?), img, err]
     IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
+    Ireg = np.nan_to_num(IO[1])
 
     # saving I1, P1, I1c, IO[1] fixes things
     # saving I1, P1 fixes things
     # saving I1 fixes things
     # saving P1 does NOT fix things.
     # saving IO[1] does NOT fix things.
-    doWriteMAP(finalOrder, IO[1], IO[2], attrName , destDir, metaDir, balKey)
+    doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
 
 def listAttributes(patchesH):
     # tuple ((key=attrType, patchesH tuple))
@@ -398,6 +422,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
     sList=[]
     nProc=sh.numProcs()
     nProc = 1
+
     for key in attr2pat.keys():
         # key := (str temppath, str attrval)
         jobs.append((attr2pat,attr2tem,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
@@ -502,6 +527,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
             # I'm doing this just to ease integration with the existing
             # code base.
             sh.imsave(pathjoin(exmDir, attrval + '.png'), P)
+        pdb.set_trace()
         
     '''
     for attrVal in attrValMap.keys():
