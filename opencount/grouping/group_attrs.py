@@ -422,7 +422,7 @@ def cluster_attributes(blankpatches):
         all_exemplars[attrtype] = attrval_exemplars
     return all_exemplars
 
-def cluster_bkgd(mapping, D=5):
+def cluster_bkgd(mapping, D=5, debug_SKIP=False):
     """ Given a mapping {str label: list of imgpaths}, for each label L,
     generates N exemplar images, where each img in N (hopefully) 
     contains a different backgroung coloring.
@@ -436,9 +436,12 @@ def cluster_bkgd(mapping, D=5):
     Output:
         A (hopefully) smaller dict mapping {label: (imgpath_i, ...)}.
     """
+    if debug_SKIP:
+        return dict(mapping)
     exemplars = {}  # maps {str label: [imgpath_i, ...]}
     clustervals = {} # maps {str label: {str imgpath: float feat}}
     for label, imgpaths in mapping.iteritems():
+        print "{0} imgpaths for label {1}".format(len(imgpaths), label)
         clusters = [] # [[(str imgpath_i0, float feat_i0), ...], [(str imgpath_i1, float feat_i1), ...], ...]
         imgpaths = list(imgpaths)
         # 0.) Seed clusters with random center
