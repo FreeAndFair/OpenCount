@@ -103,14 +103,14 @@ class VerifyContestGrouping(wx.Panel):
             print 'bbdir', boundingboxdirs
             order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
             images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
-            print 'im', images
+            print 'im1', images
             images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
-            print 'im', images
+            print 'im2', images
             title = images[0][0]
             images = [(i,y) for i,x in enumerate(images) for y in x[1:]]
             orderedimages = [None]*(len(images)+1)
             orderedimages[0] = (0, title)
-            print 'im', images
+            print 'im3', images
             print 'ord', order
             print 'szs', len(order), len(images)
             for i in range(len(images)):
@@ -157,7 +157,6 @@ class VerifyContestGrouping(wx.Panel):
     def show(self):
         print "SHOWING", self.index, self.group_index
         self.sofar.SetLabel("On item %d of %d in group %d of %d."%(self.index+1,len(self.orderedpaths),self.group_index+1,len(self.processgroups)))
-        print "ORD", self.orderedpaths
         curpaths = self.orderedpaths[self.index]
         imgs = map(Image.open, curpaths)
         height = sum(x.size[1] for x in imgs)
@@ -169,8 +168,8 @@ class VerifyContestGrouping(wx.Panel):
             pos += img.size[1]
         print showimg.size
         x,y = showimg.size
-        if y > 1024:
-            factor = float(y)/1024
+        if y > 700:
+            factor = float(y)/700
             print factor
             showimg = showimg.resize((int(x/factor), int(y/factor)))
 

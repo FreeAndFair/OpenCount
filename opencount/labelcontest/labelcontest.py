@@ -710,7 +710,6 @@ class LabelContest(wx.Panel):
         c = 0
         for box in self.boxes[self.templatenum]:
             if c == self.count:
-                #dr.rectangle(box, fill=(200,200,0))
                 pass
             elif self.text[self.currentcontests[c]] != []:
                 dr.rectangle(box, fill=(0,200,0))
@@ -720,6 +719,10 @@ class LabelContest(wx.Panel):
             c += 1
         # Redraw the yellow on the current so it goes on top of everything else
         dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
+        bothcontests = self.continued_contest(self.currentcontests[self.count])
+        if len(bothcontests) > 1:
+            nextbox = [x for x in bothcontests if x != self.currentcontests[self.count]][0]
+            dr.rectangle(self.boxes[nextbox[0]][nextbox[1]], fill=(0,0,200))
 
         new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
         self.templatebox.img.SetBitmap(new_template)
