@@ -6,6 +6,7 @@ from imagesAlign import *
 import cProfile
 import cv
 import csv
+import traceback
 import os
 import string
 import sys, shutil, traceback
@@ -134,6 +135,7 @@ def dist2patches(patchTuples,scale,debug=False):
     locs=[]
 
     if debug:
+        print "....dist 2 patches ...."
         pdb.set_trace()
 
     for idx in range(len(patchTuples)):
@@ -154,6 +156,7 @@ def dist2patches(patchTuples,scale,debug=False):
         try:
             res=evalPatchSimilarity(I,patch)
         except Exception as e:
+            traceback.print_exc()
             print "CRASHED AT IDX:", idx
             print "    Scale was: {0}".format(scale)
             print "    patchScale was: {0}".format(patchScale)
@@ -297,6 +300,7 @@ def groupImagesWorkerMAP(job):
     # str attrName: Current attribute type we're grouping on.
     (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
+    # patchtuples also includes 'flip' possibilities.
     # ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
     patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
     
@@ -330,16 +334,27 @@ def groupImagesWorkerMAP(job):
         patchTuples=sh.arraySlice(patchTuples,keepIdx)
 
     # align patch to top patch
+    # patchTuples[0]: Best patch
+    # I1: region around the attribute patch
+    # P1: an exemplar attribute patch to compare against
     I1=patchTuples[0][0]
     P1=patchTuples[0][1]
+    # finalOrder is of the form:
+    #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
     finalOrder.extend(patchTuples)
     finalOrder.reverse()
 
     bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
+    # I1c is the purported attrpatch on I1 (voted ballot)
     I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
     rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
     IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
 
+    # saving I1, P1, I1c, IO[1] fixes things
+    # saving I1, P1 fixes things
+    # saving I1 fixes things
+    # saving P1 does NOT fix things.
+    # saving IO[1] does NOT fix things.
     doWriteMAP(finalOrder, IO[1], IO[2], attrName , destDir, metaDir, balKey)
 
 def listAttributes(patchesH):
@@ -382,6 +397,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
     sStep=.05
     sList=[]
     nProc=sh.numProcs()
+    nProc = 1
     for key in attr2pat.keys():
         # key := (str temppath, str attrval)
         jobs.append((attr2pat,attr2tem,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
@@ -470,6 +486,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     for attrval, exemplars in exemplar_dict.iteritems():
         for (patchpath, blankpath, bb) in exemplars:
             P = sh.standardImread(patchpath, flatten=True)
+
             # TODO: I noticed that:
             # fooI = scipy.misc.imread(blankpath, flatten=True)
             # fooI = fooI[bb[0]:bb[1], bb[2]:bb[3]]
@@ -509,6 +526,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
+    nProc = 1
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]

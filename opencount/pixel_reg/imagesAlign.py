@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.misc as misc
 import math, pickle, os, traceback
 import pdb
 import time
@@ -68,6 +69,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
     return (H,imtransform(np.copy(I),H,fillval=fillval),err);
 
 def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
+    print 'imagesAlign1'
 
     minArea=np.power(2,15)
     lbda=1e-6
@@ -239,6 +241,8 @@ def imtransform(I,H0,fillval=np.nan):
         cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=-1);
         I1=np.asarray(I1cv)
         I1[np.nonzero(I1<0)]=fillval
+
+        # TODO: Almost always returns only Nan's. wat?
         return I1
 
 def imtransform2(I,H0,fillval=3.0):
@@ -250,7 +254,6 @@ def imtransform2(I,H0,fillval=3.0):
         Iout[:,:,2]=imtransform2(I[:,:,2],H0,fillval=fillval)
         return Iout
     else:
-        pdb.set_trace()
         T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
         T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
         H=np.dot(np.dot(T0,H0),T1)
