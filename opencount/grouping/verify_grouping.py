@@ -283,7 +283,7 @@ class GroupingMasterPanel(wx.Panel):
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
             templateid = determine_template(attrdict, munged_patches, samplepath, self.project)
-            if not templateid:
+            if templateid == None or templateid == -1:
                 hosed_bals.append((samplepath, attrdict, munged_patches))
                 continue
             row['templatepath'] = templateid
@@ -421,7 +421,9 @@ class RunGroupingPanel(wx.Panel):
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
-        """ Performs grouping. Passed to a separate thread. """
+        """ Performs grouping of both img-based and digit-based
+        attributes.
+        """
         num = 0
         for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
             for f in filenames:
@@ -479,6 +481,7 @@ class RunGroupingPanel(wx.Panel):
                        self.project.extracted_precinct_dir, 
                        self.project.ballot_grouping_metadata, 
                        stopped,
+                       self.project,
                        deleteall=deleteall)
         print "== finished groupImagesMAP"
         if digitmunged:
@@ -493,6 +496,9 @@ class RunGroupingPanel(wx.Panel):
         """ Creates the separate Thread that spawns the grouping
         subprocesses. This part will group both img-based and digit-based
         attributes.
+        The separate process also performs bkgd-clustering, which
+        produces multipleexemplars, for blank ballots where the
+        background varies.
         """
         r = ProcessClass(self.groupBallotsProcess, True)
         r.start()
@@ -864,7 +870,8 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
       str samplepath: Imagepath to the sample ballot in question.
       obj project: 
     Output:
-      Path of the associated template.
+      Path of the associated template. Returns -1 if there are multiple
+      possible choices, or None if there are no possible matches.
     """
     # 1.) First, handle 'standard' img-based attributes
     possibles = {}
@@ -885,8 +892,14 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
             #return temppath
             possibles[temppath] = temp_attrdict
     if len(possibles) > 1:
-        print "Uhoh, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+        print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+        print "   We're hosed, so OpenCount will quarantine this voted ballot."
+        print "   Perhaps the current set of Ballot Attributes don't"
+        print "   uniquely specify a blank ballot?"
+        print "   ", samplepath
+        print "== To proceed, type in 'c', and press ENTER."
         pdb.set_trace()
+        return -1
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."

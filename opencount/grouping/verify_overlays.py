@@ -11,7 +11,7 @@ import util, common, partmatch_fns, digit_group
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
-from pixel_reg.doGrouping import  groupImagesMAP, encodepath
+from pixel_reg.doGrouping import encodepath
 
 ####
 ## Import 3rd party libraries
