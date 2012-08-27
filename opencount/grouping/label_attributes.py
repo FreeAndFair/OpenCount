@@ -403,7 +403,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     equiv_patches = [blank2attrpatch[imgpath][attrtype] for imgpath in equiv_ballots]
                     attrmap.setdefault(attrval, []).extend(equiv_patches)
             # 1.) Cluster the attribute patches.
-            exemplars = group_attrs.cluster_bkgd(attrmap, D=5)
+            exemplars = group_attrs.cluster_bkgd(attrmap, D=20)
             _n = sum(map(len, exemplars.values()))
             print "==== For Attribute {0}, {1} exemplars were found.".format(attrtype,
                                                                              _n)

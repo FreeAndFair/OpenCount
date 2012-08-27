@@ -78,7 +78,7 @@ def evalPatchSimilarity(I,patch, debug=False):
     patch=sh.prepOpenCV(patch)
     # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
     # converting NP -> OpenCV.
-    patchCv=cv.fromarray(np.copy(patch) * 255.0)  
+    patchCv=cv.fromarray(np.copy(patch) * 255.0)
     ICv=cv.fromarray(np.copy(I) * 255.0)
     #patchCv=cv.fromarray(np.copy(patch))  
     #ICv=cv.fromarray(np.copy(I))
@@ -135,7 +135,7 @@ def dist2patches(patchTuples,scale,debug=False):
         list patchTuples: EITHER (!) of the form:
               ((imgpatch_i, attrpatch_i, str attval_i, isflip_i), ...)
             or
-              ((imgpatch_i, attrpatch_i, str attrval_i, int page_i, isflip_i), ...)
+              ((imgpatch_i, [attrpatch_i, ...], str attrval_i, int page_i, isflip_i), ...)
             I'm not entirely sure when it's a 4-tuple or a 5-tuple...but beware.
         float scale: Current scale factor.
     Output:
@@ -153,41 +153,45 @@ def dist2patches(patchTuples,scale,debug=False):
 
     for idx in range(len(patchTuples)):
         # pt is either 4-tuple:
-        #     ((imgpatch_i,attrpatch_i,attrval_i,isflip_i), ...)
+        #     ((imgpatch_i,[attrpatch_i, ...],,attrval_i,isflip_i), ...)
         # or a 5-tuple:
-        #     ((imgpatch_i,attrpatch_i,attrval_i,page_i,isflip_i), ...)
+        #     ((imgpatch_i,[attrpatch_i, ...],attrval_i,page_i,isflip_i), ...)
         pt=patchTuples[idx]
         imgpatch = pt[0]
-        attrpatch = pt[1]
+        attrpatches = pt[1]
         attrval = pt[2]
         flag = False
-        
-        if attrval == 'mail' and pt[-1] == 0:
-            print pt[2:]
-            if len(pt) == 5:
-                if pt[3] == 0:
-                    print 'mail, and:', pt[2:]
-
+                            
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
         I=np.round(sh.fastResize(imgpatch,scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
         #I[I==1.0]=.999; I[I==0.0]=.001
         #patchScale = sh.resizeOrNot(attrpatch.shape, int(round(max(attrpatch.shape)*scale)))
-        patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
-        #patch[patch==1.0]=.999; patch[patch==0.0]=.001
-        try:
-            res=evalPatchSimilarity(I,patch, debug=flag)
-        except Exception as e:
-            traceback.print_exc()
-            print "CRASHED AT IDX:", idx
-            print "    Scale was: {0}".format(scale)
-            print "    patchScale was: {0}".format(patchScale)
-            print "    I.shape: {0} patch.shape: {1}".format(I.shape, patch.shape)
-            print "    imgpatch: {0} attrpatch: {1}".format(imgpatch.shape, attrpatch.shape)
-            raise e
-        scores[idx]=res[0]
-        locs.append((res[1][0]/scale,res[1][1]/scale))
-
+        bestscore = None
+        bestloc = None
+        # Get the best score, over all possible exemplars (this is to
+        # account for background variation). 
+        for attrpatch in attrpatches:
+            patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
+            #patch[patch==1.0]=.999; patch[patch==0.0]=.001
+            try:
+                res=evalPatchSimilarity(I,patch, debug=flag)
+            except Exception as e:
+                traceback.print_exc()
+                print "CRASHED AT IDX:", idx
+                print "    Scale was: {0}".format(scale)
+                print "    I.shape: {0} patch.shape: {1}".format(I.shape, patch.shape)
+                print "    imgpatch: {0} attrpatch: {1}".format(imgpatch.shape, attrpatch.shape)
+                raise e
+            # TODO: Do I want to maximize, or minimize 'score'?
+            score = res[0] # I'm pretty sure we want to maximize.
+            if bestscore == None or score > bestscore:
+                bestscore = score
+                bestloc = (res[1][0]/scale,res[1][1]/scale)
+            #scores[idx]=res[0]
+            #locs.append((res[1][0]/scale,res[1][1]/scale))
+        scores[idx] = bestscore
+        locs.append(bestloc)
     return (scores,locs)
 
 # input: image, patch images, super-region
@@ -219,15 +223,16 @@ def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
     """
     Sort of creates 'tasks' for groupImagesWorkerMAP, where each task
     is a tuple of the form:
-        (imgpatch_i, attrpath_i, attrval_i, side_i, isflip_i)
+        (imgpatch_i, [attrpatch_i, ...], attrval_i, side_i, isflip_i)
     And you create one task for each side of a voted ballot (i.e. one
     for side0, another for side1, ...), to figure out the imgorder.
+    Note that there can be multiple exemplar attrpatches.
     Input:
         tuple balL: (sidepath_i, ...)
-        dict attr2pat: maps {str attrval: obj imgpatch}
+        dict attr2pat: maps {str attrval: [obj imgpatch_i, ...]}
         tuple R: (y1, y2, x1, x2). A 'super' region.
     Output:
-        ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
+        ((obj imgpatch_i, [obj attrpatch_i0, ...], str attrval_i, int side_i, int isflip_i), ...)
     """
     pFac=1;
     patchTuples=[];
@@ -237,32 +242,35 @@ def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
         I=sh.standardImread(balP,flatten=True)
         (rOut,rOff)=sh.expand(R[0],R[1],R[2],R[3],I.shape[0],I.shape[1],pFac)
         I1=I[rOut[0]:rOut[1],rOut[2]:rOut[3]]
-        for key in attr2pat.keys():
-            # key := (str temppath, str attrval)
-            patchTuples.append((I1,attr2pat[key],key,idx,0))
+        for attrval, exemplars in attr2pat.iteritems():
+            patchTuples.append((I1, exemplars, attrval, idx, 0))
 
         if flip:
             Ifl=sh.fastFlip(I)
             Ifl1=Ifl[rOut[0]:rOut[1],rOut[2]:rOut[3]]
-            for key in attr2pat.keys():
-                # key := (str temppath, str attrval)
-                patchTuples.append((Ifl1,attr2pat[key],key,idx,1))
+            for key, exemplars in attr2pat.iteritems():
+                # key := str attrval
+                patchTuples.append((Ifl1,exemplars,key,idx,1))
 
     return patchTuples
 
 
 def templateSSWorker(job):
+    # dict attr2pat: maps {str attrval: [obj patch_i, ...]}
     (attr2pat, attr2tem, key, superRegion, sStep, fOut) = job
     
-    # 'key' is (str temppath, str attrval)
+    # 'key' is str attrval
     attr2pat1=attr2pat.copy()
+    # TODO: Due to laziness, I'm going to arbitrarily choose a patch_i
+    # to stick into attr2pat1. I'm not sure what exactly this code
+    # does, so doing so might be ok.
     attr2pat1.pop(key)
     I=sh.standardImread(attr2tem[key],flatten=True)
     
     superRegionNp=np.array(superRegion)
     patchTuples=createPatchTuples(I,attr2pat1,superRegionNp,flip=True)
 
-    firstPat=attr2pat1.values()[0]
+    firstPat=attr2pat1.values()[0][0] # arbitrary choice
 
     sc0=sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM)
     minSc=sh.resizeOrNot(firstPat.shape,sh.MIN_PRECINCT_PATCH_DIM)
@@ -312,7 +320,7 @@ def templateSSWorker(job):
     file.close()
 
 def groupImagesWorkerMAP(job):
-    # dict attr2pat: maps {str attrval: obj imgpatch}
+    # dict attr2pat: maps {str attrval: [obj imgpatch_i, ...]}
     # tuple superRegion: (y1, y2, x1, x2)
     # str balKey: ballotid
     # tuple balL: (sidepath_i, ...)
@@ -323,10 +331,11 @@ def groupImagesWorkerMAP(job):
     (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
     # patchtuples also includes 'flip' possibilities.
-    # ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int side_i, int isflip_i), ...)
+    # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
     patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
     
-    firstPat=attr2pat.values()[0]
+    # Remember, attr2pat contains multiple exemplars
+    firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
     rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
     sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
 
@@ -360,7 +369,7 @@ def groupImagesWorkerMAP(job):
     # I1: region around the attribute patch
     # P1: an exemplar attribute patch to compare against
     I1=patchTuples[0][0]
-    P1=patchTuples[0][1]
+    P1=patchTuples[0][1][0] # TODO: Arbitrary choice, is this ok?
     # finalOrder is of the form:
     #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
     finalOrder.extend(patchTuples)
@@ -416,15 +425,25 @@ def listAttributesNEW(patchesH):
     return attrMap
 
 def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
+    """
+    Input:
+        dict attr2pat: maps {str attrval: (obj imgpatch_i, ...)}
+        dict attr2temp: maps
+        tuple superRegion: 
+        str initDir:
+        float rszFac:
+        fn stopped:
+    Output:
+        A scale.
+    """
     print 'estimating scale.'
     jobs=[]
     sStep=.05
     sList=[]
     nProc=sh.numProcs()
-    nProc = 1
 
     for key in attr2pat.keys():
-        # key := (str temppath, str attrval)
+        # key := str attrval
         jobs.append((attr2pat,attr2tem,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
 
     if nProc < 2:
@@ -520,14 +539,14 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
             # than P, even though they should both be the same size.
             # Is this bad? Will it break things in strange and mysterious
             # ways?
-            attr2pat[attrval] = P
+            #attr2pat[attrval] = P
+            attr2pat.setdefault(attrval, []).append(P)
             attr2tem[attrval] = blankpath
             superRegion = sh.bbUnion(superRegion, bb)
             # TODO: Don't re-save the patch to a separate directory.
             # I'm doing this just to ease integration with the existing
             # code base.
             sh.imsave(pathjoin(exmDir, attrval + '.png'), P)
-        pdb.set_trace()
         
     '''
     for attrVal in attrValMap.keys():
@@ -552,7 +571,6 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
-    nProc = 1
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
