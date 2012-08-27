@@ -393,21 +393,20 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             # 0.) Grab all 'equivalent' attribute patches, from self.patch_groups
-            attrmap = {} # maps {str attrval: (imgpath_i, ...)}
+            attrmap = {} # maps {str attrval: (patchpath_i, ...)}
             for attrval, patchpaths in attrval_map.iteritems():
                 for patchpath in patchpaths:
-                    attrmap.setdefault(attrval, []).append(patchpath)
                     if patchpath not in self.patch_groups:
                         print "Uhoh, patchpath not in self.patch_groups:", patchpath
                         pdb.set_trace()
                     equiv_ballots = self.patch_groups[patchpath]
-                    # How to map from blankballot,attrtype to patchpath?
                     equiv_patches = [blank2attrpatch[imgpath][attrtype] for imgpath in equiv_ballots]
-                    attrmap[attrval].extend(equiv_patches)
+                    attrmap.setdefault(attrval, []).extend(equiv_patches)
             # 1.) Cluster the attribute patches.
-            exemplars = group_attrs.cluster_bkgd(attrmap)
+            exemplars = group_attrs.cluster_bkgd(attrmap, D=5)
+            _n = sum(map(len, exemplars.values()))
             print "==== For Attribute {0}, {1} exemplars were found.".format(attrtype,
-                                                                             len(exemplars))
+                                                                             _n)
             attrtype_exemplars[attrtype] = exemplars
 
         # Save the patches to outdir
@@ -432,7 +431,14 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 rootdir = os.path.join(outdir, attrtype)
                 util_gui.create_dirs(rootdir)
                 for i, patchpath in enumerate(exemplars):
-                    img = scipy.misc.imread(patchpath, flatten=True)
+                    # TODO: Instead of reading in the image, and then
+                    # re-saving it to another location, just do something
+                    # else. Maybe don't resave it?
+                    # Note: I dont' do flatten=True, because converting
+                    # to grayscale twice will 'lighten' the image.
+                    # patchpath is guaranteed to be in grayscale (since I
+                    # created it previously).
+                    img = scipy.misc.imread(patchpath) 
                     outfilename = "{0}_{1}.png".format(attrval, i)
                     fulloutpath = os.path.join(rootdir, outfilename)
                     scipy.misc.imsave(fulloutpath, img)
