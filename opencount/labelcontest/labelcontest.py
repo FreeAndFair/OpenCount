@@ -262,13 +262,11 @@ class LabelContest(wx.Panel):
                         new_group.append(((bid,boxes,text),order))
                 if new_group != []:
                     cleared.append(new_group)
-            print "CLEARED", [[(bid,boxes,order) for ((bid,boxes,text),order) in group] for group in cleared]
             fixed = cleared + [newgroup]
-            print "FIXED", [[(bid,boxes,order) for ((bid,boxes,text),order) in group] for group in fixed]
             #print "BEFORE", [[(bid,boxes,order) for ((bid,boxes,text),order) in group] for group in self.groups_saved]
             #self.compute_equivs(None)
             self.groups_saved = fixed
-            self.compute_equivs_2()
+            self.compute_equivs_2(only_process_last=True)
             #print "AFTER", [[(bid,boxes,order) for ((bid,boxes,text),order) in group] for group in self.groups_saved]
 
         button6 = wx.Button(self, label="Mark as Multi-Box")
@@ -385,7 +383,7 @@ class LabelContest(wx.Panel):
         self.groups_saved = groups
         self.compute_equivs_2()
     
-    def compute_equivs_2(self):
+    def compute_equivs_2(self, only_process_last=False):
         groups = self.groups_saved
         print "GROUPS IS", groups
 
@@ -440,11 +438,19 @@ class LabelContest(wx.Panel):
 
         def putresults(data):
             print "I get the data", data
+            #if only_process_last:
+            #    print 'set1'
+            #    self.validequivs[data[0][0]] = data[0][1]
+            #else:
+            #    print 'setall'
             self.validequivs = dict(data)
 
         if any(len(x) > 1 for x in self.equivs):
+            processgroups = None
+            #if only_process_last == True:
+            #    processgroups = [len(self.equivs)-1]
             frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-            VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+            VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults, processgroups=processgroups)
             frame.Show()
 
     def save(self):

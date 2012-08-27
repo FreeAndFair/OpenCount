@@ -8,8 +8,8 @@ from util import pil2wxb
 
 
 class VerifyContestGrouping(wx.Panel):
-    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
-        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
+    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups=None):
+        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups)
         wx.Panel.__init__(self, parent, wx.ID_ANY)
         self.frame = parent
         self.callback = callback
@@ -56,7 +56,10 @@ class VerifyContestGrouping(wx.Panel):
 
         self.group_index = 0
         self.is_valid = {}
-        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
+        if processgroups == None:
+            self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
+        else:
+            self.processgroups = processgroups
         self.compareimage = None
         self.testimage = None
 
@@ -70,7 +73,7 @@ class VerifyContestGrouping(wx.Panel):
 
         self.group_index += inc
 
-        if self.group_index+inc < 0:
+        if self.group_index < 0:
             return
         if self.group_index >= len(self.processgroups):
             print "DONE"
@@ -152,8 +155,9 @@ class VerifyContestGrouping(wx.Panel):
         self.show()
 
     def show(self):
-        print self.is_valid
+        print "SHOWING", self.index, self.group_index
         self.sofar.SetLabel("On item %d of %d in group %d of %d."%(self.index+1,len(self.orderedpaths),self.group_index+1,len(self.processgroups)))
+        print "ORD", self.orderedpaths
         curpaths = self.orderedpaths[self.index]
         imgs = map(Image.open, curpaths)
         height = sum(x.size[1] for x in imgs)
