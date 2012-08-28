@@ -904,14 +904,19 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
         #    warn the user that the current set of attributes is probably not
         #    'good enough'.
         #    
-        print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
-        print "   We're hosed, so OpenCount will quarantine this voted ballot."
-        print "   Perhaps the current set of Ballot Attributes don't"
-        print "   uniquely specify a blank ballot?"
-        print "   ", samplepath
-        print "== To proceed, type in 'c', and press ENTER."
-        pdb.set_trace()
-        return -1
+        if common.is_blankballot_contests_eq(*possibles.keys()):
+            print "There were {0} possible blank ballots, but *phew*, \
+they're all equivalent.".format(len(possibles))
+            return possibles.keys()[0]
+        else:
+            print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+            print "   We're hosed, so OpenCount will quarantine this voted ballot."
+            print "   Perhaps the current set of Ballot Attributes don't"
+            print "   uniquely specify a blank ballot?"
+            print "   ", samplepath
+            print "== To proceed, type in 'c', and press ENTER."
+            pdb.set_trace()
+            return -1
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."

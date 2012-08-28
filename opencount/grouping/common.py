@@ -1146,7 +1146,22 @@ def par_extract_patches(tasks):
     # TODO: I should probably be nuked.
     partask.do_partask(imgmap)
                        
-        
+def is_blankballot_contests_eq(*blankpaths):
+    """ Returns True if the input blank ballots contain the same contests,
+    False otherwise.
+    Input:
+        list blankpaths: (blankpath_i, ...)
+    Output:
+        True or False.
+    """
+    '''
+    for i, b1 in enumerate(blankpaths):
+        if i == len(blankpaths-1):
+            break
+        b2 = blankpaths[i+1]
+    '''
+    # TODO: Implement me!
+    return False
 
 if __name__ == '__main__':
     class MyFrame(wx.Frame):
