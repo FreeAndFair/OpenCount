@@ -1448,6 +1448,7 @@ class Project(object):
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
                      'contest_text': pathjoin(projdir_path, 'contest_text.csv'),
                      'contest_internal': pathjoin(projdir_path, 'contest_internal.p'),
+                     'contest_grouping_data': pathjoin(projdir_path, 'contest_grouping_data.p'),
                      'target_locs_dir': pathjoin(projdir_path, 'target_locations'),
                      'tmp': pathjoin(projdir_path, 'tmp'),
                      'extracted_dir': pathjoin(projdir_path, 'extracted'),

@@ -212,13 +212,6 @@ class LabelContest(wx.Panel):
         template.Add(self.templatebox)
         template.Add(button3)
         template.Add(button4)
-                
-        self.equivs = []
-        self.has_equiv_classes = False
-        self.multiboxcontests = []
-        self.multiboxcontests_enter = []
-        self.validequivs = {}
-
 
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
@@ -525,6 +518,8 @@ class LabelContest(wx.Panel):
                 did[mapping[k]] = True
 
         pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
+        pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter), open(self.proj.contest_grouping_data, "w"))
+
                     
     def setupBoxes(self):
         if self.proj.infer_bounding_boxes:
@@ -611,10 +606,21 @@ class LabelContest(wx.Panel):
 
         restored = False
         if os.path.exists(self.proj.contest_internal):
-            d = open(self.proj.contest_internal).read()
-            if d:
+            if open(self.proj.contest_internal).read():
                 restored = True
                 self.text, self.voteupto, self.grouping_cached = pickle.load(open(self.proj.contest_internal))
+
+        self.equivs = []
+        self.has_equiv_classes = False
+        self.multiboxcontests = []
+        self.multiboxcontests_enter = []
+        self.validequivs = {}
+
+        if os.path.exists(self.proj.contest_grouping_data):
+            if open(self.proj.contest_grouping_data).read():
+                print 'GOT THE DATA'
+                self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = pickle.load(open(self.proj.contest_grouping_data))
+                self.has_equiv_classes = True
 
         # The PIL image for the contest.
         # Keys are of the form templateid:(l,u,r,d)
