@@ -284,8 +284,9 @@ class GroupingMasterPanel(wx.Panel):
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
             templateid = determine_template(attrdict, munged_patches, samplepath, self.project)
-            if templateid == None or templateid == -1:
-                hosed_bals.append((samplepath, attrdict, munged_patches))
+            if type(templateid) == tuple:
+                status, data = templateid
+                hosed_bals.append((samplepath, attrdict, data))
                 continue
             row['templatepath'] = templateid
             bal2tmp[samplepath] = templateid
@@ -295,24 +296,15 @@ class GroupingMasterPanel(wx.Panel):
 OpenCount wasn't able to determine the corresponding blank ballot. \
 OpenCount has quarantined these voted ballots - you will have the \
 opportunity to manually group these ballots.\n""".format(len(hosed_bals))
-            msg2 = "The hosed ballots were:\n"
             qfile = open(self.project.quarantined, 'a')
             for (samplepath, attrdict, munged_patches) in hosed_bals:
-                msg2 += """    Imagepath: {0}
-        Attributes: {1}\n""".format(os.path.relpath(samplepath), attrdict)
                 print >>qfile, os.path.abspath(samplepath)
             qfile.close()
-            msg3 = "\nFor reference, the template attr patches were: {0}".format(munged_patches)
             HOSED_FILENAME = os.path.join(self.project.projdir_path, 'hosed_votedballots.log')
-            msg4 = "\n(This information has been dumped to '{0}'".format(HOSED_FILENAME)
-            msg = msg + msg2 + msg3 + msg4
+            msg2 = "\n(This information has been dumped to '{0}'".format(HOSED_FILENAME)
+            msg = msg + msg2
             dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
-            try:
-                f = open(HOSED_FILENAME, 'w')
-                print >>f, msg
-                f.close()
-            except IOError as e:
-                print e
+            log_hosed_ballots(hosed_bals, HOSED_FILENAME)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
@@ -871,8 +863,10 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
       str samplepath: Imagepath to the sample ballot in question.
       obj project: 
     Output:
-      Path of the associated template. Returns -1 if there are multiple
-      possible choices, or None if there are no possible matches.
+      Path of the associated template, if it's successful. If it isn't,
+      then if returns (0, None) if there are no possible matches.
+      It returns (<N>, ((str blankpath_i, dict attrs_i), ..)) if there
+      are N possible choices.
     """
     # 1.) First, handle 'standard' img-based attributes
     possibles = {}
@@ -914,18 +908,41 @@ they're all equivalent.".format(len(possibles))
             print "   Perhaps the current set of Ballot Attributes don't"
             print "   uniquely specify a blank ballot?"
             print "   ", samplepath
-            print "== To proceed, type in 'c', and press ENTER."
-            pdb.set_trace()
-            return -1
+            return (len(possibles), [(bpath, attrs) for bpath,attrs in possibles.items()])
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."
         print "  ", samplepath
         print "== To proceed, type in 'c', and press ENTER."
-        pdb.set_trace()
-        return None
+        return (0, None)
     assert len(possibles) == 1
     return possibles.keys()[0]
+
+def log_hosed_ballots(hosed_ballots, outpath):
+    """ Outputs information about voted ballots that didn't have a
+    corresponding blank ballot to an output file.
+    Input:
+        list hosed_ballots: ((samplepath_i, dict attrs_i, data_i), ...)
+    """
+    f = open(outpath, 'w')
+    for i, (samplepath, attrs, data) in enumerate(hosed_ballots):
+        print >>f, "Voted Ballot {0}: {1}".format(i, samplepath)
+        print >>f, "    Attributes:"
+        for attrtype, (attrval, flip, imgorder) in attrs.iteritems():
+            print >>f, "        {0}: {1}, flip: {2}, imgorder: {3}".format(attrtype, attrval,
+                                                                           flip, imgorder)
+        if data == None:
+            print >>f, "    Blank Ballot(s): {0} found.".format(0)
+        else:
+            print >>f, "    Blank Ballot(s): {0} found.".format(len(data))
+            for (blankpath, blankattrs) in data:
+                print >>f, "        Path: {0}".format(blankpath)
+                print >>f, "        Attributes:"
+                for attrtype, (attrval, flip) in blankattrs.iteritems():
+                    print >>f, "            {0}: {1}, flip: {2}".format(attrtype,
+                                                                        attrval, flip)
+        print >>f, ""
+    f.close()
 
 def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     """
