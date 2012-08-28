@@ -930,6 +930,7 @@ class LabelContest(wx.Panel):
                 each.Clear()
                 each.SetValue("")
 
+            self.curtext_matched = vv[1:]
             # Fill in the possible options.
             for i,each in enumerate(self.text_targets):
                 # Let them reorder if need be.
@@ -951,15 +952,10 @@ class LabelContest(wx.Panel):
             self.text_upto = wx.lib.intctrl.IntCtrl(self.textarea, pos=(0,-10000))
             return
         
-        #print "AND", self.text.values()
-        print map(len,self.text.values())
-        print len(self.text_targets)
         self.contesttitle = wx.StaticText(self.textarea, label="Contest Title", pos=(0,0))
-        print "---------", self.currentcontests, self.currentcontests[self.count], self.templatenum, self.count
-        print self.contest_order
+
         number_targets = len(self.groupedtargets[self.templatenum][self.count])
-        print self.groupedtargets[self.templatenum]
-        print map(len,self.groupedtargets[self.templatenum])
+
         self.text_title = wx.ComboBox(self.textarea, -1,
                                       choices=list(Set([x[0] for x in self.text.values() if x and len(x)-1 == number_targets])),
                                       style=wx.CB_DROPDOWN, pos=(0,25))
@@ -1013,6 +1009,15 @@ class LabelContest(wx.Panel):
             tt = wx.ComboBox(self.textarea, -1,
                              style=wx.CB_DROPDOWN, pos=(0,95+i*25))
             def c(j):
+
+                def rotate(evt):
+                    pos = self.curtext_matched.index(self.text_targets[j].GetValue())
+                    print "POS", pos
+                    for i,l in enumerate(self.curtext_matched[pos:]+self.curtext_matched[:pos]):
+                        self.text_targets[i].SetValue(l)
+
+                tt.Bind(wx.EVT_COMBOBOX, rotate)
+
                 tt.Bind(wx.EVT_SET_FOCUS, 
                         lambda x: showFocus(self.groupedtargets[self.templatenum][self.count][j], i=j))
             c(i)
@@ -1024,6 +1029,7 @@ class LabelContest(wx.Panel):
             def dontrestore(x): 
                 self.doNotClear = True
             tt.Bind(wx.EVT_TEXT, dontrestore)
+
 
             self.text_targets.append(tt)
 
