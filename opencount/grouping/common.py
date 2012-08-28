@@ -1,4 +1,5 @@
-import sys, os, csv, pdb, time
+import sys, os, csv, pdb, time, traceback
+from os.path import join as pathjoin
 
 try:
     import cPickle as pickle
@@ -6,16 +7,16 @@ except ImportError as e:
     print "Can't import cPickle. Falling back to pickle."
     import pickle
 
+import wx
 import numpy as np
 import scipy.cluster.vq
-from os.path import join as pathjoin
 from scipy import misc
+
 sys.path.append('../')
 sys.path.append('../pixel_reg/')
 import pixel_reg.shared as sh
 import pixel_reg.part_match as part_match
 
-import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from util import encodepath
@@ -639,6 +640,46 @@ class GroupClass(object):
         # should be labeled manually.
         self.is_manual = False
 
+    def compute_label(self):
+        """ Recomputes the self.label for this GroupClass, which may or
+        may not change.
+        """
+        try:
+            self.label = str(self.getcurrentgrouplabel())
+        except Exception as e:
+            print "Uhoh, got a weird error."
+            traceback.print_exc()
+            self.label = "Error, couldn't compute this label."
+
+    @staticmethod
+    def merge(*groups):
+        """ Given a bunch of GroupClass objects G, return a new GroupClass
+        object that 'merges' all of the elements in G.
+        """
+        new_elements = [] # a list, ((sampleid_i, rlist_i, patchpath_i), ...)
+        # TODO: Merge user_data's, though, it's not being used at the moment.
+        label = None
+        g_type = None
+        for group in groups:
+            if g_type == None:
+                g_type = type(group)
+            elif type(group) != g_type:
+                print "Can't merge groups with different types."
+                pdb.set_trace()
+                return None
+            
+            if label == None:
+                label = group.label
+            elif group.label != label:
+                print "Can't merge groups with different labels."
+                pdb.set_trace()
+                return None
+            new_elements.extend(group.elements)
+        if type(g_type) == GroupClass:
+            return GroupClass(new_elements)
+        else:
+            return DigitGroupClass(new_elements)
+
     def get_overlays(self):
         """ Returns overlayMin, overlayMax """
         if self.no_overlays:
@@ -669,7 +710,15 @@ class GroupClass(object):
         def sanitycheck_rankedlists(elements):
             """Make sure that the first grouplabel for each rankedlist
             are all the same grouplabel.
+            TODO: I think this check isn't valid. This check is valid
+                  for elements from GroupClasses computed from Kai's
+                  grouping code, but, if it's incorrect, and the user
+                  manually changes the labelling, then it's entirely
+                  feasible for the user to create a GroupClass where
+                  the first grouplabel of each rankedlist is not the
+                  same.
             """
+            '''
             grouplabel = None
             for (elementid, rankedlist, patchpath) in elements:
                 if grouplabel == None:
@@ -683,6 +732,8 @@ class GroupClass(object):
                     print "Error, first element of all rankedlists are \
 not equal."
                     pdb.set_trace()
+            return True
+            '''
             return True
         sanitycheck_rankedlists(self.elements)
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
@@ -762,6 +813,7 @@ class DigitGroupClass(GroupClass):
                  *args, **kwargs):
         GroupClass.__init__(self, elements, no_overlays=no_overlays,
                             user_data=user_data)
+
     def split_medianwise(self):
         # Assumes that only Digit attributes is using self.user_data.
         # Split the elements based on the partmatch scores: the top

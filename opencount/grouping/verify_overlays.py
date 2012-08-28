@@ -476,6 +476,7 @@ in queue: 0")
                         group.is_misclassify = False
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                    group.compute_label()
                     self.add_group(group)
                 #self.queue = d['todo']
                 # Don't worry about keeping 'finished' separated from 'queue'
@@ -589,6 +590,7 @@ in queue: 0")
         class given by final_index.
         """
         group.index = final_index
+        group.compute_label()
         self.finished.append(group)
         self.finishedList.Append(group.label)
 
@@ -1250,12 +1252,43 @@ finished! Press 'Ok', then you may continue to the next step.",
         G's overlay represents (i.e. 'party'->'democrat'?).
         In other words, a 'Merge' is an anti-'Split'.
         """
-        dlg = wx.MessageDialog(self, message="Not implemented yet...")
+        dlg = wx.MessageDialog(self, message="Not implemented yet!")
         self.Disable()
         dlg.ShowModal()
         self.Enable()
-        newgroups = []
-        
+        # TODO: This is more nuanced than I expected. I'd have to
+        # manually re-arrange all rankedlists in each new GroupClass
+        # to ensure that the label L that the user chose is at the
+        # 'front' of the rankedlist (since it's in sorted order).
+        # Also, for regular-attributes, arbitrarily re-ordering the
+        # ranked list might have bad consequences for 'Split', since
+        # 'Split' assumes that the rankedlist is ordered a certain way.
+        '''
+        newgroups_map = {} # maps {str grouplabel: (GroupClass_i, ...)}
+        for group in self.queue:
+            newgroups_map.setdefault(group.label, []).append(group)
+        pdb.set_trace()
+        newgroups = [] # (GroupClass_i, ...)
+        for grouplabel, groups in newgroups_map.iteritems():
+            newgroups.append(common.GroupClass.merge(*groups))
+
+        # Sanity check
+        oldcount = sum([len(g.elements) for g in self.queue])
+        newcount = sum([len(g.elements) for g in newgroups])
+        if oldcount != newcount:
+            print "Uhoh, old num. of elements was {0}, but the new \
+elements num. is {1}".format(oldcount, newcount)
+            pdb.set_trace()
+            return
+
+        # 0.) Remove all current groups
+        for group in self.queue:
+            self.remove_group(group)
+        # 1.) Add in all new groups
+        for group in newgroups:
+            self.add_group(group)
+        self.select_group(self.queue[0])
+        '''
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):
