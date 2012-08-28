@@ -1254,6 +1254,8 @@ finished! Press 'Ok', then you may continue to the next step.",
         self.Disable()
         dlg.ShowModal()
         self.Enable()
+        newgroups = []
+        
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):

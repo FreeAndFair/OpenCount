@@ -201,6 +201,7 @@ class GroupingMasterPanel(wx.Panel):
             {grouplabel: list of GroupClasses}
         """
         self.project.removeCloseEvent(self.verify_grouping.dump_state)
+        self.verify_grouping.dump_state()
         attr_types = set(common.get_attrtypes(self.project))
         # 0.) munge digit-grouping-results into results, since digitattrs
         #     are still in 'digit' form.
