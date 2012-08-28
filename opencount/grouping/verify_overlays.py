@@ -283,7 +283,14 @@ class VerifyPanel(wx.Panel):
         hbox5 = wx.BoxSizer(wx.HORIZONTAL)
         self.templateChoice = wx.ComboBox(self.mainPanel, choices=[], style=wx.CB_READONLY)
         self.okayButton = wx.Button(self.mainPanel, label='OK')
+
         self.splitButton = wx.Button(self.mainPanel, label='Split')
+        self.mergeButton = wx.Button(self.mainPanel, label='Merge Groups...')
+        sizer_splitmerge = wx.BoxSizer(wx.VERTICAL)
+        sizer_splitmerge.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
+        sizer_splitmerge.Add((20, 20))
+        sizer_splitmerge.Add(self.mergeButton, flag=wx.LEFT | wx.CENTRE)
+
         misclassify_sizer = wx.BoxSizer(wx.VERTICAL)
         self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
@@ -317,7 +324,7 @@ in queue: 0")
         hbox5.Add((25,-1))
         hbox5.Add(self.okayButton, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((25,-1))
-        hbox5.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add(sizer_splitmerge, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(quarantine_sizer, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40, -1))
@@ -520,21 +527,28 @@ in queue: 0")
         self.templateChoice.Bind(wx.EVT_COMBOBOX, self.OnSelectTemplate)
         self.Bind(wx.EVT_BUTTON, self.OnClickOK, self.okayButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickSplit, self.splitButton)
+        self.Bind(wx.EVT_BUTTON, self.OnClickMerge, self.mergeButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickDebug, self.debugButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickQuarantine, self.quarantineButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickYes, self.yes_button)
         self.Bind(wx.EVT_BUTTON, self.OnClickNo, self.no_button)
         self.Bind(wx.EVT_SIZE, self.OnSize)
     
-    def updateTemplateThumb(self):
+    def updateTemplateThumb(self, votedOverlays=None):
         """
         Updates the 'Attribute Patch' and 'Diff' image patches.
+        Input:
+            tuple votedOverlays: If given, this will be the Min/Max
+                overlays for the current voted ballot: (obj min, obj max).
         """
         if self.mode == VerifyPanel.MODE_YESNO2:
             # We don't have exemplar patches
             return
-        # TODO: Don't compute overlayMin/Max twice.
-        overlayMin, overlayMax = self.currentGroup.get_overlays()
+        if votedOverlays == None:
+            overlayMin, overlayMax = self.currentGroup.get_overlays()
+        else:
+            overlayMin, overlayMax = votedOverlays
+            
         templates = self.currentGroup.orderedAttrVals
         elements = self.currentGroup.elements
 
@@ -554,7 +568,8 @@ in queue: 0")
         if attrpatch_img.shape != overlayMax.shape:
             attrpatch_img = common.resize_img_norescale(attrpatch_img, (w_overlay, h_overlay))
         IO = imagesAlign(overlayMax, attrpatch_img)
-        Dabs=np.abs(IO[1]-attrpatch_img)
+        Iref = np.nan_to_num(IO[1])
+        Dabs=np.abs(Iref-attrpatch_img)
         diffImg = np.vectorize(lambda x: x * 255.0 if x >= THRESHOLD else 0.0)(Dabs)
         
         self.templateImg.SetBitmap(NumpyToWxBitmap(attrpatch_img * 255.0))
@@ -646,7 +661,7 @@ in queue: 0")
         
         self.templateChoice.SetSelection(self.currentGroup.index)
         
-        self.updateTemplateThumb()
+        self.updateTemplateThumb(votedOverlays=(overlayMin, overlayMax))
         
         if (len(elements) <= 1):
             self.splitButton.Disable()
@@ -1226,6 +1241,17 @@ finished! Press 'Ok', then you may continue to the next step.",
         self.queueList.Fit()
         #self.parent.Fit() # Causes UI issues
         self.fitPanel()
+
+    def OnClickMerge(self, event):
+        """ Take all currently-displayed groups A, and 'condense' them
+        into a new set of groups A', where groups G_0, G_1 in A are
+        combined if their grouplabels are the same. The 'grouplabel'
+        is, for each group G, OpenCount's current 'guess' as to what
+        G's overlay represents (i.e. 'party'->'democrat'?).
+        In other words, a 'Merge' is an anti-'Split'.
+        """
+        
+        pass
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):

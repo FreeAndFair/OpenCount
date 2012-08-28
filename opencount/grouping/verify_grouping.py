@@ -892,6 +892,17 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
             #return temppath
             possibles[temppath] = temp_attrdict
     if len(possibles) > 1:
+        # TODO: Instead of unconditionally-quarantining the voted
+        # ballot, instead, do this:
+        #    If every template T in possibles contains the same contests,
+        #    then arbitrarily return a template in T - this will be fine,
+        #    assuming:
+        #          a.) The ballot attributes uniquely determine ballot style
+        #          b.) Contest ordering doesn't change
+        #    Otherwise, we have a problem - quarantine the ballot, and alos
+        #    warn the user that the current set of attributes is probably not
+        #    'good enough'.
+        #    
         print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
         print "   We're hosed, so OpenCount will quarantine this voted ballot."
         print "   Perhaps the current set of Ballot Attributes don't"
