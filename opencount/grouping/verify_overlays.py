@@ -1250,8 +1250,10 @@ finished! Press 'Ok', then you may continue to the next step.",
         G's overlay represents (i.e. 'party'->'democrat'?).
         In other words, a 'Merge' is an anti-'Split'.
         """
-        
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet...")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):

@@ -177,9 +177,16 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.digitpanel.on_done()
 
     def onButton_zoomin(self, evt):
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet.")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
+
     def onButton_zoomout(self, evt):
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet.")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
