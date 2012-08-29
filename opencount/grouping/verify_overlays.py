@@ -531,7 +531,10 @@ in queue: 0")
             try:
                 self._mismatch_cnt = 0
                 fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
+                print "Loading statedict..."
+                _t = time.time()
                 statedict = pickle.load(fstate)
+                print "...Finished loading statedict ({0} s).".format(time.time() - _t)
                 todo = statedict['todo']
                 finished = statedict['finished']
                 print "Number todo: {0} Number finished: {1}".format(len(todo), len(finished))
