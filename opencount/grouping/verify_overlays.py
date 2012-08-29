@@ -466,7 +466,6 @@ in queue: 0")
         if self.project:
             print "DUMPING VERIFY GROUP STATE"
             statedict = {}
-            q = list(self.queue)
             if self.currentGroup and self.currentGroup not in self.queue and self.currentGroup not in self.finished:
                 # self.currentGroup will be None when verification is done.
                 print "Uhoh, why isn't currentGroup anywhere?"
@@ -474,14 +473,14 @@ in queue: 0")
             #if self.currentGroup:
             #    if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
             #        q.insert(0, self.currentGroup)
-            statedict['todo'] = q
+            statedict['todo'] = self.queue
             statedict['finished'] = self.finished
             #if self.currentGroup != None:
             #    statedict['curidx'] = self.queue.index(self.currentGroup)
             #else:
             #    statedict['curidx'] = 0
             #statedict['misclassify_cnt'] = self._mismatch_cnt
-            print "Number todo: {0} Number finished: {1}".format(len(q), len(self.finished))
+            print "Number todo: {0} Number finished: {1}".format(len(self.queue), len(self.finished))
             fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
             print "Dumping statedict..."
             pickle.dump(statedict, fqueue)
@@ -516,8 +515,8 @@ in queue: 0")
 
                 # 0.) First, clear all my internal state
                 self.reset_state()
-
-                for group in todo[::-1]: # [::-1] to not reverse groups in UI
+                todo.reverse() # to not reverse groups in UI
+                for group in todo: 
                     # TODO: Code that handles legacy GroupClass instances
                     #       that don't have the self.is_misclassify field.
                     #       Remove me after awhile - is harmless to leave in.
