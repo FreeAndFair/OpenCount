@@ -108,7 +108,7 @@ class LabelContest(wx.Panel):
 
                 self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
-        print "dirList", self.dirList
+        #print "dirList", self.dirList
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
@@ -478,7 +478,7 @@ class LabelContest(wx.Panel):
             eq = []
             for k2,v2 in groupedtext.items():
                 if k2 in used: continue
-                if v1 == v2:
+                if [x.lower() for x in v1] == [x.lower() for x in v2]:
                     it = self.contestID[k2]
                     eq.append((it[0], it[1]))
                     used[k2] = True
@@ -518,7 +518,8 @@ class LabelContest(wx.Panel):
                 did[mapping[k]] = True
 
         pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
-        pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter), open(self.proj.contest_grouping_data, "w"))
+        if self.has_equiv_classes:
+            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter), open(self.proj.contest_grouping_data, "w"))
 
                     
     def setupBoxes(self):
@@ -1013,7 +1014,9 @@ class LabelContest(wx.Panel):
                 def rotate(evt):
                     pos = self.curtext_matched.index(self.text_targets[j].GetValue())
                     print "POS", pos
-                    for i,l in enumerate(self.curtext_matched[pos:]+self.curtext_matched[:pos]):
+                    wi = len([x for x in self.curtext_matched if x.lower() == 'write in'])
+                    neworder = self.curtext_matched[pos:-wi]+self.curtext_matched[:pos]
+                    for i,l in enumerate(neworder):
                         self.text_targets[i].SetValue(l)
 
                 tt.Bind(wx.EVT_COMBOBOX, rotate)
