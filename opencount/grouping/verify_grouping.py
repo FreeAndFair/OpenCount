@@ -922,7 +922,11 @@ they're all equivalent.".format(len(possibles))
             print "   Perhaps the current set of Ballot Attributes don't"
             print "   uniquely specify a blank ballot?"
             print "   ", samplepath
-            return (len(possibles), [(bpath, attrs) for bpath,attrs in possibles.items()])
+            # TODO: Temporary hack, just arbitrarily return the first
+            #       blank ballot.
+            print "   Choosing the first blank ballot..."
+            return possibles.keys()[0]
+            #return (len(possibles), [(bpath, attrs) for bpath,attrs in possibles.items()])
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."
