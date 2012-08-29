@@ -176,7 +176,11 @@ class VerifyPanel(wx.Panel):
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
         self._misclassify_history = {} # maps {str votedpath: int count}
-
+        
+        self.accepted_hashes = None
+        self.rejected_hashes = None
+        self.digitmatch_info = None
+            
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
@@ -212,6 +216,40 @@ class VerifyPanel(wx.Panel):
 
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
 
+    def load_accepted_hashes(self):
+        if self.accepted_hashes != None:
+            return self.accepted_hashes
+        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        if accepted_hashes == None:
+            accepted_hashes = {}
+            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        self.accepted_hashes = accepted_hashes
+        return self.accepted_hashes
+    def save_accepted_hashes(self):
+        partmatch_fns.save_accepted_hashes(self.project, self.accepted_hashes)
+        
+    def load_rejected_hashes(self):
+        if self.rejected_hashes != None:
+            return self.rejected_hashes
+        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        if rejected_hashes == None:
+            rejected_hashes = {}
+            partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        self.rejected_hashes = rejected_hashes
+        return self.rejected_hashes
+    def save_rejected_hashes(self):
+        partmatch_fns.save_rejected_hashes(self.project, self.rejected_hashes)
+        
+    def load_digitmatch_info(self):
+        if self.digitmatch_info != None:
+            return self.digitmatch_info
+        digitmatch_info = digit_group.get_digitmatch_info(self.project)
+        self.digitmatch_info = digitmatch_info
+        return self.digitmatch_info
+    def save_digitmatch_info(self, digitmatch_info):
+        self.digitmatch_info = digitmatch_info
+        digit_group.save_digitmatch_info(self.project, self.digitmatch_info)
+        
     def fitPanel(self):
         #w, h = self.parent.GetClientSize()
         #self.mainPanel.SetMinSize((w * 0.95, h * 0.9))
@@ -756,11 +794,16 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             _t = time.time()
-            accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
-            if accepted_hashes == None:
-                accepted_hashes = {}
-                partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
-            digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            
+            #accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+            #if accepted_hashes == None:
+            #    accepted_hashes = {}
+            #    partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            accepted_hashes = self.load_accepted_hashes()
+            
+            #digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            digitmatch_info = self.load_digitmatch_info()
+            
             _dur = time.time() - _t
             times['load_data'] = _dur
             _t = time.time()
@@ -778,7 +821,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             print "...Finished Updating accepted hashes. ({0} s).".format(_dur)
             times['update_acceptedhashes'] = _dur
             _t = time.time()
-            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            #partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
 
             self._ok_history
             _dur = time.time() - _t
@@ -928,13 +971,14 @@ at a time."
         # b.) Construct rejected_hashes
         #cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
-        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
-        if rejected_hashes == None:
-            # Hasn't been created yet.
-            rejected_hashes = {}
-            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
-                                                       self.project.rejected_hashes),
-                                              'wb'))
+        rejected_hashes = self.load_rejected_hashes()
+        #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        #if rejected_hashes == None:
+        #    # Hasn't been created yet.
+        #    rejected_hashes = {}
+        #    pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+        #                                               self.project.rejected_hashes),
+        #                                      'wb'))
         ct = 0
         for imgpath, digitsmap in rejected_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():
@@ -952,17 +996,18 @@ DigitGrouping yet.", style=wx.OK)
             return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
-        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
-        if accepted_hashes == None:
-            # Hasn't been created yet.
-            accepted_hashes = {}
-            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        accepted_hashes = self.load_accepted_hashes()
+        #accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        #if accepted_hashes == None:
+        #    # Hasn't been created yet.
+        #    #accepted_hashes = {}
+        #    #partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
         accept_cnt = 0
         for imgpath, digitsmap in accepted_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():
                 accept_cnt += len(lst)
         print "Total number of accepted regions:", accept_cnt
-
+        partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
         # Filter out ballotids from bal2imgs that we don't need to process.
@@ -1042,7 +1087,8 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                                                                       prev_digitgroup_results,
                                                                       self.project)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
-        digit_group.save_digitmatch_info(self.project, digitmatch_info)
+        #digit_group.save_digitmatch_info(self.project, digitmatch_info)
+        self.save_digitmatch_info(digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
 
@@ -1141,13 +1187,14 @@ at a time."
         print "==== b.) Construct rejected_hashes"
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
-        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
-        if rejected_hashes == None:
-            # Hasn't been created yet.
-            rejected_hashes = {}
-            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
-                                                       self.project.rejected_hashes),
-                                              'wb'))
+        rejected_hashes = self.load_rejected_hashes()
+        #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        #if rejected_hashes == None:
+        #    # Hasn't been created yet.
+        #    rejected_hashes = {}
+        #    pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+        #                                               self.project.rejected_hashes),
+        #                                      'wb'))
         print "== Throw stuff in self.currentGroup.elements into rejected_hashes"
         # Load in digitmatch_info once, since it can be quite large.
         digitmatch_info = digit_group.get_digitmatch_info(self.project)
