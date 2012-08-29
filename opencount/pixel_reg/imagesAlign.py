@@ -1,6 +1,10 @@
 import numpy as np
 import scipy.misc as misc
-import math, pickle, os, traceback
+import math, os, traceback
+try:
+    import cPickle as pickle
+except ImportError as e:
+    import pickle
 import pdb
 import time
 import cv
