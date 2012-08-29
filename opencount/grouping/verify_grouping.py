@@ -167,6 +167,14 @@ class GroupingMasterPanel(wx.Panel):
             verifyoverlay_stateP = pathjoin(self.project.projdir_path,
                                             'verifygroupstate.p')
             if not os.path.exists(verifyoverlay_stateP):
+                dlg = wx.MessageDialog(self, message="Note: No \
+VerifyOverlay state file detected ({0}) - starting from the \
+beginning..".format(verifyoverlay_stateP),
+                                       style=wx.OK)
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
+
                 # If grouping computation completes, but the VerifyOverlay
                 # UI Crashes, and doesn't save its statefile, then
                 # regenerate the state required for the UI.
@@ -181,6 +189,12 @@ class GroupingMasterPanel(wx.Panel):
                 self.Refresh()
                 self.Fit()
                 return
+            dlg = wx.MessageDialog(self, message="VerifyOverlay state \
+file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
                 
             #self.verify_grouping.start(groups, patches, exemplar_paths)
             self.verify_grouping.load_state()

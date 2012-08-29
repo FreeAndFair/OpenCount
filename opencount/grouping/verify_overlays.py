@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, textwrap
+import sys, csv, copy, pdb, os, textwrap, traceback
 import threading, time
 import timeit
 sys.path.append('../')
@@ -312,6 +312,20 @@ in queue: 0")
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
         quarantine_sizer.AddMany([(self.debugButton,), (self.quarantineButton,)])
 
+        checkpoint_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.saveCheckpointButton = wx.Button(self.mainPanel, label="Save Checkpoint")
+        self.saveCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickSaveCheckpoint)
+        self.loadCheckpointButton = wx.Button(self.mainPanel, label="Load Checkpoint...")
+        self.loadCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickLoadCheckpoint)
+        self.undoButton = wx.Button(self.mainPanel, label="Undo.")
+        self.undoButton.Bind(wx.EVT_BUTTON, self.OnClickUndo)
+        self.restoreallButton = wx.Button(self.mainPanel, label="Restore All Groups...")
+        self.restoreallButton.Bind(wx.EVT_BUTTON, self.OnClickRestoreAll)
+        checkpoint_sizer.AddMany([(self.saveCheckpointButton,), ((10,10),), 
+                                  (self.loadCheckpointButton,), ((10,10),),
+                                  (self.undoButton,), ((10,10),),
+                                  (self.restoreallButton,)])
+
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
         self.no_button = wx.Button(self.mainPanel, label="No")
@@ -336,6 +350,8 @@ in queue: 0")
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.manuallylabelButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((50, -1))
+        hbox5.Add(checkpoint_sizer, flag=wx.LEFT | wx.CENTRE)
 
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
@@ -445,17 +461,25 @@ in queue: 0")
     def dump_state(self):
         if self.project:
             print "DUMPING VERIFY GROUP STATE"
-            fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
-            d = {}
+            statedict = {}
             q = list(self.queue)
-            if self.currentGroup:
-                if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
-                    q.insert(0, self.currentGroup)
-            q.extend(self.finished)
-            d['todo'] = q
-            #d['finished'] = self.finished
-            d['finished'] = []
-            pickle.dump(d, fqueue)
+            if self.currentGroup and self.currentGroup not in self.queue and self.currentGroup not in self.finished:
+                # self.currentGroup will be None when verification is done.
+                print "Uhoh, why isn't currentGroup anywhere?"
+                pdb.set_trace()
+            #if self.currentGroup:
+            #    if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
+            #        q.insert(0, self.currentGroup)
+            statedict['todo'] = q
+            statedict['finished'] = self.finished
+            #if self.currentGroup != None:
+            #    statedict['curidx'] = self.queue.index(self.currentGroup)
+            #else:
+            #    statedict['curidx'] = 0
+            #statedict['misclassify_cnt'] = self._mismatch_cnt
+            print "Number todo: {0} Number finished: {1}".format(len(q), len(self.finished))
+            fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
+            pickle.dump(statedict, fqueue)
         
     def load_state(self):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
@@ -464,10 +488,30 @@ in queue: 0")
             try:
                 self._mismatch_cnt = 0
                 fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
-                d = pickle.load(fstate)
-                todo = d['todo']
-                todo.extend(d['finished'])
-                for group in todo:
+                statedict = pickle.load(fstate)
+                todo = statedict['todo']
+                finished = statedict['finished']
+                print "Number todo: {0} Number finished: {1}".format(len(todo), len(finished))
+                # TODO: 'curidx' not used at the moment. Might be a useful
+                # thing to have at some point.
+                if 'curidx' not in statedict:
+                    # TODO: Legacy code. Remove me at some future time.
+                    curgroupidx = 0
+                else:
+                    curgroupidx = statedict['curidx']
+                # TODO: For Marin backwards compatibility, we'll just recompute
+                # the misclassify count. But later, let's just use the misclassify_cnt
+                # in the statefile.
+                if 'misclassify_cnt' not in statedict:
+                    # TODO: Legacy code. Remove me at some future time.
+                    misclassify_cnt = None
+                else:
+                    misclassify_cnt = statedict['misclassify_cnt']
+
+                # 0.) First, clear all my internal state
+                self.reset_state()
+
+                for group in todo[::-1]: # [::-1] to not reverse groups in UI
                     # TODO: Code that handles legacy GroupClass instances
                     #       that don't have the self.is_misclassify field.
                     #       Remove me after awhile - is harmless to leave in.
@@ -478,19 +522,32 @@ in queue: 0")
                         self._mismatch_cnt += len(group.elements)
                     group.compute_label()
                     self.add_group(group)
-                #self.queue = d['todo']
-                # Don't worry about keeping 'finished' separated from 'queue'
-                # for now.
-                #self.queue.extend(d['finished'])
-                #self.finished = d['finished']  # This was present earlier -- why?
+                self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
                 # load in any state.
+                dlg = wx.MessageDialog(self, message="Warning - couldn't \
+open the Verify Overlays state file for some reason: {0} \nIf the statefile \
+is a nullfile, please delete it, and start over.".format(pathjoin(self.project.projdir_path,
+                                                                  'verifygroupstate.p')))
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
+                traceback.print_exc()
                 print e
                 return
-
         # Update the self.misclassify_txt label
         self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
+
+    def reset_state(self):
+        """ Resets all internal state, both data structures and UI
+        widgets.
+        """
+        self._mismatch_cnt = 0
+        self.queue = []
+        self.currentGroup = None
+        self.finished = []
+        self.queueList.Clear()
 
     def start_verifygrouping(self):
         """
@@ -1325,12 +1382,66 @@ OpenCount claims you're 'done'. Uh oh."
                 self.Enable()
             else:
                 self.select_group(self.queue[0])
+
+    def OnClickSaveCheckpoint(self, event):
+        """ Saves the current (exact) UI state, such as which groups
+        are visible, not visible, etc.
+        """
+        print "Saving state."
+        dlg = wx.MessageDialog(self, message="Warning - saving this \
+Checkpoint will overwrite the last-saved Checkpoint. Are you sure you \
+want to continue?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.dump_state()
+        self.Enable()
+        
+    def OnClickLoadCheckpoint(self, event):
+        """ Loads the (last) saved checkpoint. """
+        dlg = wx.MessageDialog(self, message="Warning - loading the last \
+saved Checkpoint will result in all unsaved progress being lost. Are \
+you sure you want to continue?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.load_state()
+        self.select_group(self.queue[0])
+        self.Enable()
+
+    def restore_hidden_groups(self):
+        for i in range(len(self.finished)):
+            self.add_group(self.finished.pop())
+
+    def OnClickRestoreAll(self, event):
+        """ Restores all hidden groups to the UI. """
+        dlg = wx.MessageDialog(self, message="Warning - restoring all\
+groups will add all previously-OK'd Groups to the UI. You will then \
+have to re-click 'Ok' for each of these Groups. \n\n\
+Are you sure you want to do this?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.restore_hidden_groups()
+        self.select_group(self.queue[0])
+        self.Enable()
     
+    def OnClickUndo(self, event):
+        """ Adds the last-finished GroupClass to the UI. """
+        if not self.finished:
+            dlg = wx.MessageDialog(self, message="No OK'd Groups to \
+undo!", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        self.add_group(self.finished.pop())
+        self.select_group(self.queue[0])
+
     def checkCanMoveOn(self):
         # TODO: Fix this implementation.
         return True
-
-        return self.canMoveOn
+        #return self.canMoveOn
         
     def _pubsub_project(self, msg):
         project = msg.data
