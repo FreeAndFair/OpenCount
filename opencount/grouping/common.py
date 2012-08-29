@@ -959,10 +959,14 @@ class DigitGroupClass(GroupClass):
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
-    return partask.do_partask(_generate_overlays,
-                              group.elements,
-                              combfn=_my_combfn_overlays,
-                              init=(None, None))
+    if len(group.elements) <= 12:
+        # Just do it all in serial.
+        return _generate_overlays(group.elements)
+    else:
+        return partask.do_partask(_generate_overlays,
+                                  group.elements,
+                                  combfn=_my_combfn_overlays,
+                                  init=(None, None))
 
 def _generate_overlays(elements):
     overlayMin, overlayMax = None, None
