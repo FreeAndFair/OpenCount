@@ -490,10 +490,9 @@ digit.")
             examples.append((filename, (grouplabel,), patchpath))
             self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
             matchID += 1
-            #patchpath_scores[patchpath] = score2
-        #pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
-        #group = common.DigitGroupClass(examples, user_data=patchpath_scores)
-        group = common.DigitGroupClass(examples)
+            patchpath_scores[patchpath] = score2
+        pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
+        group = common.DigitGroupClass(examples, user_data=patchpath_scores)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
