@@ -959,7 +959,7 @@ class DigitGroupClass(GroupClass):
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
-    if len(group.elements) <= 12:
+    if len(group.elements) <= 20:
         # Just do it all in serial.
         return _generate_overlays(group.elements)
     else:
