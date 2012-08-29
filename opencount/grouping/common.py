@@ -565,7 +565,7 @@ def str_grouplabel(grouplabel):
     """ Returns a string-representation of the grouplabel. """
     kv_pairs = tuple(grouplabel)
     out = ''
-    for (k, v) in kv_pairs:
+    for (k, v) in sorted(kv_pairs):
         out += '{0}->{1}, '.format(k, v)
     return out
 
