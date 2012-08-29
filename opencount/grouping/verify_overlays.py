@@ -568,6 +568,12 @@ in queue: 0")
                         self._mismatch_cnt += len(group.elements)
                     group.compute_label()
                     self.add_group(group)
+                for group in finished:
+                    if not hasattr(group, 'is_misclassify'):
+                        # This is the legacy part
+                        group.is_misclassify = False
+                    elif group.is_misclassify == True:
+                        self._mismatch_cnt += len(group.elements)
                 self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
