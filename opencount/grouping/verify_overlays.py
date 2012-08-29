@@ -483,7 +483,9 @@ in queue: 0")
             #statedict['misclassify_cnt'] = self._mismatch_cnt
             print "Number todo: {0} Number finished: {1}".format(len(q), len(self.finished))
             fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
+            print "Dumping statedict..."
             pickle.dump(statedict, fqueue)
+            print "...Finished Dumping statedict."
         
     def load_state(self):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
