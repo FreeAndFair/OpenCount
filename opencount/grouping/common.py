@@ -890,6 +890,10 @@ class DigitGroupClass(GroupClass):
                             user_data=user_data)
 
     def split_medianwise(self):
+        """
+        TODO: NOT IN USE. Replaced by split_kmeans(), since it seems to
+              work better.
+        """
         # Assumes that only Digit attributes is using self.user_data.
         # Split the elements based on the partmatch scores: the top
         # 50%, and the bottom 50%.

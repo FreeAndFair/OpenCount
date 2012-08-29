@@ -1,4 +1,9 @@
-import sys, os, pickle, pdb, Queue, threading, time, traceback
+import sys, os, pdb, Queue, threading, time, traceback
+try:
+    import cPickle as pickle
+except ImportError as e:
+    import pickle
+
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
@@ -461,7 +466,7 @@ digit.")
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
         # patchpath_scores will be used to improve 'Split' behavior
-        # for digit-based attributes
+        # for digit-based attributes. TODO: NOT IN USE, replaced by kmeans
         proj = self.parent.parent.project  # TODO: breach of abstraction
         patchpath_scoresP = pathjoin(proj.projdir_path, proj.digitpatchpath_scoresBlank)
         # patchpath_scores maps {str patchpath: float score}
@@ -485,9 +490,10 @@ digit.")
             examples.append((filename, (grouplabel,), patchpath))
             self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
             matchID += 1
-            patchpath_scores[patchpath] = score2
-        pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
-        group = common.DigitGroupClass(examples, user_data=patchpath_scores)
+            #patchpath_scores[patchpath] = score2
+        #pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
+        #group = common.DigitGroupClass(examples, user_data=patchpath_scores)
+        group = common.DigitGroupClass(examples)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
