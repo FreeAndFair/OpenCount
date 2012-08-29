@@ -50,7 +50,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
 
         bb = bb_map.get(imgpath, None)
         if bb == None:
-            patch = img
+            patch = resize_mat(img, (h_big, w_big))
         else:
             # Must make sure that all patches are the same shape.
             patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))

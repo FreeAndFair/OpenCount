@@ -798,11 +798,12 @@ not equal."
             the slices S that maximize the variance
         2.) Run k-means (k=2) on the slices S.
         """
-        if len(self.elements) == 2:
-            return (GroupClass((self.elements[0],),
-                               user_data=self.user_data),
-                    GroupClass((self.elements[1],),
-                               user_data=self.user_data))
+        if len(self.elements) <= K:
+            groups = []
+            for element in self.elements:
+                groups.append(GroupClass((element,),
+                                         user_data=self.user_data))
+            return groups
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
