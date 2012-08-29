@@ -758,8 +758,80 @@ not equal."
                                 for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
-        
-    def split(self):
+
+    def split_kmeans(self, K=2):
+        """ Uses k-means (k=2) to try to split this group. """
+        if len(self.elements) == 2:
+            return (GroupClass((self.elements[0],),
+                               user_data=self.user_data),
+                    GroupClass((self.elements[1],),
+                               user_data=self.user_data))
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running k-means."
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        print "...Completed running k-means ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            groups.append(GroupClass(elements,
+                                     user_data=self.user_data))
+        assert len(groups) == K
+        return groups
+
+    def split_pca_kmeans(self, K=2, N=3):
+        """ Use PCA to help with the split process.
+        Input: Set of image patches A, of size NxM
+        0.) Discretize the image patch into K N'xM' equally-sized slices.
+        1.) Using the discretized image patches A', run PCA to extract
+            the slices S that maximize the variance
+        2.) Run k-means (k=2) on the slices S.
+        """
+        if len(self.elements) <= K:
+            groups = []
+            for element in self.elements:
+                groups.append(GroupClass((element,),
+                                         user_data=self.user_data))
+            return groups
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running PCA+k-means."
+        clusters = cluster_imgs.cluster_imgs_pca_kmeans(patchpaths, k=K)
+        print "...Completed running PCA+k-means ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            groups.append(GroupClass(elements,
+                                     user_data=self.user_data))
+        assert len(groups) == K
+        return groups
+
+    def split_rankedlist(self):
+        """ Perform a split by using the rankedlist outputted by
+        Kai's grouping algorithm.
+        """
         groups = []
         new_elements = {}
         all_rankedlists = [t[1] for t in self.elements]
@@ -804,6 +876,9 @@ just doing a naive split."
         for grouplabel, elements in new_elements.iteritems():
             groups.append(GroupClass(elements, user_data=self.user_data))
         return groups
+        
+    def split(self):
+        return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """
@@ -884,10 +959,14 @@ class DigitGroupClass(GroupClass):
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
-    return partask.do_partask(_generate_overlays,
-                              group.elements,
-                              combfn=_my_combfn_overlays,
-                              init=(None, None))
+    if len(group.elements) <= 12:
+        # Just do it all in serial.
+        return _generate_overlays(group.elements)
+    else:
+        return partask.do_partask(_generate_overlays,
+                                  group.elements,
+                                  combfn=_my_combfn_overlays,
+                                  init=(None, None))
 
 def _generate_overlays(elements):
     overlayMin, overlayMax = None, None
@@ -1146,7 +1225,22 @@ def par_extract_patches(tasks):
     # TODO: I should probably be nuked.
     partask.do_partask(imgmap)
                        
-        
+def is_blankballot_contests_eq(*blankpaths):
+    """ Returns True if the input blank ballots contain the same contests,
+    False otherwise.
+    Input:
+        list blankpaths: (blankpath_i, ...)
+    Output:
+        True or False.
+    """
+    '''
+    for i, b1 in enumerate(blankpaths):
+        if i == len(blankpaths-1):
+            break
+        b2 = blankpaths[i+1]
+    '''
+    # TODO: Implement me!
+    return False
 
 if __name__ == '__main__':
     class MyFrame(wx.Frame):

@@ -1,4 +1,5 @@
 import wx, pdb
+import wx.lib.scrolledpanel
 from wx.lib.pubsub import Publisher
 from util import ImageManipulate
 import PIL
@@ -97,7 +98,7 @@ class MainPanel(wx.Panel):
         
         self.middle_col = wx.BoxSizer(wx.VERTICAL)
 
-        self.contest_title = wx.ListBox(self, -1)
+        self.contest_title = wx.ListBox(self, -1, size=(300, 100))
         for each in self.labeltext:
             self.contest_title.Append(each[0])
         self.contest_title.Select(0)
@@ -111,10 +112,15 @@ class MainPanel(wx.Panel):
 
         self.middle_col.Add(self.contest_title)
 
-        t = wx.StaticText(self, -1, label="Enter the information about one contest below")
-        self.input_area = wx.BoxSizer(wx.VERTICAL)
+        #t = wx.StaticText(self, -1, label="Enter the information about one contest below")
 
-        self.middle_col.Add(t)
+        self.input_area = wx.lib.scrolledpanel.ScrolledPanel(self, size=(300, 300))
+        self.input_area.SetAutoLayout(True)
+        self.input_area.SetupScrolling(False, True)
+        self.input_area_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.input_area.SetSizer(self.input_area_sizer)
+
+        #self.middle_col.Add(t)
         self.middle_col.Add(self.input_area)
 
         self.discard = wx.CheckBox(self, -1, label="Discard image.")
@@ -263,13 +269,13 @@ the next step.",
 
     def add_new_target(self, x=None):
         s = wx.BoxSizer(wx.HORIZONTAL)
-        name = wx.StaticText(self, -1)
-        check = wx.CheckBox(self, -1, label="Voted?")
+        name = wx.StaticText(self.input_area, -1)
+        check = wx.CheckBox(self.input_area, -1, label="Voted?")
         print 'add ', name
         self.candidates.append((name, check))
         s.Add(name)
         s.Add(check)
-        self.input_area.Add(s)
+        self.input_area_sizer.Add(s)
         self.Fit()
         self.Refresh()
 
@@ -298,7 +304,7 @@ ballot images exist, so, no need to save contest data."
         self.number_of_contests += 1
 
     def reset_contests(self):
-        self.input_area.Clear()
+        self.input_area_sizer.Clear()
         #self.discard.SetValue(False)
 
         for a,b in self.candidates:
