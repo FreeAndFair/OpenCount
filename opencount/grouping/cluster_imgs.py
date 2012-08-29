@@ -1,11 +1,87 @@
 import sys, os, pdb, pickle
+sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
 import scipy.cluster.vq
+import pylab
+
+import specify_voting_targets.util_gui as util_gui
 
 """
 A script designed to cluster images.
 """
+
+def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
+    """ Using PCA and K-means, cluster the imgpaths into 'k' clusters,
+    using the first 'N' principal components.
+    Algorithm details:
+        Input: Set of image patches A, of size NxM
+        0.) Discretize the image patch into K N'xM' equally-sized slices.
+        1.) Using the discretized image patches A', run PCA to extract
+            the slices S that maximize the variance
+        2.) Run k-means (k=2) on the slices S.
+    Input:
+        list imgpaths: (imgpath_i, ...)
+        dict bb_map: If you want to only cluster based on a sub-region
+                     of each image, pass in 'bb_map', which is:
+                         {str imgpath: (y1,y2,x1,x2)}
+        int k: number of clusters
+        int N: Number of principle components to use. (NOT USED)
+    Output:
+        dict clusters, maps {str clusterID: [imgpath_i, ...]}
+    """
+    if bb_map == None:
+        bb_map = {}
+        h_big, w_big = get_largest_img_dims(imgpaths)
+    else:
+        bb_big = get_largest_bb(bb_map.values())
+        h_big = int(abs(bb_big[0] - bb_big[1]))
+        w_big = int(abs(bb_big[2] - bb_big[3]))
+    # 0.) First, convert images into MxN array, where M is the number
+    #     of images, and N is the number of pixels of each image.
+    data = np.zeros((len(imgpaths), h_big*w_big))
+    for row, imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        bb = bb_map.get(imgpath, None)
+        if bb == None:
+            patch = img
+        else:
+            # Must make sure that all patches are the same shape.
+            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
+        # Reshape 'patch' to be a single row of pixels, instead of rows
+        # of pixels.
+        patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
+        data[row,:] = patch
+    
+    # Inspiration for PCA-related code comes from:
+    #     http://glowingpython.blogspot.it/2011/07/pca-and-image-compression-with-numpy.html
+
+    # 1.) Call PCA on the data matrix, extract first N principle comps
+    M = (data - np.mean(data.T, axis=1)) # subtract mean, along cols
+    (latent, coeff) = np.linalg.eig(np.cov(M))
+    p = np.size(coeff, axis=1)
+
+    idx = pylab.argsort(latent)  # sort eigenvalues
+    idx = idx[::-1]        # ascending order (i.e. by 'relevance')
+    # idx is a sorted list of indices into imgpaths, i.e. if there
+    # are 5 images, and idx is:
+    #   idx := [4, 1, 3, 2, 0]
+    # then this means that imgpaths[4] most explains the variance,
+    # followed by imgpaths[1], etc.
+    idx = idx[:k]
+    cluster_centers = data[idx, :]
+    clustering = {} # maps {int clusterID: [imgpath_i, ...]}
+    
+    # 2.) Nearest-Neighbors to cluster_centers
+    for i, imgarray in enumerate(data):
+        best_dist, best_j = None, None
+        for j, clustercenter in enumerate(cluster_centers):
+            dist = np.linalg.norm(imgarray - clustercenter)
+            if best_dist == None or dist < best_dist:
+                best_dist = dist
+                best_j = j
+        clustering.setdefault(best_j, []).append(imgpaths[i])
+    return clustering
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
