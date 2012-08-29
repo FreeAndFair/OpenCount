@@ -877,7 +877,7 @@ just doing a naive split."
         return groups
         
     def split(self):
-        return self.split_pca_kmeans()
+        return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """

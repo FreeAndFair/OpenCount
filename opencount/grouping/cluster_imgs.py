@@ -37,11 +37,17 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
         bb_big = get_largest_bb(bb_map.values())
         h_big = int(abs(bb_big[0] - bb_big[1]))
         w_big = int(abs(bb_big[2] - bb_big[3]))
+    #TEMP: Cut off first half, last quarter
+    #w_big = (w_big / 2) - (w_big / 4)
     # 0.) First, convert images into MxN array, where M is the number
     #     of images, and N is the number of pixels of each image.
     data = np.zeros((len(imgpaths), h_big*w_big))
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
+        # TEMP: Cut off first half
+        #img = img[:, img.shape[1]/2:(3*img.shape[1])/4]
+        #img = util_gui.autothreshold_numpy(img, method="otsu")
+
         bb = bb_map.get(imgpath, None)
         if bb == None:
             patch = img
