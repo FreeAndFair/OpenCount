@@ -524,7 +524,7 @@ in queue: 0")
             pickle.dump(statedict, fqueue)
             print "...Finished Dumping statedict."
         
-    def load_state(self):
+    def load_state(self, replacedigits=False, digitgroups=None):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
         #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
@@ -564,6 +564,9 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
                     group.compute_label()
@@ -572,8 +575,16 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                if replacedigits:
+                    # Add in new DigitGroups
+                    assert digitgroups != None
+                    for g in digitgroups:
+                        self.add_group(g)
                 self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
