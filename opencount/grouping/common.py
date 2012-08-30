@@ -598,7 +598,9 @@ class GroupClass(object):
                    This will be used during 'Split', for smarter split
                    behavior.
         """
-        self.elements = tuple(elements) if type(elements) != tuple else elements
+        # Converting to Tuples didn't seem to help - if anything, it hurt?
+        #self.elements = tuple(elements) if type(elements) != tuple else elements
+        self.elements = elements
         #for i in range(len(elements)):  # Why did I do this again?
         #    if not issubclass(type(elements[i][1]), list):
         #        self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
