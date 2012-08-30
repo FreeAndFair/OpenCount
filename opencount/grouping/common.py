@@ -598,10 +598,10 @@ class GroupClass(object):
                    This will be used during 'Split', for smarter split
                    behavior.
         """
-        self.elements = list(elements)
-        for i in range(len(elements)):
-            if not issubclass(type(elements[i][1]), list):
-                self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
+        self.elements = tuple(elements) if type(elements) != tuple else elements
+        #for i in range(len(elements)):  # Why did I do this again?
+        #    if not issubclass(type(elements[i][1]), list):
+        #        self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
         # self.is_misclassify: Used to mark a GroupClass that the user
         # said was 'Misclassified'
@@ -609,7 +609,7 @@ class GroupClass(object):
         # orderedAttrVals is a list of grouplabels, whose order is 
         # predetermined by some score-metric. Should not change after it
         # is first set.
-        self.orderedAttrVals = []
+        self.orderedAttrVals = ()
         
         # The index of the grouplabel (w.r.t self.orderedAttrVals) that
         # this group ostensibly represents. Is 'finalized' when the user
@@ -754,10 +754,10 @@ not equal."
                     weightedAttrVals[group] = weightedAttrVals[group] + vote
                 
                 vote = vote / 2.0
-        self.orderedAttrVals = [group
-                                for (group, weight) in sorted(weightedAttrVals.items(), 
-                                                                   key=lambda t: t[1],
-                                                                   reverse=True)]
+        self.orderedAttrVals = tuple([group
+                                      for (group, weight) in sorted(weightedAttrVals.items(), 
+                                                                    key=lambda t: t[1],
+                                                                    reverse=True)])
 
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
@@ -878,7 +878,7 @@ just doing a naive split."
         return groups
         
     def split(self):
-        return self.split_pca_kmeans(K=3)
+        return self.split_pca_kmeans(K=2)
 
 class DigitGroupClass(GroupClass):
     """
