@@ -175,7 +175,7 @@ class VerifyPanel(wx.Panel):
         # 'Ok', for a voted ballot B
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
-        self._misclassify_history = {} # maps {str votedpath: int count}
+        self._misclassify_history = {} # maps {str ballotid: int count}
         
         self.accepted_hashes = None
         self.rejected_hashes = None
@@ -556,6 +556,9 @@ in queue: 0")
 
                 # 0.) First, clear all my internal state
                 self.reset_state()
+
+                img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+
                 todo.reverse() # to not reverse groups in UI
                 for group in todo: 
                     # TODO: Code that handles legacy GroupClass instances
@@ -580,6 +583,12 @@ in queue: 0")
                         continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                        for element in group.elements:
+                            balid = img2bal[element[0]]
+                            if balid not in self._misclassify_history:
+                                self._misclassify_history[balid] = 1
+                            else:
+                                self._misclassify_history[balid] += 1
                 if replacedigits:
                     # Add in new DigitGroups
                     assert digitgroups != None
