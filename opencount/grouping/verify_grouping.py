@@ -154,11 +154,10 @@ class GroupingMasterPanel(wx.Panel):
 
         self.run_grouping.Hide()
         self.verify_grouping.Show()
-
+        self.project.addCloseEvent(self.verify_grouping.dump_state)
         if groups:
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
-            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.SendSizeEvent()
             self.SendSizeEvent()
             self.Refresh()
@@ -183,7 +182,6 @@ beginning..".format(verifyoverlay_stateP),
                 groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
                 exemplar_paths = get_exemplar_paths()
                 self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
-                self.project.addCloseEvent(self.verify_grouping.dump_state)
                 self.verify_grouping.SendSizeEvent()
                 self.SendSizeEvent()
                 self.Refresh()
@@ -200,7 +198,6 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.project = self.project
-            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.ondone = self.verifying_done
             self.verify_grouping.load_exemplar_attrpatches(exemplar_paths)
             self.verify_grouping.start_verifygrouping()
