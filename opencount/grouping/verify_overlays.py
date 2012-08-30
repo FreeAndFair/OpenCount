@@ -175,7 +175,7 @@ class VerifyPanel(wx.Panel):
         # 'Ok', for a voted ballot B
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
-        self._misclassify_history = {} # maps {str votedpath: int count}
+        self._misclassify_history = {} # maps {str ballotid: int count}
         
         self.accepted_hashes = None
         self.rejected_hashes = None
@@ -524,7 +524,7 @@ in queue: 0")
             pickle.dump(statedict, fqueue)
             print "...Finished Dumping statedict."
         
-    def load_state(self):
+    def load_state(self, replacedigits=False, digitgroups=None):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
         #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
@@ -556,6 +556,9 @@ in queue: 0")
 
                 # 0.) First, clear all my internal state
                 self.reset_state()
+
+                img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+
                 todo.reverse() # to not reverse groups in UI
                 for group in todo: 
                     # TODO: Code that handles legacy GroupClass instances
@@ -564,6 +567,9 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
                     group.compute_label()
@@ -572,8 +578,22 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                        for element in group.elements:
+                            balid = img2bal[element[0]]
+                            if balid not in self._misclassify_history:
+                                self._misclassify_history[balid] = 1
+                            else:
+                                self._misclassify_history[balid] += 1
+                if replacedigits:
+                    # Add in new DigitGroups
+                    assert digitgroups != None
+                    for g in digitgroups:
+                        self.add_group(g)
                 self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't

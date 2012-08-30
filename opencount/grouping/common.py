@@ -890,6 +890,10 @@ class DigitGroupClass(GroupClass):
                             user_data=user_data)
 
     def split_medianwise(self):
+        """
+        TODO: NOT IN USE. Replaced by split_kmeans(), since it seems to
+              work better.
+        """
         # Assumes that only Digit attributes is using self.user_data.
         # Split the elements based on the partmatch scores: the top
         # 50%, and the bottom 50%.
@@ -959,7 +963,7 @@ class DigitGroupClass(GroupClass):
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
-    if len(group.elements) <= 12:
+    if len(group.elements) <= 20:
         # Just do it all in serial.
         return _generate_overlays(group.elements)
     else:
