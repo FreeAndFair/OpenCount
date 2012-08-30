@@ -596,7 +596,7 @@ class GroupClass(object):
                    this will be a dict that maps:
                      {str patchpath: float score}
                    This will be used during 'Split', for smarter split
-                   behavior.
+                   behavior. TODO: UNUSED.
         """
         # Converting to Tuples didn't seem to help - if anything, it hurt?
         #self.elements = tuple(elements) if type(elements) != tuple else elements
@@ -623,35 +623,24 @@ class GroupClass(object):
         self.user_data = user_data
 
         self.processElements()
-
-        # The label that will be displayed in the ListBoxes to 
-        # the user, i.e. a public name for this GroupClass.
-        try:
-            self.label = str(self.getcurrentgrouplabel())
-        except Exception as e:
-            print e
-            pdb.set_trace()
-                     
-        if self.label not in GroupClass.ctrs:
-            GroupClass.ctrs[self.label] = 1
+        
+        s = str(self.getcurrentgrouplabel())
+        if s not in GroupClass.ctrs:
+            GroupClass.ctrs[s] = 1
         else:
-            GroupClass.ctrs[self.label] += 1
-        self.label += '-{0}'.format(GroupClass.ctrs[self.label])
+            GroupClass.ctrs[s] += 1
 
         # is_manual: A flag used by MODE_YESNO2, indicates this group
         # should be labeled manually.
         self.is_manual = False
 
-    def compute_label(self):
-        """ Recomputes the self.label for this GroupClass, which may or
-        may not change.
-        """
-        try:
-            self.label = str(self.getcurrentgrouplabel())
-        except Exception as e:
-            print "Uhoh, got a weird error."
-            traceback.print_exc()
-            self.label = "Error, couldn't compute this label."
+    @property
+    def label(self):
+        s = str(self.getcurrentgrouplabel())
+        if s not in GroupClass.ctrs:
+            GroupClass.ctrs[s] = 1
+        return '{0}-{1}'.format(s,
+                                GroupClass.ctrs[s])
 
     @staticmethod
     def merge(*groups):

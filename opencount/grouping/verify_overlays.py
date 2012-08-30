@@ -566,7 +566,8 @@ in queue: 0")
                         group.is_misclassify = False
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
-                    group.compute_label()
+                    # TODO: Discard user_Data for now.
+                    group.user_data = None
                     self.add_group(group)
                 for group in finished:
                     if not hasattr(group, 'is_misclassify'):
@@ -574,6 +575,8 @@ in queue: 0")
                         group.is_misclassify = False
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                    # TODO: Discard user_data for now.
+                    group.user_data = None
                 self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
@@ -699,7 +702,6 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         class given by final_index.
         """
         group.index = final_index
-        group.compute_label()
         self.finished.append(group)
         self.finishedList.Append(group.label)
 
