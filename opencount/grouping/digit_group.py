@@ -257,12 +257,11 @@ def compute_digit_exemplars(proj):
     invmapping = {} # maps {str regionpath: str digit}
     bb_big = None
     for digit, tuples in digit_exemplars_map.iteritems():
-        imgpaths, bbs = [], [] # TODO: Tthis digit_exemplars_map data structure is fuked
+        imgpaths, bbs = [], [] 
         for (regionpath, score, bb, digitpatchpath) in tuples:
             imgpaths.append(regionpath)
             bbs.append(bb)
             invmapping[regionpath] = digit
-            #mapping.setdefault(digit, []).append(regionpath) # Fascinating - this works 'interestingly'
         mapping[digit] = (list(imgpaths), list(bbs))
     # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
 
@@ -271,12 +270,6 @@ def compute_digit_exemplars(proj):
     for digit, tuples in exemplars.iteritems():
         for i, (regionpath, bb) in enumerate(tuples):
             regionimg = scipy.misc.imread(regionpath) # don't open a grayscale img twice, tends to lighten it
-            #h,w = img.shape
-            #newbb = [None, None, None, None]
-            #newbb[0] = max(0, bb[0])
-            #newbb[1] = min(h-1, bb[1])
-            #newbb[2] = max(0, bb[2])
-            #newbb[3] = min(w-1, bb[3])
             patch = regionimg[bb[0]:bb[1], bb[2]:bb[3]]
             rootdir = os.path.join(proj.projdir_path,
                                    proj.digitmultexemplars,
