@@ -546,11 +546,7 @@ def compute_exemplars_fullimg(mapping, invmapping):
         A (hopefully smaller) dict mapping {label: ((imgpath'_i, bbOut_i), ...)}
     """    
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2, invmapping):
-        #print "Running find_patch_matchesV1..."
-        #t = time.time()
         matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, padSearch=.4,doPrep=False)
-        #dur = time.time() - t
-        #print "...finished find_patch_matchesV1 ({0} s)".format(dur)
         if not matches:
             print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
             return None, 9999, None
@@ -573,19 +569,6 @@ def compute_exemplars_fullimg(mapping, invmapping):
         return bestlabel, mindist, bbBest
     mapping = copy.deepcopy(mapping)
     exemplars = {}
-    '''
-    globalvar = 0
-    for label, (imgpaths, bbs) in mapping.iteritems():
-        for i in range(len(imgpaths)):
-            # THSE IMGS SWERE BROKEN
-            imgpath, bb = imgpaths[i], bbs[i]
-            fooimg = scipy.misc.imread(imgpath, flatten=True)
-            digitpatch = fooimg[bb[0]:bb[1], bb[2]:bb[3]]
-            path = os.path.join('digitsdigits', '{0}_{1}.png'.format(label, globalvar))
-            util_gui.create_dirs('digitsdigits')
-            scipy.misc.imsave(path, digitpatch) 
-            globalvar += 1
-    '''
 
     for label, (imgpaths, bbs) in mapping.iteritems():
         assert len(imgpaths) == len(bbs)
@@ -596,7 +579,6 @@ def compute_exemplars_fullimg(mapping, invmapping):
         pathL, scoreL, idxL = common.get_avglightest_img(imgpaths)
         print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
         exemplars[label] = [(imgpaths.pop(idxL), bbs.pop(idxL))]
-    globalvar = 0
     tasks = make_tasks(mapping)
     #tasks = make_interleave_gen(*[(imgpath, bb) for (imgpath, bb) in itertools.izip(imgpath, bbs)
     is_done = False
@@ -611,7 +593,6 @@ def compute_exemplars_fullimg(mapping, invmapping):
                 tasks.pop(taskidx)
                 exemplars[label].append((imgpath, bb))
                 is_done = False
-                globalvar += 1
             else:
                 taskidx += 1
     return exemplars
