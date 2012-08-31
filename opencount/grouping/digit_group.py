@@ -12,7 +12,7 @@ from os.path import join as pathjoin
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
 import pixel_reg.shared as sh
-import util, common
+import util, common, group_attrs
 from PIL import Image
 import grouping.partask as partask
 
@@ -34,26 +34,35 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         where meta_i is a tuple containing numDigits tuples:
           (y1_i,y2_i,x1_i,x2_i, str digit_i, str digitimgpath_i, score)
     """
-    def make_digithashmap(project):
-        digitmap = {} # maps {str digit: obj img}
-        digit_exemplarsdir = os.path.join(project.projdir_path,
-                                          project.digit_exemplars_outdir)
-        digitdirs = os.listdir(digit_exemplarsdir)
-        for digitdir in digitdirs:
-            # Assumes this has directories of the form:
-            #    0_examples/*.png
-            #    1_examples/*.png
-            #    ...
-            fullpath = os.path.join(digit_exemplarsdir, digitdir)
-            digit = digitdir.split('_')[0]
-            for dirpath, dirnames, filenames in os.walk(fullpath):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    # This currently scans through all images, unnecessary.
-                    # We only need just one.
-                    imgpath = os.path.join(dirpath, imgname)
-                    img = sh.standardImread(imgpath, flatten=True)
-                    digitmap[digit] = img
-        return digitmap
+    def make_digithashmap(project, exemplars):
+        """ exemplars is a dict {str digit: ((blankpath_i, bb_i, exemplarP_i), ...)}.
+        Returns a dict {(str digit, str meta): obj digitpatch}.
+        """
+        digit_hash = {}
+        for digit, tuples in exemplars.iteritems():
+            for i, (blankpath, bb, exemplarP) in enumerate(tuples):
+                digit_hash[(digit, i)] = sh.standardImread(exemplarP, flatten=True)
+        return digit_hash
+
+        #digitmap = {} # maps {(str digit, str meta): obj img}
+        #digit_exemplarsdir = os.path.join(project.projdir_path,
+        #                                  project.digit_exemplars_outdir)
+        #digitdirs = os.listdir(digit_exemplarsdir)
+        #for digitdir in digitdirs:
+        #    # Assumes this has directories of the form:
+        #    #    0_examples/*.png
+        #    #    1_examples/*.png
+        #    #    ...
+        #    fullpath = os.path.join(digit_exemplarsdir, digitdir)
+        #    digit = digitdir.split('_')[0]
+        #    for dirpath, dirnames, filenames in os.walk(fullpath):
+        #        for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+        #            # This currently scans through all images, unnecessary.
+        #            # We only need just one.
+        #            imgpath = os.path.join(dirpath, imgname)
+        #            img = sh.standardImread(imgpath, flatten=True)
+        #            digitmap[digit] = img
+        #return digitmap
     def all_ballotimgs(bal2imgs, side, ignorelist=None):
         """ Generate all ballot images for either side 0 or 1. """
         # TODO: Generalize to N-sided ballots
@@ -95,7 +104,11 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     if ignorelist == None:
         ignorelist = []
     result = {} # maps {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)}
-    digit_exs = make_digithashmap(project)
+    # 0.) Construct digit exemplars
+    # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
+    exemplars = compute_digit_exemplars(project)
+
+    digit_exs = make_digithashmap(project, exemplars)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
                                                  project.num_digitsmap),
                                     'rb'))
@@ -227,6 +240,59 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
     return result, digitmatch_info
 
+def compute_digit_exemplars(proj):
+    """ Computes multiple digit exemplars, in order to enhance the
+    digit grouping.
+    Input:
+        obj proj
+    Output:
+        A dict, mapping {str digit: (str exemplarpath_i, ...)}
+    """
+    digit_exemplars_mapP = pathjoin(proj.projdir_path,
+                                    proj.digit_exemplars_map)
+    # maps {str digit: ((regionpath_i, score_i, bb_i, digitpatchpath_i), ...)}
+    digit_exemplars_map = pickle.load(open(digit_exemplars_mapP, 'rb'))
+
+    mapping = {} # maps {str digit: ([regionpath_i, ...], [bb_i, ...])}
+    invmapping = {} # maps {str regionpath: str digit}
+    bb_big = None
+    for digit, tuples in digit_exemplars_map.iteritems():
+        imgpaths, bbs = [], [] # TODO: Tthis digit_exemplars_map data structure is fuked
+        for (regionpath, score, bb, digitpatchpath) in tuples:
+            imgpaths.append(regionpath)
+            bbs.append(bb)
+            invmapping[regionpath] = digit
+            #mapping.setdefault(digit, []).append(regionpath) # Fascinating - this works 'interestingly'
+        mapping[digit] = (imgpaths, bbs)
+    # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
+
+    exemplars = group_attrs.compute_exemplars_fullimg(mapping, invmapping)
+    digitmultexemplars_map = {} # maps {str digit: ((imgpath_i, bb_i, patchpath_i), ...)}
+    for digit, tuples in exemplars.iteritems():
+        for i, (imgpath, bb) in enumerate(tuples):
+            img = scipy.misc.imread(imgpath, flatten=True)
+            h,w = img.shape
+            #newbb = [None, None, None, None]
+            #newbb[0] = max(0, bb[0])
+            #newbb[1] = min(h-1, bb[1])
+            #newbb[2] = max(0, bb[2])
+            #newbb[3] = min(w-1, bb[3])
+            patch = scipy.misc.imread(imgpath, flatten=True)[bb[0]:bb[1], bb[2]:bb[3]]
+            rootdir = os.path.join(proj.projdir_path,
+                                   proj.digitmultexemplars,
+                                   digit)
+            util_gui.create_dirs(rootdir)
+            exemplarP = pathjoin(rootdir, '{0}.png'.format(i))
+            scipy.misc.imsave(exemplarP, patch)
+            digitmultexemplars_map.setdefault(digit, []).append((imgpath, bb, exemplarP))
+    pickle.dump(digitmultexemplars_map,
+                open(os.path.join(proj.projdir_path, proj.digitmultexemplars_map), 'wb'))
+    return digitmultexemplars_map
+
+def max_bb_dims(bb1, bb2):
+    return (min(bb1[0], bb2[0]), max(bb1[1], bb2[1]),
+            min(bb1[2], bb2[2]), max(bb1[3], bb2[3]))
+
 def compute_median_dist(proj, digitattr):
     """ Computes the median (horiz) distance between adjacent digits,
     based off of the digits from the blank ballots.
@@ -245,12 +311,12 @@ def compute_median_dist(proj, digitattr):
         return dist
     # Bit hacky - peer into LabelDigit's 'matches' internal state
     labeldigits_stateP = pathjoin(proj.projdir_path, proj.labeldigitstate)
-    # matches maps {str regionpath: ((patchpath_i,matchID_i,y1,y2,x1,x2,rszFac_i), ...)
+    # matches maps {str regionpath: ((patchpath_i,matchID_i,score,y1,y2,x1,x2,rszFac_i), ...)
     matches = pickle.load(open(labeldigits_stateP, 'rb'))['matches']
     dists = [] # stores adjacent distances
     for regionpath, tuples in matches.iteritems():
         x1_all = []
-        for (patchpath, matchID, y1, y2, x1, x2, rszFac) in tuples:
+        for (patchpath, matchID, score, y1, y2, x1, x2, rszFac) in tuples:
             x1_all.append(int(round(x1 / rszFac)))
         x1_all = sorted(x1_all)
         for i, x1 in enumerate(x1_all[:-1]):

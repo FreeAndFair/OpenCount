@@ -363,8 +363,8 @@ def process_one(args):
     # perform matching for all digits
     # return best matching digit
     # mask out 
-    #res = pm2(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
-    res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+    res = pm2(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+    #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
 
     return (imP,res[0],res[1],res[2],res[3])
 
@@ -372,7 +372,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
                rejected_hashes=None, accepted_hashes=None):
     """Runs NCC-based OCR on the images on imList.
     Input:
-        dict digit_hash: maps {str digit: img digit_exemplar}
+        dict digit_hash: maps {(str digit, str meta): img digit_exemplar}
         lst imList: list of imagepaths to search over
         bbSearch: [y1,y2,x1,x2] coords to search on
         nDigits: an integer that specifies how many digits there are.

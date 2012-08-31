@@ -162,10 +162,13 @@ Output:
   I1cropped=I1[i1:i2,j1:j2]
 
 '''
-def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSearch=.75,padPatch=0.0,doPrep=True):
+def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
+                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
+    if bbSearches != None:
+        bbSearches = list(bbSearches)
     matchList = [] # (filename, left,right,up,down)
     if doPrep:
         I=prepOpenCV(I);
@@ -186,7 +189,9 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
         bbSearch[2] = bbSearch[2]*rszFac
         bbSearch[3] = bbSearch[3]*rszFac
 
-    for imP in imList:
+    for cur_i, imP in enumerate(imList):
+        if bbSearches != None:
+            bbSearch = map(lambda c: c*rszFac, bbSearches[cur_i])
         I1 = standardImread(imP,flatten=True)
         if doPrep:
             I1=prepOpenCV(I1)

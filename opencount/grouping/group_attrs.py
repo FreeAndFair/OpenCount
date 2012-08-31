@@ -535,70 +535,112 @@ def compute_exemplars(mapping):
                     
     return exemplars
 
-def compute_exemplars_fullimg(mapping, bb):
-    """ Given a mapping {str label: (imgpath_i, ...)}, extracts a subset
+def compute_exemplars_fullimg(mapping, invmapping):
+    """ Given a mapping {str label: ([imgpath_i, ...], [bb_i, ...])}, extracts a subset
     of the imgpaths {str label: (imgpath_i, ...)} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
     mapping. 
     Input:
-        dict mapping: {label: (imgpath_i, ...)}
+        dict mapping: {label: ([imgpath_i, ...], [bbs_i, ...])}
     Output:
         A (hopefully smaller) dict mapping {label: ((imgpath'_i, bbOut_i), ...)}
     """    
-    def get_closest_ncclk(imgpath, img, imgpaths2, bb):
-        print "Running find_patch_matchesV1..."
-        t = time.time()
-        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearch=bb, threshold=0.5, doPrep=False)
-        dur = time.time() - t
-        print "...finished find_patch_matchesV1 ({0} s)".format(dur)
+    def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2, invmapping):
+        #print "Running find_patch_matchesV1..."
+        #t = time.time()
+        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, padSearch=.4,doPrep=False)
+        #dur = time.time() - t
+        #print "...finished find_patch_matchesV1 ({0} s)".format(dur)
         if not matches:
-            print "Uhoh, no matches found."
+            print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
             return None, 9999, None
         matches = sorted(matches, key=lambda t: t[2])
         bb, rszFac = (matches[0][4:8], matches[0][8])
         bb = map(lambda c: int(round(c / rszFac)), bb)
-        return (matches[0][0], matches[0][2], bb)
-    def closest_label(imgpath, exemplars, bb):
+        return (invmapping[matches[0][0]], matches[0][2], bb)
+    def closest_label(imgpath, bb, exemplars, invmapping):
         bestlabel = None
         mindist = None
         bbBest = None
         img = shared.standardImread(imgpath, flatten=True)
         for label, tuples in exemplars.iteritems():
-            imgpaths2, bbs2 = zip(*tuples) # bbs2 not used here
-            closestlabel, closestdist, bbOut = get_closest_ncclk(imgpath, img, imgpaths2, bb)
+            imgpaths2, bbs2 = zip(*tuples)
+            closestlabel, closestdist, bbOut = get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2, invmapping)
             if bestlabel == None or closestdist < mindist:
                 bestlabel = label
                 mindist = closestdist
                 bbBest = bbOut
-        return bestlabel, mindist, bbOut
+        return bestlabel, mindist, bbBest
     mapping = copy.deepcopy(mapping)
     exemplars = {}
-    for label, imgpaths in mapping.iteritems():
+    '''
+    globalvar = 0
+    for label, (imgpaths, bbs) in mapping.iteritems():
+        for i in range(len(imgpaths)):
+            # THSE IMGS SWERE BROKEN
+            imgpath, bb = imgpaths[i], bbs[i]
+            fooimg = scipy.misc.imread(imgpath, flatten=True)
+            digitpatch = fooimg[bb[0]:bb[1], bb[2]:bb[3]]
+            path = os.path.join('digitsdigits', '{0}_{1}.png'.format(label, globalvar))
+            util_gui.create_dirs('digitsdigits')
+            scipy.misc.imsave(path, digitpatch) 
+            globalvar += 1
+    '''
+
+    for label, (imgpaths, bbs) in mapping.iteritems():
+        assert len(imgpaths) == len(bbs)
         if type(imgpaths) != list:
             imgpaths = list(imgpaths)
+        if type(bbs) != list:
+            bbs = list(bbs)
         pathL, scoreL, idxL = common.get_avglightest_img(imgpaths)
         print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
-        exemplars[label] = [(pathL, bb)]
+        exemplars[label] = [(imgpaths.pop(idxL), bbs.pop(idxL))]
     is_done = False
+    globalvar = 0
     while not is_done:
         is_done = True
-        for label, imgpaths in mapping.iteritems():
+        for label, (imgpaths, bbs) in mapping.iteritems():
             print "==== Processing label {0}...".format(label)
             t = time.time()
             i = 0
             while i < len(imgpaths):
                 imgpath = imgpaths[i]
-                bestlabel, mindist, bbOut = closest_label(imgpath, exemplars, bb)
+                bb = bbs[i]
+                bestlabel, mindist, bbOut = closest_label(imgpath, bb, exemplars, invmapping)
                 if label != bestlabel:
                     print "...for label {0}, found new exemplar {1}.".format(label, imgpath)
                     imgpaths.pop(i)
-                    exemplars[label].append((imgpath, bbOut))
+                    bbs.pop(i)
+                    # THESE IMGS WERE BROKEN
+                    '''
+                    fooimg = scipy.misc.imread(imgpath, flatten=True)
+                    digitpatch = fooimg[bb[0]:bb[1], bb[2]:bb[3]]
+                    path = os.path.join('digitsdigits', '{0}_{1}.png'.format(label, globalvar))
+                    util_gui.create_dirs('digitsdigits')
+                    scipy.misc.imsave(path, digitpatch) 
+                    '''
+                    exemplars[label].append((imgpath, bb))
                     is_done = False
+                    globalvar += 1
                 else:
                     i += 1
             dur = time.time() - t
             print "...Finished Processing label {0} ({1} s).".format(label, dur)
     return exemplars
+
+def make_interleave_gen(*lsts):
+    i = 0
+    while lsts:
+        j = 0
+        while j < len(lsts):
+            lst = lsts[j]
+            if not lst:
+                lsts.pop(j)
+                continue
+            yield lst.pop(i)
+        i += 1
+    raise StopIteration
 
 def compute_exemplars2(mapping):
     """

@@ -1197,7 +1197,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     the match with the best response.
     Input:
         list imgpaths: list of image paths to perform digit ocr over
-        dict digit_exs: maps {str digit: obj img}
+        dict digit_exs: maps {str digit: ((str temppath_i, bb_i, exemplarP_i), ...)}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
         dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}

@@ -238,6 +238,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         self.project = None
 
+        # True if self.start() has been called on me.
+        self.has_started = False
+
         # mapping, inv_mapping contain information about every image
         # patch that the user will manually label.
         self.mapping = None # maps {imgpath: {str attrtypestr: str patchPath}}
@@ -264,6 +267,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dict groupresults: maps {grouplabel: List of GroupClass objects}
         """
         self.project = project
+        self.has_started = True
         if groupresults == None:
             # We are manually labeling everything
             self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
@@ -372,6 +376,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         blankpatches = {} # maps {attrtype: {attrval: (patchpath_i, ...)}}
         patchlabels = self.labelpanel.imagelabels
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        if not common.exists_imgattrs(self.project):
+            print "No img-based attributes to cluster, exiting."
+            return
         w_img, h_img = self.project.imgsize
 
         for patchPath, label in patchlabels.iteritems():
@@ -461,7 +468,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         all patchpath->label mappings to one .csv file, we want to save
         the blankballotpath->(attr labels) to multiple .csv files.
         """
-        if self.project == None:
+        if not self.has_started:
             # self.start was never called, so don't proceed. This could
             # happen if, say, this election has no Img-based attrs.
             return

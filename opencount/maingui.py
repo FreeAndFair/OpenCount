@@ -1089,6 +1089,9 @@ and active in order to access this.",
             _t = time.time()
             outdir = os.path.join(self.project.projdir_path,
                                   self.project.attrexemplars_dir)
+            if self.panel_label_attrs.project == None:
+                self.panel_label_attrs.project = self.project
+
             self.panel_label_attrs.cluster_attr_patches(outdir)
             print "...Finished finding multiple exemplars ({0} s).".format(time.time() - _t)
             print "    Results can be found at: ", outdir
@@ -1493,6 +1496,7 @@ class Project(object):
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
+                     'digit_exemplars_map': 'digit_exemplars_map.p',
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
@@ -1515,7 +1519,9 @@ class Project(object):
                      'extract_attrs_templates': 'extract_attrs_templates',
                      'digit_median_dists': 'digit_median_dists.p',
                      'blank2attrpatch': 'blank2attrpatch.p',
-                     'invblank2attrpatch': 'invblank2attrpatch.p'}
+                     'invblank2attrpatch': 'invblank2attrpatch.p',
+                     'digitmultexemplars': 'digitmultexemplars',
+                     'digitmultexemplars_map': 'digitmultexemplars_map.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

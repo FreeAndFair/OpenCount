@@ -112,6 +112,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def export_results(self):
         self.mainpanel.export_results()
+        self.mainpanel.digitpanel.save_digitexemplars_map()
 
     def ondone(self, results):
         """ Called when the user is finished labeling digit-based
@@ -224,11 +225,14 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.extracted_dir = extracted_dir
         self.digit_exemplars_outdir = digit_exemplars_outdir
         self.precinctnums_outpath = precinctnums_outpath  # TODO: NOT USED
+
+        self.digitexemplars_map = None
+
         self.ondone = ondone
 
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
-        # maps {str regionpath: list of (patchpath, matchID, y1,y2,x1,x2, rszFac)
+        # maps {str regionpath: list of (patchpath, matchID, score, y1,y2,x1,x2, rszFac)
         self.matches = {}   
 
         # maps {str regionpath: MyStaticBitmap obj}
@@ -308,7 +312,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
         for regionpath, matches in self.matches.iteritems():
             boxes = []
-            for (patchpath, matchID,y1,y2,x1,x2,rszFac) in matches:
+            for (patchpath, matchID, score, y1,y2,x1,x2,rszFac) in matches:
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
                 # Then, scale it by the resizing done in setup_grid
                 x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
@@ -441,8 +445,7 @@ digit.")
         a digit-based attribute will have a grouplabel whose kv-pairs
         has a key 'digit', and its value is a digit ('0','1',etc.).
         This seems to unnecessarily restrict the architecture to only
-        allowing one digit-based attribute in an election, which is
-        unnecessary.
+        allowing one digit-based attribute in an election.
         """
         queue = self.queue
         exemplar_img = queue.get()
@@ -476,10 +479,13 @@ digit.")
             patchpath_scores = {}
         global matchID
         matchID = get_last_matchID(self.digit_exemplars_outdir)
-        for (filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
+        # regionpath is an attrpatch, not the blank ballot itself
+        for (regionpath,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
             rootdir = os.path.join(self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
             util_gui.create_dirs(rootdir)
             patchpath = os.path.join(rootdir, '{0}_match.png'.format(matchID))
+            bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
+
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
             if Ireg.shape != (h, w):
@@ -487,11 +493,12 @@ digit.")
                 newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
                 Ireg = newIreg
             scipy.misc.imsave(patchpath, Ireg)
-            examples.append((filename, (grouplabel,), patchpath))
-            self.matches.setdefault(filename, []).append((patchpath, matchID, y1, y2, x1, x2, rszFac))
+            examples.append((regionpath, (grouplabel,), patchpath))
+            self.matches.setdefault(regionpath, []).append((patchpath, matchID, score2, y1, y2, x1, x2, rszFac))
             matchID += 1
             patchpath_scores[patchpath] = score2
         pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
+
         group = common.DigitGroupClass(examples, user_data=patchpath_scores)
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
@@ -502,6 +509,34 @@ digit.")
         self.disable_cells()
         self.f.Show()
 
+    def get_digitexemplars_map(self):
+        # digit_exemplars_map maps {str digit: ((blankpath_i, score, bb, patchpath_i), ...)}
+        proj = self.parent.parent.project
+        digit_exemplars_mapP = pathjoin(proj.projdir_path, proj.digit_exemplars_map)
+        if self.digitexemplars_map == None:
+            if os.path.exists(digit_exemplars_mapP):
+                self.digitexemplars_map = pickle.load(open(digit_exemplars_mapP, 'rb'))
+            else:
+                self.digitexemplars_map = {} 
+        
+        return self.digitexemplars_map
+    def save_digitexemplars_map(self):
+        proj = self.parent.parent.project
+        digit_exemplars_mapP = pathjoin(proj.projdir_path, proj.digit_exemplars_map)
+        digitexemplars_map = self.get_digitexemplars_map()
+        pickle.dump(digitexemplars_map, open(digit_exemplars_mapP, 'wb'))
+    def remove_patchpaths_digitexemplars_map(self, patchpathsA):
+        digit_exemplars_map = self.get_digitexemplars_map()
+        for digit, tuples in digit_exemplars_map.iteritems():
+            i = 0
+            while i < len(tuples):
+                (blankpath, score, bb, patchpath) = tuples[i]
+                if patchpath in patchpathsA:
+                    tuples.pop(i)
+                    patchpathsA.remove(patchpath)
+                else:
+                    i += 1
+
     def on_verifydone(self, results):
         """Invoked once the user has finished verifying the template
         matching on the current digit. Add all 'correct' matches to
@@ -510,23 +545,30 @@ digit.")
         self.f.Close()
         self.Enable()
         self.enable_cells()
-        # Remove all matches from self.matches that the user said
+        # 1.) Remove all matches from self.matches that the user said
         # was not relevant, during overlay verification
         for grouplabel, groups in results.iteritems():
             # groups is a list of GroupClasses
             # group[i].elements[j] = (regionpath, rankedlist, patchpath)
             if grouplabel == verify_overlays.VerifyPanel.GROUPLABEL_OTHER:
                 # The user said that these elements are not relevant
+                patchpaths = set()
                 for groupclass in groups:
                     assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
                     for element in groupclass.elements:
                         regionpath, rankedlist, patchpath = element
+                        patchpaths.add(patchpath)
                         os.remove(patchpath)
                         stuff = self.matches[regionpath]
-                        # stuff[i] := (patchpath, matchID, y1,y2,x1,x2, rszFac)
+                        # stuff[i] := (patchpath, matchID, score, y1,y2,x1,x2, rszFac)
                         stuff = [t for t in stuff if t[0] != patchpath]
                         self.matches[regionpath] = stuff
+                self.remove_patchpaths_digitexemplars_map(patchpaths)
+        # 2.) Add all matches that the user said was 'Good'
         added_matches = 0
+        # digit_exemplars_map maps {str digit: ((blankpath_i, score, bb, patchpath_i), ...)}
+        digit_exemplars_map = self.get_digitexemplars_map()
+
         def get_digit(patchpath):
             """ patchpaths are of the form:
                 <projdir>/digit_exemplars/0_examples/*.png
@@ -534,12 +576,14 @@ digit.")
             return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
         for regionpath, stuff in self.matches.iteritems():
             boxes = []
-            for (patchpath, matchID, y1, y2, x1, x2, rszFac) in stuff:
+            for (patchpath, matchID, score, y1, y2, x1, x2, rszFac) in stuff:
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+                digit_exemplars_map.setdefault(self.current_digit, []).append((regionpath, score, (y1,y2,x1,x2), patchpath))
                 # Then, scale it by the resizing done in setup_grid
-                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                # (these coords are only for the LabelDigits UI).
+                _x1, _y1, _x2, _y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
                 dig = get_digit(patchpath)
-                newbox = Box(x1, y1, x2, y2, digit=dig)
+                newbox = Box(_x1, _y1, _x2, _y2, digit=dig)
                 added_matches += 1
                 boxes.append(newbox)
                 #self.add_box(newbox, regionpath)
@@ -566,8 +610,10 @@ hasn't been implemented yet. Stay tuned!",
         mapping from precinct-patch to precinct number.
         """
         result = self.export_results()
+        self.save_digitexemplars_map()
         if self.ondone:
             self.ondone(result)
+    
         self.Disable()
 
     def export_results(self):
@@ -930,7 +976,7 @@ def prune_matches(matches, prev_matches):
     overlaps with a match in prev_matches.
     Input:
         lst matches: List of (regionpath,score1,score2,IReg,y1,y2,x1,x2,rszFac)
-        dict prev_matches: maps {str regionpath: lst of (patchpath,matchID,y1,y2,x1,x2,rszFac)}
+        dict prev_matches: maps {str regionpath: lst of (patchpath,matchID,score,y1,y2,x1,x2,rszFac)}
     Output:
         A new list of matches.
     """
@@ -955,9 +1001,7 @@ def prune_matches(matches, prev_matches):
     pruned_matches = []
     prev_bbs = []
     for regionpath, tuples in prev_matches.iteritems():
-        if '5_exemplar.png' == os.path.split(regionpath)[1]:
-            pass
-        for (patchpath, matchID, y1, y2, x1, x2, rszFac) in tuples:
+        for (patchpath, matchID, score, y1, y2, x1, x2, rszFac) in tuples:
             prev_bbs.append((regionpath, (y1,y2,x1,x2)))
     for (regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac) in matches:
         if not is_overlap_any(regionpath, (y1,y2,x1,x2), prev_bbs):
