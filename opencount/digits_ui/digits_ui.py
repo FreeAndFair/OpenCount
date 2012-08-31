@@ -1,4 +1,9 @@
-import sys, os, pickle, pdb, Queue, threading, time, traceback
+import sys, os, pdb, Queue, threading, time, traceback
+try:
+    import cPickle as pickle
+except ImportError as e:
+    import pickle
+
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
@@ -177,9 +182,16 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.digitpanel.on_done()
 
     def onButton_zoomin(self, evt):
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet.")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
+
     def onButton_zoomout(self, evt):
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet.")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
@@ -454,7 +466,7 @@ digit.")
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
         # patchpath_scores will be used to improve 'Split' behavior
-        # for digit-based attributes
+        # for digit-based attributes. TODO: NOT IN USE, replaced by kmeans
         proj = self.parent.parent.project  # TODO: breach of abstraction
         patchpath_scoresP = pathjoin(proj.projdir_path, proj.digitpatchpath_scoresBlank)
         # patchpath_scores maps {str patchpath: float score}

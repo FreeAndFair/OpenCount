@@ -1,4 +1,5 @@
-import sys, os, csv, pdb, time
+import sys, os, csv, pdb, time, traceback
+from os.path import join as pathjoin
 
 try:
     import cPickle as pickle
@@ -6,16 +7,16 @@ except ImportError as e:
     print "Can't import cPickle. Falling back to pickle."
     import pickle
 
+import wx
 import numpy as np
 import scipy.cluster.vq
-from os.path import join as pathjoin
 from scipy import misc
+
 sys.path.append('../')
 sys.path.append('../pixel_reg/')
 import pixel_reg.shared as sh
 import pixel_reg.part_match as part_match
 
-import wx, pickle
 from specify_voting_targets.imageviewer import WorldState as WorldState
 from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from util import encodepath
@@ -639,6 +640,46 @@ class GroupClass(object):
         # should be labeled manually.
         self.is_manual = False
 
+    def compute_label(self):
+        """ Recomputes the self.label for this GroupClass, which may or
+        may not change.
+        """
+        try:
+            self.label = str(self.getcurrentgrouplabel())
+        except Exception as e:
+            print "Uhoh, got a weird error."
+            traceback.print_exc()
+            self.label = "Error, couldn't compute this label."
+
+    @staticmethod
+    def merge(*groups):
+        """ Given a bunch of GroupClass objects G, return a new GroupClass
+        object that 'merges' all of the elements in G.
+        """
+        new_elements = [] # a list, ((sampleid_i, rlist_i, patchpath_i), ...)
+        # TODO: Merge user_data's, though, it's not being used at the moment.
+        label = None
+        g_type = None
+        for group in groups:
+            if g_type == None:
+                g_type = type(group)
+            elif type(group) != g_type:
+                print "Can't merge groups with different types."
+                pdb.set_trace()
+                return None
+            
+            if label == None:
+                label = group.label
+            elif group.label != label:
+                print "Can't merge groups with different labels."
+                pdb.set_trace()
+                return None
+            new_elements.extend(group.elements)
+        if type(g_type) == GroupClass:
+            return GroupClass(new_elements)
+        else:
+            return DigitGroupClass(new_elements)
+
     def get_overlays(self):
         """ Returns overlayMin, overlayMax """
         if self.no_overlays:
@@ -669,7 +710,15 @@ class GroupClass(object):
         def sanitycheck_rankedlists(elements):
             """Make sure that the first grouplabel for each rankedlist
             are all the same grouplabel.
+            TODO: I think this check isn't valid. This check is valid
+                  for elements from GroupClasses computed from Kai's
+                  grouping code, but, if it's incorrect, and the user
+                  manually changes the labelling, then it's entirely
+                  feasible for the user to create a GroupClass where
+                  the first grouplabel of each rankedlist is not the
+                  same.
             """
+            '''
             grouplabel = None
             for (elementid, rankedlist, patchpath) in elements:
                 if grouplabel == None:
@@ -683,6 +732,8 @@ class GroupClass(object):
                     print "Error, first element of all rankedlists are \
 not equal."
                     pdb.set_trace()
+            return True
+            '''
             return True
         sanitycheck_rankedlists(self.elements)
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
@@ -707,8 +758,80 @@ not equal."
                                 for (group, weight) in sorted(weightedAttrVals.items(), 
                                                                    key=lambda t: t[1],
                                                                    reverse=True)]
-        
-    def split(self):
+
+    def split_kmeans(self, K=2):
+        """ Uses k-means (k=2) to try to split this group. """
+        if len(self.elements) == 2:
+            return (GroupClass((self.elements[0],),
+                               user_data=self.user_data),
+                    GroupClass((self.elements[1],),
+                               user_data=self.user_data))
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running k-means."
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        print "...Completed running k-means ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            groups.append(GroupClass(elements,
+                                     user_data=self.user_data))
+        assert len(groups) == K
+        return groups
+
+    def split_pca_kmeans(self, K=2, N=3):
+        """ Use PCA to help with the split process.
+        Input: Set of image patches A, of size NxM
+        0.) Discretize the image patch into K N'xM' equally-sized slices.
+        1.) Using the discretized image patches A', run PCA to extract
+            the slices S that maximize the variance
+        2.) Run k-means (k=2) on the slices S.
+        """
+        if len(self.elements) <= K:
+            groups = []
+            for element in self.elements:
+                groups.append(GroupClass((element,),
+                                         user_data=self.user_data))
+            return groups
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running PCA+k-means."
+        clusters = cluster_imgs.cluster_imgs_pca_kmeans(patchpaths, k=K)
+        print "...Completed running PCA+k-means ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            groups.append(GroupClass(elements,
+                                     user_data=self.user_data))
+        assert len(groups) == K
+        return groups
+
+    def split_rankedlist(self):
+        """ Perform a split by using the rankedlist outputted by
+        Kai's grouping algorithm.
+        """
         groups = []
         new_elements = {}
         all_rankedlists = [t[1] for t in self.elements]
@@ -753,6 +876,9 @@ just doing a naive split."
         for grouplabel, elements in new_elements.iteritems():
             groups.append(GroupClass(elements, user_data=self.user_data))
         return groups
+        
+    def split(self):
+        return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """
@@ -762,7 +888,12 @@ class DigitGroupClass(GroupClass):
                  *args, **kwargs):
         GroupClass.__init__(self, elements, no_overlays=no_overlays,
                             user_data=user_data)
+
     def split_medianwise(self):
+        """
+        TODO: NOT IN USE. Replaced by split_kmeans(), since it seems to
+              work better.
+        """
         # Assumes that only Digit attributes is using self.user_data.
         # Split the elements based on the partmatch scores: the top
         # 50%, and the bottom 50%.
@@ -832,10 +963,14 @@ class DigitGroupClass(GroupClass):
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
-    return partask.do_partask(_generate_overlays,
-                              group.elements,
-                              combfn=_my_combfn_overlays,
-                              init=(None, None))
+    if len(group.elements) <= 20:
+        # Just do it all in serial.
+        return _generate_overlays(group.elements)
+    else:
+        return partask.do_partask(_generate_overlays,
+                                  group.elements,
+                                  combfn=_my_combfn_overlays,
+                                  init=(None, None))
 
 def _generate_overlays(elements):
     overlayMin, overlayMax = None, None
@@ -1094,7 +1229,22 @@ def par_extract_patches(tasks):
     # TODO: I should probably be nuked.
     partask.do_partask(imgmap)
                        
-        
+def is_blankballot_contests_eq(*blankpaths):
+    """ Returns True if the input blank ballots contain the same contests,
+    False otherwise.
+    Input:
+        list blankpaths: (blankpath_i, ...)
+    Output:
+        True or False.
+    """
+    '''
+    for i, b1 in enumerate(blankpaths):
+        if i == len(blankpaths-1):
+            break
+        b2 = blankpaths[i+1]
+    '''
+    # TODO: Implement me!
+    return False
 
 if __name__ == '__main__':
     class MyFrame(wx.Frame):

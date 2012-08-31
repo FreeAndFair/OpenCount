@@ -95,12 +95,15 @@ class GroupingMasterPanel(wx.Panel):
         self.run_grouping.Show()
         self.run_grouping.start()
 
-    def grouping_done(self, groups):
+    def grouping_done(self, groups, do_replacedigits=False):
         """
         If groups is not None, then it means we ran grouping
         computation.
         If groups is None, then we skipped it, so we should
         load in the previous verify-grouping state.
+        If do_replacedigits is True, then we only ran digitgrouping, so,
+        there must be verifyoverlay state already, and, we just have to
+        replace all GroupClass 'digit' things with stuff in digitgroups.
         """
         def get_example_digit(dir):
             for dirpath, dirnames, filenames in os.walk(dir):
@@ -154,11 +157,10 @@ class GroupingMasterPanel(wx.Panel):
 
         self.run_grouping.Hide()
         self.verify_grouping.Show()
-
+        self.project.addCloseEvent(self.verify_grouping.dump_state)
         if groups:
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
-            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.SendSizeEvent()
             self.SendSizeEvent()
             self.Refresh()
@@ -170,23 +172,40 @@ class GroupingMasterPanel(wx.Panel):
                 # If grouping computation completes, but the VerifyOverlay
                 # UI Crashes, and doesn't save its statefile, then
                 # regenerate the state required for the UI.
+                dlg = wx.MessageDialog(self, message="Note: No \
+VerifyOverlay state file detected ({0}) - starting from the \
+beginning..".format(verifyoverlay_stateP),
+                                       style=wx.OK)
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
+
                 groups = to_groupclasses(self.project)
                 digitgroup_results = digit_group.load_digitgroup_results(self.project)
                 groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
                 exemplar_paths = get_exemplar_paths()
                 self.verify_grouping.start(groups, exemplar_paths, self.project, ondone=self.verifying_done)
-                self.project.addCloseEvent(self.verify_grouping.dump_state)
                 self.verify_grouping.SendSizeEvent()
                 self.SendSizeEvent()
                 self.Refresh()
                 self.Fit()
                 return
+            dlg = wx.MessageDialog(self, message="VerifyOverlay state \
+file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
                 
             #self.verify_grouping.start(groups, patches, exemplar_paths)
-            self.verify_grouping.load_state()
+            if do_replacedigits:
+                digitgroup_results = digit_group.load_digitgroup_results(self.project)
+                digitgroups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
+                self.verify_grouping.load_state(replacedigits=True, digitgroups=digitgroups)
+            else:
+                self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.project = self.project
-            self.project.addCloseEvent(self.verify_grouping.dump_state)
             self.verify_grouping.ondone = self.verifying_done
             self.verify_grouping.load_exemplar_attrpatches(exemplar_paths)
             self.verify_grouping.start_verifygrouping()
@@ -201,6 +220,7 @@ class GroupingMasterPanel(wx.Panel):
             {grouplabel: list of GroupClasses}
         """
         self.project.removeCloseEvent(self.verify_grouping.dump_state)
+        self.verify_grouping.dump_state()
         attr_types = set(common.get_attrtypes(self.project))
         # 0.) munge digit-grouping-results into results, since digitattrs
         #     are still in 'digit' form.
@@ -283,8 +303,9 @@ class GroupingMasterPanel(wx.Panel):
                 sample_flips.setdefault(samplepath, [None, None])[imageorder] = flip
                 sample_attrmap.setdefault(samplepath, {})[attrtype] = imageorder
             templateid = determine_template(attrdict, munged_patches, samplepath, self.project)
-            if templateid == None or templateid == -1:
-                hosed_bals.append((samplepath, attrdict, munged_patches))
+            if type(templateid) == tuple:
+                status, data = templateid
+                hosed_bals.append((samplepath, attrdict, data))
                 continue
             row['templatepath'] = templateid
             bal2tmp[samplepath] = templateid
@@ -294,24 +315,15 @@ class GroupingMasterPanel(wx.Panel):
 OpenCount wasn't able to determine the corresponding blank ballot. \
 OpenCount has quarantined these voted ballots - you will have the \
 opportunity to manually group these ballots.\n""".format(len(hosed_bals))
-            msg2 = "The hosed ballots were:\n"
             qfile = open(self.project.quarantined, 'a')
             for (samplepath, attrdict, munged_patches) in hosed_bals:
-                msg2 += """    Imagepath: {0}
-        Attributes: {1}\n""".format(os.path.relpath(samplepath), attrdict)
                 print >>qfile, os.path.abspath(samplepath)
             qfile.close()
-            msg3 = "\nFor reference, the template attr patches were: {0}".format(munged_patches)
             HOSED_FILENAME = os.path.join(self.project.projdir_path, 'hosed_votedballots.log')
-            msg4 = "\n(This information has been dumped to '{0}'".format(HOSED_FILENAME)
-            msg = msg + msg2 + msg3 + msg4
+            msg2 = "\n(This information has been dumped to '{0}'".format(HOSED_FILENAME)
+            msg = msg + msg2
             dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
-            try:
-                f = open(HOSED_FILENAME, 'w')
-                print >>f, msg
-                f.close()
-            except IOError as e:
-                print e
+            log_hosed_ballots(hosed_bals, HOSED_FILENAME)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
@@ -371,11 +383,13 @@ class RunGroupingPanel(wx.Panel):
         self.run_button.Bind(wx.EVT_BUTTON, self.onButton_run)
         self.rerun_button = wx.Button(self, label="Re-run Grouping")
         self.rerun_button.Bind(wx.EVT_BUTTON, self.onButton_rerun)
+        self.run_digitgroup_button = wx.Button(self, label="Re-run Digit Grouping Only.")
+        self.run_digitgroup_button.Bind(wx.EVT_BUTTON, self.onButton_rundigitgroup)
         self.continue_button = wx.Button(self, label="Continue Correcting Grouping")
         self.continue_button.Bind(wx.EVT_BUTTON, self.onButton_continue)
         
         self.sizer.AddMany(([self.run_button, self.rerun_button, 
-                             self.continue_button]))
+                             self.continue_button, self.run_digitgroup_button]))
 
         self.SetSizer(self.sizer)
         
@@ -387,6 +401,7 @@ class RunGroupingPanel(wx.Panel):
             self.run_button.Hide()
         else:
             self.rerun_button.Hide()
+            self.run_digitgroup_button.Hide()
             self.continue_button.Hide()
         # Load in all attribute patch regions
         self.importPatches()
@@ -443,37 +458,7 @@ class RunGroupingPanel(wx.Panel):
 
         # munge patches into format that groupImagesMAP wants
         all_attrtypes = common.get_attrtypes(self.project)
-        def munge_patches(patches, attrtypes, project):
-            """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
-            to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
-            """
-            result = {}
-            digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
-            # patches won't have digit-based attributes
-            for temppath, patchtriple in patches.iteritems():
-                for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    for attrtype in attrtypes:
-                        if common.get_propval(grouplabel, attrtype):
-                            attrval = common.get_propval(grouplabel, attrtype)
-                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
-            # Handle digit-based attributes
-            for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
-                w_img, h_img = project.imgsize
-                if attrdict['is_digitbased']:
-                    # TODO: digitbased assumes that each attr patch has only
-                    # one attribute. Not sure if the non-digitbased
-                    # correctly-handles multi-attribute pathces.
-                    for attrtype in attrtypes:
-                        if attrtype in attrdict['attrs']:
-                            if attrtype not in digitsresult:
-                                # Only add attrtype once into digitsresult
-                                bb = [int(round(attrdict['y1']*h_img)),
-                                      int(round(attrdict['y2']*h_img)),
-                                      int(round(attrdict['x1']*w_img)),
-                                      int(round(attrdict['x2']*w_img))]
-                                digitsresult[attrtype] = (bb, attrdict['side'])
-            return result, digitsresult
-        munged,digitmunged = munge_patches(self.patches, all_attrtypes, self.project)
+        munged,digitmunged = munge_patches_grouping(self.patches, all_attrtypes, self.project)
         print "== calling groupImagesMAP..."
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
@@ -485,12 +470,44 @@ class RunGroupingPanel(wx.Panel):
                        deleteall=deleteall)
         print "== finished groupImagesMAP"
         if digitmunged:
-            print "== Performing DigitOCR..."
-            digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
-            print "== Finished DigitOCR."
-            digit_group.save_digitgroup_results(self.project, digitgroup_results)
-            digit_group.save_digitmatch_info(self.project, digitmatch_info)
+            self.run_digit_grouping(digitmunged=digitmunged)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+
+    def onButton_rundigitgroup(self, evt):
+        dlg = wx.MessageDialog(self, message="This will re-run Digit \
+Grouping completely, which means you will lose all progress on \
+Digit-Related Attributes. However, you will keep your progress on \
+other Attributes (i.e. non Digit-related Attributes).\n\n\
+Are you sure you want to proceed?",
+                               style=wx.YES_NO | wx.NO_DEFAULT)
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            print "YES"
+            self.run_digit_grouping()
+            self.parent.grouping_done(None, do_replacedigits=True)
+        else:
+            print "NO"
+
+    def run_digit_grouping(self, digitmunged=None):
+        # Remember to remove all files
+        rdir = self.project.projdir_path
+        p = self.project
+        util_gui.remove_files(pathjoin(rdir,
+                                       p.accepted_hashes),
+                              pathjoin(rdir, p.rejected_hashes),
+                              pathjoin(rdir, p.digitgroup_results),
+                              pathjoin(rdir, p.digitmatch_info))
+        all_attrtypes = common.get_attrtypes(self.project)
+        if digitmunged == None:
+            _, digitmunged = munge_patches_grouping(self.patches, all_attrtypes, self.project)
+        bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        print "== Performing DigitOCR..."
+        t = time.time()
+        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
+        dur = time.time() - t
+        print "== Finished DigitOCR ({0} s).".format(dur)
+        digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        digit_group.save_digitmatch_info(self.project, digitmatch_info)
 
     def start_grouping(self):
         """ Creates the separate Thread that spawns the grouping
@@ -860,6 +877,38 @@ def add_customattrs_info_voted(proj, results_foo):
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
     return results_foo
 
+def munge_patches_grouping(patches, attrtypes, project):
+    """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
+    to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
+    """
+    result = {}
+    digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
+    # patches won't have digit-based attributes
+    for temppath, patchtriple in patches.iteritems():
+        for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
+            for attrtype in attrtypes:
+                if common.get_propval(grouplabel, attrtype):
+                    attrval = common.get_propval(grouplabel, attrtype)
+                    result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
+    # Handle digit-based attributes
+    for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
+        w_img, h_img = project.imgsize
+        if attrdict['is_digitbased']:
+            # TODO: digitbased assumes that each attr patch has only
+            # one attribute. Not sure if the non-digitbased
+            # correctly-handles multi-attribute pathces.
+            for attrtype in attrtypes:
+                if attrtype in attrdict['attrs']:
+                    if attrtype not in digitsresult:
+                        # Only add attrtype once into digitsresult
+                        bb = [int(round(attrdict['y1']*h_img)),
+                              int(round(attrdict['y2']*h_img)),
+                              int(round(attrdict['x1']*w_img)),
+                              int(round(attrdict['x2']*w_img))]
+                        digitsresult[attrtype] = (bb, attrdict['side'])
+    return result, digitsresult
+
+
 def determine_template(sample_attrs, template_attrs, samplepath, project):
     """
     Given a sample image's attrtype->attrval mappings, return the
@@ -870,8 +919,10 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
       str samplepath: Imagepath to the sample ballot in question.
       obj project: 
     Output:
-      Path of the associated template. Returns -1 if there are multiple
-      possible choices, or None if there are no possible matches.
+      Path of the associated template, if it's successful. If it isn't,
+      then if returns (0, None) if there are no possible matches.
+      It returns (<N>, ((str blankpath_i, dict attrs_i), ..)) if there
+      are N possible choices.
     """
     # 1.) First, handle 'standard' img-based attributes
     possibles = {}
@@ -903,23 +954,55 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
         #    warn the user that the current set of attributes is probably not
         #    'good enough'.
         #    
-        print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
-        print "   We're hosed, so OpenCount will quarantine this voted ballot."
-        print "   Perhaps the current set of Ballot Attributes don't"
-        print "   uniquely specify a blank ballot?"
-        print "   ", samplepath
-        print "== To proceed, type in 'c', and press ENTER."
-        pdb.set_trace()
-        return -1
+        if common.is_blankballot_contests_eq(*possibles.keys()):
+            print "There were {0} possible blank ballots, but *phew*, \
+they're all equivalent.".format(len(possibles))
+            return possibles.keys()[0]
+        else:
+            print "== Error, more than one possible blank ballot: {0} possibles.".format(len(possibles))
+            print "   We're hosed, so OpenCount will quarantine this voted ballot."
+            print "   Perhaps the current set of Ballot Attributes don't"
+            print "   uniquely specify a blank ballot?"
+            print "   ", samplepath
+            # TODO: Temporary hack, just arbitrarily return the first
+            #       blank ballot.
+            print "   Choosing the first blank ballot..."
+            return possibles.keys()[0]
+            #return (len(possibles), [(bpath, attrs) for bpath,attrs in possibles.items()])
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."
         print "  ", samplepath
         print "== To proceed, type in 'c', and press ENTER."
-        pdb.set_trace()
-        return None
+        return (0, None)
     assert len(possibles) == 1
     return possibles.keys()[0]
+
+def log_hosed_ballots(hosed_ballots, outpath):
+    """ Outputs information about voted ballots that didn't have a
+    corresponding blank ballot to an output file.
+    Input:
+        list hosed_ballots: ((samplepath_i, dict attrs_i, data_i), ...)
+    """
+    f = open(outpath, 'w')
+    for i, (samplepath, attrs, data) in enumerate(hosed_ballots):
+        print >>f, "Voted Ballot {0}: {1}".format(i, samplepath)
+        print >>f, "    Attributes:"
+        for attrtype, (attrval, flip, imgorder) in attrs.iteritems():
+            print >>f, "        {0}: {1}, flip: {2}, imgorder: {3}".format(attrtype, attrval,
+                                                                           flip, imgorder)
+        if data == None:
+            print >>f, "    Blank Ballot(s): {0} found.".format(0)
+        else:
+            print >>f, "    Blank Ballot(s): {0} found.".format(len(data))
+            for (blankpath, blankattrs) in data:
+                print >>f, "        Path: {0}".format(blankpath)
+                print >>f, "        Attributes:"
+                for attrtype, (attrval, flip) in blankattrs.iteritems():
+                    print >>f, "            {0}: {1}, flip: {2}".format(attrtype,
+                                                                        attrval, flip)
+        print >>f, ""
+    f.close()
 
 def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     """

@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, textwrap
+import sys, csv, copy, pdb, os, textwrap, traceback
 import threading, time
 import timeit
 sys.path.append('../')
@@ -175,8 +175,12 @@ class VerifyPanel(wx.Panel):
         # 'Ok', for a voted ballot B
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
-        self._misclassify_history = {} # maps {str votedpath: int count}
-
+        self._misclassify_history = {} # maps {str ballotid: int count}
+        
+        self.accepted_hashes = None
+        self.rejected_hashes = None
+        self.digitmatch_info = None
+            
         if not verifymode:
             self.mode = VerifyPanel.MODE_NORMAL
         elif verifymode == VerifyPanel.MODE_YESNO:
@@ -212,6 +216,40 @@ class VerifyPanel(wx.Panel):
 
         Publisher().subscribe(self._pubsub_project, "broadcast.project")
 
+    def load_accepted_hashes(self):
+        if self.accepted_hashes != None:
+            return self.accepted_hashes
+        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        if accepted_hashes == None:
+            accepted_hashes = {}
+            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        self.accepted_hashes = accepted_hashes
+        return self.accepted_hashes
+    def save_accepted_hashes(self):
+        partmatch_fns.save_accepted_hashes(self.project, self.accepted_hashes)
+        
+    def load_rejected_hashes(self):
+        if self.rejected_hashes != None:
+            return self.rejected_hashes
+        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        if rejected_hashes == None:
+            rejected_hashes = {}
+            partmatch_fns.save_rejected_hashes(self.project, rejected_hashes)
+        self.rejected_hashes = rejected_hashes
+        return self.rejected_hashes
+    def save_rejected_hashes(self):
+        partmatch_fns.save_rejected_hashes(self.project, self.rejected_hashes)
+        
+    def load_digitmatch_info(self):
+        if self.digitmatch_info != None:
+            return self.digitmatch_info
+        digitmatch_info = digit_group.get_digitmatch_info(self.project)
+        self.digitmatch_info = digitmatch_info
+        return self.digitmatch_info
+    def save_digitmatch_info(self, digitmatch_info):
+        self.digitmatch_info = digitmatch_info
+        digit_group.save_digitmatch_info(self.project, self.digitmatch_info)
+        
     def fitPanel(self):
         #w, h = self.parent.GetClientSize()
         #self.mainPanel.SetMinSize((w * 0.95, h * 0.9))
@@ -312,6 +350,20 @@ in queue: 0")
         self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
         quarantine_sizer.AddMany([(self.debugButton,), (self.quarantineButton,)])
 
+        checkpoint_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.saveCheckpointButton = wx.Button(self.mainPanel, label="Save Checkpoint")
+        self.saveCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickSaveCheckpoint)
+        self.loadCheckpointButton = wx.Button(self.mainPanel, label="Load Checkpoint...")
+        self.loadCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickLoadCheckpoint)
+        self.undoButton = wx.Button(self.mainPanel, label="Undo.")
+        self.undoButton.Bind(wx.EVT_BUTTON, self.OnClickUndo)
+        self.restoreallButton = wx.Button(self.mainPanel, label="Restore All Groups...")
+        self.restoreallButton.Bind(wx.EVT_BUTTON, self.OnClickRestoreAll)
+        checkpoint_sizer.AddMany([(self.saveCheckpointButton,), ((10,10),), 
+                                  (self.loadCheckpointButton,), ((10,10),),
+                                  (self.undoButton,), ((10,10),),
+                                  (self.restoreallButton,)])
+
         # Buttons for MODE_YESNO
         self.yes_button = wx.Button(self.mainPanel, label="Yes")
         self.no_button = wx.Button(self.mainPanel, label="No")
@@ -336,6 +388,8 @@ in queue: 0")
         hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
         hbox5.Add((40,-1))
         hbox5.Add(self.manuallylabelButton, flag=wx.LEFT | wx.CENTRE)
+        hbox5.Add((50, -1))
+        hbox5.Add(checkpoint_sizer, flag=wx.LEFT | wx.CENTRE)
 
         # HBOX8 (# of ballots)
         hbox8 = wx.BoxSizer(wx.HORIZONTAL)
@@ -381,6 +435,8 @@ in queue: 0")
             self.manuallylabelButton.Hide()
             self.quarantineButton.Hide()
             self.forcedigitgroupButton.Hide()
+            self.saveCheckpointButton.Hide()
+            self.loadCheckpointButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -394,6 +450,8 @@ in queue: 0")
             self.st4.Hide()
             self.quarantineButton.Hide()
             self.forcedigitgroupButton.Hide()
+            self.saveCheckpointButton.Hide()
+            self.loadCheckpointButton.Hide()
 
         self.mainPanel.SetSizer(hbox7)
         self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
@@ -445,51 +503,123 @@ in queue: 0")
     def dump_state(self):
         if self.project:
             print "DUMPING VERIFY GROUP STATE"
+            statedict = {}
+            if self.currentGroup and self.currentGroup not in self.queue and self.currentGroup not in self.finished:
+                # self.currentGroup will be None when verification is done.
+                print "Uhoh, why isn't currentGroup anywhere?"
+                pdb.set_trace()
+            #if self.currentGroup:
+            #    if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
+            #        q.insert(0, self.currentGroup)
+            statedict['todo'] = self.queue
+            statedict['finished'] = self.finished
+            #if self.currentGroup != None:
+            #    statedict['curidx'] = self.queue.index(self.currentGroup)
+            #else:
+            #    statedict['curidx'] = 0
+            #statedict['misclassify_cnt'] = self._mismatch_cnt
+            print "Number todo: {0} Number finished: {1}".format(len(self.queue), len(self.finished))
             fqueue = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'wb')
-            d = {}
-            q = list(self.queue)
-            if self.currentGroup:
-                if self.currentGroup not in self.queue and self.currentGroup not in self.finished:
-                    q.insert(0, self.currentGroup)
-            q.extend(self.finished)
-            d['todo'] = q
-            #d['finished'] = self.finished
-            d['finished'] = []
-            pickle.dump(d, fqueue)
+            print "Dumping statedict..."
+            pickle.dump(statedict, fqueue)
+            print "...Finished Dumping statedict."
         
-    def load_state(self):
+    def load_state(self, replacedigits=False, digitgroups=None):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
         #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
             try:
                 self._mismatch_cnt = 0
                 fstate = open(pathjoin(self.project.projdir_path, 'verifygroupstate.p'), 'rb')
-                d = pickle.load(fstate)
-                todo = d['todo']
-                todo.extend(d['finished'])
-                for group in todo:
+                print "Loading statedict..."
+                _t = time.time()
+                statedict = pickle.load(fstate)
+                print "...Finished loading statedict ({0} s).".format(time.time() - _t)
+                todo = statedict['todo']
+                finished = statedict['finished']
+                print "Number todo: {0} Number finished: {1}".format(len(todo), len(finished))
+                # TODO: 'curidx' not used at the moment. Might be a useful
+                # thing to have at some point.
+                if 'curidx' not in statedict:
+                    # TODO: Legacy code. Remove me at some future time.
+                    curgroupidx = 0
+                else:
+                    curgroupidx = statedict['curidx']
+                # TODO: For Marin backwards compatibility, we'll just recompute
+                # the misclassify count. But later, let's just use the misclassify_cnt
+                # in the statefile.
+                if 'misclassify_cnt' not in statedict:
+                    # TODO: Legacy code. Remove me at some future time.
+                    misclassify_cnt = None
+                else:
+                    misclassify_cnt = statedict['misclassify_cnt']
+
+                # 0.) First, clear all my internal state
+                self.reset_state()
+
+                img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+
+                todo.reverse() # to not reverse groups in UI
+                for group in todo: 
                     # TODO: Code that handles legacy GroupClass instances
                     #       that don't have the self.is_misclassify field.
                     #       Remove me after awhile - is harmless to leave in.
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
+                    group.compute_label()
                     self.add_group(group)
-                #self.queue = d['todo']
-                # Don't worry about keeping 'finished' separated from 'queue'
-                # for now.
-                #self.queue.extend(d['finished'])
-                #self.finished = d['finished']  # This was present earlier -- why?
+                for group in finished:
+                    if not hasattr(group, 'is_misclassify'):
+                        # This is the legacy part
+                        group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
+                    elif group.is_misclassify == True:
+                        self._mismatch_cnt += len(group.elements)
+                        for element in group.elements:
+                            balid = img2bal[element[0]]
+                            if balid not in self._misclassify_history:
+                                self._misclassify_history[balid] = 1
+                            else:
+                                self._misclassify_history[balid] += 1
+                if replacedigits:
+                    # Add in new DigitGroups
+                    assert digitgroups != None
+                    for g in digitgroups:
+                        self.add_group(g)
+                self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
                 # load in any state.
+                dlg = wx.MessageDialog(self, message="Warning - couldn't \
+open the Verify Overlays state file for some reason: {0} \nIf the statefile \
+is a nullfile, please delete it, and start over.".format(pathjoin(self.project.projdir_path,
+                                                                  'verifygroupstate.p')))
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
+                traceback.print_exc()
                 print e
                 return
-
         # Update the self.misclassify_txt label
         self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
+
+    def reset_state(self):
+        """ Resets all internal state, both data structures and UI
+        widgets.
+        """
+        self._mismatch_cnt = 0
+        self.queue = []
+        self.currentGroup = None
+        self.finished = []
+        self.queueList.Clear()
 
     def start_verifygrouping(self):
         """
@@ -589,6 +719,7 @@ in queue: 0")
         class given by final_index.
         """
         group.index = final_index
+        group.compute_label()
         self.finished.append(group)
         self.finishedList.Append(group.label)
 
@@ -692,11 +823,16 @@ in queue: 0")
             cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             _t = time.time()
-            accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
-            if accepted_hashes == None:
-                accepted_hashes = {}
-                partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
-            digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            
+            #accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+            #if accepted_hashes == None:
+            #    accepted_hashes = {}
+            #    partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            accepted_hashes = self.load_accepted_hashes()
+            
+            #digitmatch_info = digit_group.get_digitmatch_info(self.project)
+            digitmatch_info = self.load_digitmatch_info()
+            
             _dur = time.time() - _t
             times['load_data'] = _dur
             _t = time.time()
@@ -714,7 +850,7 @@ in queue: 0")
             print "...Finished Updating accepted hashes. ({0} s).".format(_dur)
             times['update_acceptedhashes'] = _dur
             _t = time.time()
-            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+            #partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
 
             self._ok_history
             _dur = time.time() - _t
@@ -864,13 +1000,14 @@ at a time."
         # b.) Construct rejected_hashes
         #cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i), ...]}}
-        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
-        if rejected_hashes == None:
-            # Hasn't been created yet.
-            rejected_hashes = {}
-            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
-                                                       self.project.rejected_hashes),
-                                              'wb'))
+        rejected_hashes = self.load_rejected_hashes()
+        #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        #if rejected_hashes == None:
+        #    # Hasn't been created yet.
+        #    rejected_hashes = {}
+        #    pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+        #                                               self.project.rejected_hashes),
+        #                                      'wb'))
         ct = 0
         for imgpath, digitsmap in rejected_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():
@@ -888,17 +1025,18 @@ DigitGrouping yet.", style=wx.OK)
             return
         # c.) Grab accepted_hashes
         # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side_i), ...]}}
-        accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
-        if accepted_hashes == None:
-            # Hasn't been created yet.
-            accepted_hashes = {}
-            partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
+        accepted_hashes = self.load_accepted_hashes()
+        #accepted_hashes = partmatch_fns.get_accepted_hashes(self.project)
+        #if accepted_hashes == None:
+        #    # Hasn't been created yet.
+        #    #accepted_hashes = {}
+        #    #partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
         accept_cnt = 0
         for imgpath, digitsmap in accepted_hashes.iteritems():
             for digit, lst in digitsmap.iteritems():
                 accept_cnt += len(lst)
         print "Total number of accepted regions:", accept_cnt
-
+        partmatch_fns.save_accepted_hashes(self.project, accepted_hashes)
         print "Running partmatch digit-OCR computation with updated \
 rejected_hashes..."
         # Filter out ballotids from bal2imgs that we don't need to process.
@@ -978,7 +1116,8 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                                                                       prev_digitgroup_results,
                                                                       self.project)
         digit_group.save_digitgroup_results(self.project, digitgroup_results)
-        digit_group.save_digitmatch_info(self.project, digitmatch_info)
+        #digit_group.save_digitmatch_info(self.project, digitmatch_info)
+        self.save_digitmatch_info(digitmatch_info)
         groups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
         print "Finished partmatch digit-OCR. Number of groups:", len(groups)
 
@@ -1077,13 +1216,14 @@ at a time."
         print "==== b.) Construct rejected_hashes"
         cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
-        rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
-        if rejected_hashes == None:
-            # Hasn't been created yet.
-            rejected_hashes = {}
-            pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
-                                                       self.project.rejected_hashes),
-                                              'wb'))
+        rejected_hashes = self.load_rejected_hashes()
+        #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
+        #if rejected_hashes == None:
+        #    # Hasn't been created yet.
+        #    rejected_hashes = {}
+        #    pickle.dump(rejected_hashes, open(pathjoin(self.project.projdir_path,
+        #                                               self.project.rejected_hashes),
+        #                                      'wb'))
         print "== Throw stuff in self.currentGroup.elements into rejected_hashes"
         # Load in digitmatch_info once, since it can be quite large.
         digitmatch_info = digit_group.get_digitmatch_info(self.project)
@@ -1250,8 +1390,43 @@ finished! Press 'Ok', then you may continue to the next step.",
         G's overlay represents (i.e. 'party'->'democrat'?).
         In other words, a 'Merge' is an anti-'Split'.
         """
-        
-        pass
+        dlg = wx.MessageDialog(self, message="Not implemented yet!")
+        self.Disable()
+        dlg.ShowModal()
+        self.Enable()
+        # TODO: This is more nuanced than I expected. I'd have to
+        # manually re-arrange all rankedlists in each new GroupClass
+        # to ensure that the label L that the user chose is at the
+        # 'front' of the rankedlist (since it's in sorted order).
+        # Also, for regular-attributes, arbitrarily re-ordering the
+        # ranked list might have bad consequences for 'Split', since
+        # 'Split' assumes that the rankedlist is ordered a certain way.
+        '''
+        newgroups_map = {} # maps {str grouplabel: (GroupClass_i, ...)}
+        for group in self.queue:
+            newgroups_map.setdefault(group.label, []).append(group)
+        pdb.set_trace()
+        newgroups = [] # (GroupClass_i, ...)
+        for grouplabel, groups in newgroups_map.iteritems():
+            newgroups.append(common.GroupClass.merge(*groups))
+
+        # Sanity check
+        oldcount = sum([len(g.elements) for g in self.queue])
+        newcount = sum([len(g.elements) for g in newgroups])
+        if oldcount != newcount:
+            print "Uhoh, old num. of elements was {0}, but the new \
+elements num. is {1}".format(oldcount, newcount)
+            pdb.set_trace()
+            return
+
+        # 0.) Remove all current groups
+        for group in self.queue:
+            self.remove_group(group)
+        # 1.) Add in all new groups
+        for group in newgroups:
+            self.add_group(group)
+        self.select_group(self.queue[0])
+        '''
         
     def OnClickDebug(self, event):
         if (self.currentGroup != None):
@@ -1288,12 +1463,66 @@ OpenCount claims you're 'done'. Uh oh."
                 self.Enable()
             else:
                 self.select_group(self.queue[0])
+
+    def OnClickSaveCheckpoint(self, event):
+        """ Saves the current (exact) UI state, such as which groups
+        are visible, not visible, etc.
+        """
+        print "Saving state."
+        dlg = wx.MessageDialog(self, message="Warning - saving this \
+Checkpoint will overwrite the last-saved Checkpoint. Are you sure you \
+want to continue?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.dump_state()
+        self.Enable()
+        
+    def OnClickLoadCheckpoint(self, event):
+        """ Loads the (last) saved checkpoint. """
+        dlg = wx.MessageDialog(self, message="Warning - loading the last \
+saved Checkpoint will result in all unsaved progress being lost. Are \
+you sure you want to continue?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.load_state()
+        self.select_group(self.queue[0])
+        self.Enable()
+
+    def restore_hidden_groups(self):
+        for i in range(len(self.finished)):
+            self.add_group(self.finished.pop())
+
+    def OnClickRestoreAll(self, event):
+        """ Restores all hidden groups to the UI. """
+        dlg = wx.MessageDialog(self, message="Warning - restoring all\
+groups will add all previously-OK'd Groups to the UI. You will then \
+have to re-click 'Ok' for each of these Groups. \n\n\
+Are you sure you want to do this?", style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            self.restore_hidden_groups()
+        self.select_group(self.queue[0])
+        self.Enable()
     
+    def OnClickUndo(self, event):
+        """ Adds the last-finished GroupClass to the UI. """
+        if not self.finished:
+            dlg = wx.MessageDialog(self, message="No OK'd Groups to \
+undo!", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        self.add_group(self.finished.pop())
+        self.select_group(self.queue[0])
+
     def checkCanMoveOn(self):
         # TODO: Fix this implementation.
         return True
-
-        return self.canMoveOn
+        #return self.canMoveOn
         
     def _pubsub_project(self, msg):
         project = msg.data

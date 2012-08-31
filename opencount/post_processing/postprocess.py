@@ -328,7 +328,9 @@ class ResultsPanel(ScrolledPanel):
         e.g. 'precinct 1' : cvr item
         """
         attributes = self.load_grouping()
-        quar = set(x[0] for x in csv.reader(open(self.proj.quarantine_res)))
+        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
+        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        quar = quar1.union(quar2)
         print attributes
 
         result = ""
@@ -340,8 +342,11 @@ class ResultsPanel(ScrolledPanel):
                 res = {}
                 for a in lst:
                     if os.path.abspath(a[0]) not in attributes:
-                        pdb.set_trace()
-                        raise Exception("Oh no. " + os.path.abspath(a[0]) + " was not in the grouping results.")
+                        if os.path.abspath(a[0]) in quar:
+                            print "A-OKAY! It was quarantined"
+                        else:
+                            pdb.set_trace()
+                            raise Exception("Oh no. " + os.path.abspath(a[0]) + " was not in the grouping results.")
                     else:
                         try:
                             thisattr = attributes[os.path.abspath(a[0])][attr]
