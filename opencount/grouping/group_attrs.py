@@ -596,38 +596,34 @@ def compute_exemplars_fullimg(mapping, invmapping):
         pathL, scoreL, idxL = common.get_avglightest_img(imgpaths)
         print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
         exemplars[label] = [(imgpaths.pop(idxL), bbs.pop(idxL))]
-    is_done = False
     globalvar = 0
+    tasks = make_tasks(mapping)
+    #tasks = make_interleave_gen(*[(imgpath, bb) for (imgpath, bb) in itertools.izip(imgpath, bbs)
+    is_done = False
     while not is_done:
         is_done = True
-        for label, (imgpaths, bbs) in mapping.iteritems():
-            print "==== Processing label {0}...".format(label)
-            t = time.time()
-            i = 0
-            while i < len(imgpaths):
-                imgpath = imgpaths[i]
-                bb = bbs[i]
-                bestlabel, mindist, bbOut = closest_label(imgpath, bb, exemplars, invmapping)
-                if label != bestlabel:
-                    print "...for label {0}, found new exemplar {1}.".format(label, imgpath)
-                    imgpaths.pop(i)
-                    bbs.pop(i)
-                    # THESE IMGS WERE BROKEN
-                    '''
-                    fooimg = scipy.misc.imread(imgpath, flatten=True)
-                    digitpatch = fooimg[bb[0]:bb[1], bb[2]:bb[3]]
-                    path = os.path.join('digitsdigits', '{0}_{1}.png'.format(label, globalvar))
-                    util_gui.create_dirs('digitsdigits')
-                    scipy.misc.imsave(path, digitpatch) 
-                    '''
-                    exemplars[label].append((imgpath, bb))
-                    is_done = False
-                    globalvar += 1
-                else:
-                    i += 1
-            dur = time.time() - t
-            print "...Finished Processing label {0} ({1} s).".format(label, dur)
+        taskidx = 0
+        while taskidx < len(tasks):
+            label, (imgpath, bb) = tasks[taskidx]
+            bestlabel, mindist, bbOut = closest_label(imgpath, bb, exemplars, invmapping)
+            if label != bestlabel:
+                print "...for label {0}, found new exemplar {1}.".format(label, imgpath)
+                tasks.pop(taskidx)
+                exemplars[label].append((imgpath, bb))
+                is_done = False
+                globalvar += 1
+            else:
+                taskidx += 1
     return exemplars
+
+def make_tasks(mapping):
+    tasks_map = {} # maps {label: ((imgpath_i, bb_i), ...)}
+    for label, (imgpaths, bbs) in mapping.iteritems():
+        tasks_map.setdefault(label, []).extend(zip(imgpaths, bbs))
+    tasks = []
+    for label in mapping.keys():
+        tasks.append((label, tasks_map[label].pop()))
+    return tasks
 
 def make_interleave_gen(*lsts):
     i = 0

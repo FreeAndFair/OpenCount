@@ -263,28 +263,28 @@ def compute_digit_exemplars(proj):
             bbs.append(bb)
             invmapping[regionpath] = digit
             #mapping.setdefault(digit, []).append(regionpath) # Fascinating - this works 'interestingly'
-        mapping[digit] = (imgpaths, bbs)
+        mapping[digit] = (list(imgpaths), list(bbs))
     # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
 
     exemplars = group_attrs.compute_exemplars_fullimg(mapping, invmapping)
-    digitmultexemplars_map = {} # maps {str digit: ((imgpath_i, bb_i, patchpath_i), ...)}
+    digitmultexemplars_map = {} # maps {str digit: ((regionpath_i, bb_i, patchpath_i), ...)}
     for digit, tuples in exemplars.iteritems():
-        for i, (imgpath, bb) in enumerate(tuples):
-            img = scipy.misc.imread(imgpath, flatten=True)
-            h,w = img.shape
+        for i, (regionpath, bb) in enumerate(tuples):
+            regionimg = scipy.misc.imread(regionpath) # don't open a grayscale img twice, tends to lighten it
+            #h,w = img.shape
             #newbb = [None, None, None, None]
             #newbb[0] = max(0, bb[0])
             #newbb[1] = min(h-1, bb[1])
             #newbb[2] = max(0, bb[2])
             #newbb[3] = min(w-1, bb[3])
-            patch = scipy.misc.imread(imgpath, flatten=True)[bb[0]:bb[1], bb[2]:bb[3]]
+            patch = regionimg[bb[0]:bb[1], bb[2]:bb[3]]
             rootdir = os.path.join(proj.projdir_path,
                                    proj.digitmultexemplars,
                                    digit)
             util_gui.create_dirs(rootdir)
             exemplarP = pathjoin(rootdir, '{0}.png'.format(i))
             scipy.misc.imsave(exemplarP, patch)
-            digitmultexemplars_map.setdefault(digit, []).append((imgpath, bb, exemplarP))
+            digitmultexemplars_map.setdefault(digit, []).append((regionpath, bb, exemplarP))
     pickle.dump(digitmultexemplars_map,
                 open(os.path.join(proj.projdir_path, proj.digitmultexemplars_map), 'wb'))
     return digitmultexemplars_map
@@ -311,12 +311,12 @@ def compute_median_dist(proj, digitattr):
         return dist
     # Bit hacky - peer into LabelDigit's 'matches' internal state
     labeldigits_stateP = pathjoin(proj.projdir_path, proj.labeldigitstate)
-    # matches maps {str regionpath: ((patchpath_i,matchID_i,score,y1,y2,x1,x2,rszFac_i), ...)
+    # matches maps {str regionpath: ((patchpath_i,matchID_i,digit,score,y1,y2,x1,x2,rszFac_i), ...)
     matches = pickle.load(open(labeldigits_stateP, 'rb'))['matches']
     dists = [] # stores adjacent distances
     for regionpath, tuples in matches.iteritems():
         x1_all = []
-        for (patchpath, matchID, score, y1, y2, x1, x2, rszFac) in tuples:
+        for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in tuples:
             x1_all.append(int(round(x1 / rszFac)))
         x1_all = sorted(x1_all)
         for i, x1 in enumerate(x1_all[:-1]):
