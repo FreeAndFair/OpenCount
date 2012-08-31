@@ -1,0 +1,42 @@
+================
+Beginning new log session, on:
+2012-08-30 18:03:06.801935
+================
+================
+Beginning new log session, on:
+2012-08-30 18:03:06.801952
+================
+Project name is: asdfasdf
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 93.6795232296 seconds
+For task ('cpu', 'Sanity-check Images Computation'):
+    Time: 0.472394943237 seconds
+For task ('cpu', 'TemplateMatch Targets Computation'):
+    Time: 2.9057841301 seconds
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 57.5244510174 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 87.1995608807 seconds
+For task ('cpu', 'Target Extraction Computation'):
+    Time: 36.264220953 seconds
+For task ('user', 'Set Voter-Mark Threshold'):
+    Time: 48.260807991 seconds
+For task Total Time:
+    Time: 572.463447809 seconds
+================
+Beginning new log session, on:
+2012-08-30 19:18:09.814735
+================
+================
+Beginning new log session, on:
+2012-08-30 19:18:09.814764
+================
+Project name is: asdfasdf
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 2.76953291893 seconds
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 65.5362091064 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 96.6168341637 seconds
+For task Total Time:
+    Time: 174.524615049 seconds

@@ -1,0 +1,87 @@
+================
+Beginning new log session, on:
+2012-08-30 17:10:23.768608
+================
+================
+Beginning new log session, on:
+2012-08-30 17:10:23.768635
+================
+Project name is: ProjectNameHere
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 5.23539495468 seconds
+For task ('cpu', 'Sanity-check Images Computation'):
+    Time: 4.25437688828 seconds
+For task Total Time:
+    Time: 78.227107048 seconds
+================
+Beginning new log session, on:
+2012-08-30 17:11:58.691395
+================
+================
+Beginning new log session, on:
+2012-08-30 17:11:58.691414
+================
+Project name is: ProjectNameHere
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 5.14645624161 seconds
+For task ('cpu', 'Sanity-check Images Computation'):
+    Time: 0.449630975723 seconds
+For task ('cpu', 'TemplateMatch Targets Computation'):
+    Time: 5.00275111198 seconds
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 186.01266408 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 389.020359278 seconds
+For task Total Time:
+    Time: 1011.12490511 seconds
+================
+Beginning new log session, on:
+2012-08-30 17:28:56.833452
+================
+================
+Beginning new log session, on:
+2012-08-30 17:28:56.833468
+================
+Project name is: ProjectNameHere
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 2.33955001831 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 304.237747908 seconds
+For task Total Time:
+    Time: 348.685677052 seconds
+================
+Beginning new log session, on:
+2012-08-30 17:34:54.108699
+================
+================
+Beginning new log session, on:
+2012-08-30 17:34:54.108720
+================
+Project name is: ProjectNameHere
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 33.1043598652 seconds
+For task ('cpu', 'Sanity-check Images Computation'):
+    Time: 0.476497173309 seconds
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 2.94027686119 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 1.90630412102 seconds
+For task Total Time:
+    Time: 101.200010061 seconds
+================
+Beginning new log session, on:
+2012-08-30 17:36:42.847349
+================
+================
+Beginning new log session, on:
+2012-08-30 17:36:42.847372
+================
+Project name is: ProjectNameHere
+For task ('user', 'Set Templates/Samples Dir'):
+    Time: 1432.60728788 seconds
+For task ('user', 'Select/Group Voting Targets'):
+    Time: 7.65495204926 seconds
+For task ('user', 'Label Contests data entry'):
+    Time: 2.53507590294 seconds
+For task Total Time:
+    Time: 1510.75536299 seconds
