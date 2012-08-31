@@ -546,7 +546,7 @@ def compute_exemplars_fullimg(mapping, invmapping):
         A (hopefully smaller) dict mapping {label: ((imgpath'_i, bbOut_i), ...)}
     """    
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2, invmapping):
-        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, padSearch=.4,doPrep=False)
+        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, doPrep=False)
         if not matches:
             print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
             return None, 9999, None
