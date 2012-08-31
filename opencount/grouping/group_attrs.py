@@ -2,6 +2,7 @@ import sys, os, pickle, pdb, wx, time, shutil, copy, random
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
+import cv
 
 sys.path.append('../')
 import common, util
@@ -490,31 +491,113 @@ def compute_exemplars(mapping):
         matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
         matches = sorted(matches, key=lambda t: t[2])
         return matches[0][2]
+    def distance2(img, imgpath2):
+        """ L2 norm between img1, img2 """
+        img2 = shared.standardImread(imgpath2, flatten=True)
+        img2 = common.resize_img_norescale(img2, (img.shape[1], img.shape[0]))
+        diff = np.linalg.norm(img - img2)
+        return diff
+    def distance3(img, imgpath2):
+        """ NCC score between img1, img2. """
+        imgCv = cv.fromarray(np.copy(img.astype(np.float32)))
+        img2Cv = cv.LoadImage(imgpath2, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        outCv = cv.CreateMat(imgCv.height - img2Cv.height+1, imgCv.width - img2Cv.width+1,
+                             imgCv.type)
+        cv.MatchTemplate(imgCv, img2Cv, outCv, cv.CV_TM_CCOEFF_NORMED)
+        return outCv.max()
     def closest_label(imgpath, exemplars):
         mindist = None
         bestmatch = None
         img = shared.standardImread(imgpath, flatten=True)
         for label, imgpaths in exemplars.iteritems():
             for imgpathB in imgpaths:
-                dist = distance(img, imgpathB)
+                dist = distance2(img, imgpathB)
                 if mindist == None or dist < mindist:
                     bestmatch = label
                     mindist = dist
-        return bestmatch
+        return bestmatch, mindist
     mapping = copy.deepcopy(mapping)
     exemplars = {}
     for label, imgpaths in mapping.iteritems():
-        exemplars[label] = [imgpaths.pop()]
+        rand_idx = random.choice(range(len(imgpaths)))
+        exemplars[label] = [imgpaths.pop(rand_idx)]
     is_done = False
     while not is_done:
         is_done = True
         for label, imgpaths in mapping.iteritems():
-            for imgpath in imgpaths:
-                j = closest_label(imgpath, exemplars)
-                print 'label should be {0} closest was {1}'.format(label, j)
-                if label != j:
+            while imgpaths:
+                imgpath = imgpaths.pop()
+                bestlabel, mindist = closest_label(imgpath, exemplars)
+                print 'label should be {0} closest was {1} ({2})'.format(label, bestlabel, mindist)
+                if label != bestlabel:
                     exemplars[label].append(imgpath)
                     is_done = False
+                    
+    return exemplars
+
+def compute_exemplars_fullimg(mapping, bb):
+    """ Given a mapping {str label: (imgpath_i, ...)}, extracts a subset
+    of the imgpaths {str label: (imgpath_i, ...)} such that these
+    imgpaths are the best-describing 'exemplars' of the entire input
+    mapping. 
+    Input:
+        dict mapping: {label: (imgpath_i, ...)}
+    Output:
+        A (hopefully smaller) dict mapping {label: ((imgpath'_i, bbOut_i), ...)}
+    """    
+    def get_closest_ncclk(imgpath, img, imgpaths2, bb):
+        print "Running find_patch_matchesV1..."
+        t = time.time()
+        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearch=bb, threshold=0.5, doPrep=False)
+        dur = time.time() - t
+        print "...finished find_patch_matchesV1 ({0} s)".format(dur)
+        if not matches:
+            print "Uhoh, no matches found."
+            return None, 9999, None
+        matches = sorted(matches, key=lambda t: t[2])
+        bb, rszFac = (matches[0][4:8], matches[0][8])
+        bb = map(lambda c: int(round(c / rszFac)), bb)
+        return (matches[0][0], matches[0][2], bb)
+    def closest_label(imgpath, exemplars, bb):
+        bestlabel = None
+        mindist = None
+        bbBest = None
+        img = shared.standardImread(imgpath, flatten=True)
+        for label, tuples in exemplars.iteritems():
+            imgpaths2, bbs2 = zip(*tuples) # bbs2 not used here
+            closestlabel, closestdist, bbOut = get_closest_ncclk(imgpath, img, imgpaths2, bb)
+            if bestlabel == None or closestdist < mindist:
+                bestlabel = label
+                mindist = closestdist
+                bbBest = bbOut
+        return bestlabel, mindist, bbOut
+    mapping = copy.deepcopy(mapping)
+    exemplars = {}
+    for label, imgpaths in mapping.iteritems():
+        if type(imgpaths) != list:
+            imgpaths = list(imgpaths)
+        pathL, scoreL, idxL = common.get_avglightest_img(imgpaths)
+        print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
+        exemplars[label] = [(pathL, bb)]
+    is_done = False
+    while not is_done:
+        is_done = True
+        for label, imgpaths in mapping.iteritems():
+            print "==== Processing label {0}...".format(label)
+            t = time.time()
+            i = 0
+            while i < len(imgpaths):
+                imgpath = imgpaths[i]
+                bestlabel, mindist, bbOut = closest_label(imgpath, exemplars, bb)
+                if label != bestlabel:
+                    print "...for label {0}, found new exemplar {1}.".format(label, imgpath)
+                    imgpaths.pop(i)
+                    exemplars[label].append((imgpath, bbOut))
+                    is_done = False
+                else:
+                    i += 1
+            dur = time.time() - t
+            print "...Finished Processing label {0} ({1} s).".format(label, dur)
     return exemplars
 
 def compute_exemplars2(mapping):

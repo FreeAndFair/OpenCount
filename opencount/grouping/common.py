@@ -246,20 +246,19 @@ def dump_iworldstate(iworld, filepath):
 def resize_img_norescale(img, size):
     """ Resizes img to be a given size without rescaling - it only
     pads/crops if necessary.
+    Input:
+        obj img: a numpy array
+        tuple size: (w,h)
+    Output:
+        A numpy array with shape (h,w)
     """
-    w, h = size
-    newimg = np.zeros((h,w), dtype='float32')
-    h_img, w_img = img.shape
-    if w_img > w:
-        w_new = w
-    else:
-        w_new = w_img
-    if h_img > h:
-        h_new = h
-    else:
-        h_new = h_img
-    newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
-    return newimg
+    w,h = size
+    shape = (h,w)
+    out = np.zeros(shape)
+    i = min(img.shape[0], out.shape[0])
+    j = min(img.shape[1], out.shape[1])
+    out[0:i,0:j] = img[0:i, 0:j]
+    return out
 
 def get_attrtypes(project, with_digits=True):
     """
@@ -598,11 +597,49 @@ def str_grouplabel(grouplabel):
         out += '{0}->{1}, '.format(k, v)
     return out
 
-def get_median_img(imgdir):
-    """ Given a directory of images, choose the median image. """
-    # TODO: By choosing the median exemplar image, this might
-    #       improve accuracy (somewhat). Can't hurt.
-    imgs = []
+def get_median_img(imgpaths):
+    """ Given a list of images, return the image with the median average
+    intensity.
+    """
+    scorelist = [] # [(score_i, imgpath_i), ...]
+    for imgpath in imgpaths:
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        scorelist.append((score, imgpath))
+    if not scorelist:
+        print "No imgpaths passed in."
+        return None
+    elif len(scorelist) <= 2:
+        return scorelist[0][1]
+    return scorelist[int(len(scorelist)/2)][1]
+
+def get_avglightest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score > bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
+
+def get_avgdarkest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score < bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
 
 class GroupClass(object):
     """
