@@ -1,4 +1,0 @@
-director at large
-	OVERVOTED
-director district IX
-	UNDERVOTED
