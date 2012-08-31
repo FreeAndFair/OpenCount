@@ -598,6 +598,11 @@ def compute_exemplars_fullimg(mapping, invmapping):
     return exemplars
 
 def make_tasks(mapping):
+    """ Returns a series of tasks, where each task alternates by label,
+    so that we try, say, '1', then '2', then '3', instead of trying
+    all the '1's first, followed by all the '2's, etc. Helps to keep
+    the running time down.
+    """
     tasks_map = {} # maps {label: ((imgpath_i, bb_i), ...)}
     for label, (imgpaths, bbs) in mapping.iteritems():
         tasks_map.setdefault(label, []).extend(zip(imgpaths, bbs))
