@@ -523,6 +523,8 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """
     A panel that allows you to, given a set of images I, give a text
     label to each image. Outputs to an output file.
+    TODO: A more 'modern' version is living in label_imgs.py. Use that
+    one, after the Marin audits.
     """
     STATE_FILE = '_labelpanelstate.p'
 
