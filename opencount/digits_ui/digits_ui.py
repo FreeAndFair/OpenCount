@@ -226,8 +226,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.digit_exemplars_outdir = digit_exemplars_outdir
         self.precinctnums_outpath = precinctnums_outpath  # TODO: NOT USED
 
-        self.digitexemplars_map = None
-
         self.ondone = ondone
 
         # Keeps track of the currently-being-labeled digit
@@ -509,36 +507,6 @@ digit.")
         self.disable_cells()
         self.f.Show()
 
-    def get_digitexemplars_map(self):
-        # digit_exemplars_map maps {str digit: ((blankpath_i, score, bb, patchpath_i), ...)}
-        proj = self.parent.parent.project
-        digit_exemplars_mapP = pathjoin(proj.projdir_path, proj.digit_exemplars_map)
-        if self.digitexemplars_map == None:
-            if os.path.exists(digit_exemplars_mapP):
-                self.digitexemplars_map = pickle.load(open(digit_exemplars_mapP, 'rb'))
-            else:
-                self.digitexemplars_map = {} 
-        
-        return self.digitexemplars_map
-    '''
-    def save_digitexemplars_map(self):
-        proj = self.parent.parent.project
-        digit_exemplars_mapP = pathjoin(proj.projdir_path, proj.digit_exemplars_map)
-        digitexemplars_map = self.get_digitexemplars_map()
-        pickle.dump(digitexemplars_map, open(digit_exemplars_mapP, 'wb'))
-    def remove_patchpaths_digitexemplars_map(self, patchpathsA):
-        digit_exemplars_map = self.get_digitexemplars_map()
-        for digit, tuples in digit_exemplars_map.iteritems():
-            i = 0
-            while i < len(tuples):
-                (blankpath, score, bb, patchpath) = tuples[i]
-                if patchpath in patchpathsA:
-                    tuples.pop(i)
-                    patchpathsA.remove(patchpath)
-                else:
-                    i += 1
-    '''
-
     def on_verifydone(self, results):
         """Invoked once the user has finished verifying the template
         matching on the current digit. Add all 'correct' matches to
@@ -547,8 +515,6 @@ digit.")
         self.f.Close()
         self.Enable()
         self.enable_cells()
-        # digit_exemplars_map maps {str digit: ((blankpath_i, score, bb, patchpath_i), ...)}
-        digit_exemplars_map = self.get_digitexemplars_map()
 
         # 1.) Remove all matches from self.matches that the user said
         # was not relevant, during overlay verification
@@ -566,17 +532,6 @@ digit.")
                         # stuff[i] := (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
                         stuff = [t for t in stuff if t[0] != patchpath]
                         self.matches[regionpath] = stuff
-            else:
-                # Throw all 'Good' GroupClasses into self.digit_exemplars_map
-                for groupclass in groups:
-                    for element in groupclass.elements:
-                        regionpath, rlist, patchpath = element
-                        # stuff = ((patchpath_i, matchID_i, digit, score_i, y1,y2,x1,x2, rszFac_i), ...)
-                        stuff = self.matches[regionpath]
-                        thing = [t for t in stuff if t[0] == patchpath][0]
-                        (regionpath, matchID, digit, score, y1,y2,x1,x2, rszFac) = thing
-                        bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
-                        digit_exemplars_map.setdefault(self.current_digit, []).append((regionpath, score, bb, patchpath))
 
         # 2.) Add all matches that the user said was 'Good' to the UI
         added_matches = 0
