@@ -117,7 +117,7 @@ class LabelContest(wx.Panel):
                 self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
         #print "dirList", self.dirList
-        open("/home/nicholas/dl", "w").write(str(foo))
+        #open("/home/nicholas/dl", "w").write(str(foo))
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
