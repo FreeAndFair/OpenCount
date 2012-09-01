@@ -25,9 +25,13 @@ class ResultsPanel(ScrolledPanel):
 
     def set_results(self):
         """Processes cvr file, outputs results files."""
+        print 'First creating the CVR'
         cvr = self.process()
 
+        print 'Now generate the human CVR'
+
         self.human_readable_cvr(cvr)
+        print 'And now the precinct and mode tally'
         res = self.tally_by_precinct_and_mode(cvr)
         self.results.SetLabel(res)
         self.SetupScrolling()
@@ -35,6 +39,7 @@ class ResultsPanel(ScrolledPanel):
         
         # If there are batches
         if len([x[0] for x in os.walk(self.proj.samplesdir)]) > 1:
+            print 'Tally by batch finally'
             batches_res = self.tally_by_batch(cvr)
             open(self.proj.election_results_batches, "w").write(batches_res)
 
@@ -139,6 +144,8 @@ class ResultsPanel(ScrolledPanel):
         text, order = self.get_text()
 
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+
+        print 'Loaded all the information'
         
         #print "ORDER", order
         #print "TEXT", text
@@ -165,7 +172,11 @@ class ResultsPanel(ScrolledPanel):
         # Hold the CVR results for a single image.
         image_cvr = {}
 
-        for ballot in os.listdir(self.proj.ballot_metadata):
+        print 'Counting up to', len(os.listdir(self.proj.ballot_metadata))
+
+        for i,ballot in enumerate(os.listdir(self.proj.ballot_metadata)):
+            if i%1000 == 0:
+                print 'On ballot', i
             meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
 
             if meta['ballot'] not in quarantined:
@@ -198,6 +209,7 @@ class ResultsPanel(ScrolledPanel):
                 #print 'voted b', voted
                 image_cvr[meta['ballot']] = voted
 
+        print 'Now going through the ballots'
         # Now process the quarantined files
         def processContestQuar(cid, voted):
             upto = text[cid][0]
@@ -224,13 +236,16 @@ class ResultsPanel(ScrolledPanel):
                 image_cvr[bpath] = lst
 
         #print "BCVR", image_cvr
+        print 'And now the quarantine ones'
         
         cvr = csv.writer(open(self.proj.cvr_csv, "w"))
         headerstr = ['#path']+sum([[b[1]+":"+c for c in b[2:]]+[b[1]] for _,b in text.items()], [])
         cvr.writerow(headerstr)
 
         full_cvr = []
-        for ballot,images in ballot_to_images.items():
+        print 'And now going up to', len(ballot_to_images)
+        for i,(ballot,images) in enumerate(ballot_to_images.items()):
+            if i%1000 == 0: print 'on', i
             #print "----"
             #print ballot
             #print images
@@ -248,7 +263,8 @@ class ResultsPanel(ScrolledPanel):
             ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
             cvr.writerow([ballot]+sum(ballot_cvr,[]))
 #        print 'end', full_cvr
-        
+
+        print 'And ending'
        
         return full_cvr
 
@@ -331,7 +347,6 @@ class ResultsPanel(ScrolledPanel):
         quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
         quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
         quar = quar1.union(quar2)
-        print attributes
 
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
@@ -367,6 +382,38 @@ class ResultsPanel(ScrolledPanel):
                             name = "Precinct, Mode: "+k+", "+k2
                             result += self.final_tally(v2, name)
         return result
+
+    def tally_by_precinct_and_mode_hack(self, cvr):
+        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
+        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        quar = quar1.union(quar2)
+
+        result = ""
+        result += self.final_tally(cvr, name="TOTAL")
+
+        if True:
+            def groupby(lst, attr):
+                res = {}
+                for a in lst:
+                    if attr == 'precinct':
+                        thisattr = a[0].split("/")[-1].split("_")[1]
+                    elif attr == 'mode':
+                        thisattr = a[0].split("/")[-1].split("_")[0]
+                    if thisattr not in res: res[thisattr] = []
+                    res[thisattr].append(a)
+                return res
+    
+            if True:
+                ht = groupby(cvr, 'precinct')
+                for k,v in ht.items():
+                    result += self.final_tally(v, name="Precinct: "+k)
+                    if True:
+                        ht2 = groupby(v, 'mode')
+                        for k2,v2 in ht2.items():
+                            name = "Precinct, Mode: "+k+", "+k2
+                            result += self.final_tally(v2, name)
+        return result
+
 
     def tally_by_batch(self, cvr):
         """Tallies by batches rooted at voted/ directory.

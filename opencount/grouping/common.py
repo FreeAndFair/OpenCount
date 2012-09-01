@@ -593,7 +593,7 @@ def str_grouplabel(grouplabel):
     """ Returns a string-representation of the grouplabel. """
     kv_pairs = tuple(grouplabel)
     out = ''
-    for (k, v) in kv_pairs:
+    for (k, v) in sorted(kv_pairs):
         out += '{0}->{1}, '.format(k, v)
     return out
 
@@ -944,7 +944,8 @@ just doing a naive split."
         return groups
         
     def split(self):
-        return self.split_pca_kmeans(K=2)
+        return self.split_kmeans(K=2)
+        #return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """

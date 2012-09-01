@@ -1715,7 +1715,7 @@ def main():
     options.devmode = True
 
     app = wx.App(False)
-    frame = MainFrame(options=options)
+    frame = MainFrame(options=options, size=(1024,768))
     #wx.lib.inspection.InspectionTool().Show()
     app.MainLoop()
 
