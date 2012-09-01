@@ -1551,6 +1551,7 @@ def get_projects(dir_projects):
                 projects.append(project)
             else:
                 print "Warning: Project {0} was unable to be read.".format(proj_name)
+    projects.sort(key = lambda x: str(x).lower())
     return projects
 
 def create_projconfig(projname, projpath):

@@ -357,6 +357,35 @@ def is_quarantined(project, path):
     f.close()
     return False
 
+def get_attrtype_possiblevals(proj, attrtype):
+    """ Returns the possible-values a given attrtype can take (i.e.
+    for attrtype 'party', this should return something like
+    ('democratic', 'republican', etc.).
+    Input:
+        obj proj
+        str attrtype:
+    Output:
+        list [str attrval_i, ...]
+    """
+    attrvals = []
+    if not is_digitbased(proj, attrtype):
+        for dirpath, dirnames, filenames in os.walk(proj.patch_loc_dir):
+            for csvname in [f for f in filenames if f.lower().endswith('.csv')]:
+                f = open(os.path.join(dirpath, csvname), 'rb')
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row['attr_type'] == attrtype:
+                        attrvals.append(row['attr_val'])
+    else:
+        for dirname in os.listdir(os.path.join(proj.projdir_path,
+                                               proj.digit_exemplars_outdir)):
+            digit = dirname.split("_")[0]
+            attrvals.append(digit)
+    if not attrvals:
+        print "Uhoh, couldn't find any attrvals for attrtype:", attrtype
+        pdb.set_trace()
+    return attrvals
+
 def get_attrpair_grouplabel(project, grouplabel):
     """ Given a grouplabel, return both the attrtype of the grouplabel
     and the attrval.
