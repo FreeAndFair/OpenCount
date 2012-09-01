@@ -423,12 +423,13 @@ def cluster_attributes(blankpatches):
         all_exemplars[attrtype] = attrval_exemplars
     return all_exemplars
 
-def cluster_bkgd(mapping, D=5, debug_SKIP=False):
-    """ Given a mapping {str label: list of imgpaths}, for each label L,
+def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
+    """ Given a mapping {str label: (imgpath_i, ...)}, for each label L,
     generates N exemplar images, where each img in N (hopefully) 
     contains a different backgroung coloring.
     Input:
         dict mapping: {str label: (imgpath_i, ...)}
+        dict bb_map: maps {str imgpath: bb}
         int D: A constant threshold used to determine whether or not
                to create a new cluster. For large values of D, this
                will tend to not create new clusters. For very small
@@ -439,6 +440,8 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
     """
     if debug_SKIP:
         return dict(mapping)
+    if bb_map == None:
+        bb_map = {}
     exemplars = {}  # maps {str label: [imgpath_i, ...]}
     clustervals = {} # maps {str label: {str imgpath: float feat}}
     for label, imgpaths in mapping.iteritems():
@@ -446,8 +449,12 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
         clusters = [] # [[(str imgpath_i0, float feat_i0), ...], [(str imgpath_i1, float feat_i1), ...], ...]
         imgpaths = list(imgpaths)
         # 0.) Seed clusters with random center
+        # TODO: Use the lightest image
         firstP = imgpaths.pop(random.randrange(0, len(imgpaths)))
         img = scipy.misc.imread(firstP, flatten=True)
+        bbFirst = bb_map.get(firstP, None)
+        if bbFirst != None:
+            img = img[bbFirst[0]:bbFirst[1], bbFirst[2]:bbFirst[3]]
         median = np.median(img)
         clusters.append([(firstP, median), ])
         # 1.) Iteratively either add each I to a previous cluster, or
@@ -455,6 +462,9 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
         while imgpaths:
             imgP = imgpaths.pop()
             img = scipy.misc.imread(imgP, flatten=True)
+            bb = bb_map.get(imgP, None)
+            if bb != None:
+                img = img[bb[0]:bb[1], bb[2]:bb[3]]
             median = np.median(img)
             best_idx, best_dist = None, None
             for idx, cluster in enumerate(clusters):
@@ -474,13 +484,14 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
             exemplars.setdefault(label, []).append(cluster[0][0])
     return exemplars
 
-def compute_exemplars(mapping):
-    """ Given a mapping {str label: list of imgpaths}, extracts a subset
+def compute_exemplars(mapping, bb_map=None):
+    """ Given a mapping {str label: (imgpath_i, ...)}, extracts a subset
     of the imgpaths {str label: list of imgpaths} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
     mapping.
     Input:
         dict mapping: {label: list of imgpaths}
+        dict bb_map: maps {str imgpath: tuple bb}
     Output:
         A (hopefully smaller) dict mapping {label: list of exemplar
         imgpaths}.
@@ -488,19 +499,30 @@ def compute_exemplars(mapping):
     def distance(img, imgpath2):
         h, w = img.shape
         bb = [0, h, 0, w]
-        matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), bbSearches=(bb2,), threshold=0.1)
+        else:
+            matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
         matches = sorted(matches, key=lambda t: t[2])
         return matches[0][2]
     def distance2(img, imgpath2):
         """ L2 norm between img1, img2 """
         img2 = shared.standardImread(imgpath2, flatten=True)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            img2 = img2[bb2[0]:bb2[1], bb2[2]:bb2[3]]
         img2 = common.resize_img_norescale(img2, (img.shape[1], img.shape[0]))
         diff = np.linalg.norm(img - img2)
         return diff
     def distance3(img, imgpath2):
         """ NCC score between img1, img2. """
         imgCv = cv.fromarray(np.copy(img.astype(np.float32)))
-        img2Cv = cv.LoadImage(imgpath2, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        img2 = shared.standardImread(imgpath2, flatten=True)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            img2 = img2[bb2[0]:bb2[2], bb2[2]:bb2[3]]
+        img2Cv = cv.fromarray(np.copy(img2.astype(np.float32)))
         outCv = cv.CreateMat(imgCv.height - img2Cv.height+1, imgCv.width - img2Cv.width+1,
                              imgCv.type)
         cv.MatchTemplate(imgCv, img2Cv, outCv, cv.CV_TM_CCOEFF_NORMED)
@@ -509,6 +531,9 @@ def compute_exemplars(mapping):
         mindist = None
         bestmatch = None
         img = shared.standardImread(imgpath, flatten=True)
+        bb = bb_map.get(imgpath, None)
+        if bb != None:
+            img = img[bb[0]:bb[1], bb[2]:bb[3]]
         for label, imgpaths in exemplars.iteritems():
             for imgpathB in imgpaths:
                 dist = distance2(img, imgpathB)
@@ -517,6 +542,8 @@ def compute_exemplars(mapping):
                     mindist = dist
         return bestmatch, mindist
     mapping = copy.deepcopy(mapping)
+    if bb_map == None:
+        bb_map = {}
     exemplars = {}
     for label, imgpaths in mapping.iteritems():
         rand_idx = random.choice(range(len(imgpaths)))
@@ -525,14 +552,17 @@ def compute_exemplars(mapping):
     while not is_done:
         is_done = True
         for label, imgpaths in mapping.iteritems():
-            while imgpaths:
-                imgpath = imgpaths.pop()
+            i = 0
+            while i < len(imgpaths):
+                imgpath = imgpaths[i]
                 bestlabel, mindist = closest_label(imgpath, exemplars)
                 print 'label should be {0} closest was {1} ({2})'.format(label, bestlabel, mindist)
                 if label != bestlabel:
                     exemplars[label].append(imgpath)
                     is_done = False
-                    
+                    imgpaths.pop(i)
+                else:
+                    i += 1
     return exemplars
 
 def compute_exemplars_fullimg(mapping):
