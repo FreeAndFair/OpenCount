@@ -253,19 +253,17 @@ def compute_digit_exemplars(proj):
     # maps {str digit: ((regionpath_i, score_i, bb_i, digitpatchpath_i), ...)}
     digit_exemplars_map = pickle.load(open(digit_exemplars_mapP, 'rb'))
 
+    # 0.) Munge digit_exemplars_map into compatible-format
     mapping = {} # maps {str digit: ([regionpath_i, ...], [bb_i, ...])}
-    invmapping = {} # maps {str regionpath: str digit}
-    bb_big = None
     for digit, tuples in digit_exemplars_map.iteritems():
         imgpaths, bbs = [], [] 
         for (regionpath, score, bb, digitpatchpath) in tuples:
             imgpaths.append(regionpath)
             bbs.append(bb)
-            invmapping[regionpath] = digit
-        mapping[digit] = (list(imgpaths), list(bbs))
-    # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
+        mapping[digit] = (imgpaths, bbs)
 
-    exemplars = group_attrs.compute_exemplars_fullimg(mapping, invmapping)
+    # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
+    exemplars = group_attrs.compute_exemplars_fullimg(mapping)
     digitmultexemplars_map = {} # maps {str digit: ((regionpath_i, bb_i, patchpath_i), ...)}
     for digit, tuples in exemplars.iteritems():
         for i, (regionpath, bb) in enumerate(tuples):

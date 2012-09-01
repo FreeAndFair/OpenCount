@@ -535,7 +535,7 @@ def compute_exemplars(mapping):
                     
     return exemplars
 
-def compute_exemplars_fullimg(mapping, invmapping):
+def compute_exemplars_fullimg(mapping):
     """ Given a mapping {str label: ([imgpath_i, ...], [bb_i, ...])}, extracts a subset
     of the imgpaths {str label: (imgpath_i, ...)} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
@@ -568,6 +568,10 @@ def compute_exemplars_fullimg(mapping, invmapping):
                 bbBest = bbOut
         return bestlabel, mindist, bbBest
     mapping = copy.deepcopy(mapping)
+    invmapping = {} # maps {str imgpath: str label}
+    for label, (imgpaths, bbs) in mapping.iteritems():
+        for imgpath in imgpaths:
+            invmapping[imgpath] = label
     exemplars = {}
 
     for label, (imgpaths, bbs) in mapping.iteritems():
