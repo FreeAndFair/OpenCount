@@ -474,22 +474,27 @@ def fix_ballot_order(balL, proj):
         out[side] = imgpath
     assert None not in out
     return out
-    
+
+"""    
 def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
     targetDiffDir=targetDir+'_diffs'
 
     jobs = []
 
     qfile = open(quarantineCvr, 'r')
-    qfiles = [f.strip() for f in qfile.readlines()]
+    qfiles = set([f.strip() for f in qfile.readlines()])
+    i = 0
     for k in bal2imgs.keys():
+        print i
+        i += 1
+        if i > 20: break
         if k not in qfiles:
             baltpl = bal2tpl[k]
-            try:
-                tplL=tpl2imgs[baltpl]
-            except Exception as e:
-                print e
-                pdb.set_trace()
+            #try:
+            tplL=tpl2imgs[baltpl]
+            #except Exception as e:
+            #    print e
+            #    pdb.set_trace()
             balL=bal2imgs[k]
             # correct ordering in balL, via ballot_to_page
             balL = fix_ballot_order(balL, project)
@@ -499,8 +504,74 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
                 bbsL.append(sh.csv2bbs(csvP));
 
             jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+            
+    print hash(str(jobs)), map(hash,map(str,jobs)), len(jobs)
 
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
     return worked
+"""
+
+def convertImagesMultiMAP_makejobs(args):
+    (keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, qfiles, verbose) = args
+    print map(type, args)
+    targetDiffDir=targetDir+'_diffs'
+    jobs = []
+    print 'going up to', len(keyset)
+    for i, k in enumerate(keyset):
+        if i%100 == 0: 
+            print 'on image', i
+        if k not in qfiles:
+            baltpl = bal2tpl[k]
+            #try:
+            tplL=tpl2imgs[baltpl]
+            #except Exception as e:
+            #    print e
+            #    pdb.set_trace()
+            balL=bal2imgs[k]
+            # correct ordering in balL, via ballot_to_page
+            balL = fix_ballot_order(balL, project)
+            bbsL=[]
+            for tplP in tplL:
+                csvP=csvPattern % get_filename(tplP, NO_EXT=True)
+                bbsL.append(sh.csv2bbs(csvP));
+
+            jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+    return jobs
+
+def hack_stopped():
+    return False
+    
+def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
+    targetDiffDir=targetDir+'_diffs'
+
+    qfile = open(quarantineCvr, 'r')
+    qfiles = set([f.strip() for f in qfile.readlines()])
+
+    num = sh.numProcs()
+    alljobs = bal2imgs.keys()
+
+    tomap = [[] for _ in range(num)]
+    i = 0
+    for each in alljobs:
+        tomap[i].append(each)
+        i += 1
+        i %= num
+    
+    print 'have tomap', map(len, tomap)
+    jobs = [(keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, hack_stopped, project, qfiles, verbose) for keyset in tomap]
+    print 'have jobs'
+
+    pool = mp.Pool(processes=num)
+    print 'start map to generate jobs'
+    jobs = pool.map(convertImagesMultiMAP_makejobs, jobs)
+    jobs = [x for y in jobs for x in y]
+    print 'start real convert map'
+
+    #worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
+    worked = True
+    if worked:
+        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
+    return worked
+

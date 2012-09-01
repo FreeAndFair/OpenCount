@@ -50,7 +50,14 @@ class MainPanel(wx.Panel):
         lines2 = open(self.proj.quarantined_manual).read().split("\n")
         # Catches case when self.proj.quarantined is the empty file
         lines2 = [line for line in lines2 if line != '']
+        
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot))
+        ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+
         self.qfiles = list(set(lines1+lines2))
+        
+        self.qfiles = sorted(list(set(sum([ballot_to_images[image_to_ballot[x]] for x in self.qfiles], []))))
+
         self.count = 0
         self.number_of_contests = 0
         self.label_index = 0
@@ -81,7 +88,7 @@ class MainPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         sz2 = wx.BoxSizer(wx.VERTICAL)
-        self.imagebox = ImageManipulate(self, size=(500,600))
+        self.imagebox = ImageManipulate(self, size=(700,600))
 
         sz3 = wx.BoxSizer(wx.HORIZONTAL)
         zoomin = wx.Button(self, label="Zoom In")
@@ -98,18 +105,38 @@ class MainPanel(wx.Panel):
         
         self.middle_col = wx.BoxSizer(wx.VERTICAL)
 
+        self.title_order = title_order = sorted(self.labeltext)
+
+        title_names = [x[0] for x in title_order]
+        def change(x):
+            val = self.contest_title_box.GetValue()
+            if val in title_names:
+                v1 = title_names.index(val)
+                v = self.labeltext.index(title_order[v1])
+                print "Which corresponds to", v, self.labeltext[v]
+                okay = self.show_contest(v)
+                if okay:
+                    self.contest_title.Select(v1)
+                
+        self.contest_title_box = wx.ComboBox(self, -1, size=(300, 30))
+        self.contest_title_box.Bind(wx.EVT_TEXT, change)
+
         self.contest_title = wx.ListBox(self, -1, size=(300, 100))
-        for each in self.labeltext:
+        for each in title_order:
             self.contest_title.Append(each[0])
         self.contest_title.Select(0)
-
+        
         def clicked1(x):
-            v = self.contest_title.HitTest(x.GetPosition())
+            v1 = self.contest_title.HitTest(x.GetPosition())
+            print "And index", v1, title_order[v1]
+            v = self.labeltext.index(title_order[v1])
+            print "Which corresponds to", v, self.labeltext[v]
             okay = self.show_contest(v)
             if okay:
-                self.contest_title.Select(v)
+                self.contest_title.Select(v1)
         self.contest_title.Bind(wx.EVT_LEFT_DOWN, clicked1)
 
+        self.middle_col.Add(self.contest_title_box)
         self.middle_col.Add(self.contest_title)
 
         #t = wx.StaticText(self, -1, label="Enter the information about one contest below")
@@ -285,7 +312,7 @@ the next step.",
 ballot images exist, so, no need to save contest data."
             return
         collected = []
-        collected.append(self.contest_title.GetSelection())
+        collected.append(self.labeltext.index(self.title_order[self.contest_title.GetSelection()]))
         for a,b in self.candidates:
             collected.append(b.GetValue())
         self.data[self.curballot][self.count] = collected
@@ -297,6 +324,8 @@ ballot images exist, so, no need to save contest data."
                 self.attributes[self.curballot].append(txtinput.GetValue())
 
     def add_new_contest(self, x=None):
+        self.contest_title_box.SetValue("")
+        self.contest_title_box.SetFocus()
         self.contests.Append("choose contest")
         self.data[self.curballot].append([])
         self.set_contest(self.number_of_contests)
@@ -334,7 +363,7 @@ ballot images exist, so, no need to save contest data."
             print which, self.count, self.data
             if [x[0] if x else None for x in self.data[self.curballot]].index(which) != self.count: return False
 
-        self.contest_title.SetSelection(which)
+        self.contest_title.SetSelection(self.title_order.index(self.labeltext[which]))
         self.label_index = which
         self.reset_contests()
         text = self.labeltext[self.label_index]

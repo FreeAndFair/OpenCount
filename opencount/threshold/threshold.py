@@ -143,11 +143,16 @@ class GridShow(wx.ScrolledWindow):
                         self.setLine(ii, evt=event1)
                     if text == "Open Ballot":
                         self.lightBox(ii, evt=event1)
+                    if text == "Mark Row Wrong":
+                        for ct in range(self.numcols):
+                            self.markWrong(i+ct)
 
                 a = m.Append(-1, "Set Threshold")
                 self.Bind(wx.EVT_MENU, decide, a)
                 b = m.Append(-1, "Open Ballot")
                 self.Bind(wx.EVT_MENU, decide, b)
+                c = m.Append(-1, "Mark Row Wrong")
+                self.Bind(wx.EVT_MENU, decide, c)
                 pos = event1.GetPosition()
                 pos = self.ScreenToClient(pos)
                 m.Bind(wx.EVT_CONTEXT_MENU, decide)
@@ -446,9 +451,10 @@ class GridShow(wx.ScrolledWindow):
             try:
                 arr = array.array("L")
                 arr.fromfile(open(self.proj.classified+".index"), 
-                             os.path.getsize(self.proj.classified+".index")/4)
+                             os.path.getsize(self.proj.classified+".index")/8)
                 self.classifiedindex = arr
-            except:
+            except Exception as e:
+                print e
                 print "Could not load index file. Doing it the slow way. err1"
                 self.classifiedindex = None
         else:
@@ -466,9 +472,13 @@ class GridShow(wx.ScrolledWindow):
         if os.path.exists(self.proj.threshold_internal):
             dat = open(self.proj.threshold_internal).read()
             if dat:
-                self.threshold, self.wrong, self.quarantined, self.quarantined_targets = pickle.load(open(self.proj.threshold_internal))
-                print "LOADED", self.quarantined_targets
-                self.onScroll(self.threshold-(self.numcols*self.numrows)/2)
+                data = pickle.load(open(self.proj.threshold_internal))
+                if len(data) == 4:
+                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets = data
+                    self.onScroll(self.threshold-(self.numcols*self.numrows)/2)
+                else:
+                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets, pos = data
+                    self.onScroll(pos)
         else:
             newthresh, bound = self.findBoundry()
             self.onScroll(bound)
@@ -568,7 +578,7 @@ class GridShow(wx.ScrolledWindow):
                 f.write(os.path.split(t)[1]+", 0\n")
         f.close()
 
-        pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets), open(self.proj.threshold_internal, "w"))
+        pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets, self.lastpos), open(self.proj.threshold_internal, "w"))
             
         out = open(self.proj.quarantined_manual, "w")
         for each in self.quarantined:
@@ -613,9 +623,14 @@ class ThresholdPanel(wx.Panel):
         button1.Bind(wx.EVT_BUTTON, lambda x: tabOne.changeSize(2))
         button2 = wx.Button(self, label="Decrease Size")
         button2.Bind(wx.EVT_BUTTON, lambda x: tabOne.changeSize(0.5))
-
+        button3 = wx.Button(self, label="Scroll Up")
+        button3.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos-tabOne.numcols*(tabOne.numrows-5)))
+        button4 = wx.Button(self, label="Scroll Down")
+        button4.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos+tabOne.numcols*(tabOne.numrows-5)))
         top.Add(button1)
         top.Add(button2)
+        top.Add(button3)
+        top.Add(button4)
 
         sizer.Add(top)
         tabOne.setup()
