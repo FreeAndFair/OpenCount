@@ -53,10 +53,15 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets) is the number of templates
         #   len(groupedtargets[a]) is the number of contests in template A
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
+        #realorder = eval(open("/home/ncarlini/dl").read())
+
         self.groupedtargets = []
         foo = []
         for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
             for each in sorted(files):
+        #for each in realorder:
+        #    if True:
+        #        root = self.proj.target_locs_dir
                 if each[-4:] != '.csv': continue
                 foo.append(each)
                 gr = {}
@@ -760,8 +765,13 @@ class LabelContest(wx.Panel):
 
         dr = ImageDraw.Draw(img)
 
+        #print self.currentcontests
+        #print sorted(self.text.keys())
         c = 0
         for box in self.boxes[self.templatenum]:
+            print c
+            print self.currentcontests[c]
+            print self.currentcontests[c] in self.text
             if c == self.count:
                 pass
             elif self.text[self.currentcontests[c]] != []:
