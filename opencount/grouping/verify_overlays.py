@@ -1418,8 +1418,29 @@ finished! Press 'Ok', then you may continue to the next step.",
                     break
                 i += 1
             return group
-            
-        newGroups = self.currentGroup.split()
+        
+        # TEMP: Hack for Marin, to allow Andy to at least keep progressing
+        # on overly verification.
+        dlg = ChooseSplitModeDialog(self)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        themode = None
+        if status == wx.ID_CANCEL:
+            return
+        elif status == ChooseSplitModeDialog.ID_RANKEDLIST:
+            themode = 'rankedlist'
+        elif status == ChooseSplitModeDialog.ID_KMEANS:
+            themode = 'kmeans'
+        elif status == ChooseSplitModeDialog.ID_PCA_KMEANS:
+            themode = 'pca_kmeans'
+        else:
+            dlg = wx.MessageDialog(self, message="Unrecognized split mode.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        newGroups = self.currentGroup.split(mode=themode)
 
         if self.mode == VerifyPanel.MODE_YESNO2:
             # For each new group, make sure each GroupClass with a 
@@ -1709,3 +1730,38 @@ class ManualLabelDialog(wx.Dialog):
                 self.results.append((groupclass, (final_idx, label)))
         self.EndModal(ManualLabelDialog.ID_DONE)
     
+class ChooseSplitModeDialog(wx.Dialog):
+    ID_RANKEDLIST = 42
+    ID_KMEANS = 43
+    ID_PCA_KMEANS = 44
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        txt = wx.StaticText(self, label="Please choose the desired 'Split' method.")
+
+        self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)', style=wx.RB_GROUP)
+        self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
+        self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Ok")
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
+        
+        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+
+        sizer.AddMany([(txt,), ((20,20),), (self.rankedlist_rbtn,), (self.kmeans_rbtn,), (self.pca_kmeans_rbtn,)])
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+
+        self.SetSizer(sizer)
+        self.Fit()
+
+    def onButton_ok(self, evt):
+        if self.rankedlist_rbtn.GetValue():
+            self.EndModal(self.ID_RANKEDLIST)
+        elif self.kmeans_rbtn.GetValue():
+            self.EndModal(self.ID_KMEANS)
+        else:
+            self.EndModal(self.ID_PCA_KMEANS)
+

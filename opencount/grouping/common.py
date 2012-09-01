@@ -805,7 +805,7 @@ not equal."
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_downsize=True)
         print "...Completed running k-means ({0} s).".format(time.time() - _t)
         # 3.) Create GroupClasses
         groups = []
@@ -906,8 +906,13 @@ just doing a naive split."
             groups.append(GroupClass(elements, user_data=self.user_data))
         return groups
         
-    def split(self):
-        return self.split_pca_kmeans(K=3)
+    def split(self, mode='kmeans'):
+        if mode == 'rankedlist':
+            return self.split_rankedlist()
+        elif mode == 'kmeans':
+            return self.split_kmeans(K=2)
+        elif mode == 'pca_kmeans':
+            return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """
@@ -987,8 +992,6 @@ class DigitGroupClass(GroupClass):
         assert len(groups) == K
         return groups
         
-    def split(self):
-        return self.split_kmeans()
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """

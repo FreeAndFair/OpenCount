@@ -449,9 +449,11 @@ class GridShow(wx.ScrolledWindow):
 
         if os.path.exists(self.proj.classified+".index"):
             try:
+                is64bit = (sys.maxsize > (2**32))
+                size = 8 if is64bit else 4
                 arr = array.array("L")
                 arr.fromfile(open(self.proj.classified+".index"), 
-                             os.path.getsize(self.proj.classified+".index")/8)
+                             os.path.getsize(self.proj.classified+".index")/size)
                 self.classifiedindex = arr
             except Exception as e:
                 print e

@@ -57,8 +57,8 @@ class LabelContest(wx.Panel):
 
         self.groupedtargets = []
         foo = []
-        for root,dirs,files in os.walk(self.proj.target_locs_dir):
-            for each in files:
+        for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
+            for each in sorted(files):
         #for each in realorder:
         #    if True:
         #        root = self.proj.target_locs_dir
@@ -117,7 +117,7 @@ class LabelContest(wx.Panel):
                 self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
         #print "dirList", self.dirList
-        open("/home/nicholas/dl", "w").write(str(foo))
+        #open("/home/nicholas/dl", "w").write(str(foo))
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
@@ -218,35 +218,6 @@ class LabelContest(wx.Panel):
         button3.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(-1))
         button4.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(1))
 
-        attr_data = {}
-        for f in os.listdir(self.proj.patch_loc_dir):
-            attrs = []
-            for line in open(os.path.join(self.proj.patch_loc_dir, f)):
-                line = line.split(",")
-                attrs.append((line[6], line[7]))
-            attr_data[line[0]] = tuple([x[1] for x in sorted(attrs[1:])])
-            attr_titles = [x[0] for x in sorted(attrs[1:])]
-        def find_next_regex(x=None):
-            popup = wx.TextEntryDialog(None, "Enter the regex to match (filename|"+ ("|".join(map(str,attr_titles))) +") where | is a newline", 'Title', '.*|.*|.*')
-
-            if popup.ShowModal() == wx.ID_OK:
-                val = popup.GetValue()
-                val = val.split("|")
-                match = set([k for k,v in attr_data.items() if all(re.match(x, y) for x,y in zip(val,[k]+list(v)))])
-                for time in range(2):
-                    did = False
-                    for i,x in enumerate(self.dirList):
-                        if time == 1 or i > self.templatenum and x in match:
-                            print "NEXT", i-self.templatenum
-                            self.nexttemplate(i-self.templatenum)
-                            did = True
-                            break
-                    if did: break
-                
-                
-
-        regexnext = wx.Button(self, label='Next Regex-Matching Ballot')
-        regexnext.Bind(wx.EVT_BUTTON, find_next_regex)
 
         self.templatebox = wx.Panel(self, size=(303,500))
         self.templatebox.img = wx.StaticBitmap(self.templatebox)
@@ -254,8 +225,40 @@ class LabelContest(wx.Panel):
         template.Add(self.templatebox)
         template.Add(button3)
         template.Add(button4)
-        template.Add(regexnext)
 
+        if os.path.exists(self.proj.patch_loc_dir):
+            attr_data = {}
+            for f in os.listdir(self.proj.patch_loc_dir):
+                attrs = []
+                for line in open(os.path.join(self.proj.patch_loc_dir, f)):
+                    line = line.split(",")
+                    attrs.append((line[6], line[7]))
+                attr_data[line[0]] = tuple([x[1] for x in sorted(attrs[1:])])
+                attr_titles = [x[0] for x in sorted(attrs[1:])]
+            def find_next_regex(x=None):
+                popup = wx.TextEntryDialog(None, "Enter the regex to match (filename|"+ ("|".join(map(str,attr_titles))) +") where | is a newline", 'Title', '.*|.*|.*')
+    
+                if popup.ShowModal() == wx.ID_OK:
+                    val = popup.GetValue()
+                    val = val.split("|")
+                    match = set([k for k,v in attr_data.items() if all(re.match(x, y) for x,y in zip(val,[k]+list(v)))])
+                    for time in range(2):
+                        did = False
+                        for i,x in enumerate(self.dirList):
+                            if time == 1 or i > self.templatenum and x in match:
+                                print "NEXT", i-self.templatenum
+                                self.nexttemplate(i-self.templatenum)
+                                did = True
+                                break
+                        if did: break
+                    
+                    
+    
+            regexnext = wx.Button(self, label='Next Regex-Matching Ballot')
+            regexnext.Bind(wx.EVT_BUTTON, find_next_regex)
+    
+            template.Add(regexnext)
+    
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
