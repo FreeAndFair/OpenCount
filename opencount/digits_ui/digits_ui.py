@@ -545,7 +545,6 @@ digit.")
             boxes = []
             for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in stuff:
                 x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
-                digit_exemplars_map.setdefault(self.current_digit, []).append((regionpath, score, (y1,y2,x1,x2), patchpath))
                 # Then, scale it by the resizing done in setup_grid
                 # (these coords are only for the LabelDigits UI).
                 _x1, _y1, _x2, _y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
