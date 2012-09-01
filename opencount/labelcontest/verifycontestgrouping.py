@@ -8,8 +8,8 @@ from util import pil2wxb
 
 
 class VerifyContestGrouping(wx.Panel):
-    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups=None):
-        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups)
+    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
+        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
         wx.Panel.__init__(self, parent, wx.ID_ANY)
         self.frame = parent
         self.callback = callback
@@ -56,10 +56,7 @@ class VerifyContestGrouping(wx.Panel):
 
         self.group_index = 0
         self.is_valid = {}
-        if processgroups == None:
-            self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
-        else:
-            self.processgroups = processgroups
+        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
         self.compareimage = None
         self.testimage = None
 
