@@ -907,7 +907,6 @@ imgsize was {1}. Oh well, using new imgsize'.format(self.project.imgsize,
             pass
         if self.notebook.GetCurrentPage() == self.panel_define_attrs:
             self.panel_define_attrs.stop()
-        self.panel_correct_grouping.dump_state()
         wx.Frame.Destroy(self)
 
     def onMenu_about(self, evt):
@@ -1552,6 +1551,7 @@ def get_projects(dir_projects):
                 projects.append(project)
             else:
                 print "Warning: Project {0} was unable to be read.".format(proj_name)
+    projects.sort(key = lambda x: str(x).lower())
     return projects
 
 def create_projconfig(projname, projpath):

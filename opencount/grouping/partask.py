@@ -96,7 +96,7 @@ def divy_list(lst, k):
     """
     if len(lst) <= k:
         return [[thing] for thing in lst]
-    chunksize = math.floor(len(lst) / float(k))
+    chunksize = math.ceil(len(lst) / float(k))
     i = 0
     chunks = []
     curchunk = []
