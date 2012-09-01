@@ -106,7 +106,11 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     result = {} # maps {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)}
     # 0.) Construct digit exemplars
     # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
+    t = time.time()
+    print "Computing Digit Exemplars..."
     exemplars = compute_digit_exemplars(project)
+    dur = time.time() - t
+    print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
 
     digit_exs = make_digithashmap(project, exemplars)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
@@ -254,16 +258,15 @@ def compute_digit_exemplars(proj):
     digit_exemplars_map = pickle.load(open(digit_exemplars_mapP, 'rb'))
 
     # 0.) Munge digit_exemplars_map into compatible-format
-    mapping = {} # maps {str digit: ([regionpath_i, ...], [bb_i, ...])}
+    mapping = {} # maps {str digit: ((regionpath_i, bb_i), ...)}
     for digit, tuples in digit_exemplars_map.iteritems():
-        imgpaths, bbs = [], [] 
-        for (regionpath, score, bb, digitpatchpath) in tuples:
-            imgpaths.append(regionpath)
-            bbs.append(bb)
-        mapping[digit] = (imgpaths, bbs)
+        thing = []
+        for (regionpath, score, bb, patchpath) in tuples:
+            thing.append((regionpath, bb))
+        mapping[digit] = thing
 
-    # exemplars := {str digit: ((imgpath_i, bb_i), ...)}
-    exemplars = group_attrs.compute_exemplars_fullimg(mapping)
+    # exemplars := maps {str digit: ((regionpath_i, bb_i), ...)}
+    exemplars = group_attrs.compute_exemplars_fullimg(mapping, MAXCAP=10)
     digitmultexemplars_map = {} # maps {str digit: ((regionpath_i, bb_i, patchpath_i), ...)}
     for digit, tuples in exemplars.iteritems():
         for i, (regionpath, bb) in enumerate(tuples):
