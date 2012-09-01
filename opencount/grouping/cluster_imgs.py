@@ -89,7 +89,8 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
         clustering.setdefault(best_j, []).append(imgpaths[i])
     return clustering
 
-def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2):
+def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
+                        do_downsize=False, downsize_amt=0.5):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
     clusters.
     Note: This uses the Euclidean distance as the distance metric:
@@ -101,6 +102,8 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2):
                      of each image, pass in 'bb_map', which is:
                          {str imgpath: (y1,y2,x1,x2)}
         int k:
+        bool do_chopmid: If True, then this will only consider the middle
+            portion of the patch.
     Output:
         Returns the clustering, in the form:
             {clusterID: [impath_i, ...]}
