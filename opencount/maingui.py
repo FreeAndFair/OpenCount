@@ -5,6 +5,7 @@ from os.path import join as pathjoin
 
 import wx, Image, cv
 from wx.lib.pubsub import Publisher
+from time import time
 
 import sanitycheck, util
 import specify_voting_targets.find_targets_wizard as find_targets_wizard
