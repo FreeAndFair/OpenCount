@@ -997,9 +997,8 @@ class DigitGroupClass(GroupClass):
         return (DigitGroupClass(elements1, user_data=self.user_data),
                 DigitGroupClass(elements2, user_data=self.user_data))
 
-    def split_kmeans(self):
+    def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
-        K = 2
         if len(self.elements) == 2:
             return (DigitGroupClass((self.elements[0],),
                                     user_data=self.user_data),
