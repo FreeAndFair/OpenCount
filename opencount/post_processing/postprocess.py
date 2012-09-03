@@ -77,7 +77,9 @@ class ResultsPanel(ScrolledPanel):
 
         # template -> target id -> contest
         templatemap = {}
-        for template in os.listdir(self.proj.target_locs_dir):
+        targetlocsfiles = os.listdir(self.proj.target_locs_dir)
+        util.sort_nicely(targetlocsfiles)
+        for template in targetlocsfiles:
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
             for linenum, line in enumerate(open(os.path.join(self.proj.target_locs_dir,template))):

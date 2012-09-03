@@ -803,7 +803,7 @@ def replace_exts(files, ext):
     return [os.path.splitext(f)[0]+ext for f in files]
 
 def sort_nicely( l ): 
-  """ Sort the given list in the way that humans expect. 
+  """ Sort the given list in the way that humans expect. Does an inplace sort.
   From:
       http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
   """ 
