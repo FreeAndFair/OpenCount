@@ -77,7 +77,9 @@ class ResultsPanel(ScrolledPanel):
 
         # template -> target id -> contest
         templatemap = {}
-        for template in os.listdir(self.proj.target_locs_dir):
+        targetlocsfiles = os.listdir(self.proj.target_locs_dir)
+        util.sort_nicely(targetlocsfiles)
+        for template in targetlocsfiles:
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
             for linenum, line in enumerate(open(os.path.join(self.proj.target_locs_dir,template))):
@@ -95,6 +97,8 @@ class ResultsPanel(ScrolledPanel):
                         glob = localid_to_globalid[(row[0],int(row[8]))]
                         thismap[int(row[1])] = glob
                     else:
+                        print "Something bad happened?"
+                        pdb.set_trace()
                         exit(1)
             if thismap == {}:
                 # Means that 'template' has no contests/targets on it
@@ -424,7 +428,10 @@ class ResultsPanel(ScrolledPanel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths = [x[0] for x in os.walk(self.proj.samplesdir)]
+        sampledirs_lvl1 = [x[0] for x in os.walk(self.proj.samplesdir)]
+        util.sort_nicely(sampledirs_lvl1)
+        
+        batch_paths = sampledirs_lvl1
         batch_paths = batch_paths[1:]
 
         def dircontains(parent, path):

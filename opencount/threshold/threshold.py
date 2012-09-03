@@ -171,7 +171,7 @@ class GridShow(wx.ScrolledWindow):
             self.quarantined.append(ballotpath)
         for each in self.sample_to_targets(encodepath(ballotpath)):
             if each in self.classified_lookup:
-                print 'A'
+                #print 'A'
                 self.markQuarantineSingle(self.classified_lookup[each])
             #for j,line in enumerate(open(self.proj.classified)):
             #    if each == line.split('\0')[0]:
@@ -341,7 +341,7 @@ class GridShow(wx.ScrolledWindow):
                 #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             hist[int(v)] += 1
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
-        print list(enumerate(hist))
+        #print list(enumerate(hist))
 
         # I'm going to assume there are two normal dist. variables 
         #  which combine to make the histogram.
@@ -508,7 +508,7 @@ class GridShow(wx.ScrolledWindow):
         # Draw the images from low to high.
         print "Drawing from", low, "to", high
         for i in range(low,high,self.numcols):
-            print i
+            #print i
             if i in self.jpgs:
                 # If we've drawn it before, then it's still there, skip over it
                 continue
