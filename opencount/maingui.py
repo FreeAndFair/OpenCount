@@ -487,8 +487,23 @@ class DoubleSided(wx.Frame):
         templates = get(blankdir_raw, blankdir, self.parent.templatesdir)
 
         if self.isalternating:
-            images = sorted(images)
-            templates = sorted(templates)
+            _imgpath = images[0]
+            # Check if paths end in an integer, like:
+            #    Pol267-001.png
+            #    Pol267-002.png
+            #    ...
+            pat = re.compile(r'.*[\-_](\d*)\.[a-zA-Z]+$')
+            m = pat.match(_imgpath)
+            if m == None:
+                # Sort by OS-defined way.
+                images = sorted(images)
+                templates = sorted(templates)
+            else:
+                # Imgpaths end in an integer, presumably unique+increasing.
+                # Sort by the integer's value, not by the OS-specific
+                # way (which might 'get it wrong', as what happened in Marin).
+                util.sort_nicely(images)
+                util.sort_nicely(templates)
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
@@ -504,6 +519,24 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
+
+        '''
+        for ballotid, paths in images.iteritems():
+            print 'ballot id:', ballotid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+        
+        pdb.set_trace()
+
+        for templateid, paths in templates.iteritems():
+            print 'template id:', templateid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+
+        pdb.set_trace()
+        '''
 
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))
