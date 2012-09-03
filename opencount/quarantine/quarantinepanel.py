@@ -258,12 +258,18 @@ the next step.",
         self.candidates = []
 
         #print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
+        # TODO: Temp. hack to account for Marin Pol267 ballots.
+        basedir, imgname = os.path.split(self.qfiles[self.curballot])
+        if os.path.split(basedir)[1].strip('/') == 'Pol267':
+            print "Here is a Pol267 ballot!"
+            #self.discard.SetValue(True)
+
         self.discard.SetValue(self.discardlist[self.curballot])
 
         #print "AND ATTRS IS", self.attributes
         #print "qf", self.qfiles
         #print 'cur', self.curballot
-        print self.ballot_attributes
+        #print self.ballot_attributes
         if self.attributes[self.curballot] != []:
             #print 'a'
             data = self.attributes[self.curballot]
