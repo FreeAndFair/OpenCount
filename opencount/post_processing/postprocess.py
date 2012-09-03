@@ -428,7 +428,10 @@ class ResultsPanel(ScrolledPanel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths = [x[0] for x in os.walk(self.proj.samplesdir)]
+        sampledirs_lvl1 = [x[0] for x in os.walk(self.proj.samplesdir)]
+        util.sort_nicely(sampledirs_lvl1)
+        
+        batch_paths = sampledirs_lvl1
         batch_paths = batch_paths[1:]
 
         def dircontains(parent, path):
