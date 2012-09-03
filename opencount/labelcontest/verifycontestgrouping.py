@@ -1,5 +1,5 @@
 import wx
-import sys
+import sys, pdb
 from PIL import Image
 import os
 
