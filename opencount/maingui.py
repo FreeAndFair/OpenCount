@@ -487,8 +487,23 @@ class DoubleSided(wx.Frame):
         templates = get(blankdir_raw, blankdir, self.parent.templatesdir)
 
         if self.isalternating:
-            images = sorted(images)
-            templates = sorted(templates)
+            _imgpath = images[0]
+            # Check if paths end in an integer, like:
+            #    Pol267-001.png
+            #    Pol267-002.png
+            #    ...
+            pat = re.compile(r'.*[\-_](\d*)\.[a-zA-Z]+$')
+            m = pat.match(_imgpath)
+            if m == None:
+                # Sort by OS-defined way.
+                images = sorted(images)
+                templates = sorted(templates)
+            else:
+                # Imgpaths end in an integer, presumably unique+increasing.
+                # Sort by the integer's value, not by the OS-specific
+                # way (which might 'get it wrong', as what happened in Marin).
+                images = sorted(images, key=lambda path: int(pat.match(path).groups()[0]))
+                templates = sorted(templates, key=lambda path: int(pat.match(path).groups()[0]))
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
