@@ -305,7 +305,8 @@ function correctly.""".format(len(lonely_tmpls))
                     imgpaths.append(imgpath)
                     img_boxes[imgpath] = []
             #imgpaths = sorted(imgpaths)
-            util.sort_nicely(imgpaths) # Fixes Marin filename ordering
+            # TODO: Temporarily disabled.
+            #util.sort_nicely(imgpaths) # Fixes Marin filename ordering
             self.world.box_locations = img_boxes
         else:
             imgpaths = []
@@ -314,7 +315,8 @@ function correctly.""".format(len(lonely_tmpls))
                     imgpath = os.path.abspath(pathjoin(dirpath, imgname))
                     imgpaths.append(imgpath)
             #imgpaths = sorted(imgpaths)
-            util.sort_nicely(imgpaths)
+            # TODO: Temporarily disabled.
+            #util.sort_nicely(imgpaths)
             img_boxes = self.world.get_boxes_all()
             
         self.panel_mosaic.set_images(imgpaths)
@@ -949,7 +951,8 @@ class ThreadDoInferContests(threading.Thread):
         res = []
         dirList = []
         for root,dirs,files in os.walk(self.proj.target_locs_dir):
-            util.sort_nicely(files) # Fixes Marin ordering.
+            # TODO: Temporarily disabled.
+            #util.sort_nicely(files) # Fixes Marin ordering.
             for each in files:
                 if each[-4:] != '.csv': continue
                 gr = {}
