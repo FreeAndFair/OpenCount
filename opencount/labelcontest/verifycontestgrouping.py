@@ -101,8 +101,9 @@ class VerifyContestGrouping(wx.Panel):
             order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
             images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
             # TODO: Figure out if I need to update this code.
-            print "Do I need a sort_nicely call?"
-            pdb.set_trace()
+            # Do I need a sort_nicely call somewhere? For Marin,
+            # I'm OK, since there aren't more than 1000 blank ballots.
+
             print 'im1', images
             images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
             print 'im2', images

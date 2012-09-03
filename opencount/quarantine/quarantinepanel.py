@@ -260,7 +260,8 @@ the next step.",
         #print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
         # TODO: Temp. hack to account for Marin Pol267 ballots.
         basedir, imgname = os.path.split(self.qfiles[self.curballot])
-        if os.path.split(basedir)[1].strip('/') == 'Pol267':
+        #if os.path.split(basedir)[1].strip('/') == 'Pol267':
+        if False:
             print "Here is a Pol267 ballot!"
             self.discard.SetValue(True)
         else:

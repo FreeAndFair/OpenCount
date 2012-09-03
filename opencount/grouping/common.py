@@ -791,10 +791,20 @@ not equal."
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
         if len(self.elements) == 2:
-            return (GroupClass((self.elements[0],),
-                               user_data=self.user_data),
-                    GroupClass((self.elements[1],),
-                               user_data=self.user_data))
+            if type(self) == GroupClass:
+                return (GroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        GroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                return (DigitGroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        DigitGroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
@@ -814,8 +824,13 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                         user_data=self.user_data))
+                
         assert len(groups) == K
         return groups
 
@@ -830,8 +845,16 @@ not equal."
         if len(self.elements) <= K:
             groups = []
             for element in self.elements:
-                groups.append(GroupClass((element,),
-                                         user_data=self.user_data))
+                if type(self) == GroupClass:
+                    groups.append(GroupClass((element,),
+                                             user_data=self.user_data))
+                elif type(self) == DigitGroupClass:
+                    groups.append(DigitGroupClass((element,),
+                                             user_data=self.user_data))
+                else:
+                    print "Wat?"
+                    pdb.set_trace()
+
             return groups
         # 1.) Gather images
         patchpaths = []
@@ -852,8 +875,16 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+                
         assert len(groups) == K
         return groups
 
@@ -871,8 +902,15 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            groups.append(GroupClass(group1, user_data=self.user_data))
-            groups.append(GroupClass(group2, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(group1, user_data=self.user_data))
+                groups.append(GroupClass(group2, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(group1, user_data=self.user_data))
+                groups.append(DigitGroupClass(group2, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
             return groups
             
         if n == len(all_rankedlists[0]):
@@ -903,7 +941,13 @@ just doing a naive split."
 
         print 'number of new groups after split:', len(new_elements)
         for grouplabel, elements in new_elements.iteritems():
-            groups.append(GroupClass(elements, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
         return groups
         
     def split(self, mode='kmeans'):
