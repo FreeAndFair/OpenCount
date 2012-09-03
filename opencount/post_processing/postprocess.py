@@ -144,7 +144,7 @@ class ResultsPanel(ScrolledPanel):
         text, order = self.get_text()
 
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
-
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         print 'Loaded all the information'
         
         #print "ORDER", order
@@ -163,7 +163,12 @@ class ResultsPanel(ScrolledPanel):
             voted = dict(votedlist)
             #print 'voted', voted
             #print 'in', order[template,cid]
-            return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            # TODO: crashes at voted[x]
+            retval = ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            return retval
+
+            #return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            
 
         def noexist(cid):
             # When a contest doesn't appear on a ballot, write this
@@ -178,8 +183,12 @@ class ResultsPanel(ScrolledPanel):
             if i%1000 == 0:
                 print 'On ballot', i
             meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
-
-            if meta['ballot'] not in quarantined:
+            votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
+            bools = [votedpath in quarantined for votedpath in votedpaths]
+            # TODO: I think I need to check both front/back sides to see if
+            # it's in quarantined? 
+            #if meta['ballot'] not in quarantined:
+            if True not in bools:
                 #print 'bal', meta['ballot']
                 template = meta['template']
                 #print 'template', template
@@ -188,11 +197,7 @@ class ResultsPanel(ScrolledPanel):
                 for target in targets:
                     targetid = int(target.split(".")[1])
                     #print "t", target
-                    try:
-                        contest = templatemap[template][targetid]
-                    except Exception as e:
-                        print e
-                        pdb.set_trace()
+                    contest = templatemap[template][targetid]
                     #print 'c', contest, targetid
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
@@ -204,7 +209,7 @@ class ResultsPanel(ScrolledPanel):
                     #print k, v
                     #print k, order[template,k]
                     #pass
-                    
+
                 voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
                 #print 'voted b', voted
                 image_cvr[meta['ballot']] = voted
