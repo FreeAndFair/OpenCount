@@ -1,4 +1,4 @@
-import sys, time, math, time, datetime, pdb
+import sys, time, math, time, datetime, pdb, re
 import wx
 from wx.lib.pubsub import Publisher
 import numpy as np
@@ -801,6 +801,15 @@ def replace_exts(files, ext):
     '.' (dot).
     """
     return [os.path.splitext(f)[0]+ext for f in files]
+
+def sort_nicely( l ): 
+  """ Sort the given list in the way that humans expect. 
+  From:
+      http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
+  """ 
+  convert = lambda text: int(text) if text.isdigit() else text 
+  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+  l.sort( key=alphanum_key ) 
     
 def main():
     app = wx.App(False)

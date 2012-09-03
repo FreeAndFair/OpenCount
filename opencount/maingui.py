@@ -502,8 +502,8 @@ class DoubleSided(wx.Frame):
                 # Imgpaths end in an integer, presumably unique+increasing.
                 # Sort by the integer's value, not by the OS-specific
                 # way (which might 'get it wrong', as what happened in Marin).
-                images = sorted(images, key=lambda path: int(pat.match(path).groups()[0]))
-                templates = sorted(templates, key=lambda path: int(pat.match(path).groups()[0]))
+                util.sort_nicely(images)
+                util.sort_nicely(templates)
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
@@ -519,6 +519,24 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
+
+        '''
+        for ballotid, paths in images.iteritems():
+            print 'ballot id:', ballotid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+        
+        pdb.set_trace()
+
+        for templateid, paths in templates.iteritems():
+            print 'template id:', templateid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+
+        pdb.set_trace()
+        '''
 
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))

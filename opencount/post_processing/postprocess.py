@@ -95,6 +95,8 @@ class ResultsPanel(ScrolledPanel):
                         glob = localid_to_globalid[(row[0],int(row[8]))]
                         thismap[int(row[1])] = glob
                     else:
+                        print "Something bad happened?"
+                        pdb.set_trace()
                         exit(1)
             if thismap == {}:
                 # Means that 'template' has no contests/targets on it
