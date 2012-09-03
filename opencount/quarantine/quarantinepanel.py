@@ -70,13 +70,13 @@ class MainPanel(wx.Panel):
         self.labeltext = [x[1] for x in sorted(self.labeltext.items())]
 
         self.ballot_attributes = self.load_grouping()
-        print "I GET", self.ballot_attributes
+        #print "I GET", self.ballot_attributes
 
         if os.path.exists(self.proj.quarantine_internal):
             print "EXISTS"
             self.data, self.discardlist, self.attributes = pickle.load(open(self.proj.quarantine_internal))
-            print self.data
-            print self.discardlist
+            #print self.data
+            #print self.discardlist
         else:
             self.data = []
             self.discardlist = []
@@ -113,7 +113,7 @@ class MainPanel(wx.Panel):
             if val in title_names:
                 v1 = title_names.index(val)
                 v = self.labeltext.index(title_order[v1])
-                print "Which corresponds to", v, self.labeltext[v]
+                #print "Which corresponds to", v, self.labeltext[v]
                 okay = self.show_contest(v)
                 if okay:
                     self.contest_title.Select(v1)
@@ -128,9 +128,9 @@ class MainPanel(wx.Panel):
         
         def clicked1(x):
             v1 = self.contest_title.HitTest(x.GetPosition())
-            print "And index", v1, title_order[v1]
+            #print "And index", v1, title_order[v1]
             v = self.labeltext.index(title_order[v1])
-            print "Which corresponds to", v, self.labeltext[v]
+            #print "Which corresponds to", v, self.labeltext[v]
             okay = self.show_contest(v)
             if okay:
                 self.contest_title.Select(v1)
@@ -216,12 +216,12 @@ the next step.",
         else:
             self.show_ballot(0, True)
             if os.path.exists(self.proj.quarantine_internal):
-                print "RESTORE"
+                #print "RESTORE"
                 self.restore_contest_data()
 
     def load_grouping(self):
         if not os.path.exists(self.proj.grouping_results):
-            print "RET NONE"
+            #print "RET NONE"
             return None
 
         c_t = {}
@@ -262,9 +262,9 @@ the next step.",
         basedir, imgname = os.path.split(self.qfiles[self.curballot])
         if os.path.split(basedir)[1].strip('/') == 'Pol267':
             print "Here is a Pol267 ballot!"
-            #self.discard.SetValue(True)
-
-        self.discard.SetValue(self.discardlist[self.curballot])
+            self.discard.SetValue(True)
+        else:
+            self.discard.SetValue(self.discardlist[self.curballot])
 
         #print "AND ATTRS IS", self.attributes
         #print "qf", self.qfiles
@@ -304,7 +304,7 @@ the next step.",
         s = wx.BoxSizer(wx.HORIZONTAL)
         name = wx.StaticText(self.input_area, -1)
         check = wx.CheckBox(self.input_area, -1, label="Voted?")
-        print 'add ', name
+        #print 'add ', name
         self.candidates.append((name, check))
         s.Add(name)
         s.Add(check)
@@ -366,7 +366,7 @@ ballot images exist, so, no need to save contest data."
         """
         # You can't have the same contest twice on a ballot
         if which in [x[0] if x else None for x in self.data[self.curballot]]: 
-            print which, self.count, self.data
+            #print which, self.count, self.data
             if [x[0] if x else None for x in self.data[self.curballot]].index(which) != self.count: return False
 
         self.contest_title.SetSelection(self.title_order.index(self.labeltext[which]))
@@ -432,7 +432,7 @@ ballot images exist, so, no need to save contest data."
     def save(self):
         self.save_contest_data()
 
-        print "DATA", self.data
+        #print "DATA", self.data
         pickle.dump((self.data, self.discardlist, self.attributes), 
                     open(self.proj.quarantine_internal, "w"))
 
