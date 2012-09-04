@@ -114,7 +114,7 @@ values for this caption...")
             if labels == None:
                 self.listbox.SetItems(['No values entered.'])
                 return
-            self.listbox.SetItems(list(labels))
+            self.listbox.SetItems(list(set(labels)))
         else:
             # Just display /all/ labels.
             self.listbox.SetItems(list(set(self.imagelabels.values())))
@@ -127,6 +127,8 @@ values for this caption...")
             return False
         oldlabel = self.imagelabels[imgpath]
         self.imagelabels[imgpath] = label
+        if oldlabel == label:
+            return True
         caption = self.imagecaptions.get(imgpath, None)
         if caption != None:
             try:
@@ -155,24 +157,29 @@ values for this caption...")
             self.display_img(self.cur_imgidx + 1)
 
     def onButton_next(self, evt):
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        cur_val = self.inputctrl.GetValue()
+        if not self.add_label(curimgpath, cur_val):
+            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         if (self.cur_imgidx+1) >= len(self.imagepaths):
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            if not self.add_label(curimgpath, cur_val):
-                dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
-                                       style=wx.OK)
-                self.Disable()
-                dlg.ShowModal()
-                self.Enable()
             return
         else:
             self.display_img(self.cur_imgidx + 1)
             
     def onButton_prev(self, evt):
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        cur_val = self.inputctrl.GetValue()
+        if not self.add_label(curimgpath, cur_val):
+            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         if self.cur_imgidx <= 0:
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            self.add_label(curimgpath, cur_val)
             return
         else:
             self.display_img(self.cur_imgidx - 1)
@@ -326,7 +333,6 @@ Implies that imgpath is present in imageslist more than once."
 
         self.cur_imgidx = idx
         imgpath = self.imagepaths[self.cur_imgidx]
-        print 'Imgpath is:', imgpath
         bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
         self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
