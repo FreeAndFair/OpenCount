@@ -60,7 +60,7 @@ class LabelContest(wx.Panel):
         foo = []
         for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
             util.sort_nicely(files)
-            for each in sorted(files):
+            for each in files:
         #for each in realorder:
         #    if True:
         #        root = self.proj.target_locs_dir
