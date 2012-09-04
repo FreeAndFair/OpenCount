@@ -34,11 +34,6 @@ class GroupAttributesThread(threading.Thread):
         _t0 = time.time()
         attrgroups = group_attrs.group_attributes_V2(self.project)
         print "...Finished Grouping Ballot Attributes ({0} s).".format(time.time() - _t0)
-        #groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
-        #                                      self.project.projdir_path,
-        #                                      self.project.template_to_images,
-        #                                      self.project,
-        #                                      job_id=self.job_id)
         print "...converting attrgroups to groupclasses."
         _t = time.time()
         groups = clusters_to_groupclasses(self.project, attrgroups)
@@ -86,8 +81,6 @@ def clusters_to_groupclasses(proj, attrgroups):
                                      "{0}_{1}.png".format(imgname_noext, attrtype))
                 blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchpath
                 invblank2attrpatch[patchpath] = (imgpath, attrtype)
-                #patchpath = os.path.join(patchrootDir,
-                #                         util.encodepath(relpath)) + '.png'
                 extract_tasks.append((imgpath, patchpath, bb))
                 grouplabel = common.make_grouplabel((attrtype, i))
                 elements.append((imgpath, (grouplabel,), patchpath))
@@ -385,8 +378,6 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
             
-        # TODO: Call group_attrs.cluster_bkgd on /all/ blank ballots,
-        #       not just attribute exemplars.
         # blank attribute patches are stored in:
         #   <projdir>/extract_attrs_templates/*
         blank2attrpatchP = pathjoin(self.project.projdir_path,
