@@ -304,7 +304,7 @@ class LabelContest(wx.Panel):
             for i,group in enumerate(self.groups_saved):
                 new_group = []
                 new_valid = []
-                valids = self.valudequivs[i] if i in self.validequivs else [True]*len(group)
+                valids = self.validequivs[i] if i in self.validequivs else [True]*len(group)
                 for valid,((bid,boxes,text),order) in zip(valids,group):
                     if (bid,boxes[0]) not in boxes_in_new_group:
                         new_group.append(((bid,boxes,text),order))
