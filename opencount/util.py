@@ -811,6 +811,16 @@ def sort_nicely( l ):
   alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
   l.sort( key=alphanum_key ) 
     
+def sorted_nicely( l ): 
+  """ Sort the given list in the way that humans expect. Returns a new
+  list.
+  From:
+      http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
+  """ 
+  convert = lambda text: int(text) if text.isdigit() else text 
+  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+  return sorted(l, key=alphanum_key)
+
 def main():
     app = wx.App(False)
     frame = MainFrame(None)
