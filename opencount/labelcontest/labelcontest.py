@@ -215,6 +215,7 @@ class LabelContest(wx.Panel):
         self.remainingText = wx.StaticText(self, style=wx.TE_READONLY, size=(150,30))
         self.curBlankBallotNum = wx.StaticText(self, style=wx.TE_READONLY)
         textbox.Add(self.remainingText)
+        textbox.Add(self.curBlankBallotNum)
 
         template = wx.BoxSizer(wx.VERTICAL)
         button3 = wx.Button(self, label='Previous Ballot')
