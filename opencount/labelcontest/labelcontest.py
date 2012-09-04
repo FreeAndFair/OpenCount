@@ -863,8 +863,11 @@ class LabelContest(wx.Panel):
             self.text[self.currentcontests[self.count]] = []
         self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
 
-        if not self.has_equiv_classes:
+        #if not self.has_equiv_classes:
+        if True: # TODO: Temporarily ignore equiv classes.
             return
+        
+
 
         print "EQUAL ARE", self.equivs
 
