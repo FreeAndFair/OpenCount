@@ -78,8 +78,7 @@ class ResultsPanel(ScrolledPanel):
         # template -> target id -> contest
         templatemap = {}
         targetlocsfiles = os.listdir(self.proj.target_locs_dir)
-        # TODO: Temporarily disabled.
-        #util.sort_nicely(targetlocsfiles)
+        util.sort_nicely(targetlocsfiles)
         for template in targetlocsfiles:
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
@@ -441,8 +440,7 @@ class ResultsPanel(ScrolledPanel):
         result += self.final_tally(cvr, name="TOTAL")
                
         sampledirs_lvl1 = [x[0] for x in os.walk(self.proj.samplesdir)]
-        # TODO: Temporarily disabled.
-        #util.sort_nicely(sampledirs_lvl1)
+        util.sort_nicely(sampledirs_lvl1)
         
         batch_paths = sampledirs_lvl1
         batch_paths = batch_paths[1:]
