@@ -59,7 +59,8 @@ class LabelContest(wx.Panel):
         self.groupedtargets = []
         foo = []
         for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
-            util.sort_nicely(files)
+            # TODO: Temporarily disabled.
+            #util.sort_nicely(files)
             for each in sorted(files):
         #for each in realorder:
         #    if True:
@@ -212,6 +213,7 @@ class LabelContest(wx.Panel):
         textbox.Add(button22)
 
         self.remainingText = wx.StaticText(self, style=wx.TE_READONLY, size=(150,30))
+        self.curBlankBallotNum = wx.StaticText(self, style=wx.TE_READONLY)
         textbox.Add(self.remainingText)
 
         template = wx.BoxSizer(wx.VERTICAL)
@@ -231,7 +233,8 @@ class LabelContest(wx.Panel):
         if os.path.exists(self.proj.patch_loc_dir):
             attr_data = {}
             blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
-            util.sort_nicely(blankballot_attrlocs)
+            # TODO: Temporarily disabled.
+            #util.sort_nicely(blankballot_attrlocs)
             for f in blankballot_attrlocs:
                 attrs = []
                 for line in open(os.path.join(self.proj.patch_loc_dir, f)):
@@ -375,7 +378,8 @@ class LabelContest(wx.Panel):
         mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
         blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
-        util.sort_nicely(blankballot_attrlocs)
+        # TODO: Temporarily disabled.
+        #util.sort_nicely(blankballot_attrlocs)
         for f in blankballot_attrlocs:
             print "AND I GET", f, f[-4:]
             if f[-4:] == '.csv':
@@ -583,7 +587,8 @@ class LabelContest(wx.Panel):
         if self.proj.infer_bounding_boxes:
             res = []
             for root,dirs,files in os.walk(self.proj.target_locs_dir):
-                util.sort_nicely(files) # Fixes Marin's ballot ordering.
+                # TODO: Temporarily disabled.
+                #util.sort_nicely(files) # Fixes Marin's ballot ordering.
                 for each in files:
                     if each[-4:] != '.csv': continue
                     name = os.path.join(root, each)
@@ -965,7 +970,8 @@ class LabelContest(wx.Panel):
             Publisher().sendMessage("broadcast.can_proceed")
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
-
+        num_blanks = len(self.dirList)
+        self.curBlankBallotNum.SetLabel("On Blank Ballot {0} of {1}".format(self.templatenum, num_blanks))
 
     def addText(self):
         """

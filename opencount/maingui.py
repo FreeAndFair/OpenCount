@@ -502,8 +502,11 @@ class DoubleSided(wx.Frame):
                 # Imgpaths end in an integer, presumably unique+increasing.
                 # Sort by the integer's value, not by the OS-specific
                 # way (which might 'get it wrong', as what happened in Marin).
-                util.sort_nicely(images)
-                util.sort_nicely(templates)
+                # TODO: Temporarily Disabled.
+                images = sorted(images)
+                templates = sorted(templates)
+                #util.sort_nicely(images)
+                #util.sort_nicely(templates)
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
