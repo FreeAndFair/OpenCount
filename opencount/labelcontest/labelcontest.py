@@ -863,8 +863,9 @@ class LabelContest(wx.Panel):
             self.text[self.currentcontests[self.count]] = []
         self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
 
-        #if not self.has_equiv_classes:
-        if True: # TODO: Temporarily ignore equiv classes.
+        # Change the below 'if' test to 'True' if you want to disable
+        # automated population of equiv-contests.
+        if not self.has_equiv_classes:
             return
         
 
