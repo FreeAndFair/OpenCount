@@ -213,6 +213,7 @@ class LabelContest(wx.Panel):
         textbox.Add(button22)
 
         self.remainingText = wx.StaticText(self, style=wx.TE_READONLY, size=(150,30))
+        self.curBlankBallotNum = wx.StaticText(self, style=wx.TE_READONLY)
         textbox.Add(self.remainingText)
 
         template = wx.BoxSizer(wx.VERTICAL)
@@ -969,7 +970,8 @@ class LabelContest(wx.Panel):
             Publisher().sendMessage("broadcast.can_proceed")
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
-
+        num_blanks = len(self.dirList)
+        self.curBlankBallotNum.SetLabel("On Blank Ballot {0} of {1}".format(self.templatenum, num_blanks))
 
     def addText(self):
         """

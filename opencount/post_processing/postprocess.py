@@ -5,7 +5,7 @@ import os
 import pickle
 import csv
 from util import encodepath
-
+import util
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -354,8 +354,14 @@ class ResultsPanel(ScrolledPanel):
         e.g. 'precinct 1' : cvr item
         """
         attributes = self.load_grouping()
-        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
-        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        if os.path.exists(self.proj.quarantined):
+            quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)) if x)
+        else:
+            quar1 = set()
+        if os.path.exists(self.proj.quarantined_manual):
+            quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)) if x)
+        else:
+            quar2 = set()
         quar = quar1.union(quar2)
 
         result = ""
