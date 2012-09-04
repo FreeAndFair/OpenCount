@@ -4,13 +4,14 @@ try:
 except:
     import pickle
 import wx, wx.lib.scrolledpanel
+sys.path.append('..')
+import util
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """
     A panel that allows you to, given a set of images I, give a text
     label to each image. Outputs to an output file.
     """
-    STATE_FILE = '_labelpanelstate.p'
 
     def __init__(self, parent, *args, **kwargs):
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -26,7 +27,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # self.captionlabels keeps track of all labels given to a
         # specific caption.
-        self.captionlabels = {} # maps {str caption: (str label_i, ...)}
+        self.captionlabels = {} # maps {str caption: [str label_i, ...]}
 
         self.imagepaths = []  # ordered list of imagepaths
         self.cur_imgidx = 0  # which image we're currently at
@@ -111,11 +112,12 @@ values for this caption...")
             caption = self.imagecaptions[imgpath]
             labels = self.captionlabels.get(caption, None)
             if labels == None:
-                self.listbox.SetItems([])
+                self.listbox.SetItems(['No values entered.'])
                 return
             self.listbox.SetItems(list(labels))
         else:
-            self.listbox.SetItems([])
+            # Just display /all/ labels.
+            self.listbox.SetItems(list(set(self.imagelabels.values())))
 
     def add_label(self, imgpath, label):
         """ Adds the 'label' for the given image by updating internal
@@ -123,10 +125,15 @@ values for this caption...")
         """
         if self.possibles and label not in self.possibles:
             return False
+        oldlabel = self.imagelabels[imgpath]
         self.imagelabels[imgpath] = label
         caption = self.imagecaptions.get(imgpath, None)
         if caption != None:
-            self.captionlabels.setdefault(caption, set()).add(label)
+            try:
+                self.captionlabels[caption].remove(oldlabel)
+            except:
+                pass
+            self.captionlabels.setdefault(caption, []).append(label)
         return True
 
     def onInputEnter(self, evt):
@@ -251,14 +258,12 @@ Implies that imgpath is present in imageslist more than once."
         self.SetupScrolling()
         self.SendSizeEvent()
 
-    def restore_session(self, statefile=None):
+    def restore_session(self, statefile):
         """ Tries to restore the state of a previous session. If this
         fails (say, the internal state file was deleted), then this
         will return False. If this happens, then you should just call
         self.start().
         """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
         if not os.path.exists(statefile):
             return False
         state = pickle.load(open(statefile, 'rb'))
@@ -284,10 +289,8 @@ Implies that imgpath is present in imageslist more than once."
         #self.Fit()
         return True
 
-    def save_session(self, statefile=None):
+    def save_session(self, statefile):
         """ Saves the current state of the current session. """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
         # Remember to store the currently-displayed label
         curimgpath = self.imagepaths[self.cur_imgidx]
         cur_label = self.inputctrl.GetValue()
@@ -344,3 +347,4 @@ Implies that imgpath is present in imageslist more than once."
             row = {'imgpath': imgpath, 'label': label}
             dictwriter.write_row(row)
         f.close()
+

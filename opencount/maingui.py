@@ -1537,6 +1537,7 @@ class Project(object):
                      'labeldigitstate': '_labeldigitstate.p',
                      'voteddigits_dir': 'voteddigits_dir',
                      'attrgroup_results': 'attrgroup_results.p',
+                     'labelpanel_state': 'labelpanel_state.p',
                      'labelattrs_out': 'labelattrs_out.csv',
                      'labelattrs_patchesdir': 'labelattrs_patchesdir',
                      'attrexemplars_dir': 'attrexemplars_dir',
