@@ -75,8 +75,9 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         txt_listbox = wx.StaticText(self, label="Previously entered \
 values for this caption...")
         self.listbox = wx.ListBox(self, choices=[])
+
         sizer_lstbox.Add(txt_listbox)
-        sizer_lstbox.Add(self.listbox)
+        sizer_lstbox.Add(self.listbox, flag=wx.EXPAND)
 
         self.sizer2.Add(sizer_img)
         self.sizer2.Add((40, 40))
@@ -294,6 +295,7 @@ Implies that imgpath is present in imageslist more than once."
         self.SetupScrolling()
         self.SendSizeEvent()
         #self.Fit()
+
         return True
 
     def save_session(self, statefile):
