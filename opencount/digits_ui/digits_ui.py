@@ -463,6 +463,16 @@ digit.")
 
         self.overlaymaps = {} # maps {int matchID: (i,j)}
         grouplabel = common.make_grouplabel(('digit', self.current_digit))
+        # 0.) If we are seeing this digit for the first time, this will
+        # not be present in grouplabel_record, so add it in.
+        grouplabel_record = common.load_grouplabel_record(self.project)
+        try:
+            gl_idx = grouplabel_record.index(grouplabel)
+        except:
+            print "Discovering digit {0} for the first time:", grouplabel
+            grouplabel_record.append(grouplabel)
+            common.save_grouplabel_record(self.project, grouplabel_record)
+            gl_idx = len(grouplabel) - 1
         examples = []
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
@@ -491,7 +501,7 @@ digit.")
                 newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
                 Ireg = newIreg
             scipy.misc.imsave(patchpath, Ireg)
-            examples.append((regionpath, (grouplabel,), patchpath))
+            examples.append((regionpath, (gl_idx,), patchpath))
             self.matches.setdefault(regionpath, []).append((patchpath, matchID, self.current_digit, score2, y1, y2, x1, x2, rszFac))
             matchID += 1
             patchpath_scores[patchpath] = score2

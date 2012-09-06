@@ -385,18 +385,21 @@ def get_attrtype_possiblevals(proj, attrtype):
         pdb.set_trace()
     return attrvals
 
-def get_attrpair_grouplabel(project, grouplabel):
+def get_attrpair_grouplabel(project, gl_idx):
     """ Given a grouplabel, return both the attrtype of the grouplabel
-    and the attrval.
+    and the attrval. Assumes the newer grouplabel_record interface.
     """
-    ballot_attributes = pickle.load(open(project.ballot_attributesfile, 'rb'))
-    for attrdict in ballot_attributes:
-        attrtype_str = get_attrtype_str(attrdict['attrs'])
-        if get_propval(grouplabel, attrtype_str):
-            return attrtype_str, get_propval(grouplabel, attrtype_str)
-    print "Uhoh, couldn't find an attrpair in this grouplabel:", str_grouplabel(grouplabel)
-    pdb.set_trace()
-    return None
+    # Assumes that non-digitbased grouplabels look like:
+    #     frozenset([('party', 'democratic'), ('imageorder', 1), ('flip', 0)])
+    grouplabel_record = load_grouplabel_record(project)
+    grouplabel = grouplabel_record[gl_idx]
+    attrtype, attrval = None, None
+    for (k, v) in grouplabel:
+        if k != 'imageorder' and k != 'flip':
+            attrtype = k
+            attrval = v
+            break
+    return attrtype, attrval
 
 def get_attr_side(project, attrtype):
     """ Returns which side of the ballot this attrtype was defined
@@ -446,14 +449,16 @@ def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
 
-def is_digit_grouplabel(grouplabel, project):
+def is_digit_grouplabel(gl_idx, project):
     """ Return True if this grouplabel is digit-based. """
-    attrtypes = get_attrtypes(project)
-    for attrtype in attrtypes:
-        if get_propval(grouplabel, attrtype):
-            if is_digitbased(project, attrtype):
-                return True
-    return False
+    grouplabel_record = load_grouplabel_record(project)
+    grouplabel = grouplabel_record[gl_idx]
+    attrtype = None
+    for (k, v) in grouplabel:
+        if k != 'imageorder' and k != 'flip':
+            attrtype = k
+            break
+    return is_digitbased(project, attrtype)
 
 def get_attrtype_str(attrtypes):
     """Returns a 'canonical' string-representation of the attributes
@@ -562,6 +567,37 @@ def importPatches(project):
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
 
+def create_grouplabel_record(proj, attrtypes):
+    """ Creates a canonical ordering for all grouplabels, to be used
+    for the rest of the OpenCount pipeline. This is purely for performance
+    reasons, so that I can store indices in data structures, rather than
+    data like frozenset([('party', 'democrat'), ('imageorder', 0), ('flip', 1)]).
+    Input:
+        obj proj:
+        list attrtypes: [str attrtype_i, ...]
+    Output:
+        A list of frozensets.
+    """
+    outlist = []
+    for attrtype in attrtypes:
+        for possibleval in common.get_attrtype_possiblevals(proj, attrtype):
+            if common.is_digitbased(proj, attrtype):
+                outlist.append(frozenset(('digit', possibleval)))
+            else:
+                for imgorder in (0, 1):  # TODO: Generalize to N-sides
+                    for flip in (0, 1):
+                        outlist.append(frozenset(((attrtype, possibleval),
+                                                 ('imageorder', imgorder),
+                                                 ('flip', flip))))
+    return outlist
+
+def save_grouplabel_record(proj, grouplabel_record):
+    outP = pathjoin(proj.projdir_path, proj.grouplabels_record)
+    pickle.dump(grouplabel_record, open(outP, 'wb'))
+def load_grouplabel_record(proj):
+    path = pathjoin(proj.projdir_path, proj.grouplabels_record)
+    return pickle.load(open(path, 'rb'))
+
 """ GroupLabel Data Type """
 
 def make_grouplabel(*args):
@@ -570,27 +606,26 @@ def make_grouplabel(*args):
     """
     return frozenset(args)
 
-def get_propval(grouplabel, property):
+def get_propval(gl_idx, property, proj):
     """ Returns the value of a property in a grouplabel, or None
-    if the property isn't present.
+    if the property isn't present. 
+    TODO: Outdated doctest.
     >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
     >>> get_propval(grouplabel, 'precinct')
     380400
     >>> get_propval(grouplabel, 'foo') == None
     True
     """
-    t = tuple(grouplabel)
-    for key,v in t:
-        if key == property:
+    gl_record = load_grouplabel_record(proj)
+    for k, v = gl_record[gl_idx]:
+        if k == property:
             return v
     return None
 
-def grouplabel_keys(grouplabel):
-    """ Returns the keys of a grouplabel. """
-    return tuple([k for (k,v) in tuple(grouplabel)])
-
-def str_grouplabel(grouplabel):
+def str_grouplabel(gl_idx, proj):
     """ Returns a string-representation of the grouplabel. """
+    gl_record = load_grouplabel_record(proj)
+    grouplabel = gl_record[gl_idx]
     kv_pairs = tuple(grouplabel)
     out = ''
     for (k, v) in sorted(kv_pairs):

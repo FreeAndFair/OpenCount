@@ -154,8 +154,10 @@ class VerifyPanel(wx.Panel):
     OTHER_IDX = 1
 
     # Create the 'dummy' grouplabels used in other modes
-    GROUPLABEL_OTHER = common.make_grouplabel(('othertype', 'otherval'))
-    GROUPLABEL_MANUAL = common.make_grouplabel(('manualtype', 'manualval'))
+    #GROUPLABEL_OTHER = common.make_grouplabel(('othertype', 'otherval'))
+    #GROUPLABEL_MANUAL = common.make_grouplabel(('manualtype', 'manualval'))
+    GROUPLABEL_OTHER = -1
+    GROUPLABEL_MANUAL = -2
 
     def __init__(self, parent, verifymode=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
@@ -790,7 +792,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             if grouplabel not in history:
                 #display_string = str(grouplabel)
                 try:
-                    display_string = common.str_grouplabel(grouplabel)
+                    display_string = common.str_grouplabel(grouplabel, self.project)
                 except Exception as e:
                     print e
                     pdb.set_trace()
@@ -824,10 +826,10 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         _dur = time.time() - _t
         times['pre_step'] = _dur
 
-        if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit') != None:
+        if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project) != None:
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
-            cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+            cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project)
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             _t = time.time()
             
@@ -1137,7 +1139,7 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
             #    a.) Multiple digit-based attributes
             #    b.) A Ballot Attribute called 'digit'
             for grouplabel in group.orderedAttrVals:
-                if common.get_propval(grouplabel, 'digit') != None:
+                if common.get_propval(grouplabel, 'digit', self.project) != None:
                     self.remove_group(group)
                     break
         for group in self.finished[:]:
@@ -1178,7 +1180,7 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                     digitattrs.append(attrtypestr)
             return digitattrs
         grouplabel = self.currentGroup.getcurrentgrouplabel()
-        if common.get_propval(grouplabel, 'digit') == None:
+        if common.get_propval(grouplabel, 'digit', self.project) == None:
             dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
 supported for non-digitbased attributes. Perhaps you'd like to quarantine \
 this instead?", style=wx.OK)
@@ -1221,7 +1223,7 @@ at a time."
         assert len(digit_attrs) == 1
         # b.) Construct rejected_hashes
         print "==== b.) Construct rejected_hashes"
-        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project)
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         rejected_hashes = self.load_rejected_hashes()
         #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
@@ -1278,7 +1280,7 @@ OpenCount claims you're 'done'. Uh oh."
             self.select_group(self.queue[0])
 
     def OnClickManualLabelAll(self, evt):
-        if common.get_propval(self.currentGroup.orderedAttrVals[0], 'digit') != None:
+        if common.get_propval(self.currentGroup.orderedAttrVals[0], 'digit', self.project) != None:
             dlg = wx.MessageDialog(self, message="Manually Labeling Digit \
 Patches isn't supported right now, sorry.", style=wx.OK)
             self.Disable()
@@ -1365,7 +1367,7 @@ finished! Press 'Ok', then you may continue to the next step.",
                 if grouplabel in results:
                     print "Uhoh, gropulabel was in results more than once."
                     pdb.set_trace()
-                assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel))
+                assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel, self.project))
                 results[grouplabel] = [group]
         else:
             for group in self.finished:

@@ -412,7 +412,7 @@ def save_digitmatch_info(proj, digitmatch_info):
     outpath = pathjoin(proj.projdir_path, proj.digitmatch_info)
     pickle.dump(digitmatch_info, open(outpath, 'wb'))
 
-def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
+def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel_record=None):
     """ Converts the result of do_digitocr_patches to a list of 
     GroupClass instances.
     Input:
@@ -422,11 +422,15 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
           where meta_i is numDigits-tuples of the form:
             (y1,y2,x1,x2,digit_i, digitimgpath_i, score)
         list ignorelist: List of sampleids to ignore.
+        list grouplabel_record: The canonical ordering of attributes for
+            this election. If not given, then this will load it from disk.
     Output:
         List of GroupClass instances.
     """
     if ignorelist == None:
         ignorelist = []
+    if grouplabel_record == None:
+        grouplabel_record = common.load_grouplabel_record(proj)
     bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
     digitpatchpath_scoresP = pathjoin(proj.projdir_path,
                                       proj.digitpatchpath_scoresVoted)
@@ -503,6 +507,9 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None):
     for digit, lst in digits_results.iteritems():
         elements = []
         rankedlist = make_digits_rankedlist(digit, alldigits)
+        # Convert rankedlist to instead use indices from grouplabel_record,
+        # created by common.create_grouplabel_record().
+        rankedlist = to_gl_idxs(rankedlist)
         for (ballotid, patchpath) in lst:
             elements.append((ballotid, rankedlist, patchpath))
         group = common.DigitGroupClass(elements,
@@ -526,3 +533,9 @@ def make_digits_rankedlist(d, digits):
         grouplabel = common.make_grouplabel(('digit', digit))
         result.append(grouplabel)
     return result
+
+def to_gl_idxs(rankedlist, grouplabel_record):
+    newlist = []
+    for grouplabel in rankedlist:
+        newlist.append(grouplabel_record.index(grouplabel))
+    return newlist

@@ -1119,6 +1119,12 @@ and active in order to access this.",
             self.panel_label_attrs.stop()
             self.panel_label_attrs.export_results()
 
+            print "Saving grouplabel records..."
+            attrtypes = common.get_attrtypes(self.project)
+            gl_record = common.create_grouplabel_record(self.project, attrtypes)
+            common.save_grouplabel_record(self.project, gl_record)
+            print "...Finished saving grouplabel records."
+
             print "Finding multiple exemplars..."
             _t = time.time()
             outdir = os.path.join(self.project.projdir_path,
@@ -1556,7 +1562,8 @@ class Project(object):
                      'blank2attrpatch': 'blank2attrpatch.p',
                      'invblank2attrpatch': 'invblank2attrpatch.p',
                      'digitmultexemplars': 'digitmultexemplars',
-                     'digitmultexemplars_map': 'digitmultexemplars_map.p'}
+                     'digitmultexemplars_map': 'digitmultexemplars_map.p',
+                     'grouplabels_record': 'grouplabels_record.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

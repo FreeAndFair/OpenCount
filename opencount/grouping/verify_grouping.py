@@ -237,7 +237,7 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             ad = {} # maps {str attrtype: str attrval}
             # Gather up all attrtype->attrval mappings into ad
             for attrtype in attr_types:
-                attrval = common.get_propval(grouplabel, attrtype)
+                attrval = common.get_propval(grouplabel, attrtype, self.project)
                 if attrval:
                     ad[attrtype] = attrval
             if ad == {}:
@@ -252,8 +252,8 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
                 flip = 0
                 imgorder = 0
             else:
-                flip = common.get_propval(grouplabel, 'flip')
-                imgorder = common.get_propval(grouplabel, 'imageorder')
+                flip = common.get_propval(grouplabel, 'flip', self.project)
+                imgorder = common.get_propval(grouplabel, 'imageorder', self.project)
             assert flip != None
             assert imgorder != None
             for group in groups:
@@ -887,8 +887,8 @@ def munge_patches_grouping(patches, attrtypes, project):
     for temppath, patchtriple in patches.iteritems():
         for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
             for attrtype in attrtypes:
-                if common.get_propval(grouplabel, attrtype):
-                    attrval = common.get_propval(grouplabel, attrtype)
+                if common.get_propval(grouplabel, attrtype, project):
+                    attrval = common.get_propval(grouplabel, attrtype, project)
                     result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
     # Handle digit-based attributes
     for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
@@ -1020,11 +1020,11 @@ def munge_patches(patches, project, is_multipage=False, img2tmp=None):
     def get_attrtypeval(grouplabel,attrtypes):
         v = None
         for attrtype in attrtypes:
-            v = common.get_propval(grouplabel, attrtype)
+            v = common.get_propval(grouplabel, attrtype, project)
             if v:
                 break
         if not v:
-            print "Uh oh, v wasn't found in this grouplabel:", common.str_grouplabel(grouplabel)
+            print "Uh oh, v wasn't found in this grouplabel:", common.str_grouplabel(grouplabel, project)
             pdb.set_trace()
         assert v
         return attrtype, v
@@ -1061,7 +1061,7 @@ def munge_digit_results(results, all_attrtypes, project):
         to only allow one digit-based attribute at a time. We should
         ideally be able to handle any number of digit-based attributes.
         """
-        return common.get_propval(grouplabel, 'digit') != None
+        return common.get_propval(grouplabel, 'digit', project) != None
     img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
     digitattrs = [a for a in all_attrtypes if common.is_digitbased(project, a)]
     if not digitattrs:
@@ -1076,7 +1076,7 @@ patch, sorry."
     for grouplabel, groups in results.iteritems():
         if not groups or not is_digitbased_grouplabel(grouplabel):
             continue
-        curdigit = common.get_propval(grouplabel, 'digit')
+        curdigit = common.get_propval(grouplabel, 'digit', project)
         for group in groups:
             for (samplepath, rankedlist, patchpath) in group.elements:
                 patchlabels[patchpath] = curdigit
@@ -1131,44 +1131,24 @@ def correct_digit_labels(project, patchlabels):
             result.setdefault(imgpath, []).append((attrtype, correct_str))
     return result
 
-def to_groupclasses(proj):
+def to_groupclasses(proj, grouplabel_record=None):
     """ Converts the result of grouping (non-digits) to a list of 
     GroupClass instances.
     Input:
         obj proj:
+        list grouplabel_record: The canonical list of attrtype/attrval
+            orderings, created by create_grouplabel_record(). If not
+            given, this function will read it from disk.
     Output:
         List of GroupClass instances for non-digit attributes.
     """
     bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
-
-    grouping_results = {} # maps {str attrtype: {bestmatch: list of [ballotid, rankedlist, patchpath]}}
+    if grouplabel_record == None:
+        grouplabel_record = common.load_grouplabel_record(proj)
     attr_types = common.get_attrtypes(proj)
-    def removedups_rankedlist(rlist):
-        """ Remove duplicates from the input ranked list, starting
-        from L-R. This is needed because Kais' NCC-OCR code can,
-        for a given digit patch, signal that a given digit D
-        occurs in the patch multiple times.
-        """
-        result = []
-        for i, grouplabel in enumerate(rlist):
-            if i >= len(rlist)-1:
-                break
-            if grouplabel not in rlist[i+1:]:
-                result.append(grouplabel)
-        return result
-    def sanity_check_rankedlist(rlist):
-        history = {}
-        for grouplabel in rlist:
-            if grouplabel in history:
-                print 'woah, this grouplabel was already here:', grouplabel
-                pdb.set_trace()
-                return False
-            else:
-                history[grouplabel] = True
-        return True
-    # Munge the grouping results into grouping_results, digit_results
     ## Note: the isflip_i/side_i info from digitgroup_results gets
     ## thrown out after these blocks. Do I actually need them?
+    group_elements = {} # maps {int grouplabel_idx: [(ballotid_i, rlist_i, patchpath_i), ...]}
     if not util.is_multipage(proj):
         for attr_type in attr_types:
             if common.is_digitbased(proj, attr_type):
@@ -1181,15 +1161,20 @@ def to_groupclasses(proj):
                 except IOError as e:
                     print e
                     pdb.set_trace()
-
+                # data maps {'attrOrder': [str attrval_i, ...], 'flipOrder': [int i, ...]}
                 data = pickle.load(file)
                 file.close()
-                dummies = [0]*len(data["attrOrder"])
-                attrs_list = zip(data["attrOrder"], data["flipOrder"], dummies)
-                bestMatch = attrs_list[0]
+                # 0.) Construct the ranked list
+                rlist = []
+                attrvals, flips = data['attrOrder'], data['fliporder']
+                for i, attrval in enumerate(attrvals):
+                    grouplabel = common.make_grouplabel((attr_type, attrval), ('flip', flips[i]),
+                                                        ('imageorder', 0))
+                    gl_idx = grouplabel_record.index(grouplabel)
+                    rlist.append(gl_idx)
                 patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
                                      util.encodepath(ballotid)+'.png')
-                grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
+                group_elements.setdefault(rlist[0], []).append((ballotid, rlist, patchpath))
     else:
         # Multipage
         for attr_type in attr_types:
@@ -1205,32 +1190,24 @@ def to_groupclasses(proj):
                     pdb.set_trace()
                 # data is a dict with keys 'attrOrder', 'flipOrder', 'err',
                 # and 'imageOrder'
+                # data maps {'attrOrder': [str attrval_i, ...], 'flipOrder': [int i, ...], 'imageOrder': [int i, ...]}
                 data = pickle.load(file)
                 file.close()
-                attrs_list = zip(data["attrOrder"], data["flipOrder"], data["imageOrder"])
-                bestMatch = attrs_list[0]
-                bestAttr = bestMatch[0]
+                # 0.) Construct the ranked list
+                rlist = []
+                attrvals, flips = data['attrOrder'], data['fliporder']
+                for i, attrval in enumerate(attrvals):
+                    grouplabel = common.make_grouplabel((attr_type, attrval), ('flip', flips[i]),
+                                                        ('imageorder', 0))
+                    gl_idx = grouplabel_record.index(grouplabel)
+                    rlist.append(gl_idx)
                 patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
                                      util.encodepath(ballotid)+'.png')
-                grouping_results.setdefault(attr_type, {}).setdefault(bestMatch, []).append((ballotid, attrs_list, patchpath))
+                group_elements.setdefault(rlist[0], []).append((ballotid, rlist, patchpath))
 
     groups = []
     # Seed initial set of groups
-    i = 1
-    # Note: grouping_results is structured strangely, hence, why
-    # the strange code below.
-    for attrtype, _dict in grouping_results.items():
-        for (attrval,flip,imgorder), samples in _dict.items():
-            #extracted_attr_dir = self.proj.extracted_precinct_dir + '-' + attrtype
-            munged_samples = []
-            for (path, rankedlist, patchpath) in samples:
-                maps = []
-                for (attrval, flip, imgorder) in rankedlist:
-                    maps.append(((attrtype,attrval),('flip',flip),('imageorder',imgorder)))
-                munged_samples.append((path,
-                                       [common.make_grouplabel(*mapping) for mapping in maps],
-                                      patchpath))
-            group = common.GroupClass(munged_samples)
-            groups.append(group)
-            i += 1
+    for gl_idx, elements in group_elements.iteritems():
+        groups.append(common.GroupClass(elements))
     return groups
+
