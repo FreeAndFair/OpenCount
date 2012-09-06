@@ -27,6 +27,8 @@ class GridShow(wx.ScrolledWindow):
     numcols = 20
 
     def lookupFullList(self, i):
+        return self.classified_file[i]
+
         if self.classifiedindex:
             prefix = open(self.proj.classified+".prefix").read()
             fin = open(self.proj.classified)
@@ -143,11 +145,16 @@ class GridShow(wx.ScrolledWindow):
                         self.setLine(ii, evt=event1)
                     if text == "Open Ballot":
                         self.lightBox(ii, evt=event1)
+                    if text == "Mark Row Wrong":
+                        for ct in range(self.numcols):
+                            self.markWrong(i+ct)
 
                 a = m.Append(-1, "Set Threshold")
                 self.Bind(wx.EVT_MENU, decide, a)
                 b = m.Append(-1, "Open Ballot")
                 self.Bind(wx.EVT_MENU, decide, b)
+                c = m.Append(-1, "Mark Row Wrong")
+                self.Bind(wx.EVT_MENU, decide, c)
                 pos = event1.GetPosition()
                 pos = self.ScreenToClient(pos)
                 m.Bind(wx.EVT_CONTEXT_MENU, decide)
@@ -160,14 +167,15 @@ class GridShow(wx.ScrolledWindow):
     def markQuarantine(self, i):
         targetpath = self.lookupFullList(i)[0]
         ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
-        print "WAS", self.quarantined
         if ballotpath not in self.quarantined:
             self.quarantined.append(ballotpath)
-        print "IS", self.quarantined
         for each in self.sample_to_targets(encodepath(ballotpath)):
-            for j,line in enumerate(open(self.proj.classified)):
-                if each == line.split('\0')[0]:
-                    self.markQuarantineSingle(j)
+            if each in self.classified_lookup:
+                #print 'A'
+                self.markQuarantineSingle(self.classified_lookup[each])
+            #for j,line in enumerate(open(self.proj.classified)):
+            #    if each == line.split('\0')[0]:
+            #        self.markQuarantineSingle(j)
 
     def markQuarantineSingle(self, i):
         self.quarantined_targets.append(i)
@@ -333,7 +341,7 @@ class GridShow(wx.ScrolledWindow):
                 #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             hist[int(v)] += 1
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
-        print list(enumerate(hist))
+        #print list(enumerate(hist))
 
         # I'm going to assume there are two normal dist. variables 
         #  which combine to make the histogram.
@@ -442,13 +450,18 @@ class GridShow(wx.ScrolledWindow):
         for _ in self.enumerateOverFullList():
             self.numberOfTargets += 1
 
+        self.classified_file = [l.split("\0") for l in open(self.proj.classified)]
+        self.classified_lookup = dict([(l.split("\0")[0], i) for i,l in enumerate(open(self.proj.classified))])
         if os.path.exists(self.proj.classified+".index"):
             try:
+                is64bit = (sys.maxsize > (2**32))
+                size = 8 if is64bit else 4
                 arr = array.array("L")
                 arr.fromfile(open(self.proj.classified+".index"), 
-                             os.path.getsize(self.proj.classified+".index")/4)
+                             os.path.getsize(self.proj.classified+".index")/size)
                 self.classifiedindex = arr
-            except:
+            except Exception as e:
+                print e
                 print "Could not load index file. Doing it the slow way. err1"
                 self.classifiedindex = None
         else:
@@ -466,9 +479,13 @@ class GridShow(wx.ScrolledWindow):
         if os.path.exists(self.proj.threshold_internal):
             dat = open(self.proj.threshold_internal).read()
             if dat:
-                self.threshold, self.wrong, self.quarantined, self.quarantined_targets = pickle.load(open(self.proj.threshold_internal))
-                print "LOADED", self.quarantined_targets
-                self.onScroll(self.threshold-(self.numcols*self.numrows)/2)
+                data = pickle.load(open(self.proj.threshold_internal))
+                if len(data) == 4:
+                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets = data
+                    self.onScroll(self.threshold-(self.numcols*self.numrows)/2)
+                else:
+                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets, pos = data
+                    self.onScroll(pos)
         else:
             newthresh, bound = self.findBoundry()
             self.onScroll(bound)
@@ -488,11 +505,10 @@ class GridShow(wx.ScrolledWindow):
         low = max(0,pos-GAP)
         high = min(pos+self.numcols*self.numrows+GAP,self.numberOfTargets)
 
-        print "TARGS", self.quarantined_targets
-
         # Draw the images from low to high.
         print "Drawing from", low, "to", high
         for i in range(low,high,self.numcols):
+            #print i
             if i in self.jpgs:
                 # If we've drawn it before, then it's still there, skip over it
                 continue
@@ -568,7 +584,7 @@ class GridShow(wx.ScrolledWindow):
                 f.write(os.path.split(t)[1]+", 0\n")
         f.close()
 
-        pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets), open(self.proj.threshold_internal, "w"))
+        pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets, self.lastpos), open(self.proj.threshold_internal, "w"))
             
         out = open(self.proj.quarantined_manual, "w")
         for each in self.quarantined:
@@ -613,9 +629,14 @@ class ThresholdPanel(wx.Panel):
         button1.Bind(wx.EVT_BUTTON, lambda x: tabOne.changeSize(2))
         button2 = wx.Button(self, label="Decrease Size")
         button2.Bind(wx.EVT_BUTTON, lambda x: tabOne.changeSize(0.5))
-
+        button3 = wx.Button(self, label="Scroll Up")
+        button3.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos-tabOne.numcols*(tabOne.numrows-5)))
+        button4 = wx.Button(self, label="Scroll Down")
+        button4.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos+tabOne.numcols*(tabOne.numrows-5)))
         top.Add(button1)
         top.Add(button2)
+        top.Add(button3)
+        top.Add(button4)
 
         sizer.Add(top)
         tabOne.setup()

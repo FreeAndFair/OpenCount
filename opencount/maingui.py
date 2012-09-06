@@ -1,8 +1,9 @@
 import os, sys, csv, time, optparse, threading, shutil, re, traceback
+import time
 import pdb, multiprocessing, logging, pickle
 from xml.etree.ElementTree import Element, ElementTree
 from os.path import join as pathjoin
-
+# test
 import wx, Image, cv
 from wx.lib.pubsub import Publisher
 
@@ -486,8 +487,23 @@ class DoubleSided(wx.Frame):
         templates = get(blankdir_raw, blankdir, self.parent.templatesdir)
 
         if self.isalternating:
-            images = sorted(images)
-            templates = sorted(templates)
+            _imgpath = images[0]
+            # Check if paths end in an integer, like:
+            #    Pol267-001.png
+            #    Pol267-002.png
+            #    ...
+            pat = re.compile(r'.*[\-_](\d*)\.[a-zA-Z]+$')
+            m = pat.match(_imgpath)
+            if m == None:
+                # Sort by OS-defined way.
+                images = sorted(images)
+                templates = sorted(templates)
+            else:
+                # Imgpaths end in an integer, presumably unique+increasing.
+                # Sort by the integer's value, not by the OS-specific
+                # way (which might 'get it wrong', as what happened in Marin).
+                util.sort_nicely(images)
+                util.sort_nicely(templates)
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
@@ -503,6 +519,24 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
+
+        '''
+        for ballotid, paths in images.iteritems():
+            print 'ballot id:', ballotid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+        
+        pdb.set_trace()
+
+        for templateid, paths in templates.iteritems():
+            print 'template id:', templateid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+
+        pdb.set_trace()
+        '''
 
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))
@@ -1089,6 +1123,9 @@ and active in order to access this.",
             _t = time.time()
             outdir = os.path.join(self.project.projdir_path,
                                   self.project.attrexemplars_dir)
+            if self.panel_label_attrs.project == None:
+                self.panel_label_attrs.project = self.project
+
             self.panel_label_attrs.cluster_attr_patches(outdir)
             print "...Finished finding multiple exemplars ({0} s).".format(time.time() - _t)
             print "    Results can be found at: ", outdir
@@ -1493,12 +1530,14 @@ class Project(object):
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
+                     'digit_exemplars_map': 'digit_exemplars_map.p',
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
                      'labeldigitstate': '_labeldigitstate.p',
                      'voteddigits_dir': 'voteddigits_dir',
                      'attrgroup_results': 'attrgroup_results.p',
+                     'labelpanel_state': 'labelpanel_state.p',
                      'labelattrs_out': 'labelattrs_out.csv',
                      'labelattrs_patchesdir': 'labelattrs_patchesdir',
                      'attrexemplars_dir': 'attrexemplars_dir',
@@ -1515,7 +1554,9 @@ class Project(object):
                      'extract_attrs_templates': 'extract_attrs_templates',
                      'digit_median_dists': 'digit_median_dists.p',
                      'blank2attrpatch': 'blank2attrpatch.p',
-                     'invblank2attrpatch': 'invblank2attrpatch.p'}
+                     'invblank2attrpatch': 'invblank2attrpatch.p',
+                     'digitmultexemplars': 'digitmultexemplars',
+                     'digitmultexemplars_map': 'digitmultexemplars_map.p'}
         self.createFields()
 
     def addCloseEvent(self, func):
@@ -1551,6 +1592,7 @@ def get_projects(dir_projects):
                 projects.append(project)
             else:
                 print "Warning: Project {0} was unable to be read.".format(proj_name)
+    projects.sort(key = lambda x: str(x).lower())
     return projects
 
 def create_projconfig(projname, projpath):
@@ -1708,7 +1750,7 @@ def main():
     options.devmode = True
 
     app = wx.App(False)
-    frame = MainFrame(options=options)
+    frame = MainFrame(options=options, size=(1024,768))
     #wx.lib.inspection.InspectionTool().Show()
     app.MainLoop()
 

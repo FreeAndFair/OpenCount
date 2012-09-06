@@ -50,7 +50,14 @@ class MainPanel(wx.Panel):
         lines2 = open(self.proj.quarantined_manual).read().split("\n")
         # Catches case when self.proj.quarantined is the empty file
         lines2 = [line for line in lines2 if line != '']
+        
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot))
+        ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+
         self.qfiles = list(set(lines1+lines2))
+        
+        self.qfiles = sorted(list(set(sum([ballot_to_images[image_to_ballot[x]] for x in self.qfiles], []))))
+
         self.count = 0
         self.number_of_contests = 0
         self.label_index = 0
@@ -63,13 +70,13 @@ class MainPanel(wx.Panel):
         self.labeltext = [x[1] for x in sorted(self.labeltext.items())]
 
         self.ballot_attributes = self.load_grouping()
-        print "I GET", self.ballot_attributes
+        #print "I GET", self.ballot_attributes
 
         if os.path.exists(self.proj.quarantine_internal):
             print "EXISTS"
             self.data, self.discardlist, self.attributes = pickle.load(open(self.proj.quarantine_internal))
-            print self.data
-            print self.discardlist
+            #print self.data
+            #print self.discardlist
         else:
             self.data = []
             self.discardlist = []
@@ -81,7 +88,7 @@ class MainPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         sz2 = wx.BoxSizer(wx.VERTICAL)
-        self.imagebox = ImageManipulate(self, size=(500,600))
+        self.imagebox = ImageManipulate(self, size=(700,600))
 
         sz3 = wx.BoxSizer(wx.HORIZONTAL)
         zoomin = wx.Button(self, label="Zoom In")
@@ -98,18 +105,38 @@ class MainPanel(wx.Panel):
         
         self.middle_col = wx.BoxSizer(wx.VERTICAL)
 
+        self.title_order = title_order = sorted(self.labeltext)
+
+        title_names = [x[0] for x in title_order]
+        def change(x):
+            val = self.contest_title_box.GetValue()
+            if val in title_names:
+                v1 = title_names.index(val)
+                v = self.labeltext.index(title_order[v1])
+                #print "Which corresponds to", v, self.labeltext[v]
+                okay = self.show_contest(v)
+                if okay:
+                    self.contest_title.Select(v1)
+                
+        self.contest_title_box = wx.ComboBox(self, -1, size=(300, 30))
+        self.contest_title_box.Bind(wx.EVT_TEXT, change)
+
         self.contest_title = wx.ListBox(self, -1, size=(300, 100))
-        for each in self.labeltext:
+        for each in title_order:
             self.contest_title.Append(each[0])
         self.contest_title.Select(0)
-
+        
         def clicked1(x):
-            v = self.contest_title.HitTest(x.GetPosition())
+            v1 = self.contest_title.HitTest(x.GetPosition())
+            #print "And index", v1, title_order[v1]
+            v = self.labeltext.index(title_order[v1])
+            #print "Which corresponds to", v, self.labeltext[v]
             okay = self.show_contest(v)
             if okay:
-                self.contest_title.Select(v)
+                self.contest_title.Select(v1)
         self.contest_title.Bind(wx.EVT_LEFT_DOWN, clicked1)
 
+        self.middle_col.Add(self.contest_title_box)
         self.middle_col.Add(self.contest_title)
 
         #t = wx.StaticText(self, -1, label="Enter the information about one contest below")
@@ -189,12 +216,12 @@ the next step.",
         else:
             self.show_ballot(0, True)
             if os.path.exists(self.proj.quarantine_internal):
-                print "RESTORE"
+                #print "RESTORE"
                 self.restore_contest_data()
 
     def load_grouping(self):
         if not os.path.exists(self.proj.grouping_results):
-            print "RET NONE"
+            #print "RET NONE"
             return None
 
         c_t = {}
@@ -231,12 +258,19 @@ the next step.",
         self.candidates = []
 
         #print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
-        self.discard.SetValue(self.discardlist[self.curballot])
+        # TODO: Temp. hack to account for Marin Pol267 ballots.
+        basedir, imgname = os.path.split(self.qfiles[self.curballot])
+        #if os.path.split(basedir)[1].strip('/') == 'Pol267':
+        if False:
+            print "Here is a Pol267 ballot!"
+            self.discard.SetValue(True)
+        else:
+            self.discard.SetValue(self.discardlist[self.curballot])
 
         #print "AND ATTRS IS", self.attributes
         #print "qf", self.qfiles
         #print 'cur', self.curballot
-        print self.ballot_attributes
+        #print self.ballot_attributes
         if self.attributes[self.curballot] != []:
             #print 'a'
             data = self.attributes[self.curballot]
@@ -271,7 +305,7 @@ the next step.",
         s = wx.BoxSizer(wx.HORIZONTAL)
         name = wx.StaticText(self.input_area, -1)
         check = wx.CheckBox(self.input_area, -1, label="Voted?")
-        print 'add ', name
+        #print 'add ', name
         self.candidates.append((name, check))
         s.Add(name)
         s.Add(check)
@@ -285,7 +319,7 @@ the next step.",
 ballot images exist, so, no need to save contest data."
             return
         collected = []
-        collected.append(self.contest_title.GetSelection())
+        collected.append(self.labeltext.index(self.title_order[self.contest_title.GetSelection()]))
         for a,b in self.candidates:
             collected.append(b.GetValue())
         self.data[self.curballot][self.count] = collected
@@ -297,6 +331,8 @@ ballot images exist, so, no need to save contest data."
                 self.attributes[self.curballot].append(txtinput.GetValue())
 
     def add_new_contest(self, x=None):
+        self.contest_title_box.SetValue("")
+        self.contest_title_box.SetFocus()
         self.contests.Append("choose contest")
         self.data[self.curballot].append([])
         self.set_contest(self.number_of_contests)
@@ -331,10 +367,10 @@ ballot images exist, so, no need to save contest data."
         """
         # You can't have the same contest twice on a ballot
         if which in [x[0] if x else None for x in self.data[self.curballot]]: 
-            print which, self.count, self.data
+            #print which, self.count, self.data
             if [x[0] if x else None for x in self.data[self.curballot]].index(which) != self.count: return False
 
-        self.contest_title.SetSelection(which)
+        self.contest_title.SetSelection(self.title_order.index(self.labeltext[which]))
         self.label_index = which
         self.reset_contests()
         text = self.labeltext[self.label_index]
@@ -397,7 +433,7 @@ ballot images exist, so, no need to save contest data."
     def save(self):
         self.save_contest_data()
 
-        print "DATA", self.data
+        #print "DATA", self.data
         pickle.dump((self.data, self.discardlist, self.attributes), 
                     open(self.proj.quarantine_internal, "w"))
 

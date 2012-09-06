@@ -5,7 +5,7 @@ import os
 import pickle
 import csv
 from util import encodepath
-
+import util
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -25,9 +25,13 @@ class ResultsPanel(ScrolledPanel):
 
     def set_results(self):
         """Processes cvr file, outputs results files."""
+        print 'First creating the CVR'
         cvr = self.process()
 
+        print 'Now generate the human CVR'
+
         self.human_readable_cvr(cvr)
+        print 'And now the precinct and mode tally'
         res = self.tally_by_precinct_and_mode(cvr)
         self.results.SetLabel(res)
         self.SetupScrolling()
@@ -35,6 +39,7 @@ class ResultsPanel(ScrolledPanel):
         
         # If there are batches
         if len([x[0] for x in os.walk(self.proj.samplesdir)]) > 1:
+            print 'Tally by batch finally'
             batches_res = self.tally_by_batch(cvr)
             open(self.proj.election_results_batches, "w").write(batches_res)
 
@@ -72,7 +77,9 @@ class ResultsPanel(ScrolledPanel):
 
         # template -> target id -> contest
         templatemap = {}
-        for template in os.listdir(self.proj.target_locs_dir):
+        targetlocsfiles = os.listdir(self.proj.target_locs_dir)
+        util.sort_nicely(targetlocsfiles)
+        for template in targetlocsfiles:
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
             for linenum, line in enumerate(open(os.path.join(self.proj.target_locs_dir,template))):
@@ -90,6 +97,8 @@ class ResultsPanel(ScrolledPanel):
                         glob = localid_to_globalid[(row[0],int(row[8]))]
                         thismap[int(row[1])] = glob
                     else:
+                        print "Something bad happened?"
+                        pdb.set_trace()
                         exit(1)
             if thismap == {}:
                 # Means that 'template' has no contests/targets on it
@@ -139,6 +148,8 @@ class ResultsPanel(ScrolledPanel):
         text, order = self.get_text()
 
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        print 'Loaded all the information'
         
         #print "ORDER", order
         #print "TEXT", text
@@ -156,7 +167,12 @@ class ResultsPanel(ScrolledPanel):
             voted = dict(votedlist)
             #print 'voted', voted
             #print 'in', order[template,cid]
-            return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            # TODO: crashes at voted[x]
+            retval = ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            return retval
+
+            #return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            
 
         def noexist(cid):
             # When a contest doesn't appear on a ballot, write this
@@ -165,10 +181,18 @@ class ResultsPanel(ScrolledPanel):
         # Hold the CVR results for a single image.
         image_cvr = {}
 
-        for ballot in os.listdir(self.proj.ballot_metadata):
-            meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
+        print 'Counting up to', len(os.listdir(self.proj.ballot_metadata))
 
-            if meta['ballot'] not in quarantined:
+        for i,ballot in enumerate(os.listdir(self.proj.ballot_metadata)):
+            if i%1000 == 0:
+                print 'On ballot', i
+            meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
+            votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
+            bools = [votedpath in quarantined for votedpath in votedpaths]
+            # TODO: I think I need to check both front/back sides to see if
+            # it's in quarantined? 
+            #if meta['ballot'] not in quarantined:
+            if True not in bools:
                 #print 'bal', meta['ballot']
                 template = meta['template']
                 #print 'template', template
@@ -177,11 +201,7 @@ class ResultsPanel(ScrolledPanel):
                 for target in targets:
                     targetid = int(target.split(".")[1])
                     #print "t", target
-                    try:
-                        contest = templatemap[template][targetid]
-                    except Exception as e:
-                        print e
-                        pdb.set_trace()
+                    contest = templatemap[template][targetid]
                     #print 'c', contest, targetid
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
@@ -193,11 +213,12 @@ class ResultsPanel(ScrolledPanel):
                     #print k, v
                     #print k, order[template,k]
                     #pass
-                    
+
                 voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
                 #print 'voted b', voted
                 image_cvr[meta['ballot']] = voted
 
+        print 'Now going through the ballots'
         # Now process the quarantined files
         def processContestQuar(cid, voted):
             upto = text[cid][0]
@@ -224,13 +245,16 @@ class ResultsPanel(ScrolledPanel):
                 image_cvr[bpath] = lst
 
         #print "BCVR", image_cvr
+        print 'And now the quarantine ones'
         
         cvr = csv.writer(open(self.proj.cvr_csv, "w"))
         headerstr = ['#path']+sum([[b[1]+":"+c for c in b[2:]]+[b[1]] for _,b in text.items()], [])
         cvr.writerow(headerstr)
 
         full_cvr = []
-        for ballot,images in ballot_to_images.items():
+        print 'And now going up to', len(ballot_to_images)
+        for i,(ballot,images) in enumerate(ballot_to_images.items()):
+            if i%1000 == 0: print 'on', i
             #print "----"
             #print ballot
             #print images
@@ -248,7 +272,8 @@ class ResultsPanel(ScrolledPanel):
             ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
             cvr.writerow([ballot]+sum(ballot_cvr,[]))
 #        print 'end', full_cvr
-        
+
+        print 'And ending'
        
         return full_cvr
 
@@ -328,10 +353,15 @@ class ResultsPanel(ScrolledPanel):
         e.g. 'precinct 1' : cvr item
         """
         attributes = self.load_grouping()
-        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
-        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        if os.path.exists(self.proj.quarantined):
+            quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)) if x)
+        else:
+            quar1 = set()
+        if os.path.exists(self.proj.quarantined_manual):
+            quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)) if x)
+        else:
+            quar2 = set()
         quar = quar1.union(quar2)
-        print attributes
 
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
@@ -368,6 +398,38 @@ class ResultsPanel(ScrolledPanel):
                             result += self.final_tally(v2, name)
         return result
 
+    def tally_by_precinct_and_mode_hack(self, cvr):
+        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
+        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        quar = quar1.union(quar2)
+
+        result = ""
+        result += self.final_tally(cvr, name="TOTAL")
+
+        if True:
+            def groupby(lst, attr):
+                res = {}
+                for a in lst:
+                    if attr == 'precinct':
+                        thisattr = a[0].split("/")[-1].split("_")[1]
+                    elif attr == 'mode':
+                        thisattr = a[0].split("/")[-1].split("_")[0]
+                    if thisattr not in res: res[thisattr] = []
+                    res[thisattr].append(a)
+                return res
+    
+            if True:
+                ht = groupby(cvr, 'precinct')
+                for k,v in ht.items():
+                    result += self.final_tally(v, name="Precinct: "+k)
+                    if True:
+                        ht2 = groupby(v, 'mode')
+                        for k2,v2 in ht2.items():
+                            name = "Precinct, Mode: "+k+", "+k2
+                            result += self.final_tally(v2, name)
+        return result
+
+
     def tally_by_batch(self, cvr):
         """Tallies by batches rooted at voted/ directory.
         e.g. /000, /000/Absentee, etc.
@@ -377,7 +439,10 @@ class ResultsPanel(ScrolledPanel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths = [x[0] for x in os.walk(self.proj.samplesdir)]
+        sampledirs_lvl1 = [x[0] for x in os.walk(self.proj.samplesdir)]
+        util.sort_nicely(sampledirs_lvl1)
+        
+        batch_paths = sampledirs_lvl1
         batch_paths = batch_paths[1:]
 
         def dircontains(parent, path):

@@ -95,12 +95,15 @@ class GroupingMasterPanel(wx.Panel):
         self.run_grouping.Show()
         self.run_grouping.start()
 
-    def grouping_done(self, groups):
+    def grouping_done(self, groups, do_replacedigits=False):
         """
         If groups is not None, then it means we ran grouping
         computation.
         If groups is None, then we skipped it, so we should
         load in the previous verify-grouping state.
+        If do_replacedigits is True, then we only ran digitgrouping, so,
+        there must be verifyoverlay state already, and, we just have to
+        replace all GroupClass 'digit' things with stuff in digitgroups.
         """
         def get_example_digit(dir):
             for dirpath, dirnames, filenames in os.walk(dir):
@@ -166,6 +169,9 @@ class GroupingMasterPanel(wx.Panel):
             verifyoverlay_stateP = pathjoin(self.project.projdir_path,
                                             'verifygroupstate.p')
             if not os.path.exists(verifyoverlay_stateP):
+                # If grouping computation completes, but the VerifyOverlay
+                # UI Crashes, and doesn't save its statefile, then
+                # regenerate the state required for the UI.
                 dlg = wx.MessageDialog(self, message="Note: No \
 VerifyOverlay state file detected ({0}) - starting from the \
 beginning..".format(verifyoverlay_stateP),
@@ -174,9 +180,6 @@ beginning..".format(verifyoverlay_stateP),
                 dlg.ShowModal()
                 self.Enable()
 
-                # If grouping computation completes, but the VerifyOverlay
-                # UI Crashes, and doesn't save its statefile, then
-                # regenerate the state required for the UI.
                 groups = to_groupclasses(self.project)
                 digitgroup_results = digit_group.load_digitgroup_results(self.project)
                 groups.extend(digit_group.to_groupclasses_digits(self.project, digitgroup_results))
@@ -195,7 +198,12 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             self.Enable()
                 
             #self.verify_grouping.start(groups, patches, exemplar_paths)
-            self.verify_grouping.load_state()
+            if do_replacedigits:
+                digitgroup_results = digit_group.load_digitgroup_results(self.project)
+                digitgroups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
+                self.verify_grouping.load_state(replacedigits=True, digitgroups=digitgroups)
+            else:
+                self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
             self.verify_grouping.project = self.project
             self.verify_grouping.ondone = self.verifying_done
@@ -375,11 +383,13 @@ class RunGroupingPanel(wx.Panel):
         self.run_button.Bind(wx.EVT_BUTTON, self.onButton_run)
         self.rerun_button = wx.Button(self, label="Re-run Grouping")
         self.rerun_button.Bind(wx.EVT_BUTTON, self.onButton_rerun)
+        self.run_digitgroup_button = wx.Button(self, label="Re-run Digit Grouping Only.")
+        self.run_digitgroup_button.Bind(wx.EVT_BUTTON, self.onButton_rundigitgroup)
         self.continue_button = wx.Button(self, label="Continue Correcting Grouping")
         self.continue_button.Bind(wx.EVT_BUTTON, self.onButton_continue)
         
         self.sizer.AddMany(([self.run_button, self.rerun_button, 
-                             self.continue_button]))
+                             self.continue_button, self.run_digitgroup_button]))
 
         self.SetSizer(self.sizer)
         
@@ -391,6 +401,7 @@ class RunGroupingPanel(wx.Panel):
             self.run_button.Hide()
         else:
             self.rerun_button.Hide()
+            self.run_digitgroup_button.Hide()
             self.continue_button.Hide()
         # Load in all attribute patch regions
         self.importPatches()
@@ -447,37 +458,7 @@ class RunGroupingPanel(wx.Panel):
 
         # munge patches into format that groupImagesMAP wants
         all_attrtypes = common.get_attrtypes(self.project)
-        def munge_patches(patches, attrtypes, project):
-            """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
-            to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
-            """
-            result = {}
-            digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
-            # patches won't have digit-based attributes
-            for temppath, patchtriple in patches.iteritems():
-                for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
-                    for attrtype in attrtypes:
-                        if common.get_propval(grouplabel, attrtype):
-                            attrval = common.get_propval(grouplabel, attrtype)
-                            result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
-            # Handle digit-based attributes
-            for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
-                w_img, h_img = project.imgsize
-                if attrdict['is_digitbased']:
-                    # TODO: digitbased assumes that each attr patch has only
-                    # one attribute. Not sure if the non-digitbased
-                    # correctly-handles multi-attribute pathces.
-                    for attrtype in attrtypes:
-                        if attrtype in attrdict['attrs']:
-                            if attrtype not in digitsresult:
-                                # Only add attrtype once into digitsresult
-                                bb = [int(round(attrdict['y1']*h_img)),
-                                      int(round(attrdict['y2']*h_img)),
-                                      int(round(attrdict['x1']*w_img)),
-                                      int(round(attrdict['x2']*w_img))]
-                                digitsresult[attrtype] = (bb, attrdict['side'])
-            return result, digitsresult
-        munged,digitmunged = munge_patches(self.patches, all_attrtypes, self.project)
+        munged,digitmunged = munge_patches_grouping(self.patches, all_attrtypes, self.project)
         print "== calling groupImagesMAP..."
         groupImagesMAP(bal2imgs,
                        tpl2imgs,
@@ -489,12 +470,44 @@ class RunGroupingPanel(wx.Panel):
                        deleteall=deleteall)
         print "== finished groupImagesMAP"
         if digitmunged:
-            print "== Performing DigitOCR..."
-            digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
-            print "== Finished DigitOCR."
-            digit_group.save_digitgroup_results(self.project, digitgroup_results)
-            digit_group.save_digitmatch_info(self.project, digitmatch_info)
+            self.run_digit_grouping(digitmunged=digitmunged)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+
+    def onButton_rundigitgroup(self, evt):
+        dlg = wx.MessageDialog(self, message="This will re-run Digit \
+Grouping completely, which means you will lose all progress on \
+Digit-Related Attributes. However, you will keep your progress on \
+other Attributes (i.e. non Digit-related Attributes).\n\n\
+Are you sure you want to proceed?",
+                               style=wx.YES_NO | wx.NO_DEFAULT)
+        status = dlg.ShowModal()
+        if status == wx.ID_YES:
+            print "YES"
+            self.run_digit_grouping()
+            self.parent.grouping_done(None, do_replacedigits=True)
+        else:
+            print "NO"
+
+    def run_digit_grouping(self, digitmunged=None):
+        # Remember to remove all files
+        rdir = self.project.projdir_path
+        p = self.project
+        util_gui.remove_files(pathjoin(rdir,
+                                       p.accepted_hashes),
+                              pathjoin(rdir, p.rejected_hashes),
+                              pathjoin(rdir, p.digitgroup_results),
+                              pathjoin(rdir, p.digitmatch_info))
+        all_attrtypes = common.get_attrtypes(self.project)
+        if digitmunged == None:
+            _, digitmunged = munge_patches_grouping(self.patches, all_attrtypes, self.project)
+        bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
+        print "== Performing DigitOCR..."
+        t = time.time()
+        digitgroup_results, digitmatch_info = digit_group.do_digitocr_patches(bal2imgs, digitmunged, self.project)
+        dur = time.time() - t
+        print "== Finished DigitOCR ({0} s).".format(dur)
+        digit_group.save_digitgroup_results(self.project, digitgroup_results)
+        digit_group.save_digitmatch_info(self.project, digitmatch_info)
 
     def start_grouping(self):
         """ Creates the separate Thread that spawns the grouping
@@ -863,6 +876,38 @@ def add_customattrs_info_voted(proj, results_foo):
                 attrval = cust_attrs.custattr_apply_filename(cattr, filename)
                 attrdict[cattr.attrname] = (attrval, 0, 0) # flip,imgorder irrelevant
     return results_foo
+
+def munge_patches_grouping(patches, attrtypes, project):
+    """ Converts {str templatepath: ((y1,y2,x1,x2),grouplabel,side, is_digitbased,is_tabulationonly}
+    to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
+    """
+    result = {}
+    digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
+    # patches won't have digit-based attributes
+    for temppath, patchtriple in patches.iteritems():
+        for (bb, grouplabel, side, is_digitbased, is_tabulationonly) in patchtriple:
+            for attrtype in attrtypes:
+                if common.get_propval(grouplabel, attrtype):
+                    attrval = common.get_propval(grouplabel, attrtype)
+                    result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
+    # Handle digit-based attributes
+    for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
+        w_img, h_img = project.imgsize
+        if attrdict['is_digitbased']:
+            # TODO: digitbased assumes that each attr patch has only
+            # one attribute. Not sure if the non-digitbased
+            # correctly-handles multi-attribute pathces.
+            for attrtype in attrtypes:
+                if attrtype in attrdict['attrs']:
+                    if attrtype not in digitsresult:
+                        # Only add attrtype once into digitsresult
+                        bb = [int(round(attrdict['y1']*h_img)),
+                              int(round(attrdict['y2']*h_img)),
+                              int(round(attrdict['x1']*w_img)),
+                              int(round(attrdict['x2']*w_img))]
+                        digitsresult[attrtype] = (bb, attrdict['side'])
+    return result, digitsresult
+
 
 def determine_template(sample_attrs, template_attrs, samplepath, project):
     """

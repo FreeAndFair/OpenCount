@@ -7,7 +7,7 @@ from util import MyGauge
 from specify_voting_targets import util_gui as util_gui
 from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
-import util, common, partmatch_fns, digit_group
+import util, common, partmatch_fns, digit_group, label_imgs
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
@@ -175,7 +175,7 @@ class VerifyPanel(wx.Panel):
         # 'Ok', for a voted ballot B
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
-        self._misclassify_history = {} # maps {str votedpath: int count}
+        self._misclassify_history = {} # maps {str ballotid: int count}
         
         self.accepted_hashes = None
         self.rejected_hashes = None
@@ -334,9 +334,14 @@ class VerifyPanel(wx.Panel):
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
         self.misclassify_txt = wx.StaticText(self.mainPanel, label="Mismatches \
 in queue: 0")
+        self.manuallabelallButton =  wx.Button(self.mainPanel, label="Label All Manually...")
+        self.manuallabelallButton.Bind(wx.EVT_BUTTON, self.OnClickManualLabelAll)
         misclassify_sizer.Add(self.misclassifyButton)
         misclassify_sizer.Add((20, 20))
         misclassify_sizer.Add(self.misclassify_txt)
+        misclassify_sizer.Add((20, 20))
+        misclassify_sizer.Add(self.manuallabelallButton)
+
         digitgroup_sizer = wx.BoxSizer(wx.VERTICAL)
         self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
         self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
@@ -437,6 +442,7 @@ in queue: 0")
             self.forcedigitgroupButton.Hide()
             self.saveCheckpointButton.Hide()
             self.loadCheckpointButton.Hide()
+            self.manuallabelallButton.Hide()
         elif self.mode == VerifyPanel.MODE_YESNO2:
             self.okayButton.Hide()
             self.no_button.Hide()
@@ -452,6 +458,7 @@ in queue: 0")
             self.forcedigitgroupButton.Hide()
             self.saveCheckpointButton.Hide()
             self.loadCheckpointButton.Hide()
+            self.manuallabelallButton.Hide()
 
         self.mainPanel.SetSizer(hbox7)
         self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
@@ -524,7 +531,7 @@ in queue: 0")
             pickle.dump(statedict, fqueue)
             print "...Finished Dumping statedict."
         
-    def load_state(self):
+    def load_state(self, replacedigits=False, digitgroups=None):
         # TODO: Move the 'verifygroupstate' to the Project class, to 
         #       consolidate all output files into Project.
         if os.path.exists(pathjoin(self.project.projdir_path, 'verifygroupstate.p')):
@@ -556,6 +563,9 @@ in queue: 0")
 
                 # 0.) First, clear all my internal state
                 self.reset_state()
+
+                img2bal = pickle.load(open(self.project.image_to_ballot, 'rb'))
+
                 todo.reverse() # to not reverse groups in UI
                 for group in todo: 
                     # TODO: Code that handles legacy GroupClass instances
@@ -564,6 +574,9 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
                     # TODO: Discard user_Data for now.
@@ -573,10 +586,22 @@ in queue: 0")
                     if not hasattr(group, 'is_misclassify'):
                         # This is the legacy part
                         group.is_misclassify = False
+                    elif replacedigits and type(group) == common.DigitGroupClass:
+                        # Skip previous DigitGroupClasses
+                        continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
-                    # TODO: Discard user_data for now.
-                    group.user_data = None
+                        for element in group.elements:
+                            balid = img2bal[element[0]]
+                            if balid not in self._misclassify_history:
+                                self._misclassify_history[balid] = 1
+                            else:
+                                self._misclassify_history[balid] += 1
+                if replacedigits:
+                    # Add in new DigitGroups
+                    assert digitgroups != None
+                    for g in digitgroups:
+                        self.add_group(g)
                 self.finished = finished
             except Exception as e:
                 # If you can't read in the state file, then just don't
@@ -1252,6 +1277,55 @@ OpenCount claims you're 'done'. Uh oh."
         else:
             self.select_group(self.queue[0])
 
+    def OnClickManualLabelAll(self, evt):
+        if common.get_propval(self.currentGroup.orderedAttrVals[0], 'digit') != None:
+            dlg = wx.MessageDialog(self, message="Manually Labeling Digit \
+Patches isn't supported right now, sorry.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+            
+        dlg = wx.MessageDialog(self, message="Are you sure you want to \
+manually label everything in the current group?",
+                               style=wx.YES_NO | wx.NO_DEFAULT)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        if status == wx.ID_NO:
+            return
+        self.Disable()
+        dlg = ManualLabelDialog(self, self.currentGroup, self.project)
+        status = dlg.ShowModal()
+        self.Enable()
+        if status == ManualLabelDialog.ID_CANCEL:
+            return
+        for group, (final_idx, val) in dlg.results:
+            if final_idx == None:
+                print "== Uhoh, quarantining this group."
+                self.quarantine_group(group, doremove=False) # doremove=False since group was never in self.queue
+            else:
+                self.add_finalize_group(group, final_idx)
+        self.remove_group(self.currentGroup)
+
+        if self.is_done_verifying():
+            self.currentGroup = None
+            self.done_verifying()
+        elif len(self.queue) == 0:
+            if self._mismatch_cnt != 0:
+                msg = "It looks like you have {0} 'Mis-matched' things in \
+the queue. Please click the 'Run Digit Grouping' to make more progress.".format(self._mismatch_cnt)
+            else:
+                msg = "I'm confused. There are no more overlays, but \
+OpenCount claims you're 'done'. Uh oh."
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+        else:
+            self.select_group(self.queue[0])
+
+
     def is_done_verifying(self):
         """ Return True iff overlay verification is complete. False o.w. """
         if not self.queue and self._mismatch_cnt == 0:
@@ -1344,8 +1418,29 @@ finished! Press 'Ok', then you may continue to the next step.",
                     break
                 i += 1
             return group
-            
-        newGroups = self.currentGroup.split()
+        
+        # TEMP: Hack for Marin, to allow Andy to at least keep progressing
+        # on overly verification.
+        dlg = ChooseSplitModeDialog(self)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        themode = None
+        if status == wx.ID_CANCEL:
+            return
+        elif status == ChooseSplitModeDialog.ID_RANKEDLIST:
+            themode = 'rankedlist'
+        elif status == ChooseSplitModeDialog.ID_KMEANS:
+            themode = 'kmeans'
+        elif status == ChooseSplitModeDialog.ID_PCA_KMEANS:
+            themode = 'pca_kmeans'
+        else:
+            dlg = wx.MessageDialog(self, message="Unrecognized split mode.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        newGroups = self.currentGroup.split(mode=themode)
 
         if self.mode == VerifyPanel.MODE_YESNO2:
             # For each new group, make sure each GroupClass with a 
@@ -1416,7 +1511,7 @@ elements num. is {1}".format(oldcount, newcount)
             for element in elements:
                 print element[0]
             
-    def quarantine_group(self, group):
+    def quarantine_group(self, group, doremove=True):
         """
         Quarantines group.
         """
@@ -1425,7 +1520,8 @@ elements num. is {1}".format(oldcount, newcount)
         for element in elements:
             print >>qfile, os.path.abspath(element[0])
         qfile.close()
-        self.remove_group(group)
+        if doremove:
+            self.remove_group(group)
         
     def OnClickQuarantine(self, event):
         if (self.currentGroup != None):
@@ -1562,4 +1658,110 @@ ballots, choose 'Brute Yes'."
         self.EndModal(self.ID_SMARTFORCE)
     def onButton_bruteforce(self, evt):
         self.EndModal(self.ID_BRUTEFORCE)
+
+class ManualLabelDialog(wx.Dialog):
+    ID_DONE = 42
+    ID_CANCEL = 43
+
+    def __init__(self, parent, group, proj, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, 
+                           style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+                           *args, **kwargs)
+        self.parent = parent
+        self.group = group
+        self.proj = proj
+        self.results = None # list of [(GroupClass_i, int final_idx), ...]
+        self.map = {} # maps {str patchpath: 
+
+        self.Maximize()
+        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.labelpanel = label_imgs.LabelPanel(self)
+        btn_cancel = wx.Button(self, label="Cancel.")
+        btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(ManualLabelDialog.ID_CANCEL))
+
+        sizer.Add(self.labelpanel, proportion=1, flag=wx.EXPAND)
+        sizer.Add(btn_cancel, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+
+        self.attrtype = None
+        for (imgpath, rlist, patchpath) in group.elements:
+            elements = ((imgpath,rlist,patchpath),)
+            if type(group) == common.GroupClass:
+                self.map[patchpath] = common.GroupClass(elements)
+            elif type(group) == common.DigitGroupClass:
+                self.map[patchpath] = common.DigitGroupClass(elements)
+
+            if self.attrtype == None:
+                # Infer which attribute type this GroupClass is for.
+                bestguess = group.orderedAttrVals[0]
+                self.attrtype, attrval = common.get_attrpair_grouplabel(self.proj, bestguess)
+
+        self.possible_attrvals = common.get_attrtype_possiblevals(self.proj, self.attrtype)
+            
+        self.imageslist = [el[2] for el in group.elements]
+        self.labelpanel.start(self.imageslist, callback=self.done, possibles=self.possible_attrvals)
+
+    def done(self, imagelabels):
+        """
+        Input:
+            dict imagelabels: maps {str imgpath: str label}
+        """
+        attrtypes = common.get_attrtypes(self.proj, with_digits=True)
+        print "MOO"
+        self.results = []
+        for patchpath, label in imagelabels.iteritems():
+            groupclass = self.map[patchpath]
+            final_idx = None
+            for i, rlabel in enumerate(groupclass.elements[0][1]):  # [0][1] -> rlist
+                attrtype, attrval = common.get_attrpair_grouplabel(self.proj, rlabel)
+                if self.attrtype != attrtype:
+                    print "Uhoh, inconsistent attrtypes."
+                    pdb.set_trace()
+                assert self.attrtype == attrtype
+                if label == attrval:
+                    final_idx = i
+                    break
+            if final_idx == None:
+                print "Uhoh, couldn't find final_idx for label {0}".format(label)
+                self.results.append((groupclass, None))
+                pdb.set_trace()
+            else:
+                self.results.append((groupclass, (final_idx, label)))
+        self.EndModal(ManualLabelDialog.ID_DONE)
+    
+class ChooseSplitModeDialog(wx.Dialog):
+    ID_RANKEDLIST = 42
+    ID_KMEANS = 43
+    ID_PCA_KMEANS = 44
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        txt = wx.StaticText(self, label="Please choose the desired 'Split' method.")
+
+        self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)', style=wx.RB_GROUP)
+        self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
+        self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Ok")
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
+        
+        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+
+        sizer.AddMany([(txt,), ((20,20),), (self.rankedlist_rbtn,), (self.kmeans_rbtn,), (self.pca_kmeans_rbtn,)])
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+
+        self.SetSizer(sizer)
+        self.Fit()
+
+    def onButton_ok(self, evt):
+        if self.rankedlist_rbtn.GetValue():
+            self.EndModal(self.ID_RANKEDLIST)
+        elif self.kmeans_rbtn.GetValue():
+            self.EndModal(self.ID_KMEANS)
+        else:
+            self.EndModal(self.ID_PCA_KMEANS)
 

@@ -17,6 +17,7 @@ import util
 import verify_overlays
 import group_attrs
 import partask
+import label_imgs
 
 DUMMY_ROW_ID = -42
 
@@ -34,11 +35,6 @@ class GroupAttributesThread(threading.Thread):
         _t0 = time.time()
         attrgroups = group_attrs.group_attributes_V2(self.project)
         print "...Finished Grouping Ballot Attributes ({0} s).".format(time.time() - _t0)
-        #groups = group_attrs.group_attributes(self.attrdata, self.project.imgsize,
-        #                                      self.project.projdir_path,
-        #                                      self.project.template_to_images,
-        #                                      self.project,
-        #                                      job_id=self.job_id)
         print "...converting attrgroups to groupclasses."
         _t = time.time()
         groups = clusters_to_groupclasses(self.project, attrgroups)
@@ -86,8 +82,6 @@ def clusters_to_groupclasses(proj, attrgroups):
                                      "{0}_{1}.png".format(imgname_noext, attrtype))
                 blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchpath
                 invblank2attrpatch[patchpath] = (imgpath, attrtype)
-                #patchpath = os.path.join(patchrootDir,
-                #                         util.encodepath(relpath)) + '.png'
                 extract_tasks.append((imgpath, patchpath, bb))
                 grouplabel = common.make_grouplabel((attrtype, i))
                 elements.append((imgpath, (grouplabel,), patchpath))
@@ -238,6 +232,9 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.parent = parent
         self.project = None
 
+        # True if self.start() has been called on me.
+        self.has_started = False
+
         # mapping, inv_mapping contain information about every image
         # patch that the user will manually label.
         self.mapping = None # maps {imgpath: {str attrtypestr: str patchPath}}
@@ -254,7 +251,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        self.labelpanel = LabelPanel(self)
+        self.labelpanel = label_imgs.LabelPanel(self)
         self.sizer.Add(self.labelpanel, proportion=1, flag=wx.EXPAND)
 
     def start(self, project, groupresults=None):
@@ -264,6 +261,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             dict groupresults: maps {grouplabel: List of GroupClass objects}
         """
         self.project = project
+        self.has_started = True
         if groupresults == None:
             # We are manually labeling everything
             self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
@@ -273,7 +271,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
         statefilepath = pathjoin(self.project.projdir_path,
-                                 LabelPanel.STATE_FILE)
+                                 self.project.labelpanel_state)
         # 'sort' patchpaths by attribute type
         patchpaths = get_ordered_patchpaths(self.inv_mapping)
         if not self.labelpanel.restore_session(statefile=statefilepath):
@@ -357,7 +355,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             # election.
             return
         self.labelpanel.save_session(statefile=pathjoin(self.project.projdir_path,
-                                                        LabelPanel.STATE_FILE))
+                                                        self.project.labelpanel_state))
 
     def cluster_attr_patches(self, outdir):
         """ After the user has manually labeled every attribute patch
@@ -372,14 +370,15 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         blankpatches = {} # maps {attrtype: {attrval: (patchpath_i, ...)}}
         patchlabels = self.labelpanel.imagelabels
         attrs = pickle.load(open(self.project.ballot_attributesfile, 'rb'))
+        if not common.exists_imgattrs(self.project):
+            print "No img-based attributes to cluster, exiting."
+            return
         w_img, h_img = self.project.imgsize
 
         for patchPath, label in patchlabels.iteritems():
             imgpath, attrtypestr = self.inv_mapping[patchPath]
             blankpatches.setdefault(attrtypestr, {}).setdefault(label, []).append(patchPath)
             
-        # TODO: Call group_attrs.cluster_bkgd on /all/ blank ballots,
-        #       not just attribute exemplars.
         # blank attribute patches are stored in:
         #   <projdir>/extract_attrs_templates/*
         blank2attrpatchP = pathjoin(self.project.projdir_path,
@@ -461,7 +460,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         all patchpath->label mappings to one .csv file, we want to save
         the blankballotpath->(attr labels) to multiple .csv files.
         """
-        if self.project == None:
+        if not self.has_started:
             # self.start was never called, so don't proceed. This could
             # happen if, say, this election has no Img-based attrs.
             return
@@ -518,290 +517,6 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def checkCanMoveOn(self):
         """ Return True if the user can move on, False otherwise. """
         return True
-
-class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
-    """
-    A panel that allows you to, given a set of images I, give a text
-    label to each image. Outputs to an output file.
-    """
-    STATE_FILE = '_labelpanelstate.p'
-
-    def __init__(self, parent, *args, **kwargs):
-        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
-        
-        # self.imagelabels keeps track of the labels that the user has
-        # given to each image.
-        self.imagelabels = {}   # maps {imagepath: str label}
-
-        # self.imagecaptions keeps track of the caption that the UI 
-        # should display to the user.
-        self.imagecaptions = {} # maps {imagepath: str caption}
-
-        # self.captionlabels keeps track of all labels given to a
-        # specific caption.
-        self.captionlabels = {} # maps {str caption: (str label_i, ...)}
-
-        self.imagepaths = []  # ordered list of imagepaths
-        self.cur_imgidx = 0  # which image we're currently at
-
-        self.outpath = 'labelpanelout.csv'
-
-        self._init_ui()
-
-    def _init_ui(self):
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.SetSizer(self.sizer)
-
-        self.sizer2 = wx.BoxSizer(wx.HORIZONTAL)
-        self.imgpatch = wx.StaticBitmap(self)
-
-        labeltxt = wx.StaticText(self, label='Label:')
-        self.inputctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
-        self.inputctrl.Bind(wx.EVT_TEXT_ENTER, self.onInputEnter, self.inputctrl)
-        nextbtn = wx.Button(self, label="Next")
-        prevbtn = wx.Button(self, label="Previous")
-        nextbtn.Bind(wx.EVT_BUTTON, self.onButton_next)
-        prevbtn.Bind(wx.EVT_BUTTON, self.onButton_prev)
-        inputsizer = wx.BoxSizer(wx.HORIZONTAL)
-        inputsizer.Add(labeltxt)
-        inputsizer.Add(self.inputctrl)
-        self.progress_txt = wx.StaticText(self, label='')
-        sizer3 = wx.BoxSizer(wx.VERTICAL)
-        sizer3.Add(inputsizer)
-        sizer3.Add(nextbtn)
-        sizer3.Add(prevbtn)
-        sizer3.Add(self.progress_txt)
-
-        sizer_img = wx.BoxSizer(wx.VERTICAL)
-        sizer_img.Add(self.imgpatch, proportion=0)
-        self.caption_txt = wx.StaticText(self, label="Foo.")
-        sizer_img.Add(self.caption_txt)
-
-        sizer_lstbox = wx.BoxSizer(wx.VERTICAL)
-        txt_listbox = wx.StaticText(self, label="Previously entered \
-values for this caption...")
-        self.listbox = wx.ListBox(self, choices=[])
-        sizer_lstbox.Add(txt_listbox)
-        sizer_lstbox.Add(self.listbox)
-
-        self.sizer2.Add(sizer_img)
-        self.sizer2.Add((40, 40))
-        self.sizer2.Add(sizer3, proportion=0)
-        self.sizer2.Add((40, 40))
-        self.sizer2.Add(sizer_lstbox)
-        
-        self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
-
-    def update_caption_txt(self, imgidx):
-        """ Updates the self.caption_txt StaticText widget. """
-        if imgidx >= len(self.imagepaths):
-            print "Uh oh, imgidx out of range."
-            print "== Press 'c' to continue."
-            pdb.set_trace()
-            return
-        imgpath = self.imagepaths[imgidx]
-        if imgpath in self.imagecaptions:
-            caption = self.imagecaptions[imgpath]
-            self.caption_txt.SetLabel("Caption: {0}.".format(caption))
-
-    def update_listbox(self, imgidx):
-        """ Updates the self.listbox ListBox widget, and displays all
-        previously-entered labels that have the same caption.
-        """
-        if imgidx >= len(self.imagepaths):
-            print "Uh oh, imgidx out of range."
-            print "== Press 'c' to continue."
-            pdb.set_trace()
-            return
-        imgpath = self.imagepaths[imgidx]
-        if imgpath in self.imagecaptions:
-            caption = self.imagecaptions[imgpath]
-            labels = self.captionlabels.get(caption, None)
-            if labels == None:
-                self.listbox.SetItems([])
-                return
-            self.listbox.SetItems(list(labels))
-        else:
-            self.listbox.SetItems([])
-
-    def add_label(self, imgpath, label):
-        """ Adds the 'label' for the given image by updating internal
-        data structures. 
-        """
-        self.imagelabels[imgpath] = label
-        caption = self.imagecaptions.get(imgpath, None)
-        if caption != None:
-            self.captionlabels.setdefault(caption, set()).add(label)
-
-    def onInputEnter(self, evt):
-        """ Triggered when the user hits 'enter' when inputting text.
-        """
-        curimgpath = self.imagepaths[self.cur_imgidx]
-        cur_val = self.inputctrl.GetValue()
-        self.add_label(curimgpath, cur_val)
-        if (self.cur_imgidx+1) >= len(self.imagepaths):
-            return
-        self.display_img(self.cur_imgidx + 1)
-
-    def onButton_next(self, evt):
-        if (self.cur_imgidx+1) >= len(self.imagepaths):
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            self.add_label(curimgpath, cur_val)
-            return
-        else:
-            self.display_img(self.cur_imgidx + 1)
-            
-    def onButton_prev(self, evt):
-        if self.cur_imgidx <= 0:
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            self.add_label(curimgpath, cur_val)
-            return
-        else:
-            self.display_img(self.cur_imgidx - 1)
-
-    def reset(self):
-        """ Resets my state to a 'clean' slate. """
-        # TODO: Reset UI also.
-        self.imagelabels = {}
-        self.imagepaths = []
-        self.imagecaptions = {}
-        self.captionlabels = {}
-        self.cur_imgidx = 0
-
-    def start(self, imageslist, captions=None, outfile='labelpanelout.csv'):
-        """Given a dict of imagepaths to label, set up the UI, and
-        allow the user to start labeling things. This will reset all
-        state to be a 'clean slate'.
-        Input:
-            lst imageslist: list of image paths
-            dict captions: A dict mapping {str imgpath: str caption}.
-                           If you want to display some caption for an
-                           image to the user, provide it here.
-            outfile: Output file to write results to.
-        """
-        captions = captions if captions != None else {}
-        self.reset()
-        for imgpath in imageslist:
-            if imgpath in self.imagelabels:
-                print "Uhoh, imgpath was already in self.imagelabels. \
-Implies that imgpath is present in imageslist more than once."
-                print "    imgpath is:", imgpath
-                print "    self.imagelabels[imgpath] is:", self.imagelabels[imgpath]
-                pdb.set_trace()
-            if imgpath in self.imagepaths:
-                print "Uhoh, imgpath was already self.imagepaths. \
-Implies that imgpath is present in imageslist more than once."
-                print "    imgpath is:", imgpath
-                pdb.set_trace()
-            assert imgpath not in self.imagelabels
-            assert imgpath not in self.imagepaths
-            self.imagelabels[imgpath] = ''
-            self.imagepaths.append(imgpath)
-            caption = captions.get(imgpath, "An Image.")
-            self.imagecaptions[imgpath] = caption
-
-        self.cur_imgidx = 0
-        self.display_img(self.cur_imgidx)
-
-        #self.SetClientSize(self.parent.GetClientSize())
-        self.SetupScrolling()
-        self.SendSizeEvent()
-
-    def restore_session(self, statefile=None):
-        """ Tries to restore the state of a previous session. If this
-        fails (say, the internal state file was deleted), then this
-        will return False. If this happens, then you should just call
-        self.start().
-        """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
-        if not os.path.exists(statefile):
-            return False
-        state = pickle.load(open(statefile, 'rb'))
-        imagelabels = state['imagelabels']
-        imagepaths = state['imagepaths']
-
-        ## TODO: Legacy-handling code follows.
-        if 'imagecaptions' not in state:
-            state['imagecaptions'] = {}
-        if 'captionlabels' not in state:
-            state['captionlabels'] = {}
-        # END Legacy-handling code.
-
-        self.imagelabels = imagelabels
-        self.imagepaths = imagepaths
-        self.imagecaptions = state['imagecaptions']
-        self.captionlabels = state['captionlabels']
-        self.cur_imgidx = 0
-        self.display_img(self.cur_imgidx, no_overwrite=True)
-        #self.SetClientSize(self.parent.GetClientSize())
-        self.SetupScrolling()
-        self.SendSizeEvent()
-        #self.Fit()
-        return True
-
-    def save_session(self, statefile=None):
-        """ Saves the current state of the current session. """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
-        # Remember to store the currently-displayed label
-        curimgpath = self.imagepaths[self.cur_imgidx]
-        cur_label = self.inputctrl.GetValue()
-        self.imagelabels[curimgpath] = cur_label
-        state = {}
-        state['imagelabels'] = self.imagelabels
-        state['imagepaths'] = self.imagepaths
-        state['imagecaptions'] = self.imagecaptions
-        state['captionlabels'] = self.captionlabels
-        f = open(statefile, 'wb')
-        pickle.dump(state, f)
-        f.close()
-
-    def display_img(self, idx, no_overwrite=False):
-        """Displays the image at idx, and allow the user to start labeling
-        it. Also updates the progress_txt.
-        Input:
-            int idx: Idx into self.imagepaths of the image to display.
-            bool no_overwrite: If True, then this will /not/ store the
-                current text in the text input (self.inputctrl) into
-                our internal data structures (self.imagelabels). This
-                is useful (albeit a bit of a hack) within
-                self.restore_session().
-        """
-        if not (idx < len(self.imagepaths)):
-            pdb.set_trace()
-        assert idx < len(self.imagepaths)
-        if not no_overwrite:
-            # First, store current input into our dict
-            old_imgpath = self.imagepaths[self.cur_imgidx]
-            cur_input = self.inputctrl.GetValue()
-            self.imagelabels[old_imgpath] = cur_input
-
-        self.cur_imgidx = idx
-        imgpath = self.imagepaths[self.cur_imgidx]
-        bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
-        self.imgpatch.SetBitmap(bitmap)
-        self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
-                                                                             len(self.imagepaths)))
-        self.inputctrl.SetValue(self.imagelabels[imgpath])
-        self.update_caption_txt(self.cur_imgidx)
-        self.update_listbox(self.cur_imgidx)
-        #self.Fit()
-        self.SetupScrolling()
-        
-    def export_labels(self):
-        """ Exports all labels to an output csvfile. """
-        f = open(self.outpath, 'w')
-        header = ('imgpath', 'label')
-        dictwriter = csv.DictWriter(f, header)
-        util_gui._dictwriter_writeheader(f, header)
-        for imgpath, label in self.imagelabels.iteritems():
-            row = {'imgpath': imgpath, 'label': label}
-            dictwriter.write_row(row)
-        f.close()
 
 def do_extract_attr_patches(proj):
     """Extract all attribute patches from all blank ballots into

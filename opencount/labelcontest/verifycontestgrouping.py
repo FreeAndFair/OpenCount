@@ -1,5 +1,5 @@
 import wx
-import sys
+import sys, pdb
 from PIL import Image
 import os
 
@@ -8,8 +8,8 @@ from util import pil2wxb
 
 
 class VerifyContestGrouping(wx.Panel):
-    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups=None):
-        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, processgroups)
+    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
+        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
         wx.Panel.__init__(self, parent, wx.ID_ANY)
         self.frame = parent
         self.callback = callback
@@ -56,10 +56,7 @@ class VerifyContestGrouping(wx.Panel):
 
         self.group_index = 0
         self.is_valid = {}
-        if processgroups == None:
-            self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
-        else:
-            self.processgroups = processgroups
+        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
         self.compareimage = None
         self.testimage = None
 
@@ -103,6 +100,10 @@ class VerifyContestGrouping(wx.Panel):
             print 'bbdir', boundingboxdirs
             order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
             images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
+            # TODO: Figure out if I need to update this code.
+            # Do I need a sort_nicely call somewhere? For Marin,
+            # I'm OK, since there aren't more than 1000 blank ballots.
+
             print 'im1', images
             images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
             print 'im2', images

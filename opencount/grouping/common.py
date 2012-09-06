@@ -246,20 +246,19 @@ def dump_iworldstate(iworld, filepath):
 def resize_img_norescale(img, size):
     """ Resizes img to be a given size without rescaling - it only
     pads/crops if necessary.
+    Input:
+        obj img: a numpy array
+        tuple size: (w,h)
+    Output:
+        A numpy array with shape (h,w)
     """
-    w, h = size
-    newimg = np.zeros((h,w), dtype='float32')
-    h_img, w_img = img.shape
-    if w_img > w:
-        w_new = w
-    else:
-        w_new = w_img
-    if h_img > h:
-        h_new = h
-    else:
-        h_new = h_img
-    newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
-    return newimg
+    w,h = size
+    shape = (h,w)
+    out = np.zeros(shape)
+    i = min(img.shape[0], out.shape[0])
+    j = min(img.shape[1], out.shape[1])
+    out[0:i,0:j] = img[0:i, 0:j]
+    return out
 
 def get_attrtypes(project, with_digits=True):
     """
@@ -356,6 +355,35 @@ def is_quarantined(project, path):
                 return True
     f.close()
     return False
+
+def get_attrtype_possiblevals(proj, attrtype):
+    """ Returns the possible-values a given attrtype can take (i.e.
+    for attrtype 'party', this should return something like
+    ('democratic', 'republican', etc.).
+    Input:
+        obj proj
+        str attrtype:
+    Output:
+        list [str attrval_i, ...]
+    """
+    attrvals = []
+    if not is_digitbased(proj, attrtype):
+        for dirpath, dirnames, filenames in os.walk(proj.patch_loc_dir):
+            for csvname in [f for f in filenames if f.lower().endswith('.csv')]:
+                f = open(os.path.join(dirpath, csvname), 'rb')
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row['attr_type'] == attrtype:
+                        attrvals.append(row['attr_val'])
+    else:
+        for dirname in os.listdir(os.path.join(proj.projdir_path,
+                                               proj.digit_exemplars_outdir)):
+            digit = dirname.split("_")[0]
+            attrvals.append(digit)
+    if not attrvals:
+        print "Uhoh, couldn't find any attrvals for attrtype:", attrtype
+        pdb.set_trace()
+    return attrvals
 
 def get_attrpair_grouplabel(project, grouplabel):
     """ Given a grouplabel, return both the attrtype of the grouplabel
@@ -565,15 +593,53 @@ def str_grouplabel(grouplabel):
     """ Returns a string-representation of the grouplabel. """
     kv_pairs = tuple(grouplabel)
     out = ''
-    for (k, v) in kv_pairs:
+    for (k, v) in sorted(kv_pairs):
         out += '{0}->{1}, '.format(k, v)
     return out
 
-def get_median_img(imgdir):
-    """ Given a directory of images, choose the median image. """
-    # TODO: By choosing the median exemplar image, this might
-    #       improve accuracy (somewhat). Can't hurt.
-    imgs = []
+def get_median_img(imgpaths):
+    """ Given a list of images, return the image with the median average
+    intensity.
+    """
+    scorelist = [] # [(score_i, imgpath_i), ...]
+    for imgpath in imgpaths:
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        scorelist.append((score, imgpath))
+    if not scorelist:
+        print "No imgpaths passed in."
+        return None
+    elif len(scorelist) <= 2:
+        return scorelist[0][1]
+    return scorelist[int(len(scorelist)/2)][1]
+
+def get_avglightest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score > bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
+
+def get_avgdarkest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score < bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
 
 class GroupClass(object):
     """
@@ -753,10 +819,20 @@ not equal."
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
         if len(self.elements) == 2:
-            return (GroupClass((self.elements[0],),
-                               user_data=self.user_data),
-                    GroupClass((self.elements[1],),
-                               user_data=self.user_data))
+            if type(self) == GroupClass:
+                return (GroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        GroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                return (DigitGroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        DigitGroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
@@ -767,7 +843,7 @@ not equal."
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_downsize=True)
         print "...Completed running k-means ({0} s).".format(time.time() - _t)
         # 3.) Create GroupClasses
         groups = []
@@ -776,8 +852,13 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                         user_data=self.user_data))
+                
         assert len(groups) == K
         return groups
 
@@ -792,8 +873,16 @@ not equal."
         if len(self.elements) <= K:
             groups = []
             for element in self.elements:
-                groups.append(GroupClass((element,),
-                                         user_data=self.user_data))
+                if type(self) == GroupClass:
+                    groups.append(GroupClass((element,),
+                                             user_data=self.user_data))
+                elif type(self) == DigitGroupClass:
+                    groups.append(DigitGroupClass((element,),
+                                             user_data=self.user_data))
+                else:
+                    print "Wat?"
+                    pdb.set_trace()
+
             return groups
         # 1.) Gather images
         patchpaths = []
@@ -814,8 +903,16 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+                
         assert len(groups) == K
         return groups
 
@@ -833,8 +930,15 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            groups.append(GroupClass(group1, user_data=self.user_data))
-            groups.append(GroupClass(group2, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(group1, user_data=self.user_data))
+                groups.append(GroupClass(group2, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(group1, user_data=self.user_data))
+                groups.append(DigitGroupClass(group2, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
             return groups
             
         if n == len(all_rankedlists[0]):
@@ -865,11 +969,22 @@ just doing a naive split."
 
         print 'number of new groups after split:', len(new_elements)
         for grouplabel, elements in new_elements.iteritems():
-            groups.append(GroupClass(elements, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
         return groups
         
-    def split(self):
-        return self.split_pca_kmeans(K=2)
+    def split(self, mode='kmeans'):
+        if mode == 'rankedlist':
+            return self.split_rankedlist()
+        elif mode == 'kmeans':
+            return self.split_kmeans(K=2)
+        elif mode == 'pca_kmeans':
+            return self.split_pca_kmeans(K=3)
 
 class DigitGroupClass(GroupClass):
     """
@@ -917,9 +1032,8 @@ class DigitGroupClass(GroupClass):
         return (DigitGroupClass(elements1, user_data=self.user_data),
                 DigitGroupClass(elements2, user_data=self.user_data))
 
-    def split_kmeans(self):
+    def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
-        K = 2
         if len(self.elements) == 2:
             return (DigitGroupClass((self.elements[0],),
                                     user_data=self.user_data),
@@ -949,8 +1063,6 @@ class DigitGroupClass(GroupClass):
         assert len(groups) == K
         return groups
         
-    def split(self):
-        return self.split_kmeans()
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
@@ -1122,7 +1234,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     the match with the best response.
     Input:
         list imgpaths: list of image paths to perform digit ocr over
-        dict digit_exs: maps {str digit: obj img}
+        dict digit_exs: maps {str digit: ((str temppath_i, bb_i, exemplarP_i), ...)}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
         dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
