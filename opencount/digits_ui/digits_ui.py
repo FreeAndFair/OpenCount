@@ -228,6 +228,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.ondone = ondone
 
+        self.grouplabel_record = None
+
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
         # maps {str regionpath: list of (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
@@ -272,6 +274,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         pass
 
     def start(self):
+        if self.grouplabel_record == None:
+            self.grouplabel_record = []
         self.setup_grid()
         self.SetupScrolling(scroll_x=True, scroll_y=True, 
                             rate_x=self.cellw, rate_y=self.cellh,
@@ -292,6 +296,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.matches = state['matches']
         cell_boxes = state['cell_boxes']
         digits = state['digits']
+        self.grouplabel_record = state['grouplabel_record']
         self.start()
         for regionpath, digits_str in digits.iteritems():
             i, j = self.imgID2cell[regionpath]
@@ -334,6 +339,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             digits[regionpath] = cell.get_digits()
         state['cell_boxes'] = cell_boxes
         state['digits'] = digits
+        state['grouplabel_record'] = self.grouplabel_record
         pickle.dump(state, f)
         f.close()
 
@@ -461,24 +467,24 @@ digit.")
             return
         print "Num. Matches Found:", len(matches)
 
+        proj = self.parent.parent.project  # TODO: breach of abstraction
+
         self.overlaymaps = {} # maps {int matchID: (i,j)}
         grouplabel = common.make_grouplabel(('digit', self.current_digit))
         # 0.) If we are seeing this digit for the first time, this will
         # not be present in grouplabel_record, so add it in.
-        grouplabel_record = common.load_grouplabel_record(self.project)
         try:
-            gl_idx = grouplabel_record.index(grouplabel)
+            gl_idx = self.grouplabel_record.index(grouplabel)
         except:
-            print "Discovering digit {0} for the first time:", grouplabel
-            grouplabel_record.append(grouplabel)
-            common.save_grouplabel_record(self.project, grouplabel_record)
-            gl_idx = len(grouplabel) - 1
+            print "Discovering digit {0} for the first time:".format(grouplabel)
+            gl_idx = len(self.grouplabel_record)
+            self.grouplabel_record.append(grouplabel)
         examples = []
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
         # patchpath_scores will be used to improve 'Split' behavior
         # for digit-based attributes. TODO: NOT IN USE, replaced by kmeans
-        proj = self.parent.parent.project  # TODO: breach of abstraction
+
         patchpath_scoresP = pathjoin(proj.projdir_path, proj.digitpatchpath_scoresBlank)
         # patchpath_scores maps {str patchpath: float score}
         if os.path.exists(patchpath_scoresP):
@@ -511,30 +517,38 @@ digit.")
         exemplar_paths = {grouplabel: self.PATCH_TMP}
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.parent.parent.project, self.on_verifydone)
+        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.parent.parent.project,
+                                    self.on_verifydone, self.grouplabel_record)
         self.f.Maximize()
         self.Disable()
         self.disable_cells()
         self.f.Show()
 
-    def on_verifydone(self, results):
+    def on_verifydone(self, results, grouplabel_record):
         """Invoked once the user has finished verifying the template
         matching on the current digit. Add all 'correct' matches to
         the relevant cell's boxes.
+        Input:
+            dict results: Maps {int gl_idx: [GroupClass_i, ...]}
+            list grouplabel_record: [grouplabel_i, ...]
         """
         self.f.Close()
         self.Enable()
         self.enable_cells()
-
         # 1.) Remove all matches from self.matches that the user said
         # was not relevant, during overlay verification
-        for grouplabel, groups in results.iteritems():
+        try:
+            OTHER_gl_idx = self.grouplabel_record.index(verify_overlays.VerifyPanel.GROUPLABEL_OTHER)
+        except:
+            OTHER_gl_idx = len(self.grouplabel_record)
+            self.grouplabel_record.append(verify_overlays.VerifyPanel.GROUPLABEL_OTHER)
+        for gl_idx, groups in results.iteritems():
             # groups is a list of GroupClasses
             # group[i].elements[j] = (regionpath, rankedlist, patchpath)
-            if grouplabel == verify_overlays.VerifyPanel.GROUPLABEL_OTHER:
+            if gl_idx == OTHER_gl_idx:
                 # The user said that these elements are not relevant
                 for groupclass in groups:
-                    assert groupclass.getcurrentgrouplabel() == verify_overlays.VerifyPanel.GROUPLABEL_OTHER
+                    assert groupclass.getcurrentgrouplabel() == OTHER_gl_idx
                     for element in groupclass.elements:
                         regionpath, rankedlist, patchpath = element
                         os.remove(patchpath)
@@ -912,16 +926,18 @@ class Box(object):
                 Box.is_overlap(box_b, box_a))
 
 class VerifyOverlayFrame(wx.Frame):
-    def __init__(self, parent, group, exemplar_paths, project, ondone):
+    def __init__(self, parent, group, exemplar_paths, project, ondone, gl_record):
         wx.Frame.__init__(self, parent)
         self.parent = parent
         self.group = group
         self.exemplar_paths = exemplar_paths
         self.ondone = ondone
         self.project = project # TODO: Breach of Abstraction
+        self.gl_record = gl_record
 
         verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
-        verifypanel.start((group,), exemplar_paths, self.project, ondone=ondone)
+        verifypanel.start((group,), exemplar_paths, self.project, ondone=ondone,
+                          grouplabel_record=gl_record)
 
 class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple

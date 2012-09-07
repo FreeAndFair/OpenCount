@@ -385,14 +385,20 @@ def get_attrtype_possiblevals(proj, attrtype):
         pdb.set_trace()
     return attrvals
 
-def get_attrpair_grouplabel(project, gl_idx):
+def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
     """ Given a grouplabel, return both the attrtype of the grouplabel
     and the attrval. Assumes the newer grouplabel_record interface.
     """
     # Assumes that non-digitbased grouplabels look like:
     #     frozenset([('party', 'democratic'), ('imageorder', 1), ('flip', 0)])
-    grouplabel_record = load_grouplabel_record(project)
-    grouplabel = grouplabel_record[gl_idx]
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(project)
+    grouplabel = gl_record[gl_idx]
     attrtype, attrval = None, None
     for (k, v) in grouplabel:
         if k != 'imageorder' and k != 'flip':
@@ -449,10 +455,16 @@ def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
 
-def is_digit_grouplabel(gl_idx, project):
+def is_digit_grouplabel(gl_idx, project, gl_record=None):
     """ Return True if this grouplabel is digit-based. """
-    grouplabel_record = load_grouplabel_record(project)
-    grouplabel = grouplabel_record[gl_idx]
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(project)
+    grouplabel = gl_record[gl_idx]
     attrtype = None
     for (k, v) in grouplabel:
         if k != 'imageorder' and k != 'flip':
@@ -580,9 +592,9 @@ def create_grouplabel_record(proj, attrtypes):
     """
     outlist = []
     for attrtype in attrtypes:
-        for possibleval in common.get_attrtype_possiblevals(proj, attrtype):
-            if common.is_digitbased(proj, attrtype):
-                outlist.append(frozenset(('digit', possibleval)))
+        for possibleval in get_attrtype_possiblevals(proj, attrtype):
+            if is_digitbased(proj, attrtype):
+                outlist.append(make_grouplabel(('digit', possibleval)))
             else:
                 for imgorder in (0, 1):  # TODO: Generalize to N-sides
                     for flip in (0, 1):
@@ -595,7 +607,12 @@ def save_grouplabel_record(proj, grouplabel_record):
     outP = pathjoin(proj.projdir_path, proj.grouplabels_record)
     pickle.dump(grouplabel_record, open(outP, 'wb'))
 def load_grouplabel_record(proj):
+    """ Returns None if the grouplabel_record hasn't been created
+    yet.
+    """
     path = pathjoin(proj.projdir_path, proj.grouplabels_record)
+    if not os.path.exists(path):
+        return None
     return pickle.load(open(path, 'rb'))
 
 """ GroupLabel Data Type """
@@ -606,7 +623,7 @@ def make_grouplabel(*args):
     """
     return frozenset(args)
 
-def get_propval(gl_idx, property, proj):
+def get_propval(gl_idx, property, proj, gl_record=None):
     """ Returns the value of a property in a grouplabel, or None
     if the property isn't present. 
     TODO: Outdated doctest.
@@ -616,15 +633,26 @@ def get_propval(gl_idx, property, proj):
     >>> get_propval(grouplabel, 'foo') == None
     True
     """
-    gl_record = load_grouplabel_record(proj)
-    for k, v = gl_record[gl_idx]:
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+    if gl_record == None:
+        gl_record = load_grouplabel_record(proj)
+    for k, v in gl_record[gl_idx]:
         if k == property:
             return v
     return None
 
-def str_grouplabel(gl_idx, proj):
+def str_grouplabel(gl_idx, proj, gl_record=None):
     """ Returns a string-representation of the grouplabel. """
-    gl_record = load_grouplabel_record(proj)
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(proj)
     grouplabel = gl_record[gl_idx]
     kv_pairs = tuple(grouplabel)
     out = ''

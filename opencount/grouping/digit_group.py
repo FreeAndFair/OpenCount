@@ -506,10 +506,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
     alldigits = digits_results.keys()
     for digit, lst in digits_results.iteritems():
         elements = []
-        rankedlist = make_digits_rankedlist(digit, alldigits)
-        # Convert rankedlist to instead use indices from grouplabel_record,
-        # created by common.create_grouplabel_record().
-        rankedlist = to_gl_idxs(rankedlist)
+        rankedlist = make_digits_rankedlist(digit, alldigits, grouplabel_record)
         for (ballotid, patchpath) in lst:
             elements.append((ballotid, rankedlist, patchpath))
         group = common.DigitGroupClass(elements,
@@ -517,7 +514,7 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
         groups.append(group)
     return groups
 
-def make_digits_rankedlist(d, digits):
+def make_digits_rankedlist(d, digits, gl_record):
     #intuition = {'0': ('8', '9', ''),
     #             '1': '7',
     #             '2': '0',
@@ -531,11 +528,6 @@ def make_digits_rankedlist(d, digits):
     result = []
     for digit in cpy:
         grouplabel = common.make_grouplabel(('digit', digit))
-        result.append(grouplabel)
+        gl_idx = gl_record.index(grouplabel)
+        result.append(gl_idx)
     return result
-
-def to_gl_idxs(rankedlist, grouplabel_record):
-    newlist = []
-    for grouplabel in rankedlist:
-        newlist.append(grouplabel_record.index(grouplabel))
-    return newlist

@@ -1119,12 +1119,6 @@ and active in order to access this.",
             self.panel_label_attrs.stop()
             self.panel_label_attrs.export_results()
 
-            print "Saving grouplabel records..."
-            attrtypes = common.get_attrtypes(self.project)
-            gl_record = common.create_grouplabel_record(self.project, attrtypes)
-            common.save_grouplabel_record(self.project, gl_record)
-            print "...Finished saving grouplabel records."
-
             print "Finding multiple exemplars..."
             _t = time.time()
             outdir = os.path.join(self.project.projdir_path,
@@ -1217,16 +1211,17 @@ because the current election has only one template. Skipping ahead to 'Label Con
                 self.panel_define_attrs.SendSizeEvent()
                 self.SendSizeEvent()
         elif new == self.LABEL_ATTRS:
-            def start_labelattrs(groupresults):
+            def start_labelattrs(groupresults, grouplabel_record):
                 """ Invoked when user has finished verifying the
                 attr grouping. groupresults is a dict:
-                    {grouplabel: list of GroupClass objects}
+                    {int gl_idx: list of GroupClass objects}
+                grouplabel_record: [grouplabel_i, ...]
                 """
                 f = open(os.path.join(self.project.projdir_path,
                                       self.project.attrgroup_results), 'wb')
-                pickle.dump(groupresults, f)
+                pickle.dump((groupresults, grouplabel_record), f)
                 f.close()
-                self.panel_label_attrs.start(self.project, groupresults=groupresults)
+                self.panel_label_attrs.start(self.project, groupresults=groupresults, grouplabel_record=grouplabel_record)
                 # Skip attr grouping for now LETS TRY IT NOW
                 #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
@@ -1277,8 +1272,8 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f = open(pathjoin(self.project.projdir_path,
                                       self.project.attrgroup_results)
                              , 'rb')
-                    groupresults = pickle.load(f)
-                    start_labelattrs(groupresults)
+                    groupresults, grouplabel_record = pickle.load(f)
+                    start_labelattrs(groupresults, grouplabel_record)
 
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):
@@ -1318,6 +1313,13 @@ only has one template. \nSkipping ahead to 'Run'."
                 self.notebook.SendPageChangedEvent(self.CORRECT_GROUPING, self.RUN)
                 return
             else:
+                # Create the grouplabel_record data structure.
+                print "Saving grouplabel records..."
+                attrtypes = common.get_attrtypes(self.project)
+                gl_record = common.create_grouplabel_record(self.project, attrtypes)
+                common.save_grouplabel_record(self.project, gl_record)
+                print "...Finished saving grouplabel records."
+
                 # Wait until voted ballots have been straightened
                 if not self.project.are_votedballots_straightened:
                     print "== Voted ballots aren't straightened yet, must \

@@ -37,10 +37,10 @@ class GroupAttributesThread(threading.Thread):
         print "...Finished Grouping Ballot Attributes ({0} s).".format(time.time() - _t0)
         print "...converting attrgroups to groupclasses."
         _t = time.time()
-        groups = clusters_to_groupclasses(self.project, attrgroups)
+        groups, gl_record = clusters_to_groupclasses(self.project, attrgroups)
         print "...finished converting attrgroups to groupclasses ({0} s).".format(time.time() - _t)
         # Convert 'groups' to a list of GroupClass instances
-        self.queue.put(groups)
+        self.queue.put((groups, gl_record))
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.job_id,))
 
 def clusters_to_groupclasses(proj, attrgroups):
@@ -53,15 +53,20 @@ def clusters_to_groupclasses(proj, attrgroups):
         obj proj:
         dict attrgroups: {attrtype: {clusterID: [(imgpath_i, bb_i, score_i), ...]}}
     Output:
-        A list of GroupClass instances.
+        A list of GroupClass instances, and a grouplabel_record.
     """
     groups = []
     extract_tasks = []
     blank2attrpatch = {} # maps {str imgpath: {str attrtype: str patchpath}}
     invblank2attrpatch = {} # maps {str patchpath: (str imgpath, str attrtype)}
+    # Create a separate grouplabel_record for the Labeling process
+    grouplabel_record = [] # list of (grouplabel_i, ...)
     for attrtype, cluster in attrgroups.iteritems():
         for i, (clusterID, c_elements) in enumerate(cluster.iteritems()):
             elements = [] # [(imgpath_i, rlist_i, patchpath_i), ...]
+            grouplabel = common.make_grouplabel((attrtype, i))
+            gl_idx = len(grouplabel_record)
+            grouplabel_record.append(grouplabel)
             for (imgpath, bb, score) in c_elements:
                 imgname = os.path.split(imgpath)[1]
                 imgname_noext = os.path.splitext(imgname)[0]
@@ -83,8 +88,7 @@ def clusters_to_groupclasses(proj, attrgroups):
                 blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchpath
                 invblank2attrpatch[patchpath] = (imgpath, attrtype)
                 extract_tasks.append((imgpath, patchpath, bb))
-                grouplabel = common.make_grouplabel((attrtype, i))
-                elements.append((imgpath, (grouplabel,), patchpath))
+                elements.append((imgpath, (gl_idx,), patchpath))
             groups.append(common.GroupClass(elements))
     blank2attrpatchP = pathjoin(proj.projdir_path,
                                 proj.blank2attrpatch)
@@ -97,7 +101,7 @@ def clusters_to_groupclasses(proj, attrgroups):
     partask.do_partask(extract_attrpatches, extract_tasks)
     print "...finished saving attributes patches to {0} ({1} s).".format(proj.extract_attrs_templates,
                                                                          time.time() - _t)
-    return groups
+    return groups, grouplabel_record
     
 def extract_attrpatches(tasks):
     for (imgpath, outpath, bb) in tasks:
@@ -129,7 +133,8 @@ class GroupAttrsFrame(wx.Frame):
         fn ondone: A callback function that is to be called after the
                    grouping+verify step of Attrs has been completed.
                    ondone should accept one argument, 'results', which
-                   is a dict mapping: {grouplabel: list GroupClasses}
+                   is a dict mapping: {gl_idx: list GroupClasses}, and
+                   a grouplabel_record.
         """
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -168,7 +173,7 @@ class GroupAttrsFrame(wx.Frame):
         
     def skip_grouping(self):
         print "== Skipping Attribute Grouping."
-        self.ondone(None)
+        self.ondone(None, None)
         self.Close()
 
     def onButton_rungroup(self, evt):
@@ -179,13 +184,13 @@ class GroupAttrsFrame(wx.Frame):
         self.skip_grouping()
 
     def on_groupattrs_done(self):
-        groups = self.queue.get()
+        groups, gl_record = self.queue.get()
         self.Maximize()
-        self.panel.start(groups, None, self.project, ondone=self.verify_done)
+        self.panel.start(groups, None, self.project, ondone=self.verify_done, grouplabel_record=gl_record)
         self.project.addCloseEvent(self.panel.dump_state)
         self.Fit()
         
-    def verify_done(self, results):
+    def verify_done(self, results, grouplabel_record):
         """ Called when the user finished verifying the auto-grouping of
         attribute patches (for blank ballots).
         results is a dict mapping:
@@ -223,7 +228,7 @@ together."
                                                                  reduction)
         self.project.removeCloseEvent(self.panel.dump_state)
         self.Close()
-        self.ondone(results)
+        self.ondone(results, grouplabel_record)
 
 class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """ A panel that will be integrated directly into OpenCount. """
@@ -254,11 +259,12 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.labelpanel = label_imgs.LabelPanel(self)
         self.sizer.Add(self.labelpanel, proportion=1, flag=wx.EXPAND)
 
-    def start(self, project, groupresults=None):
+    def start(self, project, groupresults=None, grouplabel_record=None):
         """ Start the Labeling widget. If groups is given, then this
         means that only a subset of the patches need to be labeled.
         Input:
             dict groupresults: maps {grouplabel: List of GroupClass objects}
+            list grouplabel_record: List of (grouplabel_i, ...)
         """
         self.project = project
         self.has_started = True
@@ -266,7 +272,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             # We are manually labeling everything
             self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
         else:
-            self.mapping, self.inv_mapping = self.handle_grouping_results(groupresults)
+            self.mapping, self.inv_mapping = self.handle_grouping_results(groupresults, grouplabel_record)
         # outfilepath isn't used at the moment.
         outfilepath = pathjoin(self.project.projdir_path,
                                self.project.labelattrs_out)
@@ -303,14 +309,15 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                 self.labelpanel.imagelabels.pop(patchpath)
         '''
 
-    def handle_grouping_results(self, groupresults):
+    def handle_grouping_results(self, groupresults, grouplabel_record):
         """ Takes the results of autogrouping attribute patches, and
         updates my internal data structures. Importantly, this updates
         the self.patch_groups data structure, which allows me to know
         that labeling a patch P implies the labeling of all votedpaths
         given by self.patch_groups[patchpathP].
         Input:
-            dict groupresults: maps {grouplabel: list of GroupClass instances}
+            dict groupresults: maps {int gl_idx: list of GroupClass instances}
+            list grouplabel_record: (grouplabel_i, ...)
         Output:
             dict mapping, dict inv_mapping, but only for
             one exemplar from each group, where mapping is:
@@ -320,7 +327,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """
         mapping = {}  # maps {imgpath: {attrtypestr: patchpath}}
         inv_mapping = {}  # maps {patchpath: (imgpath, attrtypestr)}
-        for grouplabel, groups in groupresults.iteritems():
+        for gl_idx, groups in groupresults.iteritems():
+            if type(gl_idx) != int:
+                print "Uhoh, unexpected type for gl_idx:", type(gl_idx)
+                pdb.set_trace()
+            grouplabel = grouplabel_record[gl_idx]
             attrtypestr = tuple(grouplabel)[0][0] # why do i do this?!
             flag = True
             for group in groups:
