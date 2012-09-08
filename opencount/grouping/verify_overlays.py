@@ -770,7 +770,10 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             return
         assert group not in self.queue
         self.queue.insert(0, group)
-        self.queueList.Insert(group.label, 0)
+        gl_idx = group.getcurrentgrouplabel()
+        attrtype, attrval = common.get_attrpair_grouplabel(self.project, gl_idx, self.grouplabel_record)
+        #self.queueList.Insert(group.label, 0)
+        self.queueList.Insert("{0}->{1}: {2} elements".format(attrtype, attrval, len(group.elements)), 0)
         
     def remove_group(self, group):
         """
