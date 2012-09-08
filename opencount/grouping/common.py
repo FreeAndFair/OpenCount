@@ -970,8 +970,8 @@ not equal."
                 groups.append(GroupClass(elements,
                                          user_data=self.user_data))
             elif type(self) == DigitGroupClass:
-                groups.append(GroupClass(elements,
-                                         user_data=self.user_data))
+                groups.append(DigitGroupClass(elements,
+                                              user_data=self.user_data))
             else:
                 print "Wat?"
                 pdb.set_trace()
