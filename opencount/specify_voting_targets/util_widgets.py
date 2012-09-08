@@ -74,7 +74,7 @@ class MosaicPanel(ScrolledPanel):
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
 
-        self.page_txt = wx.StaticText(self, label="Page: 0 / 0")
+        self.page_txt = wx.StaticText(self, label="Page: 1 / 1")
         btn_jumppage = wx.Button(self, label="Jump To...")
         btn_jumppage.Bind(wx.EVT_BUTTON, self.onButton_jumppage)
 
@@ -99,13 +99,13 @@ class MosaicPanel(ScrolledPanel):
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))        
-        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
+        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page+1, total_pages))
         self.maybe_btn_toggle()
 
     def onButton_pagedown(self, evt):
         self.imagemosaic.do_page_down()
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
-        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page, total_pages-1))
+        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page+1, total_pages))
         self.maybe_btn_toggle()
 
     def onButton_jumppage(self, evt):
@@ -131,7 +131,7 @@ invalid.".format(pagenum), style=wx.OK)
         elif pagenum == self.imagemosaic.cur_page:
             return
         self.imagemosaic.jump_to_page(pagenum)
-        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum, total_pages-1))
+        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum+1, total_pages))
         self.maybe_btn_toggle()
 
     def maybe_btn_toggle(self):
@@ -154,7 +154,7 @@ invalid.".format(pagenum), style=wx.OK)
         min_w = self.imagemosaic.cell_width * self.imagemosaic.num_cols
         min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
-        self.page_txt.SetLabel("Page: 0 / {0}".format(total_pages-1))
+        self.page_txt.SetLabel("Page: 1 / {0}".format(total_pages))
         self.btn_pageup.Disable()
         self.SetMinSize((min_w, -1))
 
@@ -167,7 +167,7 @@ invalid.".format(pagenum), style=wx.OK)
     def display_page(self, pagenum):
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
         self.imagemosaic.jump_to_page(pagenum)
-        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum, total_pages-1))
+        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum+1, total_pages))
         self.maybe_btn_toggle()
 
     def select_image(self, imgpath):
@@ -273,7 +273,7 @@ class ImageMosaicPanel(ScrolledPanel):
     def set_images(self, imgpaths):
         """Given a list of image paths, display them."""
         self.imgpaths = imgpaths
-        self.parent.page_txt.SetLabel("Page: 0 / {0}".format(len(imgpaths) - 1))
+        self.parent.page_txt.SetLabel("Page: 1 / {0}".format(len(imgpaths)))
         # Reset the boxes_dict for all imgpaths
         self.cur_page = 0
         self.display_page(self.cur_page)
