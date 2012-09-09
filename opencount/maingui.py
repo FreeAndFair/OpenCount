@@ -1087,11 +1087,11 @@ and active in order to access this.",
             self.panel_label_attrs.export_results()
 
             print "Finding multiple exemplars..."
-            _t = time.time()
+            _t = time()
             outdir = os.path.join(self.project.projdir_path,
                                   self.project.attrexemplars_dir)
             self.panel_label_attrs.cluster_attr_patches(outdir)
-            print "...Finished finding multiple exemplars ({0} s).".format(time.time() - _t)
+            print "...Finished finding multiple exemplars ({0} s).".format(time() - _t)
             print "    Results can be found at: ", outdir
 
             if (not self.panel_label_attrs.checkCanMoveOn()) and new > old:
