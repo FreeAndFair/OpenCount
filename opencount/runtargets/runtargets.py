@@ -132,8 +132,8 @@ class RunThread(threading.Thread):
         if self.rerun:
             bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
-            
-            if len(tpl2imgs)==1:
+
+            if all(x==1 for x in map(len,tpl2imgs.values())):
                 print "Starting call to convertImagesSingleMAP"
                 res = convertImagesSingleMAP(bal2imgs,
                                              tpl2imgs,

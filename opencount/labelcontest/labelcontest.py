@@ -729,6 +729,7 @@ class LabelContest(wx.Panel):
         Load up the next template.
         Make sure to save everything, then clear all the data.
         """
+        self.save()
 
         if self.templatenum+ct >= len(self.dirList) or self.templatenum+ct < 0:
             self.templatenum = max(self.templatenum, 0)
