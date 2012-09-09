@@ -1462,7 +1462,7 @@ finished! Press 'Ok', then you may continue to the next step.",
                 i += 1
             return group
         
-        if self.mode == VerifyPanel.MODE_YESNO2:
+        if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
             if self.splitMode == 'rankedlist':
                 # RankedList doesn't make sense in this mode right now,
                 # since the rankedlist is created arbitrarily. Default
