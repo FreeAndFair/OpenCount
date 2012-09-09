@@ -1462,7 +1462,17 @@ finished! Press 'Ok', then you may continue to the next step.",
                 i += 1
             return group
         
-        
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            if self.splitMode == 'rankedlist':
+                # RankedList doesn't make sense in this mode right now,
+                # since the rankedlist is created arbitrarily. Default
+                # to kmeans.
+                # TODO: It is feasible for rankedlist to be a reasonable
+                # choice, if the rankedlists in this mode are created
+                # 'correctly'.
+                print "Not using rankedlist, using kmeans instead."
+                self.splitMode = 'kmeans'
+
         newGroups = self.currentGroup.split(mode=self.splitMode)
         if self.mode == VerifyPanel.MODE_YESNO2:
             # For each new group, make sure each GroupClass with a 
