@@ -89,7 +89,7 @@ into an infinite loop. Decreasing THRESHOLD from {0} to {1}".format(THRESHOLD, n
     print "...Completed clustering. We found {0} clusters.".format(len(clusters))
     return clusters
                 
-def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
+def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
     """ Given a list of imgpaths, and bounding boxes for each image,
     cluster the bounding boxes from each image.
     Input:
@@ -97,6 +97,10 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
         dict bb_map: maps {str imgpath: (y1,y2,x1,x2)}
         list init_clusters: An initial set of cluster centers, of the form:
             {imgpath_i: (imgpath_i, bb_i)}
+        float THRESHOLD: A cutoff value to use when determining if the patch
+            was found. Ranges from [0.0, 1.0], where higher values is 'stricter',
+            i.e. THRESHOLD=1.0 means only accept exact matches (not recommended).
+            Higher values also means more computation time.
     Output:
         A dict of the form:
             {c_imgpath: [(imgpath_i, bb_i, score), ...}
@@ -104,18 +108,16 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None):
     """
     clusters = {}
     unlabeled_imgpaths = list(imgpaths)
-    THRESHOLD = 0.85
     while unlabeled_imgpaths:
         curimgpath = unlabeled_imgpaths[0]
         bb = bb_map[curimgpath]
         I = shared.standardImread(curimgpath, flatten=True)
-        patch = I[bb[0]:bb[1], bb[2]:bb[3]]
         _t = time.time()
         print "...calling find_patch_matchesV1..."
         matches = partask.do_partask(findpatchmatches,
                                      unlabeled_imgpaths,
-                                     _args=(patch,
-                                            (0, patch.shape[0], 0, patch.shape[1]),
+                                     _args=(I,
+                                            bb,
                                             bb, THRESHOLD))
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
         if matches:
@@ -147,7 +149,7 @@ def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
     return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
                                        threshold=threshold)
 
-def group_attributes_V2(project, job_id=None):
+def group_attributes_V2(project, job_id=None, THRESHOLD=0.95):
     """ Try to cluster all attribute patches from blank ballots into
     groups, in order to reduce operator effort during 'Label Ballot
     Attributes.'
@@ -178,7 +180,7 @@ def group_attributes_V2(project, job_id=None):
         for imgpath in blank_imgpaths:
             bb_map[imgpath] = (y1,y2,x1,x2)
         bb_mapAll[attrtype] = bb_map
-        clusters = cluster_imgpatchesV2(blank_imgpaths, bb_map)
+        clusters = cluster_imgpatchesV2(blank_imgpaths, bb_map, THRESHOLD=THRESHOLD)
         attr_clusters[attrtype] = clusters
     return attr_clusters
 

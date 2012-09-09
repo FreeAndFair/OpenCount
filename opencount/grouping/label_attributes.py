@@ -33,7 +33,7 @@ class GroupAttributesThread(threading.Thread):
         # attrgroups is dict {str attrtype: {c_imgpath: [(imgpath_i, bb_i), ...]}}
         print "Grouping Ballot Attributes..."
         _t0 = time.time()
-        attrgroups = group_attrs.group_attributes_V2(self.project)
+        attrgroups = group_attrs.group_attributes_V2(self.project, THRESHOLD=0.95)
         print "...Finished Grouping Ballot Attributes ({0} s).".format(time.time() - _t0)
         print "...converting attrgroups to groupclasses."
         _t = time.time()
