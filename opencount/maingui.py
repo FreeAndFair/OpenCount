@@ -1,11 +1,11 @@
 import os, sys, csv, time, optparse, threading, shutil, re, traceback
+import time
 import pdb, multiprocessing, logging, pickle
 from xml.etree.ElementTree import Element, ElementTree
 from os.path import join as pathjoin
-
+# test
 import wx, Image, cv
 from wx.lib.pubsub import Publisher
-from time import time
 
 import sanitycheck, util
 import specify_voting_targets.find_targets_wizard as find_targets_wizard
@@ -487,8 +487,23 @@ class DoubleSided(wx.Frame):
         templates = get(blankdir_raw, blankdir, self.parent.templatesdir)
 
         if self.isalternating:
-            images = sorted(images)
-            templates = sorted(templates)
+            _imgpath = images[0]
+            # Check if paths end in an integer, like:
+            #    Pol267-001.png
+            #    Pol267-002.png
+            #    ...
+            pat = re.compile(r'.*[\-_](\d*)\.[a-zA-Z]+$')
+            m = pat.match(_imgpath)
+            if m == None:
+                # Sort by OS-defined way.
+                images = sorted(images)
+                templates = sorted(templates)
+            else:
+                # Imgpaths end in an integer, presumably unique+increasing.
+                # Sort by the integer's value, not by the OS-specific
+                # way (which might 'get it wrong', as what happened in Marin).
+                util.sort_nicely(images)
+                util.sort_nicely(templates)
             images = dict(zip(images[::2], map(list,zip(images,images[1:]))[::2]))
             templates = dict(zip(templates[::2], map(list,zip(templates,templates[1:]))[::2]))
         else:
@@ -504,6 +519,24 @@ class DoubleSided(wx.Frame):
                 return ht
             images = group(images)
             templates = group(templates)
+
+        '''
+        for ballotid, paths in images.iteritems():
+            print 'ballot id:', ballotid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+        
+        pdb.set_trace()
+
+        for templateid, paths in templates.iteritems():
+            print 'template id:', templateid
+            print '    ', paths[0]
+            print '    ', paths[1]
+            print
+
+        pdb.set_trace()
+        '''
 
         pickle.dump(images, open(self.parent.project.ballot_to_images, "w"))
         pickle.dump(templates, open(self.parent.project.template_to_images, "w"))
@@ -1090,6 +1123,9 @@ and active in order to access this.",
             _t = time()
             outdir = os.path.join(self.project.projdir_path,
                                   self.project.attrexemplars_dir)
+            if self.panel_label_attrs.project == None:
+                self.panel_label_attrs.project = self.project
+
             self.panel_label_attrs.cluster_attr_patches(outdir)
             print "...Finished finding multiple exemplars ({0} s).".format(time() - _t)
             print "    Results can be found at: ", outdir
@@ -1175,16 +1211,17 @@ because the current election has only one template. Skipping ahead to 'Label Con
                 self.panel_define_attrs.SendSizeEvent()
                 self.SendSizeEvent()
         elif new == self.LABEL_ATTRS:
-            def start_labelattrs(groupresults):
+            def start_labelattrs(groupresults, grouplabel_record):
                 """ Invoked when user has finished verifying the
                 attr grouping. groupresults is a dict:
-                    {grouplabel: list of GroupClass objects}
+                    {int gl_idx: list of GroupClass objects}
+                grouplabel_record: [grouplabel_i, ...]
                 """
                 f = open(os.path.join(self.project.projdir_path,
                                       self.project.attrgroup_results), 'wb')
-                pickle.dump(groupresults, f)
+                pickle.dump((groupresults, grouplabel_record), f)
                 f.close()
-                self.panel_label_attrs.start(self.project, groupresults=groupresults)
+                self.panel_label_attrs.start(self.project, groupresults=groupresults, grouplabel_record=grouplabel_record)
                 # Skip attr grouping for now LETS TRY IT NOW
                 #self.panel_label_attrs.set_attrgroup_results(groupresults) 
                 self.panel_label_attrs.SendSizeEvent()
@@ -1235,8 +1272,8 @@ attribute grouping? ", style=wx.YES | wx.NO)
                     f = open(pathjoin(self.project.projdir_path,
                                       self.project.attrgroup_results)
                              , 'rb')
-                    groupresults = pickle.load(f)
-                    start_labelattrs(groupresults)
+                    groupresults, grouplabel_record = pickle.load(f)
+                    start_labelattrs(groupresults, grouplabel_record)
 
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):
@@ -1276,6 +1313,13 @@ only has one template. \nSkipping ahead to 'Run'."
                 self.notebook.SendPageChangedEvent(self.CORRECT_GROUPING, self.RUN)
                 return
             else:
+                # Create the grouplabel_record data structure.
+                print "Saving grouplabel records..."
+                attrtypes = common.get_attrtypes(self.project)
+                gl_record = common.create_grouplabel_record(self.project, attrtypes)
+                common.save_grouplabel_record(self.project, gl_record)
+                print "...Finished saving grouplabel records."
+
                 # Wait until voted ballots have been straightened
                 if not self.project.are_votedballots_straightened:
                     print "== Voted ballots aren't straightened yet, must \
@@ -1494,12 +1538,14 @@ class Project(object):
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
+                     'digit_exemplars_map': 'digit_exemplars_map.p',
                      'precinctnums_outpath': 'precinctnums.txt',
                      'num_digitsmap': 'num_digitsmap.p',
                      'digitgroup_results': 'digitgroup_results.p',
                      'labeldigitstate': '_labeldigitstate.p',
                      'voteddigits_dir': 'voteddigits_dir',
                      'attrgroup_results': 'attrgroup_results.p',
+                     'labelpanel_state': 'labelpanel_state.p',
                      'labelattrs_out': 'labelattrs_out.csv',
                      'labelattrs_patchesdir': 'labelattrs_patchesdir',
                      'attrexemplars_dir': 'attrexemplars_dir',
@@ -1516,7 +1562,10 @@ class Project(object):
                      'extract_attrs_templates': 'extract_attrs_templates',
                      'digit_median_dists': 'digit_median_dists.p',
                      'blank2attrpatch': 'blank2attrpatch.p',
-                     'invblank2attrpatch': 'invblank2attrpatch.p'}
+                     'invblank2attrpatch': 'invblank2attrpatch.p',
+                     'digitmultexemplars': 'digitmultexemplars',
+                     'digitmultexemplars_map': 'digitmultexemplars_map.p',
+                     'grouplabels_record': 'grouplabels_record.p'}
         self.createFields()
 
     def addCloseEvent(self, func):

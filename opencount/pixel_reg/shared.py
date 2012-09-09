@@ -1,11 +1,10 @@
 import multiprocessing as mp
-import pdb, os
+import pdb, os, traceback
 import numpy as np
 import cv
 import csv
 import string
 import math
-import traceback
 import imagesAlign as lk
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
@@ -163,12 +162,16 @@ Output:
   I1cropped=I1[i1:i2,j1:j2]
 
 '''
-def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSearch=.75,padPatch=0.0):
+def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
+                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
+    if bbSearches != None:
+        bbSearches = list(bbSearches)
     matchList = [] # (filename, left,right,up,down)
-    I=prepOpenCV(I);
+    if doPrep:
+        I=prepOpenCV(I);
     I = np.round(fastResize(I,rszFac)*255.)/255;
 
     bb[0] = bb[0]*rszFac
@@ -186,9 +189,12 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
         bbSearch[2] = bbSearch[2]*rszFac
         bbSearch[3] = bbSearch[3]*rszFac
 
-    for imP in imList:
+    for cur_i, imP in enumerate(imList):
+        if bbSearches != None:
+            bbSearch = map(lambda c: c*rszFac, bbSearches[cur_i])
         I1 = standardImread(imP,flatten=True)
-        I1=prepOpenCV(I1)
+        if doPrep:
+            I1=prepOpenCV(I1)
         I1 = np.round(fastResize(I1,rszFac)*255.)/255.
 
         # crop to region if specified
@@ -200,10 +206,11 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,padSe
 
         patchCv=cv.fromarray(np.copy(patch))
         ICv=cv.fromarray(np.copy(I1))
-        outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1,patchCv.type)
+        outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1, cv.CV_32F)
+
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
-
+        
         Iout[Iout==1.0]=0; # opencv bug
 
         while Iout.max() > threshold:
@@ -355,7 +362,11 @@ def expand(i1,i2,j1,j2,iMx,jMx,pFac):
 def imsave(path,I):
     # assumed image is between 0 and 1
     I[0,0]=.01; I[1,0]=.99
-    misc.imsave(path,I)
+    try:
+        misc.imsave(path,I)
+    except Exception as e:
+        traceback.print_exc()
+        print "    Path was:", path
 
 def safeExpand(bb,pd,iMx,jMx):
     i1=bb[0]-pd; i1=max(i1,0);

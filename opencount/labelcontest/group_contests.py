@@ -1,10 +1,12 @@
 from PIL import Image, ImageDraw
-import os
+import os, sys
 from random import random
+sys.path.append('..')
+import util
 try:
     from collections import Counter
 except ImportError as e:
-    from utilcounter import Counter
+    from util import Counter
 import multiprocessing as mp
 import pickle
 

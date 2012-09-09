@@ -5,7 +5,7 @@ import os
 import pickle
 import csv
 from util import encodepath
-
+import util
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -77,7 +77,9 @@ class ResultsPanel(ScrolledPanel):
 
         # template -> target id -> contest
         templatemap = {}
-        for template in os.listdir(self.proj.target_locs_dir):
+        targetlocsfiles = os.listdir(self.proj.target_locs_dir)
+        util.sort_nicely(targetlocsfiles)
+        for template in targetlocsfiles:
             if os.path.splitext(template)[1].lower() != '.csv': continue
             thismap = {}
             for linenum, line in enumerate(open(os.path.join(self.proj.target_locs_dir,template))):
@@ -95,6 +97,8 @@ class ResultsPanel(ScrolledPanel):
                         glob = localid_to_globalid[(row[0],int(row[8]))]
                         thismap[int(row[1])] = glob
                     else:
+                        print "Something bad happened?"
+                        pdb.set_trace()
                         exit(1)
             if thismap == {}:
                 # Means that 'template' has no contests/targets on it
@@ -144,7 +148,7 @@ class ResultsPanel(ScrolledPanel):
         text, order = self.get_text()
 
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
-
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         print 'Loaded all the information'
         
         #print "ORDER", order
@@ -163,7 +167,12 @@ class ResultsPanel(ScrolledPanel):
             voted = dict(votedlist)
             #print 'voted', voted
             #print 'in', order[template,cid]
-            return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            # TODO: crashes at voted[x]
+            retval = ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            return retval
+
+            #return ['01'[voted[x]] for x in order[template,cid]]+['OK']
+            
 
         def noexist(cid):
             # When a contest doesn't appear on a ballot, write this
@@ -178,8 +187,12 @@ class ResultsPanel(ScrolledPanel):
             if i%1000 == 0:
                 print 'On ballot', i
             meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
-
-            if meta['ballot'] not in quarantined:
+            votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
+            bools = [votedpath in quarantined for votedpath in votedpaths]
+            # TODO: I think I need to check both front/back sides to see if
+            # it's in quarantined? 
+            #if meta['ballot'] not in quarantined:
+            if True not in bools:
                 #print 'bal', meta['ballot']
                 template = meta['template']
                 #print 'template', template
@@ -188,11 +201,7 @@ class ResultsPanel(ScrolledPanel):
                 for target in targets:
                     targetid = int(target.split(".")[1])
                     #print "t", target
-                    try:
-                        contest = templatemap[template][targetid]
-                    except Exception as e:
-                        print e
-                        pdb.set_trace()
+                    contest = templatemap[template][targetid]
                     #print 'c', contest, targetid
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
@@ -204,7 +213,7 @@ class ResultsPanel(ScrolledPanel):
                     #print k, v
                     #print k, order[template,k]
                     #pass
-                    
+
                 voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
                 #print 'voted b', voted
                 image_cvr[meta['ballot']] = voted
@@ -344,8 +353,14 @@ class ResultsPanel(ScrolledPanel):
         e.g. 'precinct 1' : cvr item
         """
         attributes = self.load_grouping()
-        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
-        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
+        if os.path.exists(self.proj.quarantined):
+            quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)) if x)
+        else:
+            quar1 = set()
+        if os.path.exists(self.proj.quarantined_manual):
+            quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)) if x)
+        else:
+            quar2 = set()
         quar = quar1.union(quar2)
 
         result = ""
@@ -424,7 +439,10 @@ class ResultsPanel(ScrolledPanel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
                
-        batch_paths = [x[0] for x in os.walk(self.proj.samplesdir)]
+        sampledirs_lvl1 = [x[0] for x in os.walk(self.proj.samplesdir)]
+        util.sort_nicely(sampledirs_lvl1)
+        
+        batch_paths = sampledirs_lvl1
         batch_paths = batch_paths[1:]
 
         def dircontains(parent, path):

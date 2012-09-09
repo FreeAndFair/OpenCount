@@ -166,6 +166,10 @@ class VerifyPanel(wx.Panel):
         self.outfilepath = None   # An optional filepath to output
                                   # grouping results to.
 
+        # A 'canonical' list of grouplabels to use - the idxs in the
+        # rlists index into this list.
+        self.grouplabel_record = None
+
         ## The following are only used for digit-based attributes 
 
         # self._mismatch_cnt: Keeps track of the current number of 'new'
@@ -471,7 +475,8 @@ in queue: 0")
             assert idx < len(self.queue)
             self.select_group(self.queue[idx])
             
-    def start(self, groups, exemplar_paths, proj, outfilepath=None, ondone=None):
+    def start(self, groups, exemplar_paths, proj, outfilepath=None, ondone=None,
+              grouplabel_record=None):
         """
         Start verifying the overlays. Groups is a list of 
         GroupClass objects, representing pre-determined clusters
@@ -487,8 +492,16 @@ in queue: 0")
         results). The grouping results is a dict that maps each grouplabel
         to a list of samples:
           {grouplabel: list of (sampleid, rankedlist, patchpath)}
+        list grouplabel_record: The canonical list of ordered grouplabels 
+            to use. This is what gl_idxs will index into. If it's not
+            given, then this will use the 'globally'-defined record,
+            which is meant for 'Verify Overlays' at the end of OpenCount.
         """
         self.project = proj
+        if grouplabel_record == None:
+            self.grouplabel_record = common.load_grouplabel_record(proj)
+        else:
+            self.grouplabel_record = grouplabel_record
         if exemplar_paths:
             self.load_exemplar_attrpatches(exemplar_paths)
         else:
@@ -579,7 +592,8 @@ in queue: 0")
                         continue
                     elif group.is_misclassify == True:
                         self._mismatch_cnt += len(group.elements)
-                    group.compute_label()
+                    # TODO: Discard user_Data for now.
+                    group.user_data = None
                     self.add_group(group)
                 for group in finished:
                     if not hasattr(group, 'is_misclassify'):
@@ -602,6 +616,7 @@ in queue: 0")
                     for g in digitgroups:
                         self.add_group(g)
                 self.finished = finished
+                self.grouplabel_record = common.load_grouplabel_record(self.project)
             except Exception as e:
                 # If you can't read in the state file, then just don't
                 # load in any state.
@@ -643,16 +658,24 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             else:
                 type, val = 'manualtype', 'manualval'
             num_descs = 0
-            for group in self.queue:
-                for element in group.elements:
-                    num_descs = len(element[1][0]) - 1
-                    break
-                break
+            example_gl = self.grouplabel_record[0]
+            num_descs = len(example_gl) - 1
             dummy_grouplabel = common.make_grouplabel(*((type, val),) + (('dummy',None),)*num_descs)
+            # 0.) Add the dummy_grouplabel to our self.grouplabel_record
+            try:
+                gl_idx = self.grouplabel_record.index(dummy_grouplabel)
+            except:
+                gl_idx = len(self.grouplabel_record)
+                self.grouplabel_record.append(dummy_grouplabel)
             for group in self.queue:
-                group.orderedAttrVals.append(dummy_grouplabel)
-                for element in group.elements:
-                    element[1].append(dummy_grouplabel)
+                #group.orderedAttrVals.append(dummy_grouplabel)
+                #for element in group.elements:
+                #    element[1].append(dummy_grouplabel)
+                group.orderedAttrVals += (gl_idx,)
+                new_elements = []
+                for sampleid, rlist, patchpath in group.elements:
+                    new_elements.append((sampleid, rlist + (gl_idx,), patchpath))
+                group.elements = tuple(new_elements)
             
         if self.queue:
             self.select_group(self.queue[0])
@@ -690,15 +713,16 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         elements = self.currentGroup.elements
 
         idx = self.templateChoice.GetSelection()
-        curgrouplabel = self.currentGroup.orderedAttrVals[idx]
-
+        cur_gl_idx = self.currentGroup.orderedAttrVals[idx]
+        curgrouplabel = self.grouplabel_record[cur_gl_idx]
         try:
             attrpatch_imgpath = self.templates[curgrouplabel]
             attrpatch_img = misc.imread(attrpatch_imgpath, flatten=1)
             rszFac = sh.resizeOrNot(attrpatch_img.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
             attrpatch_img = sh.fastResize(attrpatch_img, rszFac) / 255.0
         except Exception as e:
-            print e
+            print "Error in loading exemplar attribute patch."
+            traceback.print_exc()
             pdb.set_trace()
         
         h_overlay, w_overlay = overlayMax.shape
@@ -726,7 +750,6 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         class given by final_index.
         """
         group.index = final_index
-        group.compute_label()
         self.finished.append(group)
         self.finishedList.Append(group.label)
 
@@ -747,7 +770,10 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             return
         assert group not in self.queue
         self.queue.insert(0, group)
-        self.queueList.Insert(group.label, 0)
+        gl_idx = group.getcurrentgrouplabel()
+        attrtype, attrval = common.get_attrpair_grouplabel(self.project, gl_idx, self.grouplabel_record)
+        #self.queueList.Insert(group.label, 0)
+        self.queueList.Insert("{0}->{1}: {2} elements".format(attrtype, attrval, len(group.elements)), 0)
         
     def remove_group(self, group):
         """
@@ -786,11 +812,12 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         
         self.templateChoice.Clear()
         history = set()
-        for grouplabel in ordered_attrvals:
+        for gl_idx in ordered_attrvals:
+            grouplabel = self.grouplabel_record[gl_idx]
             if grouplabel not in history:
                 #display_string = str(grouplabel)
                 try:
-                    display_string = common.str_grouplabel(grouplabel)
+                    display_string = common.str_grouplabel(gl_idx, self.project, self.grouplabel_record)
                 except Exception as e:
                     print e
                     pdb.set_trace()
@@ -824,10 +851,10 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         _dur = time.time() - _t
         times['pre_step'] = _dur
 
-        if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit') != None:
+        if common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project) != None:
             # For digits-based, update our accepted_hashes.
             # TODO: Assumes that digit-based grouplabels has a key 'digit'
-            cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+            cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project)
             # accepted_hashes: {str imgpath: {str digit: [((y1,y2,x1,x2), side, isflip), ...]}}
             _t = time.time()
             
@@ -1136,13 +1163,13 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
             # signals that this is a Digit. This disallows:
             #    a.) Multiple digit-based attributes
             #    b.) A Ballot Attribute called 'digit'
-            for grouplabel in group.orderedAttrVals:
-                if common.get_propval(grouplabel, 'digit') != None:
+            for gl_idx in group.orderedAttrVals:
+                if common.get_propval(gl_idx, 'digit', self.project, self.grouplabel_record) != None:
                     self.remove_group(group)
                     break
         for group in self.finished[:]:
-            for grouplabel in group.orderedAttrVals:
-                if common.get_propval(grouplabel, 'digit') != None:
+            for gl_idx in group.orderedAttrVals:
+                if common.get_propval(gl_idx, 'digit', self.project, self.grouplabel_record) != None:
                     self.finished.remove(group)
                     break
         self._ok_history = {}
@@ -1178,7 +1205,7 @@ choosing the 'Force Digit Group' button.", style=wx.OK)
                     digitattrs.append(attrtypestr)
             return digitattrs
         grouplabel = self.currentGroup.getcurrentgrouplabel()
-        if common.get_propval(grouplabel, 'digit') == None:
+        if common.get_propval(grouplabel, 'digit', self.project, self.grouplabel_record) == None:
             dlg = wx.MessageDialog(self, message="'Misclassify' isn't \
 supported for non-digitbased attributes. Perhaps you'd like to quarantine \
 this instead?", style=wx.OK)
@@ -1221,7 +1248,7 @@ at a time."
         assert len(digit_attrs) == 1
         # b.) Construct rejected_hashes
         print "==== b.) Construct rejected_hashes"
-        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit')
+        cur_digit = common.get_propval(self.currentGroup.getcurrentgrouplabel(), 'digit', self.project, self.grouplabel_record)
         # rejected_hashes maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         rejected_hashes = self.load_rejected_hashes()
         #rejected_hashes = partmatch_fns.get_rejected_hashes(self.project)
@@ -1278,7 +1305,7 @@ OpenCount claims you're 'done'. Uh oh."
             self.select_group(self.queue[0])
 
     def OnClickManualLabelAll(self, evt):
-        if common.get_propval(self.currentGroup.orderedAttrVals[0], 'digit') != None:
+        if common.get_propval(self.currentGroup.orderedAttrVals[0], 'digit', self.project) != None:
             dlg = wx.MessageDialog(self, message="Manually Labeling Digit \
 Patches isn't supported right now, sorry.", style=wx.OK)
             self.Disable()
@@ -1361,44 +1388,46 @@ finished! Press 'Ok', then you may continue to the next step.",
             # exemplars from each new cluster, but it doesn't seem
             # worth it at the moment.
             for group in self.finished:
-                grouplabel = group.orderedAttrVals[0]
+                gl_idx = group.orderedAttrVals[0]
+                grouplabel = self.grouplabel_record[gl_idx]
                 if grouplabel in results:
-                    print "Uhoh, gropulabel was in results more than once."
+                    print "Uhoh, grouplabel was in results more than once."
                     pdb.set_trace()
-                assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel))
-                results[grouplabel] = [group]
+                assert grouplabel not in results, "grouplabel {0} was duplicated".format(common.str_grouplabel(grouplabel, self.project, self.grouplabel_record))
+                results[gl_idx] = [group]
         else:
             for group in self.finished:
                 results.setdefault(group.getcurrentgrouplabel(), []).append(group)
             if self.templates:
                 for grouplabel in self.templates:
-                    if grouplabel not in results:
-                        results[grouplabel] = []
+                    gl_idx = self.grouplabel_record.index(grouplabel)
+                    if gl_idx not in results:
+                        results[gl_idx] = []
 
         if self.outfilepath:
             pickle.dump(results, open(self.outfilepath, 'wb'))
 
         if self.ondone:
-            self.ondone(results)
+            self.ondone(results, self.grouplabel_record)
 
     def OnClickSplit(self, event):
         def collect_ids(newGroups):
             """ Only used in MODE_YESNO2. """
             ids = {} # {str attrname: list of ids}
             groups = tuple(newGroups) + tuple(self.queue) + tuple(self.finished)
-
+            dflag = True
             for group in groups:
                 # In MODE_YESNO2, foo is a list of the form:
                 #    ((<attrtype>,), ID)
-
-                # TODO: group.orderedAttrVals[0] seems troubling. Shouldn't
-                # I be using the group.index or something? Or is it guaranteed
-                # that group.orderedAttrVals[0] is always the 'current-best'
-                # guess?
                 #foo = list(group.getcurrentgrouplabel())
-                foo = list(group.orderedAttrVals[0])
-                attrtype = tuple(sorted([t[0] for t in foo]))
-                id = foo[0][1]
+                gl_idx = group.orderedAttrVals[0]
+                grouplabel_tup = tuple(self.grouplabel_record[gl_idx])
+                attrtype = tuple(sorted([t[0] for t in grouplabel_tup]))
+                id = grouplabel_tup[0][1]
+                if dflag:
+                    dflag = False
+                    print "id is:", id
+                    #pdb.set_trace()
                 ids.setdefault(attrtype, []).append(id)
             return ids
         def assign_new_id(group, ids):
@@ -1406,14 +1435,20 @@ finished! Press 'Ok', then you may continue to the next step.",
             find a unique new id for group to use.
             Only used in MODE_YESNO2.
             """
-            foo = list(group.getcurrentgrouplabel())
+            grouplabel = self.grouplabel_record[group.getcurrentgrouplabel()]
+            foo = tuple(grouplabel)
             k = tuple(sorted([t[0] for t in foo]))
             i = 0
             while i >= 0:
                 if i not in ids[k]:
-                    grouplabel = group.orderedAttrVals[0]
                     newgrouplabel = common.make_grouplabel(*[(a, i) for a in k])
-                    group.orderedAttrVals[0] = newgrouplabel
+                    try:
+                        gl_idx = self.grouplabel_record.index(newgrouplabel)
+                    except:
+                        gl_idx = len(self.grouplabel_record)
+                        self.grouplabel_record.append(newgrouplabel)
+                    group.orderedAttrVals = (gl_idx,) + tuple(group.orderedAttrVals[1:])
+                    #group.orderedAttrVals[0] = newgrouplabel
                     ids.setdefault(k, []).append(i)
                     break
                 i += 1
@@ -1421,7 +1456,10 @@ finished! Press 'Ok', then you may continue to the next step.",
         
         # TEMP: Hack for Marin, to allow Andy to at least keep progressing
         # on overly verification.
-        dlg = ChooseSplitModeDialog(self)
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            dlg = ChooseSplitModeDialog(self, disable=(ChooseSplitModeDialog.ID_RANKEDLIST,))
+        else:
+            dlg = ChooseSplitModeDialog(self)
         self.Disable()
         status = dlg.ShowModal()
         self.Enable()
@@ -1441,7 +1479,6 @@ finished! Press 'Ok', then you may continue to the next step.",
             self.Enable()
             return
         newGroups = self.currentGroup.split(mode=themode)
-
         if self.mode == VerifyPanel.MODE_YESNO2:
             # For each new group, make sure each GroupClass with a 
             # given attr has unique 'attr' values (i.e. a 
@@ -1695,7 +1732,7 @@ class ManualLabelDialog(wx.Dialog):
             if self.attrtype == None:
                 # Infer which attribute type this GroupClass is for.
                 bestguess = group.orderedAttrVals[0]
-                self.attrtype, attrval = common.get_attrpair_grouplabel(self.proj, bestguess)
+                self.attrtype, attrval = common.get_attrpair_grouplabel(self.proj, bestguess, self.grouplabel_record)
 
         self.possible_attrvals = common.get_attrtype_possiblevals(self.proj, self.attrtype)
             
@@ -1714,7 +1751,7 @@ class ManualLabelDialog(wx.Dialog):
             groupclass = self.map[patchpath]
             final_idx = None
             for i, rlabel in enumerate(groupclass.elements[0][1]):  # [0][1] -> rlist
-                attrtype, attrval = common.get_attrpair_grouplabel(self.proj, rlabel)
+                attrtype, attrval = common.get_attrpair_grouplabel(self.proj, rlabel, self.grouplabel_record)
                 if self.attrtype != attrtype:
                     print "Uhoh, inconsistent attrtypes."
                     pdb.set_trace()
@@ -1735,14 +1772,23 @@ class ChooseSplitModeDialog(wx.Dialog):
     ID_KMEANS = 43
     ID_PCA_KMEANS = 44
 
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, disable=None, *args, **kwargs):
+        """ disable is a list of ID's (ID_RANKEDLIST, etc.) to disable. """
         wx.Dialog.__init__(self, parent, *args, **kwargs)
+        if disable == None:
+            disable = []
         sizer = wx.BoxSizer(wx.VERTICAL)
         txt = wx.StaticText(self, label="Please choose the desired 'Split' method.")
 
         self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)', style=wx.RB_GROUP)
         self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
         self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
+        if ChooseSplitModeDialog.ID_RANKEDLIST in disable:
+            self.rankedlist_rbtn.Disable()
+        if ChooseSplitModeDialog.ID_KMEANS in disable:
+            self.kmeans_rbtn.Disable()
+        if ChooseSplitModeDialog.ID_PCA_KMEANS in disable:
+            self.pca_kmeans_rbtn.Disable()
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Ok")
         btn_cancel = wx.Button(self, label="Cancel")

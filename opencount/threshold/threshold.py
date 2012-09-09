@@ -27,6 +27,8 @@ class GridShow(wx.ScrolledWindow):
     numcols = 20
 
     def lookupFullList(self, i):
+        return self.classified_file[i]
+
         if self.classifiedindex:
             prefix = open(self.proj.classified+".prefix").read()
             fin = open(self.proj.classified)
@@ -165,14 +167,15 @@ class GridShow(wx.ScrolledWindow):
     def markQuarantine(self, i):
         targetpath = self.lookupFullList(i)[0]
         ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
-        print "WAS", self.quarantined
         if ballotpath not in self.quarantined:
             self.quarantined.append(ballotpath)
-        print "IS", self.quarantined
         for each in self.sample_to_targets(encodepath(ballotpath)):
-            for j,line in enumerate(open(self.proj.classified)):
-                if each == line.split('\0')[0]:
-                    self.markQuarantineSingle(j)
+            if each in self.classified_lookup:
+                #print 'A'
+                self.markQuarantineSingle(self.classified_lookup[each])
+            #for j,line in enumerate(open(self.proj.classified)):
+            #    if each == line.split('\0')[0]:
+            #        self.markQuarantineSingle(j)
 
     def markQuarantineSingle(self, i):
         self.quarantined_targets.append(i)
@@ -338,7 +341,7 @@ class GridShow(wx.ScrolledWindow):
                 #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             hist[int(v)] += 1
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
-        print list(enumerate(hist))
+        #print list(enumerate(hist))
 
         # I'm going to assume there are two normal dist. variables 
         #  which combine to make the histogram.
@@ -447,6 +450,8 @@ class GridShow(wx.ScrolledWindow):
         for _ in self.enumerateOverFullList():
             self.numberOfTargets += 1
 
+        self.classified_file = [l.split("\0") for l in open(self.proj.classified)]
+        self.classified_lookup = dict([(l.split("\0")[0], i) for i,l in enumerate(open(self.proj.classified))])
         if os.path.exists(self.proj.classified+".index"):
             try:
                 is64bit = (sys.maxsize > (2**32))
@@ -500,11 +505,10 @@ class GridShow(wx.ScrolledWindow):
         low = max(0,pos-GAP)
         high = min(pos+self.numcols*self.numrows+GAP,self.numberOfTargets)
 
-        print "TARGS", self.quarantined_targets
-
         # Draw the images from low to high.
         print "Drawing from", low, "to", high
         for i in range(low,high,self.numcols):
+            #print i
             if i in self.jpgs:
                 # If we've drawn it before, then it's still there, skip over it
                 continue

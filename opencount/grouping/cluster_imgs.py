@@ -1,4 +1,4 @@
-import sys, os, pdb, pickle
+import sys, os, pdb, pickle, time
 sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
@@ -6,6 +6,8 @@ import scipy.cluster.vq
 import pylab
 
 import specify_voting_targets.util_gui as util_gui
+import cluster_fns
+import pixel_reg.imagesAlign as imagesAlign
 
 """
 A script designed to cluster images.
@@ -30,6 +32,8 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
     Output:
         dict clusters, maps {str clusterID: [imgpath_i, ...]}
     """
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+    '''
     if bb_map == None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
@@ -58,7 +62,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
         # of pixels.
         patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
         data[row,:] = patch
-    
+    '''
     # Inspiration for PCA-related code comes from:
     #     http://glowingpython.blogspot.it/2011/07/pca-and-image-compression-with-numpy.html
 
@@ -108,6 +112,8 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         Returns the clustering, in the form:
             {clusterID: [impath_i, ...]}
     """
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+    '''
     if bb_map == None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
@@ -130,6 +136,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         # of pixels.
         patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
         data[row,:] = patch
+    '''
 
     # 1.) Call scipy's kmeans implementation
     centroids, _ = scipy.cluster.vq.kmeans(data, k)
@@ -139,6 +146,60 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     for i, clusterid in enumerate(idx):
         clusters.setdefault(clusterid, []).append(imgpaths[i])
     return clusters
+
+def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2):
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+    print "Running k-means..."
+    t = time.time()
+    assigns = cluster_fns.kmeans(data, K=k)
+    dur = time.time() - t
+    print "...Finished k-means ({0} s).".format(dur)
+    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    for i in xrange(k):
+        cluster = []
+        for idx in np.where(assigns == i)[0]:
+            cluster.append(imgpaths[idx])
+        print "    cluster {0}: {1} elements.".format(i, len(cluster))
+        clusters[i] = cluster
+    return clusters
+
+def imgpaths_to_mat(imgpaths, bb_map=None, do_align=True):
+    """ Reads in a series of imagepaths, and converts it to an NxM
+    matrix, where N is the number of images, and M is the (w*h), where
+    w,h are the width/height of the largest image in IMGPATHS.
+    If BB_MAP is given, then this will extract a patch from the 
+    associated IMGPATH.
+    """
+    if bb_map == None:
+        bb_map = {}
+        h_big, w_big = get_largest_img_dims(imgpaths)
+    else:
+        bb_big = get_largest_bb(bb_map.values())
+        h_big = int(abs(bb_big[0] - bb_big[1]))
+        w_big = int(abs(bb_big[2] - bb_big[3]))
+    # 0.) First, convert images into MxN array, where M is the number
+    #     of images, and N is the number of pixels of each image.
+    data = np.zeros((len(imgpaths), h_big*w_big))
+    Iref = None
+    for row, imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        bb = bb_map.get(imgpath, None)
+        if bb == None:
+            patch = resize_mat(img, (h_big, w_big))
+        else:
+            # Must make sure that all patches are the same shape.
+            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
+        if do_align and Iref == None:
+            Iref = patch
+        elif do_align:
+            H, patch, err = imagesAlign.imagesAlign(patch, Iref)
+            print 'err is:', err
+            patch = np.nan_to_num(patch)
+        # Reshape 'patch' to be a single row of pixels, instead of rows
+        # of pixels.
+        patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
+        data[row,:] = patch
+    return data
 
 def get_largest_img_dims(imgpaths):
     """ Returns the largest dimensions of the images in imgpaths. """

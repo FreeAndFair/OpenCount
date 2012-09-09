@@ -4,13 +4,14 @@ try:
 except:
     import pickle
 import wx, wx.lib.scrolledpanel
+sys.path.append('..')
+import util
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """
     A panel that allows you to, given a set of images I, give a text
     label to each image. Outputs to an output file.
     """
-    STATE_FILE = '_labelpanelstate.p'
 
     def __init__(self, parent, *args, **kwargs):
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -26,7 +27,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # self.captionlabels keeps track of all labels given to a
         # specific caption.
-        self.captionlabels = {} # maps {str caption: (str label_i, ...)}
+        self.captionlabels = {} # maps {str caption: [str label_i, ...]}
 
         self.imagepaths = []  # ordered list of imagepaths
         self.cur_imgidx = 0  # which image we're currently at
@@ -74,8 +75,9 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         txt_listbox = wx.StaticText(self, label="Previously entered \
 values for this caption...")
         self.listbox = wx.ListBox(self, choices=[])
+
         sizer_lstbox.Add(txt_listbox)
-        sizer_lstbox.Add(self.listbox)
+        sizer_lstbox.Add(self.listbox, flag=wx.EXPAND)
 
         self.sizer2.Add(sizer_img)
         self.sizer2.Add((40, 40))
@@ -111,11 +113,12 @@ values for this caption...")
             caption = self.imagecaptions[imgpath]
             labels = self.captionlabels.get(caption, None)
             if labels == None:
-                self.listbox.SetItems([])
+                self.listbox.SetItems(['No values entered.'])
                 return
-            self.listbox.SetItems(list(labels))
+            self.listbox.SetItems(list(set(labels)))
         else:
-            self.listbox.SetItems([])
+            # Just display /all/ labels.
+            self.listbox.SetItems(list(set(self.imagelabels.values())))
 
     def add_label(self, imgpath, label):
         """ Adds the 'label' for the given image by updating internal
@@ -123,10 +126,17 @@ values for this caption...")
         """
         if self.possibles and label not in self.possibles:
             return False
+        oldlabel = self.imagelabels[imgpath]
         self.imagelabels[imgpath] = label
+        if oldlabel == label:
+            return True
         caption = self.imagecaptions.get(imgpath, None)
         if caption != None:
-            self.captionlabels.setdefault(caption, set()).add(label)
+            try:
+                self.captionlabels[caption].remove(oldlabel)
+            except:
+                pass
+            self.captionlabels.setdefault(caption, []).append(label)
         return True
 
     def onInputEnter(self, evt):
@@ -148,24 +158,29 @@ values for this caption...")
             self.display_img(self.cur_imgidx + 1)
 
     def onButton_next(self, evt):
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        cur_val = self.inputctrl.GetValue()
+        if not self.add_label(curimgpath, cur_val):
+            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         if (self.cur_imgidx+1) >= len(self.imagepaths):
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            if not self.add_label(curimgpath, cur_val):
-                dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
-                                       style=wx.OK)
-                self.Disable()
-                dlg.ShowModal()
-                self.Enable()
             return
         else:
             self.display_img(self.cur_imgidx + 1)
             
     def onButton_prev(self, evt):
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        cur_val = self.inputctrl.GetValue()
+        if not self.add_label(curimgpath, cur_val):
+            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
+                                   style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
         if self.cur_imgidx <= 0:
-            curimgpath = self.imagepaths[self.cur_imgidx]
-            cur_val = self.inputctrl.GetValue()
-            self.add_label(curimgpath, cur_val)
             return
         else:
             self.display_img(self.cur_imgidx - 1)
@@ -251,14 +266,12 @@ Implies that imgpath is present in imageslist more than once."
         self.SetupScrolling()
         self.SendSizeEvent()
 
-    def restore_session(self, statefile=None):
+    def restore_session(self, statefile):
         """ Tries to restore the state of a previous session. If this
         fails (say, the internal state file was deleted), then this
         will return False. If this happens, then you should just call
         self.start().
         """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
         if not os.path.exists(statefile):
             return False
         state = pickle.load(open(statefile, 'rb'))
@@ -282,12 +295,11 @@ Implies that imgpath is present in imageslist more than once."
         self.SetupScrolling()
         self.SendSizeEvent()
         #self.Fit()
+
         return True
 
-    def save_session(self, statefile=None):
+    def save_session(self, statefile):
         """ Saves the current state of the current session. """
-        if statefile == None:
-            statefile = LabelPanel.STATE_FILE
         # Remember to store the currently-displayed label
         curimgpath = self.imagepaths[self.cur_imgidx]
         cur_label = self.inputctrl.GetValue()
@@ -323,7 +335,6 @@ Implies that imgpath is present in imageslist more than once."
 
         self.cur_imgidx = idx
         imgpath = self.imagepaths[self.cur_imgidx]
-        print 'Imgpath is:', imgpath
         bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
         self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
@@ -344,3 +355,4 @@ Implies that imgpath is present in imageslist more than once."
             row = {'imgpath': imgpath, 'label': label}
             dictwriter.write_row(row)
         f.close()
+

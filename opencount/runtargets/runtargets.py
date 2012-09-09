@@ -59,18 +59,6 @@ class RunTargets(wx.Panel):
             self.startbutton_debug.Show()
             self.SendSizeEvent()
 
-    def get_template_paths(self, templatedir):
-        """
-        Given the directory path that contains the template images,
-        returns a (sorted) list of all template image (absolute) paths.
-        """
-        paths = []
-        for dirpath, dirnames, filenames in os.walk(templatedir):
-            for imgname in [f for f in filenames if is_image_ext(f)]:
-                paths.append(os.path.abspath(os.path.join(dirpath, imgname)))
-        return sorted(paths)
-        
-
     def start(self, rerun=True):
         """
         Load up all the images from the file and process them.
@@ -79,12 +67,11 @@ class RunTargets(wx.Panel):
         """
         imagepath = self.proj.samplesdir
         templatedir = self.proj.templatesdir
-        possible = self.get_template_paths(templatedir)
 
         self.startbutton.Disable()
         self.startbutton_debug.Disable()
         
-        r = RunThread(self.proj, imagepath, templatedir, possible, rerun)
+        r = RunThread(self.proj, imagepath, templatedir, rerun)
         r.start()
 
         def fn1():
@@ -108,12 +95,11 @@ class RunTargets(wx.Panel):
         MyGauge.__bases__ = (wx.Frame,)
 
 class RunThread(threading.Thread):
-    def __init__(self, proj, imagepath, templatedir, possible, rerun):
+    def __init__(self, proj, imagepath, templatedir, rerun):
         threading.Thread.__init__(self)
         self.rerun = rerun
         self.imagepath = imagepath
         self.templatedir = templatedir
-        self.possible = possible
         self.proj = proj
 
         self.stop = threading.Event()
@@ -131,7 +117,6 @@ class RunThread(threading.Thread):
             print "RunThread couldn't write to TIMER."
         imagepath = self.imagepath
         templatedir = self.templatedir
-        possible = self.possible
 
         if not os.path.exists(self.proj.quarantined):
             open(self.proj.quarantined, "w").write("\n")
@@ -142,9 +127,6 @@ class RunThread(threading.Thread):
                 count += 1
     
         csvPattern = pathjoin(self.proj.target_locs_dir,'%s_targetlocs.csv')
-
-        # construct pattern for csvpath
-        options = map(str,enumerate(possible))
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
         if self.rerun:

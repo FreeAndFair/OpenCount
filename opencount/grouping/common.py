@@ -246,20 +246,19 @@ def dump_iworldstate(iworld, filepath):
 def resize_img_norescale(img, size):
     """ Resizes img to be a given size without rescaling - it only
     pads/crops if necessary.
+    Input:
+        obj img: a numpy array
+        tuple size: (w,h)
+    Output:
+        A numpy array with shape (h,w)
     """
-    w, h = size
-    newimg = np.zeros((h,w), dtype='float32')
-    h_img, w_img = img.shape
-    if w_img > w:
-        w_new = w
-    else:
-        w_new = w_img
-    if h_img > h:
-        h_new = h
-    else:
-        h_new = h_img
-    newimg[0:h_new, 0:w_new] = img[0:h_new, 0:w_new]
-    return newimg
+    w,h = size
+    shape = (h,w)
+    out = np.zeros(shape)
+    i = min(img.shape[0], out.shape[0])
+    j = min(img.shape[1], out.shape[1])
+    out[0:i,0:j] = img[0:i, 0:j]
+    return out
 
 def get_attrtypes(project, with_digits=True):
     """
@@ -386,18 +385,27 @@ def get_attrtype_possiblevals(proj, attrtype):
         pdb.set_trace()
     return attrvals
 
-def get_attrpair_grouplabel(project, grouplabel):
+def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
     """ Given a grouplabel, return both the attrtype of the grouplabel
-    and the attrval.
+    and the attrval. Assumes the newer grouplabel_record interface.
     """
-    ballot_attributes = pickle.load(open(project.ballot_attributesfile, 'rb'))
-    for attrdict in ballot_attributes:
-        attrtype_str = get_attrtype_str(attrdict['attrs'])
-        if get_propval(grouplabel, attrtype_str):
-            return attrtype_str, get_propval(grouplabel, attrtype_str)
-    print "Uhoh, couldn't find an attrpair in this grouplabel:", str_grouplabel(grouplabel)
-    pdb.set_trace()
-    return None
+    # Assumes that non-digitbased grouplabels look like:
+    #     frozenset([('party', 'democratic'), ('imageorder', 1), ('flip', 0)])
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(project)
+    grouplabel = gl_record[gl_idx]
+    attrtype, attrval = None, None
+    for (k, v) in grouplabel:
+        if k != 'imageorder' and k != 'flip':
+            attrtype = k
+            attrval = v
+            break
+    return attrtype, attrval
 
 def get_attr_side(project, attrtype):
     """ Returns which side of the ballot this attrtype was defined
@@ -447,14 +455,22 @@ def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
 
-def is_digit_grouplabel(grouplabel, project):
+def is_digit_grouplabel(gl_idx, project, gl_record=None):
     """ Return True if this grouplabel is digit-based. """
-    attrtypes = get_attrtypes(project)
-    for attrtype in attrtypes:
-        if get_propval(grouplabel, attrtype):
-            if is_digitbased(project, attrtype):
-                return True
-    return False
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(project)
+    grouplabel = gl_record[gl_idx]
+    attrtype = None
+    for (k, v) in grouplabel:
+        if k != 'imageorder' and k != 'flip':
+            attrtype = k
+            break
+    return is_digitbased(project, attrtype)
 
 def get_attrtype_str(attrtypes):
     """Returns a 'canonical' string-representation of the attributes
@@ -563,6 +579,42 @@ def importPatches(project):
                 print "Unable to open file: {0}".format(csvfilepath)
     return boxes
 
+def create_grouplabel_record(proj, attrtypes):
+    """ Creates a canonical ordering for all grouplabels, to be used
+    for the rest of the OpenCount pipeline. This is purely for performance
+    reasons, so that I can store indices in data structures, rather than
+    data like frozenset([('party', 'democrat'), ('imageorder', 0), ('flip', 1)]).
+    Input:
+        obj proj:
+        list attrtypes: [str attrtype_i, ...]
+    Output:
+        A list of frozensets.
+    """
+    outlist = []
+    for attrtype in attrtypes:
+        for possibleval in get_attrtype_possiblevals(proj, attrtype):
+            if is_digitbased(proj, attrtype):
+                outlist.append(make_grouplabel(('digit', possibleval)))
+            else:
+                for imgorder in (0, 1):  # TODO: Generalize to N-sides
+                    for flip in (0, 1):
+                        outlist.append(frozenset(((attrtype, possibleval),
+                                                 ('imageorder', imgorder),
+                                                 ('flip', flip))))
+    return outlist
+
+def save_grouplabel_record(proj, grouplabel_record):
+    outP = pathjoin(proj.projdir_path, proj.grouplabels_record)
+    pickle.dump(grouplabel_record, open(outP, 'wb'))
+def load_grouplabel_record(proj):
+    """ Returns None if the grouplabel_record hasn't been created
+    yet.
+    """
+    path = pathjoin(proj.projdir_path, proj.grouplabels_record)
+    if not os.path.exists(path):
+        return None
+    return pickle.load(open(path, 'rb'))
+
 """ GroupLabel Data Type """
 
 def make_grouplabel(*args):
@@ -571,38 +623,86 @@ def make_grouplabel(*args):
     """
     return frozenset(args)
 
-def get_propval(grouplabel, property):
+def get_propval(gl_idx, property, proj, gl_record=None):
     """ Returns the value of a property in a grouplabel, or None
-    if the property isn't present.
+    if the property isn't present. 
+    TODO: Outdated doctest.
     >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
     >>> get_propval(grouplabel, 'precinct')
     380400
     >>> get_propval(grouplabel, 'foo') == None
     True
     """
-    t = tuple(grouplabel)
-    for key,v in t:
-        if key == property:
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+    if gl_record == None:
+        gl_record = load_grouplabel_record(proj)
+    for k, v in gl_record[gl_idx]:
+        if k == property:
             return v
     return None
 
-def grouplabel_keys(grouplabel):
-    """ Returns the keys of a grouplabel. """
-    return tuple([k for (k,v) in tuple(grouplabel)])
-
-def str_grouplabel(grouplabel):
+def str_grouplabel(gl_idx, proj, gl_record=None):
     """ Returns a string-representation of the grouplabel. """
+    if type(gl_idx) != int:
+        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        traceback.print_exc()
+        pdb.set_trace()
+
+    if gl_record == None:
+        gl_record = load_grouplabel_record(proj)
+    grouplabel = gl_record[gl_idx]
     kv_pairs = tuple(grouplabel)
     out = ''
     for (k, v) in sorted(kv_pairs):
         out += '{0}->{1}, '.format(k, v)
     return out
 
-def get_median_img(imgdir):
-    """ Given a directory of images, choose the median image. """
-    # TODO: By choosing the median exemplar image, this might
-    #       improve accuracy (somewhat). Can't hurt.
-    imgs = []
+def get_median_img(imgpaths):
+    """ Given a list of images, return the image with the median average
+    intensity.
+    """
+    scorelist = [] # [(score_i, imgpath_i), ...]
+    for imgpath in imgpaths:
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        scorelist.append((score, imgpath))
+    if not scorelist:
+        print "No imgpaths passed in."
+        return None
+    elif len(scorelist) <= 2:
+        return scorelist[0][1]
+    return scorelist[int(len(scorelist)/2)][1]
+
+def get_avglightest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score > bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
+
+def get_avgdarkest_img(imgpaths):
+    """ Given a list of image paths, return the image with the lightest
+    average intensity.
+    """
+    bestpath, bestscore, idx = None, None, None
+    for i,imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        score = np.average(img)
+        if bestpath == None or score < bestscore:
+            bestpath = imgpath
+            bestscore = score
+            idx = i
+    return bestpath, bestscore, idx
 
 class GroupClass(object):
     """
@@ -625,12 +725,14 @@ class GroupClass(object):
                    this will be a dict that maps:
                      {str patchpath: float score}
                    This will be used during 'Split', for smarter split
-                   behavior.
+                   behavior. TODO: UNUSED.
         """
-        self.elements = list(elements)
-        for i in range(len(elements)):
-            if not issubclass(type(elements[i][1]), list):
-                self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
+        # Converting to Tuples didn't seem to help - if anything, it hurt?
+        #self.elements = tuple(elements) if type(elements) != tuple else elements
+        self.elements = elements
+        #for i in range(len(elements)):  # Why did I do this again?
+        #    if not issubclass(type(elements[i][1]), list):
+        #        self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
         self.no_overlays=no_overlays
         # self.is_misclassify: Used to mark a GroupClass that the user
         # said was 'Misclassified'
@@ -638,7 +740,7 @@ class GroupClass(object):
         # orderedAttrVals is a list of grouplabels, whose order is 
         # predetermined by some score-metric. Should not change after it
         # is first set.
-        self.orderedAttrVals = []
+        self.orderedAttrVals = ()
         
         # The index of the grouplabel (w.r.t self.orderedAttrVals) that
         # this group ostensibly represents. Is 'finalized' when the user
@@ -650,35 +752,24 @@ class GroupClass(object):
         self.user_data = user_data
 
         self.processElements()
-
-        # The label that will be displayed in the ListBoxes to 
-        # the user, i.e. a public name for this GroupClass.
-        try:
-            self.label = str(self.getcurrentgrouplabel())
-        except Exception as e:
-            print e
-            pdb.set_trace()
-                     
-        if self.label not in GroupClass.ctrs:
-            GroupClass.ctrs[self.label] = 1
+        
+        s = str(self.getcurrentgrouplabel())
+        if s not in GroupClass.ctrs:
+            GroupClass.ctrs[s] = 1
         else:
-            GroupClass.ctrs[self.label] += 1
-        self.label += '-{0}'.format(GroupClass.ctrs[self.label])
+            GroupClass.ctrs[s] += 1
 
         # is_manual: A flag used by MODE_YESNO2, indicates this group
         # should be labeled manually.
         self.is_manual = False
 
-    def compute_label(self):
-        """ Recomputes the self.label for this GroupClass, which may or
-        may not change.
-        """
-        try:
-            self.label = str(self.getcurrentgrouplabel())
-        except Exception as e:
-            print "Uhoh, got a weird error."
-            traceback.print_exc()
-            self.label = "Error, couldn't compute this label."
+    @property
+    def label(self):
+        s = str(self.getcurrentgrouplabel())
+        if s not in GroupClass.ctrs:
+            GroupClass.ctrs[s] = 1
+        return '{0}-{1}'.format(s,
+                                GroupClass.ctrs[s])
 
     @staticmethod
     def merge(*groups):
@@ -783,18 +874,28 @@ not equal."
                     weightedAttrVals[group] = weightedAttrVals[group] + vote
                 
                 vote = vote / 2.0
-        self.orderedAttrVals = [group
-                                for (group, weight) in sorted(weightedAttrVals.items(), 
-                                                                   key=lambda t: t[1],
-                                                                   reverse=True)]
+        self.orderedAttrVals = tuple([group
+                                      for (group, weight) in sorted(weightedAttrVals.items(), 
+                                                                    key=lambda t: t[1],
+                                                                    reverse=True)])
 
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
         if len(self.elements) == 2:
-            return (GroupClass((self.elements[0],),
-                               user_data=self.user_data),
-                    GroupClass((self.elements[1],),
-                               user_data=self.user_data))
+            if type(self) == GroupClass:
+                return (GroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        GroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                return (DigitGroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        DigitGroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
@@ -814,8 +915,13 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                         user_data=self.user_data))
+                
         assert len(groups) == K
         return groups
 
@@ -830,8 +936,16 @@ not equal."
         if len(self.elements) <= K:
             groups = []
             for element in self.elements:
-                groups.append(GroupClass((element,),
-                                         user_data=self.user_data))
+                if type(self) == GroupClass:
+                    groups.append(GroupClass((element,),
+                                             user_data=self.user_data))
+                elif type(self) == DigitGroupClass:
+                    groups.append(DigitGroupClass((element,),
+                                             user_data=self.user_data))
+                else:
+                    print "Wat?"
+                    pdb.set_trace()
+
             return groups
         # 1.) Gather images
         patchpaths = []
@@ -852,8 +966,16 @@ not equal."
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
-            groups.append(GroupClass(elements,
-                                     user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                              user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+                
         assert len(groups) == K
         return groups
 
@@ -871,8 +993,15 @@ not equal."
             mid = int(round(len(elements) / 2.0))
             group1 = elements[:mid]
             group2 = elements[mid:]
-            groups.append(GroupClass(group1, user_data=self.user_data))
-            groups.append(GroupClass(group2, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(group1, user_data=self.user_data))
+                groups.append(GroupClass(group2, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(group1, user_data=self.user_data))
+                groups.append(DigitGroupClass(group2, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
             return groups
             
         if n == len(all_rankedlists[0]):
@@ -903,7 +1032,13 @@ just doing a naive split."
 
         print 'number of new groups after split:', len(new_elements)
         for grouplabel, elements in new_elements.iteritems():
-            groups.append(GroupClass(elements, user_data=self.user_data))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements, user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements, user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
         return groups
         
     def split(self, mode='kmeans'):
@@ -960,9 +1095,8 @@ class DigitGroupClass(GroupClass):
         return (DigitGroupClass(elements1, user_data=self.user_data),
                 DigitGroupClass(elements2, user_data=self.user_data))
 
-    def split_kmeans(self):
+    def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
-        K = 2
         if len(self.elements) == 2:
             return (DigitGroupClass((self.elements[0],),
                                     user_data=self.user_data),
@@ -1163,7 +1297,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     the match with the best response.
     Input:
         list imgpaths: list of image paths to perform digit ocr over
-        dict digit_exs: maps {str digit: obj img}
+        dict digit_exs: maps {str digit: ((str temppath_i, bb_i, exemplarP_i), ...)}
         tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
                   restricts the ocr search to the given bb.
         dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}

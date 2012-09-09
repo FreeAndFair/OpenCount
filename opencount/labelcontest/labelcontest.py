@@ -1,4 +1,4 @@
-import random, pdb
+import random, pdb, traceback
 import math
 import cStringIO
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
@@ -15,6 +15,7 @@ from verifycontestgrouping import VerifyContestGrouping
 
 sys.path.append('..')
 from util import ImageManipulate, pil2wxb
+import util
 
 from wx.lib.pubsub import Publisher
 
@@ -58,7 +59,8 @@ class LabelContest(wx.Panel):
         self.groupedtargets = []
         foo = []
         for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
-            for each in sorted(files):
+            util.sort_nicely(files)
+            for each in files:
         #for each in realorder:
         #    if True:
         #        root = self.proj.target_locs_dir
@@ -210,7 +212,9 @@ class LabelContest(wx.Panel):
         textbox.Add(button22)
 
         self.remainingText = wx.StaticText(self, style=wx.TE_READONLY, size=(150,30))
+        self.curBlankBallotNum = wx.StaticText(self, style=wx.TE_READONLY)
         textbox.Add(self.remainingText)
+        textbox.Add(self.curBlankBallotNum)
 
         template = wx.BoxSizer(wx.VERTICAL)
         button3 = wx.Button(self, label='Previous Ballot')
@@ -228,7 +232,9 @@ class LabelContest(wx.Panel):
 
         if os.path.exists(self.proj.patch_loc_dir):
             attr_data = {}
-            for f in os.listdir(self.proj.patch_loc_dir):
+            blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
+            util.sort_nicely(blankballot_attrlocs)
+            for f in blankballot_attrlocs:
                 attrs = []
                 for line in open(os.path.join(self.proj.patch_loc_dir, f)):
                     line = line.split(",")
@@ -296,7 +302,7 @@ class LabelContest(wx.Panel):
             for i,group in enumerate(self.groups_saved):
                 new_group = []
                 new_valid = []
-                valids = self.valudequivs[i] if i in self.validequivs else [True]*len(group)
+                valids = self.validequivs[i] if i in self.validequivs else [True]*len(group)
                 for valid,((bid,boxes,text),order) in zip(valids,group):
                     if (bid,boxes[0]) not in boxes_in_new_group:
                         new_group.append(((bid,boxes,text),order))
@@ -370,7 +376,9 @@ class LabelContest(wx.Panel):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
         mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
-        for f in os.listdir(self.proj.patch_loc_dir):
+        blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
+        util.sort_nicely(blankballot_attrlocs)
+        for f in blankballot_attrlocs:
             print "AND I GET", f, f[-4:]
             if f[-4:] == '.csv':
                 print 'test', f
@@ -577,6 +585,7 @@ class LabelContest(wx.Panel):
         if self.proj.infer_bounding_boxes:
             res = []
             for root,dirs,files in os.walk(self.proj.target_locs_dir):
+                util.sort_nicely(files) # Fixes Marin's ballot ordering.
                 for each in files:
                     if each[-4:] != '.csv': continue
                     name = os.path.join(root, each)
@@ -600,7 +609,11 @@ class LabelContest(wx.Panel):
             for ballot,order in zip(res,correctorder):
                 boxes = []
                 for o in order:
-                    boxes.append([x for x in ballot if x[0] == o][0])
+                    try:
+                        boxes.append([x for x in ballot if x[0] == o][0])
+                    except Exception as e:
+                        traceback.print_exc()
+                        pdb.set_trace()
                 self.boxes.append(boxes)
             return
 
@@ -850,8 +863,12 @@ class LabelContest(wx.Panel):
             self.text[self.currentcontests[self.count]] = []
         self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
 
+        # Change the below 'if' test to 'True' if you want to disable
+        # automated population of equiv-contests.
         if not self.has_equiv_classes:
             return
+        
+
 
         print "EQUAL ARE", self.equivs
 
@@ -954,7 +971,8 @@ class LabelContest(wx.Panel):
             Publisher().sendMessage("broadcast.can_proceed")
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
-
+        num_blanks = len(self.dirList)
+        self.curBlankBallotNum.SetLabel("On Blank Ballot {0} of {1}".format(self.templatenum, num_blanks))
 
     def addText(self):
         """

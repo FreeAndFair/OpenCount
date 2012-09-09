@@ -2,6 +2,7 @@ import sys, os, pickle, pdb, wx, time, shutil, copy, random
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
+import cv
 
 sys.path.append('../')
 import common, util
@@ -422,12 +423,13 @@ def cluster_attributes(blankpatches):
         all_exemplars[attrtype] = attrval_exemplars
     return all_exemplars
 
-def cluster_bkgd(mapping, D=5, debug_SKIP=False):
-    """ Given a mapping {str label: list of imgpaths}, for each label L,
+def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
+    """ Given a mapping {str label: (imgpath_i, ...)}, for each label L,
     generates N exemplar images, where each img in N (hopefully) 
     contains a different backgroung coloring.
     Input:
         dict mapping: {str label: (imgpath_i, ...)}
+        dict bb_map: maps {str imgpath: bb}
         int D: A constant threshold used to determine whether or not
                to create a new cluster. For large values of D, this
                will tend to not create new clusters. For very small
@@ -438,6 +440,8 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
     """
     if debug_SKIP:
         return dict(mapping)
+    if bb_map == None:
+        bb_map = {}
     exemplars = {}  # maps {str label: [imgpath_i, ...]}
     clustervals = {} # maps {str label: {str imgpath: float feat}}
     for label, imgpaths in mapping.iteritems():
@@ -445,8 +449,12 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
         clusters = [] # [[(str imgpath_i0, float feat_i0), ...], [(str imgpath_i1, float feat_i1), ...], ...]
         imgpaths = list(imgpaths)
         # 0.) Seed clusters with random center
+        # TODO: Use the lightest image
         firstP = imgpaths.pop(random.randrange(0, len(imgpaths)))
         img = scipy.misc.imread(firstP, flatten=True)
+        bbFirst = bb_map.get(firstP, None)
+        if bbFirst != None:
+            img = img[bbFirst[0]:bbFirst[1], bbFirst[2]:bbFirst[3]]
         median = np.median(img)
         clusters.append([(firstP, median), ])
         # 1.) Iteratively either add each I to a previous cluster, or
@@ -454,6 +462,9 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
         while imgpaths:
             imgP = imgpaths.pop()
             img = scipy.misc.imread(imgP, flatten=True)
+            bb = bb_map.get(imgP, None)
+            if bb != None:
+                img = img[bb[0]:bb[1], bb[2]:bb[3]]
             median = np.median(img)
             best_idx, best_dist = None, None
             for idx, cluster in enumerate(clusters):
@@ -473,13 +484,14 @@ def cluster_bkgd(mapping, D=5, debug_SKIP=False):
             exemplars.setdefault(label, []).append(cluster[0][0])
     return exemplars
 
-def compute_exemplars(mapping):
-    """ Given a mapping {str label: list of imgpaths}, extracts a subset
+def compute_exemplars(mapping, bb_map=None):
+    """ Given a mapping {str label: (imgpath_i, ...)}, extracts a subset
     of the imgpaths {str label: list of imgpaths} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
     mapping.
     Input:
         dict mapping: {label: list of imgpaths}
+        dict bb_map: maps {str imgpath: tuple bb}
     Output:
         A (hopefully smaller) dict mapping {label: list of exemplar
         imgpaths}.
@@ -487,35 +499,194 @@ def compute_exemplars(mapping):
     def distance(img, imgpath2):
         h, w = img.shape
         bb = [0, h, 0, w]
-        matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            bbs2 = {imgpath2: bb2}
+            matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), bbSearches=bbs2, threshold=0.1)
+        else:
+            matches = shared.find_patch_matchesV1(img, bb, (imgpath2,), threshold=0.1)
         matches = sorted(matches, key=lambda t: t[2])
         return matches[0][2]
+    def distance2(img, imgpath2):
+        """ L2 norm between img1, img2 """
+        img2 = shared.standardImread(imgpath2, flatten=True)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            img2 = img2[bb2[0]:bb2[1], bb2[2]:bb2[3]]
+        img2 = common.resize_img_norescale(img2, (img.shape[1], img.shape[0]))
+        diff = np.linalg.norm(img - img2)
+        return diff
+    def distance3(img, imgpath2):
+        """ NCC score between img1, img2. """
+        imgCv = cv.fromarray(np.copy(img.astype(np.float32)))
+        img2 = shared.standardImread(imgpath2, flatten=True)
+        bb2 = bb_map.get(imgpath2, None)
+        if bb2 != None:
+            img2 = img2[bb2[0]:bb2[2], bb2[2]:bb2[3]]
+        img2Cv = cv.fromarray(np.copy(img2.astype(np.float32)))
+        outCv = cv.CreateMat(imgCv.height - img2Cv.height+1, imgCv.width - img2Cv.width+1,
+                             imgCv.type)
+        cv.MatchTemplate(imgCv, img2Cv, outCv, cv.CV_TM_CCOEFF_NORMED)
+        return outCv.max()
     def closest_label(imgpath, exemplars):
         mindist = None
         bestmatch = None
         img = shared.standardImread(imgpath, flatten=True)
+        bb = bb_map.get(imgpath, None)
+        if bb != None:
+            img = img[bb[0]:bb[1], bb[2]:bb[3]]
         for label, imgpaths in exemplars.iteritems():
             for imgpathB in imgpaths:
-                dist = distance(img, imgpathB)
+                dist = distance2(img, imgpathB)
                 if mindist == None or dist < mindist:
                     bestmatch = label
                     mindist = dist
-        return bestmatch
+        return bestmatch, mindist
     mapping = copy.deepcopy(mapping)
+    if bb_map == None:
+        bb_map = {}
     exemplars = {}
     for label, imgpaths in mapping.iteritems():
-        exemplars[label] = [imgpaths.pop()]
+        rand_idx = random.choice(range(len(imgpaths)))
+        exemplars[label] = [imgpaths.pop(rand_idx)]
     is_done = False
     while not is_done:
         is_done = True
         for label, imgpaths in mapping.iteritems():
-            for imgpath in imgpaths:
-                j = closest_label(imgpath, exemplars)
-                print 'label should be {0} closest was {1}'.format(label, j)
-                if label != j:
+            i = 0
+            while i < len(imgpaths):
+                imgpath = imgpaths[i]
+                bestlabel, mindist = closest_label(imgpath, exemplars)
+                print 'label should be {0} closest was {1} ({2})'.format(label, bestlabel, mindist)
+                if label != bestlabel:
                     exemplars[label].append(imgpath)
                     is_done = False
+                    imgpaths.pop(i)
+                else:
+                    i += 1
     return exemplars
+
+def compute_exemplars_fullimg(mapping, MAXCAP=None):
+    """ Given a mapping {str label: ((imgpath_i, bb_i),...)}, extracts a subset
+    of the imgpaths {str label: (imgpath_i, ...)} such that these
+    imgpaths are the best-describing 'exemplars' of the entire input
+    mapping. 
+    Input:
+        dict mapping: {label: ((imgpath_i, bb_i), ...)}
+        int MAXCAP: Maximum number of exemplars per label (optional).
+    Output:
+        A (hopefully smaller) dict mapping {label: ((imgpath_i, bb_i), ...)}
+    """
+    def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2):
+        #t = time.time()
+        #print "Running find_patch_matchesV1..."
+        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, doPrep=False)
+        #dur = time.time() - t
+        #print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
+        if not matches:
+            print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
+            return None, 9999, None
+        matches = sorted(matches, key=lambda t: t[2])
+        imgpath, bb, rszFac = (matches[0][0], matches[0][4:8], matches[0][8])
+        bb = map(lambda c: int(round(c / rszFac)), bb)
+        return (matches[0][2], bb)
+    def closest_label(imgpath, bb, exemplars):
+        bestlabel = None
+        mindist = None
+        bbBest = None
+        img = shared.standardImread(imgpath, flatten=True)
+        for label, tuples in exemplars.iteritems():
+            imgpaths2, bbs2 = [], []
+            for imgpath2, bb2 in tuples:
+                imgpaths2.append(imgpath2)
+                bbs2.append(bb2)
+            closestdist, bbOut = get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2)
+            if bestlabel == None or closestdist < mindist:
+                bestlabel = label
+                mindist = closestdist
+                bbBest = bbOut
+        return bestlabel, mindist, bbBest
+    mapping = copy.deepcopy(mapping)
+    exemplars = {} # maps {str label: ((imgpath_i, bb_i), ...)}
+    for label, tuples in mapping.iteritems():
+        imgpaths = [t[0] for t in tuples]
+        pathL, scoreL, idxL = common.get_avglightest_img(imgpaths)
+        print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
+        imgpath, bb = tuples.pop(idxL)
+        exemplars[label] = [(imgpath, bb)]
+    t = time.time()
+    print "Making tasks..."
+    tasks = make_tasks(mapping)
+    init_len_tasks = len(tasks)
+    dur = time.time() - t
+    print "...Finished Making tasks ({0} s)".format(dur)
+    #tasks = make_interleave_gen(*[(imgpath, bb) for (imgpath, bb) in itertools.izip(imgpath, bbs)
+    counter = {} # maps {str label: int count}
+    is_done = False
+    while not is_done:
+        is_done = True
+        taskidx = 0
+        while taskidx < len(tasks):
+            if taskidx % (init_len_tasks / 10) == 0:
+                print "."
+            label, (imgpath, bb) = tasks[taskidx]
+            if MAXCAP != None:
+                cur = counter.get(label, 0)
+                if cur >= MAXCAP:
+                    taskidx += 1
+                    continue
+
+            bestlabel, mindist, bbOut = closest_label(imgpath, bb, exemplars)
+            if label != bestlabel:
+                print "...for label {0}, found new exemplar {1}.".format(label, imgpath)
+                tasks.pop(taskidx)
+                exemplars[label].append((imgpath, bb))
+                if label not in counter:
+                    counter[label] = 1
+                else:
+                    counter[label] += 1
+
+                is_done = False
+            else:
+                taskidx += 1
+    return exemplars
+
+def make_tasks(mapping):
+    """ Returns a series of tasks, where each task alternates by label,
+    so that we try, say, '1', then '2', then '3', instead of trying
+    all the '1's first, followed by all the '2's, etc. Helps to keep
+    the running time down.
+    Input:
+        dict mapping: maps {str label: ((imgpath_i, bb_i), ...)}
+    """
+    label_tasks = [] # [[...], [...], ...]
+    for label, tuples in mapping.iteritems():
+        tups = []
+        for (imgpath, bb) in tuples:
+            tups.append((label, (imgpath, bb)))
+        label_tasks.append(tups)
+    return interleave(*label_tasks)
+
+def interleave_gen(*lsts):
+    """ Inspiration from:
+        http://code.activestate.com/recipes/511480-interleaving-sequences/
+    """
+    for idx in range(0, max(len(lst) for lst in lsts)):
+        for lst in lsts:
+            try:
+                yield lst[idx]
+            except IndexError:
+                continue
+
+def interleave(*lsts):
+    result = []
+    for idx in range(0, max(len(lst) for lst in lsts)):
+        for lst in lsts:
+            try:
+                result.append(lst[idx])
+            except IndexError:
+                continue
+    return result
 
 def compute_exemplars2(mapping):
     """
