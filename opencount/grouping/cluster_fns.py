@@ -86,6 +86,78 @@ def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
             iters += 1
     return assigns
 
+def hag_cluster(data, VERBOSE=True):
+    """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
+    a dendrogram (i.e. tree), where the children of a node N is 
+    considered to have been 'merged' into the cluster denoted by N.
+    Input:
+        array DATA: An NxM array, where N is the number of observations,
+            and M is the dimensionality of the feature space.
+    Output:
+        A tree structure, which consists of the results of merges during
+        the agglomerative clustering.
+    """
+    dists = scipy.spatial.distance.pdist(data, metric='euclidean')
+    clusters = [HAG_Leaf(row) for row in data]
+    while len(clusters) != 1:
+        # 0.) Compute pair-wise distances between all clusters
+        c1_min, c2_min, mindist = None, None, None
+        dists = np.zeros((len(clusters), len(clusters)))
+        for i, c1 in enumerate(clusters):
+            for j, c2 in enumerate(clusters):
+                if i == j: 
+                    continue
+                dist = distfn(c1.compute_centroid(), c2.compute_centroid())
+                if mindist == None or dist < mindist:
+                    c1_min = c1
+                    c2_min = c2
+        # 1.) Merge two-closest clusters.
+        parent = HAG_Node((c1_min, c2_min))
+        c1_min.parent = parent
+        c2_min.parent = parent
+        clusters = [c for c in clusters if c not in (c1_min, c2_min)]
+        clusters.append(parent)
+    return clusters[0]
+    
+class Node(object):
+    def __init__(self, datum=None, children=None, parent=None):
+        raise NotImplementedError
+
+    def compute_centroid(self, method='mean'):
+        raise NotImplementedError
+
+class HAG_Node(Node):
+    def __init__(self, children=None, parent=None):
+        self.children = children
+        self.parent = parent
+    def compute_centroid(self, method='mean'):
+        _sum = 0.0
+        if method == 'mean':
+            for child in self.children:
+                _sum += child.compute_centroid()
+            return _sum / len(self.children)
+        print "Unrecognized method:", method
+        return 1.0
+    def __eq__(self, o):
+        return (o and isinstance(o, HAG_Node) and self.children == o.children)
+    def __repr__(self):
+        return "HAG_Node({0})".format([repr(c) for c in self.children])
+    def __str__(self):
+        return "HAG_Node({0} children)".format(len(self.children))
+
+class HAG_Leaf(Node):
+    def __init__(self, datum, parent=None):
+        self.datum = datum
+        self.parent = parent
+    def compute_centroid(self, method='mean'):
+        return self.datum
+    def __eq__(self, o):
+        return (o and isinstance(o, HAG_LEAF) and self.datum == o.datum)
+    def __repr__(self):
+        return "HAG_Leaf({0})".format(repr(self.datum))
+    def __str__(self):
+        return "HAG_Leaf"
+
 def test_kmeans():
     data1 = np.array([[1, 0],
                       [2, 1],
