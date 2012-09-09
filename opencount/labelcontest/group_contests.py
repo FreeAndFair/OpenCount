@@ -853,6 +853,7 @@ def final_grouping(ballots, giventargets):
     print "NOW EQU CLASSES"
     return equ_class(ballots)
 
+'''
 t,b,f = eval(open("g").read())
 b = [b[42]]
 f = [f[42]]
@@ -863,3 +864,4 @@ print b
 print find_contests(u'tmp', b, f)
 
 os.popen("open tmp/*")
+'''

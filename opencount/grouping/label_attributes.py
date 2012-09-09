@@ -147,8 +147,6 @@ class GroupAttrsFrame(wx.Frame):
         btn_rungroup.Bind(wx.EVT_BUTTON, self.onButton_rungroup)
         btn_skip = wx.Button(self, label="Skip Attribute Grouping.")
         btn_skip.Bind(wx.EVT_BUTTON, self.onButton_skipgroup)
-        # TODO: Fix the 'Skip Attr. Grouping' button (Issue 590)
-        btn_skip.Disable()
         btn_sizer.AddMany([(btn_rungroup,), (btn_skip,)])
         self.btn_rungroup = btn_rungroup
         self.btn_skip = btn_skip
@@ -273,6 +271,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if groupresults == None:
             # We are manually labeling everything
             self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
+            # Also, remember to update my self.patch_groups dict.
+            for patchpath, (imgpath, attrtype) in self.inv_mapping.iteritems():
+                self.patch_groups.setdefault(patchpath, []).append(imgpath)
+                self.inv_patch_groups.setdefault(imgpath, {})[attrtype] = patchpath
         else:
             self.mapping, self.inv_mapping = self.handle_grouping_results(groupresults, grouplabel_record)
         # outfilepath isn't used at the moment.
