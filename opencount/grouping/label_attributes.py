@@ -147,6 +147,8 @@ class GroupAttrsFrame(wx.Frame):
         btn_rungroup.Bind(wx.EVT_BUTTON, self.onButton_rungroup)
         btn_skip = wx.Button(self, label="Skip Attribute Grouping.")
         btn_skip.Bind(wx.EVT_BUTTON, self.onButton_skipgroup)
+        # TODO: Fix the 'Skip Attr. Grouping' button (Issue 590)
+        btn_skip.Disable()
         btn_sizer.AddMany([(btn_rungroup,), (btn_skip,)])
         self.btn_rungroup = btn_rungroup
         self.btn_skip = btn_skip
