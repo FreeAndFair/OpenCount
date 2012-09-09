@@ -13,7 +13,7 @@ import pixel_reg.imagesAlign as imagesAlign
 A script designed to cluster images.
 """
 
-def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
+def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     """ Using PCA and K-means, cluster the imgpaths into 'k' clusters,
     using the first 'N' principal components.
     Algorithm details:
@@ -32,7 +32,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
     Output:
         dict clusters, maps {str clusterID: [imgpath_i, ...]}
     """
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     '''
     if bb_map == None:
         bb_map = {}
@@ -94,7 +94,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3):
     return clustering
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
-                        do_downsize=False, downsize_amt=0.5):
+                        do_downsize=False, downsize_amt=0.5, do_align=True):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
     clusters.
     Note: This uses the Euclidean distance as the distance metric:
@@ -112,7 +112,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         Returns the clustering, in the form:
             {clusterID: [impath_i, ...]}
     """
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     '''
     if bb_map == None:
         bb_map = {}
@@ -147,11 +147,11 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         clusters.setdefault(clusterid, []).append(imgpaths[i])
     return clusters
 
-def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2):
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=True)
+def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn=None, centroidfn=None, do_align=True):
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     print "Running k-means..."
     t = time.time()
-    assigns = cluster_fns.kmeans(data, K=k)
+    assigns = cluster_fns.kmeans(data, K=k, distfn=distfn, centroidfn=centroidfn)
     dur = time.time() - t
     print "...Finished k-means ({0} s).".format(dur)
     clusters = {} # maps {clusterID: [imgpath_i, ...]}
@@ -163,7 +163,23 @@ def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2):
         clusters[i] = cluster
     return clusters
 
-def imgpaths_to_mat(imgpaths, bb_map=None, do_align=True):
+def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn=None, centroidfn=None, do_align=True):
+    data, errs = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align, return_align_errs=True)
+    print "Running k-means..."
+    t = time.time()
+    assigns = cluster_fns.kmeans(errs, K=k, distfn=distfn, centroidfn=centroidfn)
+    dur = time.time() - t
+    print "...Finished k-means ({0} s).".format(dur)
+    clusters = {}
+    for i in xrange(k):
+        cluster = []
+        for idx in np.where(assigns == i)[0]:
+            cluster.append(imgpaths[idx])
+        print "    cluster {0}: {1} elements.".format(i, len(cluster))
+        clusters[i] = cluster
+    return clusters
+
+def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
     w,h are the width/height of the largest image in IMGPATHS.
@@ -181,6 +197,8 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=True):
     #     of images, and N is the number of pixels of each image.
     data = np.zeros((len(imgpaths), h_big*w_big))
     Iref = None
+    alignerrs = [None] * len(imgpaths) # [float err_i, ...]
+    alignerrs = np.zeros((len(imgpaths), 1))
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         bb = bb_map.get(imgpath, None)
@@ -193,12 +211,15 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=True):
             Iref = patch
         elif do_align:
             H, patch, err = imagesAlign.imagesAlign(patch, Iref)
-            print 'err is:', err
+            if return_align_errs:
+                alignerrs[row] = err
             patch = np.nan_to_num(patch)
         # Reshape 'patch' to be a single row of pixels, instead of rows
         # of pixels.
         patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
         data[row,:] = patch
+    if return_align_errs:
+        return data, alignerrs
     return data
 
 def get_largest_img_dims(imgpaths):

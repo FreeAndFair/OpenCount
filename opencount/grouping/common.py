@@ -906,7 +906,7 @@ not equal."
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_downsize=True)
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_downsize=True, do_align=True)
         print "...Completed running k-means ({0} s).".format(time.time() - _t)
         # 3.) Create GroupClasses
         groups = []
@@ -957,7 +957,7 @@ not equal."
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running PCA+k-means."
-        clusters = cluster_imgs.cluster_imgs_pca_kmeans(patchpaths, k=K)
+        clusters = cluster_imgs.cluster_imgs_pca_kmeans(patchpaths, k=K, do_align=True)
         print "...Completed running PCA+k-means ({0} s).".format(time.time() - _t)
         # 3.) Create GroupClasses
         groups = []
@@ -1112,7 +1112,7 @@ class DigitGroupClass(GroupClass):
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K)
+        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_align=True)
         print "...Completed running k-means ({0} s).".format(time.time() - _t)
         # 3.) Create DigitGroupClasses
         groups = []

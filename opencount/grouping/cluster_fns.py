@@ -18,11 +18,12 @@ def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
             means, used to initialize the algorithm.
         int K: number of clusters
         fn distfn: The distance function to use. Should be a function
-            of two arguments, and returns a float.
+            of two arguments, and returns a float. Defaults to L2-Distance.
         fn centroidfn: The function used to compute the centroid of a
             cluster, during the update_means step. Should be a function
             that, given a NxM array, returns the 'centroid' of the N
             observations (where 'centroid' can be the mean, etc.).
+            Defaults to the mean of all data points in a cluster.
     Output:
         assigns, an array of N indices, where each N_i says which of
         the K clusters observation N_i belongs to.
@@ -105,8 +106,37 @@ def test_kmeans():
     plt.ylabel('The Y Axis')
     plt.show()
 
+def test_hac():
+    import scipy.cluster.hierarchy as sch
+    data = np.array([[1, 0],
+                     [2, 1],
+                     [1, 1],
+                     [0, 1],
+                     [25, 25],
+                     [44, 45],
+                     [44, 43],
+                     [32, 45],
+                     [48, 45]])
+    #data = np.random.random((400, 2))
+    Z = sch.linkage(data)
+    T = sch.fcluster(Z, 0.5)
+    colors = ('bo', 'go', 'ro', 'co', 'mo', 'yo', 'ko', 'wo')
+    clusters = []
+    clusterIDs = set(list(T))
+    for i, clusterID in enumerate(clusterIDs):
+        cluster_i = data[np.where(T == clusterID)]
+        plt.plot(cluster_i[:, 0], cluster_i[:, 1], colors[i])
+        
+    plt.ylabel('The Y Axis')
+    plt.show()
+
+
 def main():
-    test_kmeans()
+    args = sys.argv[1:]
+    if args[0] == 'k':
+        test_kmeans()
+    elif args[0] == 'hac':
+        test_hac()
 
 if __name__ == '__main__':
     main()

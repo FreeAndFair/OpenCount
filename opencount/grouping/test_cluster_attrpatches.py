@@ -1,4 +1,4 @@
-import sys, os, time, pdb
+import sys, os, time, pdb, random
 
 import scipy.misc
 from matplotlib.pyplot import show, imshow, figure
@@ -15,9 +15,10 @@ def main():
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         for imgname in [f for f in filenames if is_img_ext(f)]:
             imgpaths.append(os.path.join(dirpath, imgname))
-
-    clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths)
-    #clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths)
+    random.shuffle(imgpaths)
+    #clusters = cluster_imgs.cluster_imgs_kmeans_alignerr(imgpaths)
+    #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths)
+    clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths)
 
     for cluster, imgpaths in clusters.iteritems():
