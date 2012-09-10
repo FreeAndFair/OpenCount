@@ -147,11 +147,11 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         clusters.setdefault(clusterid, []).append(imgpaths[i])
     return clusters
 
-def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn=None, centroidfn=None, do_align=True):
+def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', centroidfn_method='mean', do_align=True):
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     print "Running k-means..."
     t = time.time()
-    assigns = cluster_fns.kmeans(data, K=k, distfn=distfn, centroidfn=centroidfn)
+    assigns = cluster_fns.kmeans(data, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
     dur = time.time() - t
     print "...Finished k-means ({0} s).".format(dur)
     clusters = {} # maps {clusterID: [imgpath_i, ...]}
@@ -163,11 +163,11 @@ def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn=None, centroidfn
         clusters[i] = cluster
     return clusters
 
-def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn=None, centroidfn=None, do_align=True):
+def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn_method=None, centroidfn_method=None, do_align=True):
     data, errs = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align, return_align_errs=True)
     print "Running k-means..."
     t = time.time()
-    assigns = cluster_fns.kmeans(errs, K=k, distfn=distfn, centroidfn=centroidfn)
+    assigns = cluster_fns.kmeans(errs, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
     dur = time.time() - t
     print "...Finished k-means ({0} s).".format(dur)
     clusters = {}
@@ -179,11 +179,11 @@ def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn=None, centro
         clusters[i] = cluster
     return clusters
 
-def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True):
+def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', centroidfn_method='simple'):
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     print "Running HAG-Clustering..."
     t = time.time()
-    assigns = cluster_fns.hag_cluster_flatten(data, C=0.8)
+    assigns = cluster_fns.hag_cluster_flatten(data, C=0.8, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
     dur = time.time() - t
     print "...Finished HAG-Clustering ({0} s).".format(dur)
     clusters = {}
@@ -195,6 +195,22 @@ def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True):
         print "    cluster {0}: {1} elements.".format(i, len(cluster))
         clusters[i] = cluster
     return clusters
+
+def kmeans_align(imgpaths, bb_map=None, k=2, distfn_method=None, centroidfn_method=None, do_align=True):
+    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align)
+    print "Running k-means..."
+    t = time.time()
+    assigns = cluster_fns.kmeans_2D(data, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
+    dur = time.time() - t
+    print "...Finished k-means ({0} s).".format(dur)
+    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    for i in xrange(k):
+        cluster = []
+        for idx in np.where(assigns == i)[0]:
+            cluster.append(imgpaths[idx])
+        print "    cluster {0}: {1} elements.".format(i, len(cluster))
+        clusters[i] = cluster
+    return clusters    
 
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
     """ Reads in a series of imagepaths, and converts it to an NxM
@@ -238,6 +254,41 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     if return_align_errs:
         return data, alignerrs
     return data
+
+def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
+    if bb_map == None:
+        bb_map = {}
+        h_big, w_big = get_largest_img_dims(imgpaths)
+    else:
+        bb_big = get_largest_bb(bb_map.values())
+        h_big = int(abs(bb_big[0] - bb_big[1]))
+        w_big = int(abs(bb_big[2] - bb_big[3]))
+    # 0.) First, convert images into MxHxW array, where M is the number
+    #     of images, and (H,W) are image sizes.
+    data = np.zeros((len(imgpaths), h_big, w_big))
+    Iref = None
+    alignerrs = [None] * len(imgpaths) # [float err_i, ...]
+    alignerrs = np.zeros((len(imgpaths), 1))
+    for row, imgpath in enumerate(imgpaths):
+        img = scipy.misc.imread(imgpath, flatten=True)
+        bb = bb_map.get(imgpath, None)
+        if bb == None:
+            patch = resize_mat(img, (h_big, w_big))
+        else:
+            # Must make sure that all patches are the same shape.
+            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
+        if do_align and Iref == None:
+            Iref = patch
+        elif do_align:
+            H, patch, err = imagesAlign.imagesAlign(patch, Iref)
+            if return_align_errs:
+                alignerrs[row] = err
+            patch = np.nan_to_num(patch)
+        data[row,:,:] = patch
+    if return_align_errs:
+        return data, alignerrs
+    return data
+
 
 def get_largest_img_dims(imgpaths):
     """ Returns the largest dimensions of the images in imgpaths. """

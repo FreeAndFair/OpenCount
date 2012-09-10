@@ -3,11 +3,14 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
+sys.path.append('..')
+import pixel_reg.shared as shared
+
 """
 A collection of general-purpose clustering algorithms.
 """
 
-def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
+def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean',
            VERBOSE=True):
     """ Performs K-Means clustering on DATA, with an optional initial
     set of means INITIAL.
@@ -48,12 +51,19 @@ def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
         for i in xrange(len(means)):
             rows = data[np.where(assigns == i)]
             means[i] = centfn(rows)
-            means[i] = np.mean(rows)
         return means
 
-    if distfn == None:
+    if distfn_method == 'L2':
         distfn = lambda a,b: np.linalg.norm(a-b)
-    if centroidfn == None:
+    elif distfn_method == 'vardiff':
+        distfn = vardiff
+    else:
+        distfn = lambda a,b: np.linalg.norm(a-b)
+    if centroidfn_method == 'mean':
+        centroidfn = np.mean
+    elif centroidfn_method == 'median':
+        centroidfn = np.median
+    else:
         centroidfn = np.mean
 
     if initial == None:
@@ -86,7 +96,75 @@ def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
             iters += 1
     return assigns
 
-def hag_cluster_maketree(data, distfn=None, VERBOSE=True):
+def kmeans_2D(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean',
+              VERBOSE=True):
+    def assignment(data, assigns, means, distfn):
+        """ For each observation A in DATA, assign A to the closest
+        mean in MEANS, by mutating ASSIGNS.
+        """
+        for i in xrange(data.shape[0]):
+            bestidx, mindist = None, None
+            for idx, mean in enumerate(means):
+                dist = distfn(data[i,:,:], mean)
+                if bestidx == None or dist < mindist:
+                    bestidx = idx
+                    mindist = dist
+            assigns[i] = bestidx
+        return assigns
+    def update_means(data, assigns, means, distfn, centfn):
+        """ For the clustering specified by ASSGNS, compute new means
+        by mutating MEANS.
+        """
+        for i in xrange(len(means)):
+            rows = data[np.where(assigns == i)]
+            means[i] = centfn(rows)
+        return means
+    if distfn_method == 'L2':
+        distfn = lambda a,b: np.linalg.norm(a-b)
+    elif distfn_method == 'vardiff':
+        distfn = vardiff
+    elif distfn_method == 'vardiff_align':
+        distfn = vardiff_align
+    else:
+        distfn = lambda a,b: np.linalg.norm(a-b)
+    if centroidfn_method == 'mean':
+        centroidfn = np.mean
+    elif centroidfn_method == 'median':
+        centroidfn = np.median
+    else:
+        centroidfn = np.mean
+
+    if initial == None:
+        initial_idxs = []
+        _len = range(data.shape[0])
+        for _ in xrange(K):
+            _i = random.choice(_len)
+            while _i in initial_idxs:
+                _i = random.choice(_len)
+            initial_idxs.append(_i)
+        initial = data[initial_idxs]
+    if VERBOSE:
+        print "...initial means:", initial
+    means = initial
+    assigns = np.zeros(data.shape[0])
+    done = False
+    iters = 0
+    while not done:
+        if VERBOSE:
+            print "...kmeans iteration", iters
+        # 1.) Assignment of data to current means
+        prev_assigns = assigns.copy()
+        assigns = assignment(data, assigns, means, distfn)
+        # 2.) Halt if assignments don't change
+        if np.all(np.equal(prev_assigns, assigns)):
+            done = True
+        else:
+            # 3.) Re-compute means from new clusters
+            means = update_means(data, assigns, means, distfn, centroidfn)
+            iters += 1
+    return assigns
+
+def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
     a dendrogram (i.e. tree), where the children of a node N is 
     considered to have been 'merged' into the cluster denoted by N.
@@ -98,22 +176,30 @@ def hag_cluster_maketree(data, distfn=None, VERBOSE=True):
         the agglomerative clustering. The leaf nodes contain indices into
         rows of the original DATA matrix.
     """
-    if distfn == None:
+    if distfn == 'L2':
         distfn = lambda a,b: np.linalg.norm(a-b)
-    #dists = scipy.spatial.distance.pdist(data, metric='euclidean')
+    elif distfn == 'vardiff':
+        distfn = vardiff
+    if clusterdist_method == 'single':
+        clusterdist = single_linkage
+    elif clusterdist_method == 'complete':
+        clusterdist = complete_linkage
+    else:
+        print "Unrecognized clusterdist method: {0}. Using 'single'.".format(clusterdist_method)
+        clusterdist = single_linkage
     clusters = [HAG_Leaf(rowidx) for rowidx in xrange(data.shape[0])]
     curiter = 0
+    memo = {}    # maps {(i, j) : float dist between data[i,j]}
     while len(clusters) != 1:
         if VERBOSE:
             print "...HAG Cluster iteration: {0}".format(curiter)
         # 0.) Compute pair-wise distances between all clusters
         c1_min, c2_min, mindist = None, None, None
-        #dists = np.zeros((len(clusters), len(clusters)))
         for i, c1 in enumerate(clusters):
             for j, c2 in enumerate(clusters):
                 if i == j: 
                     continue
-                dist = distfn(c1.compute_centroid(data), c2.compute_centroid(data))
+                dist = clusterdist(c1, c2, data, memo, distfn)
                 if mindist == None or dist < mindist:
                     c1_min = c1
                     c2_min = c2
@@ -128,6 +214,67 @@ def hag_cluster_maketree(data, distfn=None, VERBOSE=True):
         clusters.append(parent)
         curiter += 1
     return clusters[0]
+
+def vardiff(A, B):
+    """ Computes the difference between A and B, but with an attempt to
+    account for background color. Basically a 1-D version of 
+    shared.variableDiffThr
+    """
+    def estimateBg(I):
+        hist = np.histogram(I, bins=10)
+        return hist[1][np.argmax(hist[0])]
+    A_bg = estimateBg(A);
+    B_bg = estimateBg(B);
+
+    Athr = (A_bg - A.min())/2
+    Bthr = (B_bg - B.min())/2
+    thr = min(Athr, Bthr)
+    diff=np.abs(A - B);
+    # sum values of diffs above  threshold
+    err=np.sum(diff[np.nonzero(diff>thr)])    
+    return err / diff.size
+
+def vardiff_align(A, B):
+    err, diff, Ireg = shared.lkSmallLarge(A, B, 0, B.shape[0], 0, B.shape[1])
+    return err / diff.size
+
+def single_linkage(c1, c2, data, memo, distfn):
+    """ Minimum pair-wise distance between c1, c2. """
+    c1_idxs = c1.get_idxs()
+    c2_idxs = c2.get_idxs()
+    mindist = None
+    for i in c1_idxs:
+        for j in c2_idxs:
+            if i == j:
+                continue
+            dist = memo.get((i,j), None)
+            if dist == None:
+                dist = memo.get((j,i), None)
+            if dist == None:
+                dist = distfn(data[i], data[j])
+                memo[(i, j)] = dist
+            if mindist == None or dist < mindist:
+                mindist = dist
+    return mindist
+
+def complete_linkage(c1, c2, data, memo, distfn):
+    """ Maximum pair-wise distance between c1, c2. """
+    c1_idxs = c1.get_idxs()
+    c2_idxs = c2.get_idxs()
+    maxdist = None
+    for i in c1_idxs:
+        for j in c2_idxs:
+            if i == j:
+                continue
+            dist = memo.get((i,j), None)
+            if dist == None:
+                dist = memo.get((j,i), None)
+            if dist == None:
+                dist = distfn(data[i], data[j])
+                memo[(i, j)] = dist
+            if maxdist == None or dist > maxdist:
+                maxdist = dist
+    return maxdist
 
 def hag_cluster_flatten(data, C=0.8):
     """ Performs Hierarchichal-Agglomerative Clustering on DATA, and 
@@ -168,9 +315,6 @@ class Node(object):
     def __init__(self, row=None, children=None, parent=None):
         raise NotImplementedError
 
-    def compute_centroid(self, method='mean'):
-        raise NotImplementedError
-
 class HAG_Node(Node):
     def __init__(self, children=None, parent=None, dist=None):
         self.children = children
@@ -178,26 +322,20 @@ class HAG_Node(Node):
         self.dist=dist
     def isleaf(self):
         return False
-    def compute_centroid(self, data, method='mean'):
-        _sum = 0.0
-        if method == 'mean':
-            for child in self.children:
-                _sum += child.compute_centroid(data)
-            return _sum / len(self.children)
-        print "Unrecognized method:", method
-        return 1.0
     def get_idxs(self):
         idxs = []
         for c in self.children:
             idxs.extend(c.get_idxs())
         return idxs
         
+    def size(self):
+        return 1 + sum([child.size() for child in self.children])
     def __eq__(self, o):
         return (o and isinstance(o, HAG_Node) and self.children == o.children)
     def __repr__(self):
-        return "HAG_Node({0})".format([repr(c) for c in self.children])
+        return "HAG_Node({0} elements)".format(self.size())
     def __str__(self):
-        return "HAG_Node({0} children)".format(len(self.children))
+        return "HAG_Node({0} elements)".format(self.size())
 
 class HAG_Leaf(Node):
     def __init__(self, row, parent=None):
@@ -207,8 +345,8 @@ class HAG_Leaf(Node):
         return True
     def get_idxs(self):
         return (self.row,)
-    def compute_centroid(self, data, method='mean'):
-        return data[self.row]
+    def size(self):
+        return 1
     def __eq__(self, o):
         return (o and isinstance(o, HAG_Leaf) and self.row == o.row)
     def __repr__(self):
