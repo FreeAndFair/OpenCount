@@ -96,43 +96,48 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             iters += 1
     return assigns
 
-def kmeans_2D(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean',
-              VERBOSE=True):
-    def assignment(data, assigns, means, distfn):
+def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min',
+              MAX_ITERS=200, VERBOSE=True):
+    def assignment(data, assigns, clusters, distfn, clusterfn):
         """ For each observation A in DATA, assign A to the closest
-        mean in MEANS, by mutating ASSIGNS.
+        cluster in CLUSTERS, by mutating ASSIGNS.
         """
         for i in xrange(data.shape[0]):
             bestidx, mindist = None, None
-            for idx, mean in enumerate(means):
-                dist = distfn(data[i,:,:], mean)
+            for idx, cluster in enumerate(clusters):
+                C = data[cluster]
+                I = data[i,:,:]
+                dist = clusterfn(I, C, distfn)
                 if bestidx == None or dist < mindist:
                     bestidx = idx
                     mindist = dist
             assigns[i] = bestidx
         return assigns
-    def update_means(data, assigns, means, distfn, centfn):
-        """ For the clustering specified by ASSGNS, compute new means
-        by mutating MEANS.
+    def update_means(data, assigns, clusters):
+        """ For the clustering specified by ASSGNS, update the CLUSTERS
+        indices.
         """
-        for i in xrange(len(means)):
-            rows = data[np.where(assigns == i)]
-            means[i] = centfn(rows)
-        return means
+        for i in xrange(len(clusters)):
+            clusters[i] = np.where(assigns == i)
+        return clusters
     if distfn_method == 'L2':
         distfn = lambda a,b: np.linalg.norm(a-b)
     elif distfn_method == 'vardiff':
-        distfn = vardiff
+        distfn = shared.variableDiffThr
     elif distfn_method == 'vardiff_align':
         distfn = vardiff_align
     else:
         distfn = lambda a,b: np.linalg.norm(a-b)
-    if centroidfn_method == 'mean':
-        centroidfn = np.mean
-    elif centroidfn_method == 'median':
-        centroidfn = np.median
+    if clusterfn_method == 'mean':
+        clusterfn = _meandist
+    elif clusterfn_method == 'median':
+        clusterfn = _mediandist
+    elif clusterfn_method == 'min':
+        clusterfn = _mindist
+    elif clusterfn_method == 'max':
+        clusterfn = _maxdist
     else:
-        centroidfn = np.mean
+        clusterfn = _mindist
 
     if initial == None:
         initial_idxs = []
@@ -141,28 +146,59 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', centroidfn_method='me
             _i = random.choice(_len)
             while _i in initial_idxs:
                 _i = random.choice(_len)
-            initial_idxs.append(_i)
-        initial = data[initial_idxs]
+            initial_idxs.append([_i])
     if VERBOSE:
-        print "...initial means:", initial
-    means = initial
+        print "...initial idxs:", initial_idxs
+    clusters = initial_idxs
     assigns = np.zeros(data.shape[0])
     done = False
     iters = 0
     while not done:
         if VERBOSE:
             print "...kmeans iteration", iters
+            print "    ...cluster are:", clusters
+        if iters >= MAX_ITERS:
+            print "...Exceeded MAX_ITERS:", MAX_ITERS
+            done = True
         # 1.) Assignment of data to current means
         prev_assigns = assigns.copy()
-        assigns = assignment(data, assigns, means, distfn)
+        assigns = assignment(data, assigns, clusters, distfn, clusterfn)
         # 2.) Halt if assignments don't change
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
         else:
-            # 3.) Re-compute means from new clusters
-            means = update_means(data, assigns, means, distfn, centroidfn)
+            # 3.) Re-compute clusters from new clusters
+            clusters = update_means(data, assigns, clusters)
             iters += 1
     return assigns
+
+""" For the following, I is one data pt, C is a cluster of data pts. """
+def _meandist(I, C, distfn):
+    dists = []
+    for I2 in C:
+        dists.append(distfn(I, I2))
+    return sum(dists) / len(dists)
+def _mediandist(I, C, distfn):
+    dists = []
+    for I2 in C:
+        dists.append(distfn(I, I2))
+    if len(dists) <= 2:
+        return dists[0]
+    return sorted(dists)[len(dists) / 2]
+def _mindist(I, C, distfn):
+    mindist = None
+    for I2 in C:
+        dist = distfn(I, I2)
+        if mindist == None or dist < mindist:
+            mindist = dist
+    return mindist
+def _maxdist(I, C, distfn):
+    maxdist = None
+    for I2 in C:
+        dist = distfn(I, I2)
+        if maxdist == None or dist > maxdist:
+            maxdist = dist
+    return maxdist
 
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns

@@ -22,9 +22,9 @@ def main():
     #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff', 
     #                                                 centroidfn_method='median', 
     #                                                 bb_map=bb_map)
-    clusters = cluster_imgs.kmeans_align(imgpaths, distfn_method='vardiff_align', 
-                                         centroidfn_method='median', 
-                                         bb_map=bb_map)
+    clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', 
+                                      clusterfn_method='median',
+                                      bb_map=bb_map)
     
     #clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths, bb_map=bb_map)
