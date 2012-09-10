@@ -206,6 +206,11 @@ class VerifyPanel(wx.Panel):
 
         self.resultsPath = None
         
+        # Mode for splitting algorithm choice
+        # Options are: rankedlist, k-means, PCA+k-means
+        # Defaults to rankedlist
+        self.splitMode = 'rankedlist'  
+        
         # templates is a dict mapping
         #    {grouplabel: str attrpatch_img}
         # where attrpatch_img is the image patch on the template 
@@ -327,9 +332,11 @@ class VerifyPanel(wx.Panel):
         self.okayButton = wx.Button(self.mainPanel, label='OK')
 
         self.splitButton = wx.Button(self.mainPanel, label='Split')
+        self.SetSplitModeButton = wx.Button(self.mainPanel, label='Set Split Mode')
         self.mergeButton = wx.Button(self.mainPanel, label='Merge Groups...')
         sizer_splitmerge = wx.BoxSizer(wx.VERTICAL)
         sizer_splitmerge.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
+        sizer_splitmerge.Add(self.SetSplitModeButton, flag=wx.LEFT | wx.CENTRE)
         sizer_splitmerge.Add((20, 20))
         sizer_splitmerge.Add(self.mergeButton, flag=wx.LEFT | wx.CENTRE)
 
@@ -687,6 +694,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         self.templateChoice.Bind(wx.EVT_COMBOBOX, self.OnSelectTemplate)
         self.Bind(wx.EVT_BUTTON, self.OnClickOK, self.okayButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickSplit, self.splitButton)
+        self.Bind(wx.EVT_BUTTON, self.OnClickSetSplitMode, self.SetSplitModeButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickMerge, self.mergeButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickDebug, self.debugButton)
         self.Bind(wx.EVT_BUTTON, self.OnClickQuarantine, self.quarantineButton)
@@ -1454,31 +1462,18 @@ finished! Press 'Ok', then you may continue to the next step.",
                 i += 1
             return group
         
-        # TEMP: Hack for Marin, to allow Andy to at least keep progressing
-        # on overly verification.
-        if self.mode == VerifyPanel.MODE_YESNO2:
-            dlg = ChooseSplitModeDialog(self, disable=(ChooseSplitModeDialog.ID_RANKEDLIST,))
-        else:
-            dlg = ChooseSplitModeDialog(self)
-        self.Disable()
-        status = dlg.ShowModal()
-        self.Enable()
-        themode = None
-        if status == wx.ID_CANCEL:
-            return
-        elif status == ChooseSplitModeDialog.ID_RANKEDLIST:
-            themode = 'rankedlist'
-        elif status == ChooseSplitModeDialog.ID_KMEANS:
-            themode = 'kmeans'
-        elif status == ChooseSplitModeDialog.ID_PCA_KMEANS:
-            themode = 'pca_kmeans'
-        else:
-            dlg = wx.MessageDialog(self, message="Unrecognized split mode.", style=wx.OK)
-            self.Disable()
-            dlg.ShowModal()
-            self.Enable()
-            return
-        newGroups = self.currentGroup.split(mode=themode)
+        if self.mode in (VerifyPanel.MODE_YESNO, VerifyPanel.MODE_YESNO2):
+            if self.splitMode == 'rankedlist':
+                # RankedList doesn't make sense in this mode right now,
+                # since the rankedlist is created arbitrarily. Default
+                # to kmeans.
+                # TODO: It is feasible for rankedlist to be a reasonable
+                # choice, if the rankedlists in this mode are created
+                # 'correctly'.
+                print "Not using rankedlist, using kmeans instead."
+                self.splitMode = 'kmeans'
+
+        newGroups = self.currentGroup.split(mode=self.splitMode)
         if self.mode == VerifyPanel.MODE_YESNO2:
             # For each new group, make sure each GroupClass with a 
             # given attr has unique 'attr' values (i.e. a 
@@ -1495,6 +1490,31 @@ finished! Press 'Ok', then you may continue to the next step.",
         self.queueList.Fit()
         #self.parent.Fit() # Causes UI issues
         self.fitPanel()
+    
+    def OnClickSetSplitMode(self, event):
+        if self.mode == VerifyPanel.MODE_YESNO2:
+            dlg = ChooseSplitModeDialog(self, disable=(ChooseSplitModeDialog.ID_RANKEDLIST,))
+        else:
+            dlg = ChooseSplitModeDialog(self)
+        self.Disable()
+        status = dlg.ShowModal()
+        self.Enable()
+        
+        if status == wx.ID_CANCEL:
+            return
+        elif status == ChooseSplitModeDialog.ID_RANKEDLIST:
+            self.splitMode = 'rankedlist'
+        elif status == ChooseSplitModeDialog.ID_KMEANS:
+            self.splitMode = 'kmeans'
+        elif status == ChooseSplitModeDialog.ID_PCA_KMEANS:
+            self.splitMode = 'pca_kmeans'
+        else:
+            dlg = wx.MessageDialog(self, message="Unrecognized split mode.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            return
+        
 
     def OnClickMerge(self, event):
         """ Take all currently-displayed groups A, and 'condense' them
@@ -1783,6 +1803,14 @@ class ChooseSplitModeDialog(wx.Dialog):
         self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)', style=wx.RB_GROUP)
         self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
         self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
+        
+        if parent.splitMode == 'rankedlist':
+            self.rankedlist_rbtn.SetValue(1)
+        elif parent.splitMode == 'kmeans':
+            self.kmeans_rbtn.SetValue(1)
+        else:
+            self.pca_kmeans_rbtn.SetValue(1)
+
         if ChooseSplitModeDialog.ID_RANKEDLIST in disable:
             self.rankedlist_rbtn.Disable()
         if ChooseSplitModeDialog.ID_KMEANS in disable:

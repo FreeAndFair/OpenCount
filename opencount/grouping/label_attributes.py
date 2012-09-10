@@ -33,7 +33,7 @@ class GroupAttributesThread(threading.Thread):
         # attrgroups is dict {str attrtype: {c_imgpath: [(imgpath_i, bb_i), ...]}}
         print "Grouping Ballot Attributes..."
         _t0 = time.time()
-        attrgroups = group_attrs.group_attributes_V2(self.project)
+        attrgroups = group_attrs.group_attributes_V2(self.project, THRESHOLD=0.95)
         print "...Finished Grouping Ballot Attributes ({0} s).".format(time.time() - _t0)
         print "...converting attrgroups to groupclasses."
         _t = time.time()
@@ -271,6 +271,10 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if groupresults == None:
             # We are manually labeling everything
             self.mapping, self.inv_mapping = do_extract_attr_patches(self.project)
+            # Also, remember to update my self.patch_groups dict.
+            for patchpath, (imgpath, attrtype) in self.inv_mapping.iteritems():
+                self.patch_groups.setdefault(patchpath, []).append(imgpath)
+                self.inv_patch_groups.setdefault(imgpath, {})[attrtype] = patchpath
         else:
             self.mapping, self.inv_mapping = self.handle_grouping_results(groupresults, grouplabel_record)
         # outfilepath isn't used at the moment.

@@ -603,23 +603,64 @@ hasn't been implemented yet. Stay tuned!",
         de_mapP = pathjoin(self.parent.parent.project.projdir_path,
                            self.parent.parent.project.digit_exemplars_map)
         pickle.dump(digitexemplars_map, open(de_mapP, 'wb'))
+    
+    def check_digit_strings(self):
+        """ Invoked when the user clicks the "I'm done" button:
+        make sure that len(all digit strings) == number user specified, returns false if any of the digit strings
+        are not long enough. """
+        
+        # self.parent.parent?
+        patch2precinct = self.get_patch2precinct()
+        
+        num_digitsmap = pickle.load(open(pathjoin(self.parent.parent.project.projdir_path,
+                                                 self.parent.parent.project.num_digitsmap)))
+        
+        for k,v in patch2precinct.iteritems():
+            # this depends on the pathname containing the attribute name
+            attr_name = os.path.basename(os.path.split(k)[0])
+            if len(v) != num_digitsmap[attr_name]:
+                return False
+
+        return True
 
     def on_done(self):
         """When the user decides that he/she has indeed finished
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        result = self.export_results()
-        self.compute_and_save_digitexemplars_map()
-        if self.ondone:
-            self.ondone(result)
+        
+        # Check if all the precinct strings have the correct number of digits
+        
+        if not self.check_digit_strings():
+            msg = 'Please check all digits have been matched. OpenCount has detected that some strings\
+are not of proper length.' 
+            dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
+            dlg.ShowModal()
+        
+
+        else:
+            result = self.export_results()
+            self.compute_and_save_digitexemplars_map()
+            if self.ondone:
+                self.ondone(result)
     
-        self.Disable()
+            self.Disable()
 
     def export_results(self):
         """ Saves out the digitattrvals_blanks.p file. """
         result = self.get_patch2precinct()
         self.export_precinct_nums(result)
+        return result
+    
+    def get_patch2cellID(self):
+        """ Return dictionary mapping patchpath to the cell ID on the digit UI """
+        # TODO: INTEGRATE THIS INTO EITHER THE IM DONE EVENT OR A SEPARATE BUTTON TO LET
+        # USER KNOW WHICH CELL IDS ARE NOT OF PROPER LENGTH
+        result = {}
+        for patchpath, txt in self.precinct_txts.iteritems():
+            assert patchpath not in result
+            result[patchpath] = txt.GetLabel().split(' ')[0]
+        
         return result
 
     def get_patch2precinct(self):
@@ -847,6 +888,8 @@ class LabelDigitDialog(common.TextInputDialog):
         staticbitmap = wx.StaticBitmap(self, bitmap=wx.BitmapFromImage(img))
         self.sizer.Insert(1, staticbitmap, proportion=0)
         self.Fit()
+
+
 
 class Box(object):
     def __init__(self, x1, y1, x2, y2, digit=None):

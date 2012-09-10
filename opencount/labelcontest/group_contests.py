@@ -2,13 +2,13 @@ from PIL import Image, ImageDraw
 import os, sys
 from random import random
 sys.path.append('..')
-import util
 try:
     from collections import Counter
 except ImportError as e:
     from util import Counter
 import multiprocessing as mp
 import pickle
+import itertools
 
 black = 200
 
@@ -405,10 +405,26 @@ def do_extract(name, img, squares, giventargets):
         keepgoing = False
         for target in giventargets:
             #print 'this target', target
-            tomerge = [x for x in contests if intersect(x, target)]
+            tomerge = [x for x in contests if intersect(x, target) == target]
             if len(tomerge) > 1:
-                #print "MERGING", tomerge
-                contests = [x for x in contests if x not in tomerge] + [reduce(union, tomerge)]
+                # Find the smallest subset to merge which overlap all targets in all contests.
+                maxcontest = None
+                must_include_targets = sum([[x for x in giventargets if intersect(c, x)] for c in tomerge],[])
+                print 'must include', must_include_targets
+                found = False
+                for group_size in range(1,len(tomerge)+1):
+                    if found: break
+                    for comb in itertools.combinations(tomerge, group_size):
+                        thiscontest = reduce(union, comb)
+                        print 'this', thiscontest
+                        print 'for each', [intersect(targ,thiscontest) for targ in must_include_targets]
+                        if all(intersect(targ,thiscontest) for targ in must_include_targets):
+                            print 'yes'
+                            maxcontest = thiscontest
+                            found = True
+                            break
+                print "MERGING", tomerge
+                contests = [x for x in contests if x not in tomerge] + [maxcontest]
                 keepgoing = True
                 break
             elif len(tomerge) < 1:
@@ -804,7 +820,7 @@ def find_contests(t, paths, giventargets):
     os.popen("rm -r "+tmp+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
-    ballots = pool.map(extract_contest, args)
+    ballots = map(extract_contest, args)
     #ballots = map(extract_contest, args)
     #print "RETURNING", ballots
     return ballots
@@ -839,3 +855,15 @@ def final_grouping(ballots, giventargets):
     print "NOW EQU CLASSES"
     return equ_class(ballots)
 
+'''
+t,b,f = eval(open("g").read())
+b = [b[42]]
+f = [f[42]]
+b = [x.replace("/home/nicholas/yolo/", "yolo-wrong/") for x in b]
+print b
+
+
+print find_contests(u'tmp', b, f)
+
+os.popen("open tmp/*")
+'''
