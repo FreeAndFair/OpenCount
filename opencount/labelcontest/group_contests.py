@@ -12,7 +12,7 @@ import itertools
 
 black = 200
 
-do_save = True
+do_save = False
 export = False
 
 def num2pil(img):
