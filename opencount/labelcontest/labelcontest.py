@@ -54,7 +54,6 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets) is the number of templates
         #   len(groupedtargets[a]) is the number of contests in template A
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
-        #realorder = eval(open("/home/ncarlini/dl").read())
 
         self.groupedtargets = []
         foo = []
@@ -118,8 +117,6 @@ class LabelContest(wx.Panel):
 
                 self.groupedtargets.append(slist)
         self.template_width, self.template_height = thewidth, theheight
-        #print "dirList", self.dirList
-        #open("/home/nicholas/dl", "w").write(str(foo))
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)

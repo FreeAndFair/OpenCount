@@ -12,7 +12,7 @@ import itertools
 
 black = 200
 
-do_save = True
+do_save = False
 export = False
 
 def num2pil(img):
@@ -789,6 +789,8 @@ def extend_multibox(ballots, box1, box2, orders):
     print "RESULT", res
 
     return res, newgroup
+
+# Wrong: 39 42 65
 
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
