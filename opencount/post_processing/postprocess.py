@@ -192,32 +192,36 @@ class ResultsPanel(ScrolledPanel):
             # TODO: I think I need to check both front/back sides to see if
             # it's in quarantined? 
             #if meta['ballot'] not in quarantined:
-            if True not in bools:
-                #print 'bal', meta['ballot']
-                template = meta['template']
-                #print 'template', template
-                targets = meta['targets']
-                voted = {}
-                for target in targets:
-                    targetid = int(target.split(".")[1])
-                    #print "t", target
-                    contest = templatemap[template][targetid]
-                    #print 'c', contest, targetid
-                    if contest not in voted: voted[contest] = []
-                    voted[contest].append((targetid, target in isvoted))
-                    
+            if True in bools: continue
+
+            print 'bal', meta['ballot']
+            template = meta['template']
+            print 'template', template
+            targets = meta['targets']
+            print targets
+            voted = {}
+            for target in targets:
+                targetid = int(target.split(".")[1])
+                print 'targetid', targetid
+                contest = templatemap[template][targetid]
+                print 'contest', contest
+                if contest not in voted: voted[contest] = []
+                voted[contest].append((targetid, target in isvoted))
+                print 'so', target in isvoted
+                print 'total', voted
+                
+
+            #print 'voted a', voted
+            voted = dict((a,sorted(b)) for a,b in voted.items())
+            #for k,v in voted.items():
+            #    print k, v
+            #    print k, order[template,k]
     
-                #print 'voted a', voted
-                voted = dict((a,sorted(b)) for a,b in voted.items())
-                #for k,v in voted.items():
-                    #print k, v
-                    #print k, order[template,k]
-                    #pass
-
-                voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
-                #print 'voted b', voted
-                image_cvr[meta['ballot']] = voted
-
+            voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
+            print "Results for ballot", meta['ballot']
+            print voted
+            image_cvr[meta['ballot']] = voted
+    
         print 'Now going through the ballots'
         # Now process the quarantined files
         def processContestQuar(cid, voted):

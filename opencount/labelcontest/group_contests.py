@@ -774,6 +774,8 @@ def extend_multibox(ballots, box1, box2, orders):
 
     return res, newgroup
 
+# Wrong: 39 42 65
+
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
     print "ARGUMENTS", (t, paths, giventargets, lang_map)
