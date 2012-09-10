@@ -86,7 +86,7 @@ def kmeans(data, initial=None, K=2, distfn=None, centroidfn=None,
             iters += 1
     return assigns
 
-def hag_cluster(data, VERBOSE=True):
+def hag_cluster_maketree(data, distfn=None, VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
     a dendrogram (i.e. tree), where the children of a node N is 
     considered to have been 'merged' into the cluster denoted by N.
@@ -95,49 +95,103 @@ def hag_cluster(data, VERBOSE=True):
             and M is the dimensionality of the feature space.
     Output:
         A tree structure, which consists of the results of merges during
-        the agglomerative clustering.
+        the agglomerative clustering. The leaf nodes contain indices into
+        rows of the original DATA matrix.
     """
-    dists = scipy.spatial.distance.pdist(data, metric='euclidean')
-    clusters = [HAG_Leaf(row) for row in data]
+    if distfn == None:
+        distfn = lambda a,b: np.linalg.norm(a-b)
+    #dists = scipy.spatial.distance.pdist(data, metric='euclidean')
+    clusters = [HAG_Leaf(rowidx) for rowidx in xrange(data.shape[0])]
+    curiter = 0
     while len(clusters) != 1:
+        if VERBOSE:
+            print "...HAG Cluster iteration: {0}".format(curiter)
         # 0.) Compute pair-wise distances between all clusters
         c1_min, c2_min, mindist = None, None, None
-        dists = np.zeros((len(clusters), len(clusters)))
+        #dists = np.zeros((len(clusters), len(clusters)))
         for i, c1 in enumerate(clusters):
             for j, c2 in enumerate(clusters):
                 if i == j: 
                     continue
-                dist = distfn(c1.compute_centroid(), c2.compute_centroid())
+                dist = distfn(c1.compute_centroid(data), c2.compute_centroid(data))
                 if mindist == None or dist < mindist:
                     c1_min = c1
                     c2_min = c2
+                    mindist = dist
         # 1.) Merge two-closest clusters.
-        parent = HAG_Node((c1_min, c2_min))
+        if VERBOSE:
+            print "...Merging clusters {0}, {1}. Dist: {2}".format(c1_min, c2_min, mindist)
+        parent = HAG_Node((c1_min, c2_min), dist=mindist)
         c1_min.parent = parent
         c2_min.parent = parent
         clusters = [c for c in clusters if c not in (c1_min, c2_min)]
         clusters.append(parent)
+        curiter += 1
     return clusters[0]
+
+def hag_cluster_flatten(data, C=0.8):
+    """ Performs Hierarchichal-Agglomerative Clustering on DATA, and 
+    through the use of a threshold C, tries to infer the 'natural'
+    clustering by returning a clustering of DATA.
+    Input:
+        array DATA: An NxM array, N being the number of observations,
+        M being the dimensionality.
+        float C: Threshold value to use for inferring when to split
+        groups. Should range from [0.0, 1.0].
+    Output:
+        array assigns: An N-vector, where each N[i] contains an integer
+            saying which cluster N[i] belongs to.
+    """
+    # TODO: Normalize (somehow) the node.dist, so that the C threshold
+    # makes sense.
+    def flatten_hag_tree(node, C):
+        if node.isleaf():
+            return ((node.row,),)
+        elif node.dist < C:
+            return (node.get_idxs(),)
+        else:
+            idxs = []
+            for child in node.children:
+                idxs.extend(flatten_hag_tree(child, C))
+            return idxs
+    # 0.) Create HAG Cluster Tree
+    tree = hag_cluster_maketree(data)
+    # 1.) Create the ASSIGNS return value.
+    assigns = np.zeros(data.shape[0])
+    clusters = flatten_hag_tree(tree, C)
+    for clusterID, cluster in enumerate(clusters):
+        for row in cluster:
+            assigns[row] = clusterID
+    return assigns
     
 class Node(object):
-    def __init__(self, datum=None, children=None, parent=None):
+    def __init__(self, row=None, children=None, parent=None):
         raise NotImplementedError
 
     def compute_centroid(self, method='mean'):
         raise NotImplementedError
 
 class HAG_Node(Node):
-    def __init__(self, children=None, parent=None):
+    def __init__(self, children=None, parent=None, dist=None):
         self.children = children
         self.parent = parent
-    def compute_centroid(self, method='mean'):
+        self.dist=dist
+    def isleaf(self):
+        return False
+    def compute_centroid(self, data, method='mean'):
         _sum = 0.0
         if method == 'mean':
             for child in self.children:
-                _sum += child.compute_centroid()
+                _sum += child.compute_centroid(data)
             return _sum / len(self.children)
         print "Unrecognized method:", method
         return 1.0
+    def get_idxs(self):
+        idxs = []
+        for c in self.children:
+            idxs.extend(c.get_idxs())
+        return idxs
+        
     def __eq__(self, o):
         return (o and isinstance(o, HAG_Node) and self.children == o.children)
     def __repr__(self):
@@ -146,15 +200,19 @@ class HAG_Node(Node):
         return "HAG_Node({0} children)".format(len(self.children))
 
 class HAG_Leaf(Node):
-    def __init__(self, datum, parent=None):
-        self.datum = datum
+    def __init__(self, row, parent=None):
+        self.row = row
         self.parent = parent
-    def compute_centroid(self, method='mean'):
-        return self.datum
+    def isleaf(self):
+        return True
+    def get_idxs(self):
+        return (self.row,)
+    def compute_centroid(self, data, method='mean'):
+        return data[self.row]
     def __eq__(self, o):
-        return (o and isinstance(o, HAG_LEAF) and self.datum == o.datum)
+        return (o and isinstance(o, HAG_Leaf) and self.row == o.row)
     def __repr__(self):
-        return "HAG_Leaf({0})".format(repr(self.datum))
+        return "HAG_Leaf({0})".format(repr(self.row))
     def __str__(self):
         return "HAG_Leaf"
 

@@ -18,8 +18,9 @@ def main():
     random.shuffle(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_kmeans_alignerr(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths)
-    clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths)
+    #clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths)
+    clusters = cluster_imgs.cluster_imgs_hag(imgpaths)
 
     for cluster, imgpaths in clusters.iteritems():
         #overlay, minimg, maximg = make_overlays.overlay_im(imgpaths, include_min_max=True)

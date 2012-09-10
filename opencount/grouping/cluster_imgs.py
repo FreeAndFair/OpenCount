@@ -179,6 +179,23 @@ def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn=None, centro
         clusters[i] = cluster
     return clusters
 
+def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True):
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
+    print "Running HAG-Clustering..."
+    t = time.time()
+    assigns = cluster_fns.hag_cluster_flatten(data, C=0.8)
+    dur = time.time() - t
+    print "...Finished HAG-Clustering ({0} s).".format(dur)
+    clusters = {}
+    k = len(set(list(assigns)))
+    for i in xrange(k):
+        cluster = []
+        for idx in np.where(assigns == i)[0]:
+            cluster.append(imgpaths[idx])
+        print "    cluster {0}: {1} elements.".format(i, len(cluster))
+        clusters[i] = cluster
+    return clusters
+
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
