@@ -32,10 +32,12 @@ def main():
     #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff', 
     #                                                 centroidfn_method='median', 
     #                                                 bb_map=bb_map)
-    #clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='imgdistortion', 
-    #                                  do_align=True,
-    #                                  do_edgedetect=True,
-    #                                  bb_map=bb_map)
+    '''
+    clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', 
+                                      do_align=True,
+                                      do_edgedetect=False,
+                                      bb_map=bb_map)
+    '''
     clusters = cluster_imgs.kmediods_2D(imgpaths, distfn_method='vardiff', 
                                         do_align=True,
                                         do_edgedetect=False,

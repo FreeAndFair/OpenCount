@@ -283,6 +283,7 @@ def _L1(A, B, debug=False):
     if debug and err == 0:
         pdb.set_trace()
     return err / diff.size
+
 def vardiff(A, B, debug=False):
     """ Computes the difference between A and B, but with an attempt to
     account for background color. Basically a 1-D version of 
@@ -300,6 +301,7 @@ def vardiff(A, B, debug=False):
     Bthr = (B_bg - B_nonan.min())/2
     thr = min(Athr, Bthr)
     diff=np.abs(A - B);
+
     # sum values of diffs above  threshold
     err=np.sum(diff[np.nonzero(diff>thr)])    
     dist = err / float(diff.size)
@@ -396,8 +398,6 @@ def _maxdist(I, C, distfn, debug=False):
             maxdist = dist
     return maxdist
 
-
-    
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
     a dendrogram (i.e. tree), where the children of a node N is 

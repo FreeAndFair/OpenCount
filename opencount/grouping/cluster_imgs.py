@@ -286,7 +286,8 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxHxW array, where M is the number
     #     of images, and (H,W) are image sizes.
-    data = np.zeros((len(imgpaths), h_big, w_big))
+    data = np.zeros((len(imgpaths), h_big-20, w_big-20))
+    #data = np.zeros((len(imgpaths), h_big, w_big))
     Iref = None
     alignerrs = [None] * len(imgpaths) # [float err_i, ...]
     alignerrs = np.zeros((len(imgpaths), 1))
@@ -311,12 +312,15 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
                 os.makedirs("alignedimgs")
             except:
                 pass
-            scipy.misc.imsave(os.path.join("alignedimgs", "{0}_{1}.png".format(row, err)),
+            #scipy.misc.imsave(os.path.join("alignedimgs", "{0}_{1}.png".format(row, err)),
+            #                  patch_img)
+            scipy.misc.imsave(os.path.join("alignedimgs", "{0}.png".format(row)),
                               patch_img)
             print "alignment err:", err
             if return_align_errs:
                 alignerrs[row] = err
-
+        # Crop out window
+        patch = patch[10:patch.shape[0]-10, 10:patch.shape[1]-10]
         data[row,:,:] = patch
     if return_align_errs:
         return data, alignerrs
