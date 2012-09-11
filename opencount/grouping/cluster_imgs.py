@@ -196,13 +196,13 @@ def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', c
         clusters[i] = cluster
     return clusters
 
-def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None, clusterfn_method=None, 
+def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
               do_align=True, do_edgedetect=False):
     data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align, do_edgedetect=do_edgedetect)
     
     print "Running k-means..."
     t = time.time()
-    assigns = cluster_fns.kmeans_2D(data, K=k, distfn_method=distfn_method, clusterfn_method=clusterfn_method)
+    assigns = cluster_fns.kmeans_2D(data, K=k, distfn_method=distfn_method)
     dur = time.time() - t
     print "...Finished k-means ({0} s).".format(dur)
     clusters = {} # maps {clusterID: [imgpath_i, ...]}

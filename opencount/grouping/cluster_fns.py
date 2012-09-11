@@ -1,6 +1,7 @@
-import sys, os, pdb, time, random
+import sys, os, pdb, time, random, traceback
 import numpy as np
 import scipy
+import scipy.stats.stats as stats
 import matplotlib.pyplot as plt
 
 sys.path.append('..')
@@ -95,42 +96,34 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             iters += 1
     return assigns
 
-def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min',
+def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
               MAX_ITERS=200, VERBOSE=True):
-    def assignment(data, assigns, clusters, distfn, clusterfn):
+    def assignment(data, assigns, means, distfn):
         """ For each observation A in DATA, assign A to the closest
-        cluster in CLUSTERS, by mutating ASSIGNS.
+        mean in MEANS, by mutating ASSIGNS.
         """
         for i in xrange(data.shape[0]):
             bestidx, mindist = None, None
-            for idx, cluster in enumerate(clusters):
-                # cluster_idxs: Don't compare image to itself
-                try:
-                    cluster_idxs = cluster[cluster != i]
-                except:
-                    pdb.set_trace()
-                if len(cluster_idxs) == 0:
-                    print "BAD"
-                    pdb.set_trace()
-                C = data[cluster_idxs]
+            for idx, mean in enumerate(means):
                 I = data[i,:,:]
-                dist = clusterfn(I, C, distfn)
+                try:
+                    dist = distfn(I, mean)
+                except:
+                    traceback.print_exc()
+                    pdb.set_trace()
                 print 'dist is:', dist
                 if bestidx == None or dist < mindist:
                     bestidx = idx
                     mindist = dist
             assigns[i] = bestidx
         return assigns
-    def update_means(data, assigns, clusters):
-        """ For the clustering specified by ASSGNS, update the CLUSTERS
-        indices.
-        """
-        for i in xrange(len(clusters)):
-            clusters[i] = np.where(assigns == i)[0]
-        return clusters
+    def update_means(data, assigns, means):
+        """ For the clustering specified by ASSGNS, update MEANS. """
+        for i in xrange(len(means)):
+            cluster_i = data[np.where(assigns == i)]
+            means[i] = stats.nanmean(cluster_i)
+        return means
     distfn = _get_distfn(distfn_method)
-    clusterfn = _get_clusterfn(clusterfn_method)
-
     if initial == None:
         initial_idxs = []
         _len = range(data.shape[0])
@@ -138,12 +131,12 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
             _i = random.choice(_len)
             while _i in initial_idxs:
                 _i = random.choice(_len)
-            initial_idxs.append(np.array([_i]))
+            initial_idxs.append(_i)
+    means = data[initial_idxs]
     # TODO: Why infinite loop?
     #initial_idxs = [np.array([16]), np.array([23])]
     if VERBOSE:
-        print "...initial idxs:", initial_idxs
-    clusters = initial_idxs
+        print "...initial means:", means
     assigns = np.zeros(data.shape[0])
     done = False
     iters = 0
@@ -151,13 +144,12 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
     while not done:
         if VERBOSE:
             print "...kmeans iteration", iters
-            #print "    ...cluster are:", clusters
         if iters >= MAX_ITERS:
             print "...Exceeded MAX_ITERS:", MAX_ITERS
             done = True
         # 1.) Assignment of data to current means
         prev_assigns = assigns.copy()
-        assigns = assignment(data, assigns, clusters, distfn, clusterfn)
+        assigns = assignment(data, assigns, means, distfn)
         # 2.) Halt if assignments don't change
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
@@ -166,7 +158,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
             done = True
         else:
             # 3.) Re-compute clusters from new clusters
-            clusters = update_means(data, assigns, clusters)
+            means = update_means(data, assigns, means)
             prevprev_assigns = prev_assigns
             iters += 1
     return assigns
