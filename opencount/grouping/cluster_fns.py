@@ -267,9 +267,90 @@ def _get_distfn(distfn_method):
         distfn = vardiff
     elif distfn_method == 'vardiff_align':
         distfn = vardiff_align
+    elif distfn_method == 'imgdistortion':
+        distfn = imgdistortiondiff
+    elif distfn_method == 'imgdistortion_vardiff':
+        distfn = imgdistortion_vardiff
     else:
         distfn = _L1
     return distfn
+
+""" The following are distance functions, between two images A, B """
+
+def _L1(A, B, debug=False):
+    diff = np.abs(A - B)
+    err = np.sum(diff[np.nonzero(diff>0)])
+    if debug and err == 0:
+        pdb.set_trace()
+    return err / diff.size
+def vardiff(A, B, debug=False):
+    """ Computes the difference between A and B, but with an attempt to
+    account for background color. Basically a 1-D version of 
+    shared.variableDiffThr
+    """
+    A_nonan = A[~np.isnan(A)]
+    B_nonan = B[~np.isnan(B)]
+    def estimateBg(I):
+        hist = np.histogram(I, bins=10)
+        return hist[1][np.argmax(hist[0])]
+    A_bg = estimateBg(A_nonan);
+    B_bg = estimateBg(B_nonan);
+
+    Athr = (A_bg - A_nonan.min())/2
+    Bthr = (B_bg - B_nonan.min())/2
+    thr = min(Athr, Bthr)
+    diff=np.abs(A - B);
+    # sum values of diffs above  threshold
+    err=np.sum(diff[np.nonzero(diff>thr)])    
+    dist = err / float(diff.size)
+    if debug and dist == 0:
+        pdb.set_trace()
+    return dist
+
+def vardiff_align(A, B):
+    err, diff, Ireg = shared.lkSmallLarge(A, B, 0, B.shape[0], 0, B.shape[1])
+    return err / diff.size
+
+def imgdistortiondiff(A, B, M=3):
+    """ Returns the diff between A and B, but for each pixel P in A, 
+    compares P to the P' in B that is most similar, within a window of
+    size MxM. Utilizes the 'Image Distortion Model'.
+    TODO: This is probably very slow - might have to do this in Cython.
+    """
+    diff = 0.0
+    for i in xrange(A.shape[0]):
+        for j in xrange(A.shape[1]):
+            p = A[i, j]
+            if np.isnan(p): continue
+            bb = (max(0, i - M),
+                  min(A.shape[0]-1, i + M),
+                  max(0, j - M),
+                  min(A.shape[1]-1, j + M))
+            region = B[bb[0]:bb[1], bb[2]:bb[3]]
+            dist = np.nanmin(np.abs(p - region))
+            if np.isnan(dist): continue
+            diff += dist
+    return diff
+                
+def imgdistortion_vardiff(A, B, M=3):
+    """ Just like imgdistortiondiff, but also tries to estimate the 
+    background, just like vardiff.
+    """
+    A_nonan = A[~np.isnan(A)]
+    B_nonan = B[~np.isnan(B)]
+    def estimateBg(I):
+        hist = np.histogram(I, bins=10)
+        return hist[1][np.argmax(hist[0])]
+    A_bg = estimateBg(A_nonan);
+    B_bg = estimateBg(B_nonan);
+
+    Athr = (A_bg - A_nonan.min())/2
+    Bthr = (B_bg - B_nonan.min())/2
+    thr = min(Athr, Bthr)
+    A = A.copy(); B = B.copy()
+    A[A < thr] = 0
+    B[B < thr] = 0
+    return imgdistortiondiff(A, B)
 
 def _get_clusterfn(clusterfn_method):
     if clusterfn_method == 'mean':
@@ -284,13 +365,10 @@ def _get_clusterfn(clusterfn_method):
         clusterfn = _mindist
     return clusterfn
 
-def get_mediodfn(mediodfn_method):
-    if mediodfn_method == 'min':
-        return _mediodmin
-    else:
-        return _mediodmin
-
-""" For the following, I is one data pt, C is a cluster of data pts. """
+""" 
+For the following, I is one data pt, C is a cluster of data pts. Used
+in k-mediods to compute the distance between a point and a cluster.
+"""
 def _meandist(I, C, distfn, debug=False):
     dists = []
     for I2 in C:
@@ -318,12 +396,6 @@ def _maxdist(I, C, distfn, debug=False):
             maxdist = dist
     return maxdist
 
-def _L1(A, B, debug=False):
-    diff = np.abs(A - B)
-    err = np.sum(diff[np.nonzero(diff>0)])
-    if debug and err == 0:
-        pdb.set_trace()
-    return err / diff.size
 
     
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
@@ -376,34 +448,6 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
         clusters.append(parent)
         curiter += 1
     return clusters[0]
-
-def vardiff(A, B, debug=False):
-    """ Computes the difference between A and B, but with an attempt to
-    account for background color. Basically a 1-D version of 
-    shared.variableDiffThr
-    """
-    A_nonan = A[~np.isnan(A)]
-    B_nonan = B[~np.isnan(B)]
-    def estimateBg(I):
-        hist = np.histogram(I, bins=10)
-        return hist[1][np.argmax(hist[0])]
-    A_bg = estimateBg(A_nonan);
-    B_bg = estimateBg(B_nonan);
-
-    Athr = (A_bg - A_nonan.min())/2
-    Bthr = (B_bg - B_nonan.min())/2
-    thr = min(Athr, Bthr)
-    diff=np.abs(A - B);
-    # sum values of diffs above  threshold
-    err=np.sum(diff[np.nonzero(diff>thr)])    
-    dist = err / float(diff.size)
-    if debug and dist == 0:
-        pdb.set_trace()
-    return dist
-
-def vardiff_align(A, B):
-    err, diff, Ireg = shared.lkSmallLarge(A, B, 0, B.shape[0], 0, B.shape[1])
-    return err / diff.size
 
 def single_linkage(c1, c2, data, memo, distfn):
     """ Minimum pair-wise distance between c1, c2. """
