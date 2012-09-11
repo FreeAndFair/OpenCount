@@ -105,9 +105,22 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
         for i in xrange(data.shape[0]):
             bestidx, mindist = None, None
             for idx, cluster in enumerate(clusters):
-                C = data[cluster]
+                # cluster_idxs: Don't compare image to itself
+                try:
+                    cluster_idxs = cluster[cluster != i]
+                except:
+                    pdb.set_trace()
+                if len(cluster_idxs) == 0:
+                    print "BAD"
+                    pdb.set_trace()
+                C = data[cluster_idxs]
                 I = data[i,:,:]
+                #if len(clusters[0]) > 1 and len(clusters[1]) > 1:                
+                #    dist = clusterfn(I, C, distfn, debug=True)
+                #else:
+                #    dist = clusterfn(I, C, distfn)
                 dist = clusterfn(I, C, distfn)
+                print 'dist is:', dist
                 if bestidx == None or dist < mindist:
                     bestidx = idx
                     mindist = dist
@@ -118,12 +131,15 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
         indices.
         """
         for i in xrange(len(clusters)):
-            clusters[i] = np.where(assigns == i)
+            clusters[i] = np.where(assigns == i)[0]
         return clusters
     if distfn_method == 'L2':
-        distfn = lambda a,b: np.linalg.norm(a-b)
+        distfn = lambda a,b: np.linalg.norm(a-b, 2)
+    elif distfn_method == 'L1':
+        distfn = _L1
+        #distfn = lambda a,b: np.linalg.norm(a-b, 1)
     elif distfn_method == 'vardiff':
-        distfn = shared.variableDiffThr
+        distfn = vardiff
     elif distfn_method == 'vardiff_align':
         distfn = vardiff_align
     else:
@@ -146,17 +162,24 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
             _i = random.choice(_len)
             while _i in initial_idxs:
                 _i = random.choice(_len)
-            initial_idxs.append([_i])
+            initial_idxs.append(np.array([_i]))
+    # TODO: Why infinite loop?
+    #initial_idxs = [[29], [37]]
+    #initial_idxs = [[10], [42]]
+    #initial_idxs = [np.array([16]), np.array([23])]
     if VERBOSE:
         print "...initial idxs:", initial_idxs
     clusters = initial_idxs
     assigns = np.zeros(data.shape[0])
+
     done = False
     iters = 0
+    prevprev_assigns = None
     while not done:
+
         if VERBOSE:
             print "...kmeans iteration", iters
-            print "    ...cluster are:", clusters
+            #print "    ...cluster are:", clusters
         if iters >= MAX_ITERS:
             print "...Exceeded MAX_ITERS:", MAX_ITERS
             done = True
@@ -166,39 +189,51 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
         # 2.) Halt if assignments don't change
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
+        elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
+            print "...len-2 Cycle detected, aborting."
+            done = True
         else:
             # 3.) Re-compute clusters from new clusters
             clusters = update_means(data, assigns, clusters)
+
+            prevprev_assigns = prev_assigns
             iters += 1
     return assigns
 
 """ For the following, I is one data pt, C is a cluster of data pts. """
-def _meandist(I, C, distfn):
+def _meandist(I, C, distfn, debug=False):
     dists = []
     for I2 in C:
-        dists.append(distfn(I, I2))
+        dists.append(distfn(I, I2, debug))
     return sum(dists) / len(dists)
-def _mediandist(I, C, distfn):
+def _mediandist(I, C, distfn, debug=False):
     dists = []
     for I2 in C:
-        dists.append(distfn(I, I2))
+        dists.append(distfn(I, I2, debug))
     if len(dists) <= 2:
         return dists[0]
     return sorted(dists)[len(dists) / 2]
-def _mindist(I, C, distfn):
+def _mindist(I, C, distfn, debug=False):
     mindist = None
     for I2 in C:
-        dist = distfn(I, I2)
+        dist = distfn(I, I2, debug)
         if mindist == None or dist < mindist:
             mindist = dist
     return mindist
-def _maxdist(I, C, distfn):
+def _maxdist(I, C, distfn, debug=False):
     maxdist = None
     for I2 in C:
-        dist = distfn(I, I2)
+        dist = distfn(I, I2, debug)
         if maxdist == None or dist > maxdist:
             maxdist = dist
     return maxdist
+
+def _L1(A, B, debug=False):
+    diff = np.abs(A - B)
+    err = np.sum(diff[np.nonzero(diff>0)])
+    if debug and err == 0:
+        pdb.set_trace()
+    return err / diff.size
 
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
@@ -251,24 +286,29 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
         curiter += 1
     return clusters[0]
 
-def vardiff(A, B):
+def vardiff(A, B, debug=False):
     """ Computes the difference between A and B, but with an attempt to
     account for background color. Basically a 1-D version of 
     shared.variableDiffThr
     """
+    A_nonan = A[~np.isnan(A)]
+    B_nonan = B[~np.isnan(B)]
     def estimateBg(I):
         hist = np.histogram(I, bins=10)
         return hist[1][np.argmax(hist[0])]
-    A_bg = estimateBg(A);
-    B_bg = estimateBg(B);
+    A_bg = estimateBg(A_nonan);
+    B_bg = estimateBg(B_nonan);
 
-    Athr = (A_bg - A.min())/2
-    Bthr = (B_bg - B.min())/2
+    Athr = (A_bg - A_nonan.min())/2
+    Bthr = (B_bg - B_nonan.min())/2
     thr = min(Athr, Bthr)
     diff=np.abs(A - B);
     # sum values of diffs above  threshold
     err=np.sum(diff[np.nonzero(diff>thr)])    
-    return err / diff.size
+    dist = err / float(diff.size)
+    if debug and dist == 0:
+        pdb.set_trace()
+    return dist
 
 def vardiff_align(A, B):
     err, diff, Ireg = shared.lkSmallLarge(A, B, 0, B.shape[0], 0, B.shape[1])

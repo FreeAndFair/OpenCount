@@ -11,25 +11,38 @@ def main():
     args = sys.argv[1:]
     imgsdir = args[0]
     outdir = args[1]
+    election = args[2]
     imgpaths = []
-    bb_map = {}
+    if election == 'marin':
+        bb_map = {}
+    else:
+        bb_map = None
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         for imgname in [f for f in filenames if is_img_ext(f)]:
+            if 'mail-14' in imgname:
+                print "Idx for mail-14:", len(imgpaths)
+            elif 'vbm-28' in imgname:
+                print "Idx for vbm-28:", len(imgpaths)
             imgpaths.append(os.path.join(dirpath, imgname))
-            bb_map[os.path.join(dirpath, imgname)] = (137, 173, 37, 201)
-    random.shuffle(imgpaths)
+            if election == 'marin':
+                bb_map[os.path.join(dirpath, imgname)] = (137, 173, 37, 201)
+    
+    #random.shuffle(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_kmeans_alignerr(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff', 
     #                                                 centroidfn_method='median', 
     #                                                 bb_map=bb_map)
     clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', 
-                                      clusterfn_method='median',
+                                      clusterfn_method='mean',
+                                      do_align=True,
+                                      do_edgedetect=False,
                                       bb_map=bb_map)
     
     #clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_hag(imgpaths, bb_map=bb_map)
-
+    if bb_map == None:
+        bb_map = {}
     for cluster, imgpaths in clusters.iteritems():
         #overlay, minimg, maximg = make_overlays.overlay_im(imgpaths, include_min_max=True)
         minimg, maximg = make_overlays.make_minmax_overlay(imgpaths)

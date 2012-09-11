@@ -3,7 +3,7 @@ sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
 import scipy.cluster.vq
-import pylab
+import pylab, cv
 
 import specify_voting_targets.util_gui as util_gui
 import cluster_fns
@@ -196,8 +196,10 @@ def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', c
         clusters[i] = cluster
     return clusters
 
-def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None, clusterfn_method=None, do_align=True):
-    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align)
+def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None, clusterfn_method=None, 
+              do_align=True, do_edgedetect=False):
+    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align, do_edgedetect=do_edgedetect)
+    
     print "Running k-means..."
     t = time.time()
     assigns = cluster_fns.kmeans_2D(data, K=k, distfn_method=distfn_method, clusterfn_method=clusterfn_method)
@@ -255,7 +257,8 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
         return data, alignerrs
     return data
 
-def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
+def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
+                      do_edgedetect=False, LOW_T=75, RATIO=3):
     if bb_map == None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
@@ -277,18 +280,44 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         else:
             # Must make sure that all patches are the same shape.
             patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
+        
+        if do_edgedetect:
+            patch = edgedetect(patch)
         if do_align and Iref == None:
             Iref = patch
         elif do_align:
             H, patch, err = imagesAlign.imagesAlign(patch, Iref)
+            patch_img = np.nan_to_num(patch)
+            #patch = patch_img
+            try:
+                os.makedirs("alignedimgs")
+            except:
+                pass
+            scipy.misc.imsave(os.path.join("alignedimgs", "{0}_{1}.png".format(row, err)),
+                              patch_img)
+            print "alignment err:", err
             if return_align_errs:
                 alignerrs[row] = err
-            patch = np.nan_to_num(patch)
+
         data[row,:,:] = patch
     if return_align_errs:
         return data, alignerrs
     return data
 
+def edgedetect(I_np, LOW_T=75, RATIO=3):
+    I_cv = cv.fromarray(I_np)
+    I_cv8U = cv.CreateMat(I_cv.rows, I_cv.cols, cv.CV_8U)
+    cv.Convert(I_cv, I_cv8U)
+    edges = cv.CreateMat(I_cv8U.rows, I_cv8U.cols, cv.CV_8U)
+
+    cv.Canny(I_cv8U, edges, LOW_T, LOW_T*RATIO)
+    edges_32f = cv.CreateMat(edges.rows, edges.cols, cv.CV_32F)
+    cv.Convert(edges, edges_32f)
+    edges_np = np.array(edges_32f)
+    return edges_np
+
+def smooth(I):
+    pass
 
 def get_largest_img_dims(imgpaths):
     """ Returns the largest dimensions of the images in imgpaths. """
