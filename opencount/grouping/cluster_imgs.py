@@ -214,6 +214,24 @@ def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None, clusterfn_method=N
         clusters[i] = cluster
     return clusters    
 
+def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
+                do_align=True, do_edgedetect=False):
+    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align, do_edgedetect=do_edgedetect)
+    
+    print "Running k-mediods..."
+    t = time.time()
+    assigns = cluster_fns.kmediods_2D(data, K=k, distfn_method=distfn_method)
+    dur = time.time() - t
+    print "...Finished k-mediods ({0} s).".format(dur)
+    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    for i in xrange(k):
+        cluster = []
+        for idx in np.where(assigns == i)[0]:
+            cluster.append(imgpaths[idx])
+        print "    cluster {0}: {1} elements.".format(i, len(cluster))
+        clusters[i] = cluster
+    return clusters  
+
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where

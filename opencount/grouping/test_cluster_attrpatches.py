@@ -32,12 +32,15 @@ def main():
     #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff', 
     #                                                 centroidfn_method='median', 
     #                                                 bb_map=bb_map)
-    clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', 
-                                      clusterfn_method='mean',
-                                      do_align=True,
-                                      do_edgedetect=False,
-                                      bb_map=bb_map)
-    
+    #clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', 
+    #                                  clusterfn_method='mean',
+    #                                  do_align=True,
+    #                                  do_edgedetect=False,
+    #                                  bb_map=bb_map)
+    clusters = cluster_imgs.kmediods_2D(imgpaths, distfn_method='vardiff', 
+                                        do_align=True,
+                                        do_edgedetect=False,
+                                        bb_map=bb_map)    
     #clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths, bb_map=bb_map)
     #clusters = cluster_imgs.cluster_imgs_hag(imgpaths, bb_map=bb_map)
@@ -45,7 +48,7 @@ def main():
         bb_map = {}
     for cluster, imgpaths in clusters.iteritems():
         #overlay, minimg, maximg = make_overlays.overlay_im(imgpaths, include_min_max=True)
-        minimg, maximg = make_overlays.make_minmax_overlay(imgpaths)
+        #minimg, maximg = make_overlays.make_minmax_overlay(imgpaths)
         
         outrootdir = os.path.join(outdir, str(cluster))
         try:
@@ -59,8 +62,8 @@ def main():
                 img = img[bb[0]:bb[1], bb[2]:bb[3]]
             scipy.misc.imsave(os.path.join(outrootdir, os.path.split(imgpath)[1]), img)
 
-        scipy.misc.imsave(os.path.join(outrootdir, 'min.png'), minimg)
-        scipy.misc.imsave(os.path.join(outrootdir, 'max.png'), maximg)
+        #scipy.misc.imsave(os.path.join(outrootdir, 'min.png'), minimg)
+        #scipy.misc.imsave(os.path.join(outrootdir, 'max.png'), maximg)
 
 if __name__ == '__main__':
     main()

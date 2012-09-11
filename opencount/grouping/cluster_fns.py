@@ -52,7 +52,6 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             rows = data[np.where(assigns == i)]
             means[i] = centfn(rows)
         return means
-
     if distfn_method == 'L2':
         distfn = lambda a,b: np.linalg.norm(a-b)
     elif distfn_method == 'vardiff':
@@ -115,10 +114,6 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
                     pdb.set_trace()
                 C = data[cluster_idxs]
                 I = data[i,:,:]
-                #if len(clusters[0]) > 1 and len(clusters[1]) > 1:                
-                #    dist = clusterfn(I, C, distfn, debug=True)
-                #else:
-                #    dist = clusterfn(I, C, distfn)
                 dist = clusterfn(I, C, distfn)
                 print 'dist is:', dist
                 if bestidx == None or dist < mindist:
@@ -133,27 +128,8 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
         for i in xrange(len(clusters)):
             clusters[i] = np.where(assigns == i)[0]
         return clusters
-    if distfn_method == 'L2':
-        distfn = lambda a,b: np.linalg.norm(a-b, 2)
-    elif distfn_method == 'L1':
-        distfn = _L1
-        #distfn = lambda a,b: np.linalg.norm(a-b, 1)
-    elif distfn_method == 'vardiff':
-        distfn = vardiff
-    elif distfn_method == 'vardiff_align':
-        distfn = vardiff_align
-    else:
-        distfn = lambda a,b: np.linalg.norm(a-b)
-    if clusterfn_method == 'mean':
-        clusterfn = _meandist
-    elif clusterfn_method == 'median':
-        clusterfn = _mediandist
-    elif clusterfn_method == 'min':
-        clusterfn = _mindist
-    elif clusterfn_method == 'max':
-        clusterfn = _maxdist
-    else:
-        clusterfn = _mindist
+    distfn = _get_distfn(distfn_method)
+    clusterfn = _get_clusterfn(clusterfn_method)
 
     if initial == None:
         initial_idxs = []
@@ -164,19 +140,15 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
                 _i = random.choice(_len)
             initial_idxs.append(np.array([_i]))
     # TODO: Why infinite loop?
-    #initial_idxs = [[29], [37]]
-    #initial_idxs = [[10], [42]]
     #initial_idxs = [np.array([16]), np.array([23])]
     if VERBOSE:
         print "...initial idxs:", initial_idxs
     clusters = initial_idxs
     assigns = np.zeros(data.shape[0])
-
     done = False
     iters = 0
     prevprev_assigns = None
     while not done:
-
         if VERBOSE:
             print "...kmeans iteration", iters
             #print "    ...cluster are:", clusters
@@ -195,10 +167,136 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2', clusterfn_method='min
         else:
             # 3.) Re-compute clusters from new clusters
             clusters = update_means(data, assigns, clusters)
-
             prevprev_assigns = prev_assigns
             iters += 1
     return assigns
+
+def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
+                MAX_ITERS=200, VERBOSE=True):
+    """ Implements the K-Mediods algorithm. DATA should be an NxWxH matrix,
+    where N is the number of observations, and WxH is the dimension of the
+    images.
+    """
+    def compute_distmat(data, distfn):
+        """ Computes the pairwise distance matrix. """
+        out = np.zeros((data.shape[0], data.shape[0]))
+        for i in xrange(data.shape[0]):
+            for j in xrange(data.shape[0]):
+                if i == j: continue
+                out[i,j] = distfn(data[i,:,:], data[j,:,:])
+        return out
+    def assignment(data, assigns, mediods, distfn, distmat):
+        """ Assigns each data point to the nearest mediod, by mutating
+        the input ASSIGNS.
+        """
+        for row in xrange(data.shape[0]):
+            mindist, bestidx = None, None
+            for i, idx in enumerate(mediods):
+                dist = distmat[row, idx]
+                if mindist == None or dist < mindist:
+                    mindist = dist
+                    bestidx = idx
+            assigns[row] = bestidx
+        return assigns
+    def update_mediods(data, assigns, mediods, distmat):
+        """ Re-computes the optimal mediod for each cluster. Mutates the
+        input MEDIODS.
+        """
+        for i, idx_mediod in enumerate(mediods):
+            # elem_idxs: indices of elements in current mediod
+            elem_idxs = np.where(assigns == idx_mediod)[0]
+            # 1.) Choose the element in M that minimizes cost.
+            mincost, minidx = None, None
+            for elem_idx1 in elem_idxs:
+                cost = 0
+                for elem_idx2 in elem_idxs:
+                    if elem_idx1 == elem_idx2: continue
+                    cost += distmat[elem_idx1, elem_idx2]
+                if mincost == None or cost < mincost:
+                    print "...swapped mediod: cost {0} -> {1}".format(mincost, cost)
+                    mincost = cost; minidx = elem_idx1
+            # 2.) Update the mediod of M.
+            mediods[i] = minidx
+        return mediods
+    distfn = _get_distfn(distfn_method)
+    print "...computing distance matrix"
+    distmat = compute_distmat(data, distfn)
+    print "...Finished computing distance matrix."
+
+    if initial == None:
+        initial_idxs = []
+        _len = range(data.shape[0])
+        for _ in xrange(K):
+            _i = random.choice(_len)
+            while _i in initial_idxs:
+                _i = random.choice(_len)
+            initial_idxs.append(_i)
+    if VERBOSE:
+        print "...initial idxs:", initial_idxs
+    mediods = initial_idxs
+    assigns = np.zeros(data.shape[0])
+
+    done = False
+    iters = 0
+    prevprev_assigns = None
+    while not done:
+        if VERBOSE:
+            print "...kmediods iteration", iters
+        if iters >= MAX_ITERS:
+            print "...Exceeded MAX_ITERS:", MAX_ITERS
+            done = True
+        # 1.) Assignment of data to current mediods
+        prev_assigns = assigns.copy()
+        assigns = assignment(data, assigns, mediods, distfn, distmat)
+        # 2.) Halt if assignments don't change
+        if np.all(np.equal(prev_assigns, assigns)):
+            done = True
+        elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
+            print "...len-2 Cycle detected, aborting."
+            done = True
+        else:
+            # 3.) Re-compute clusters from new clusters
+            mediods = update_mediods(data, assigns, mediods, distmat)
+            prevprev_assigns = prev_assigns
+            iters += 1
+    # 4.) Munge ASSIGNS to only be values from 0 to K-1.
+    foo = set(assigns)
+    assert len(foo) == K
+    for k, val in enumerate(foo):
+        assigns[assigns == val] = k
+    return assigns
+
+def _get_distfn(distfn_method):
+    if distfn_method == 'L2':
+        distfn = lambda a,b: np.linalg.norm(a-b, 2)
+    elif distfn_method == 'L1':
+        distfn = _L1
+    elif distfn_method == 'vardiff':
+        distfn = vardiff
+    elif distfn_method == 'vardiff_align':
+        distfn = vardiff_align
+    else:
+        distfn = _L1
+    return distfn
+
+def _get_clusterfn(clusterfn_method):
+    if clusterfn_method == 'mean':
+        clusterfn = _meandist
+    elif clusterfn_method == 'median':
+        clusterfn = _mediandist
+    elif clusterfn_method == 'min':
+        clusterfn = _mindist
+    elif clusterfn_method == 'max':
+        clusterfn = _maxdist
+    else:
+        clusterfn = _mindist
+    return clusterfn
+
+def get_mediodfn(mediodfn_method):
+    if mediodfn_method == 'min':
+        return _mediodmin
+    else:
+        return _mediodmin
 
 """ For the following, I is one data pt, C is a cluster of data pts. """
 def _meandist(I, C, distfn, debug=False):
@@ -235,6 +333,7 @@ def _L1(A, B, debug=False):
         pdb.set_trace()
     return err / diff.size
 
+    
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
     a dendrogram (i.e. tree), where the children of a node N is 
