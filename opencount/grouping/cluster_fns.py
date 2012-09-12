@@ -111,7 +111,9 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                 except:
                     traceback.print_exc()
                     pdb.set_trace()
-                print 'dist is:', dist
+                if dist == np.nan:
+                    print "Uhoh, nan dist."
+                    pdb.set_trace()
                 if bestidx == None or dist < mindist:
                     bestidx = idx
                     mindist = dist
@@ -121,7 +123,16 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         """ For the clustering specified by ASSGNS, update MEANS. """
         for i in xrange(len(means)):
             cluster_i = data[np.where(assigns == i)]
-            means[i] = stats.nanmean(cluster_i)
+            if len(cluster_i) == 0:
+                # Empty cluster - reinitialize with a random datapoint
+                print "...Empty cluster for mean {0}, reinitializing.".format(i)
+                means[i] = random.choice(data)
+                continue
+            mean_i = mean_nan(cluster_i)
+            if len(mean_i[~np.isnan(mean_i)]) == 0:
+                print "Uhoh, only NaN's here."
+                pdb.set_trace()
+            means[i] = mean_i
         return means
     distfn = _get_distfn(distfn_method)
     if initial == None:
@@ -182,9 +193,19 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
         the input ASSIGNS.
         """
         for row in xrange(data.shape[0]):
+            if row in mediods:
+                # Data pt. is a mediod, should be assigned to itself
+                assigns[row] = row
+                continue
             mindist, bestidx = None, None
             for i, idx in enumerate(mediods):
                 dist = distmat[row, idx]
+                try:
+                    foo = dist < mindist
+                    bar = mindist == None
+                    baz = foo or bar
+                except:
+                    pdb.set_trace()
                 if mindist == None or dist < mindist:
                     mindist = dist
                     bestidx = idx
@@ -208,6 +229,9 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                     print "...swapped mediod: cost {0} -> {1}".format(mincost, cost)
                     mincost = cost; minidx = elem_idx1
             # 2.) Update the mediod of M.
+            if minidx == None:
+                print "Uhoh, problem."
+                pdb.set_trace()
             mediods[i] = minidx
         return mediods
     distfn = _get_distfn(distfn_method)
@@ -223,6 +247,9 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
             while _i in initial_idxs:
                 _i = random.choice(_len)
             initial_idxs.append(_i)
+    if len(set(initial_idxs)) != K:
+        print "Invalid setting of initial mediods."
+        pdb.set_trace()
     if VERBOSE:
         print "...initial idxs:", initial_idxs
     mediods = initial_idxs
@@ -279,10 +306,12 @@ def _get_distfn(distfn_method):
 
 def _L1(A, B, debug=False):
     diff = np.abs(A - B)
+    # size: Exclude NaN's
+    size = len(diff[~np.isnan(diff)])
     err = np.sum(diff[np.nonzero(diff>0)])
     if debug and err == 0:
         pdb.set_trace()
-    return err / diff.size
+    return err / size
 
 def vardiff(A, B, debug=False):
     """ Computes the difference between A and B, but with an attempt to
@@ -304,7 +333,7 @@ def vardiff(A, B, debug=False):
 
     # sum values of diffs above  threshold
     err=np.sum(diff[np.nonzero(diff>thr)])    
-    dist = err / float(diff.size)
+    dist = err / float(A_nonan.size)
     if debug and dist == 0:
         pdb.set_trace()
     return dist
@@ -397,6 +426,13 @@ def _maxdist(I, C, distfn, debug=False):
         if maxdist == None or dist > maxdist:
             maxdist = dist
     return maxdist
+
+def mean_nan(A):
+    """ Computes the mean of A, ignoring NaN's. A is an NxHxW matrix,
+    where N is the number of elements in the cluster. """
+    dat = np.ma.masked_array(A, np.isnan(A))
+    mean = np.mean(dat, axis=0)
+    return mean.filled(np.nan)
 
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns

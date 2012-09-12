@@ -276,7 +276,22 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     return data
 
 def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
-                      do_edgedetect=False, LOW_T=75, RATIO=3):
+                      do_edgedetect=False, LOW_T=75, RATIO=3,
+                      BORDER=5):
+    """ Converts imgpaths into an NxHxW matrix, where N is the number of
+    images, and (H,W) is the shape of each image.
+    Input:
+        list imgpaths:
+        dict bb_map:
+        bool do_align: If True, then this will align all images to an
+            arbitrary image.
+        bool return_align_errs: If True, then this function will also
+            return the alignment error for each image.
+        bool do_edgedetect: Perform Canny edge detection (with params 
+            LOW_T, RATIO) on IMGPATHS as a pre-processing step.
+        int BORDER: How many pixels to remove from the borders of the
+            image. 
+    """
     if bb_map == None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
@@ -286,7 +301,7 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxHxW array, where M is the number
     #     of images, and (H,W) are image sizes.
-    data = np.zeros((len(imgpaths), h_big-20, w_big-20))
+    data = np.zeros((len(imgpaths), h_big-(2*BORDER), w_big-(2*BORDER)))
     #data = np.zeros((len(imgpaths), h_big, w_big))
     Iref = None
     alignerrs = [None] * len(imgpaths) # [float err_i, ...]
@@ -299,7 +314,6 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         else:
             # Must make sure that all patches are the same shape.
             patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
-        
         if do_edgedetect:
             patch = edgedetect(patch)
         if do_align and Iref == None:
@@ -320,7 +334,7 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
             if return_align_errs:
                 alignerrs[row] = err
         # Crop out window
-        patch = patch[10:patch.shape[0]-10, 10:patch.shape[1]-10]
+        patch = patch[BORDER:patch.shape[0]-BORDER, BORDER:patch.shape[1]-BORDER]
         data[row,:,:] = patch
     if return_align_errs:
         return data, alignerrs
