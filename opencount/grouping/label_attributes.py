@@ -404,7 +404,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         blank2attrpatch = pickle.load(open(blank2attrpatchP, 'rb'))
         # invblank2attrpatch maps {str patchpath: (str imgpath, str attrtype)}
         invblank2attrpatch = pickle.load(open(invblank2attrpatchP, 'rb'))
-        attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, ...)}}
+        attrtype_exemplars = {}  # maps {attrtype: {attrval: (patchpath_i, bb_i), ...)}}
         for attrtype, attrval_map in blankpatches.iteritems():
             # 0.) Grab all 'equivalent' attribute patches, from self.patch_groups
             attrmap = {} # maps {str attrval: (patchpath_i, ...)}
@@ -415,9 +415,12 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                         pdb.set_trace()
                     equiv_ballots = self.patch_groups[patchpath]
                     equiv_patches = [blank2attrpatch[imgpath][attrtype] for imgpath in equiv_ballots]
-                    attrmap.setdefault(attrval, []).extend(equiv_patches)
+                    stuff = [(imgpath, None) for imgpath in equiv_patches]
+                    #attrmap.setdefault(attrval, []).extend(equiv_patches)
+                    attrmap.setdefault(attrval, []).extend(stuff)
             # 1.) Cluster the attribute patches.
-            exemplars = group_attrs.cluster_bkgd(attrmap, D=20)
+            # exemplars: maps {str label: ((imgpath_i, bb_i), ...)}
+            exemplars = group_attrs.compute_exemplars_fullimg(attrmap)
             _n = sum(map(len, exemplars.values()))
             print "==== For Attribute {0}, {1} exemplars were found.".format(attrtype,
                                                                              _n)
@@ -444,7 +447,7 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
             for attrval, exemplars in thedict.iteritems():
                 rootdir = os.path.join(outdir, attrtype)
                 util_gui.create_dirs(rootdir)
-                for i, patchpath in enumerate(exemplars):
+                for i, (patchpath, bb_i) in enumerate(exemplars):
                     # TODO: Instead of reading in the image, and then
                     # re-saving it to another location, just do something
                     # else. Maybe don't resave it?
@@ -453,6 +456,8 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
                     # patchpath is guaranteed to be in grayscale (since I
                     # created it previously).
                     img = scipy.misc.imread(patchpath) 
+                    if bb_i != None:
+                        img = img[bb_i[0]:bb_i[1], bb_i[2]:bb_i[3]]
                     outfilename = "{0}_{1}.png".format(attrval, i)
                     fulloutpath = os.path.join(rootdir, outfilename)
                     scipy.misc.imsave(fulloutpath, img)

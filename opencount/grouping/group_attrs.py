@@ -582,6 +582,9 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2):
         #t = time.time()
         #print "Running find_patch_matchesV1..."
+        if bb == None:
+            bb = [0, img.shape[0]-1, 0, img.shape[1]-1]
+            bbs2 = None
         matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, doPrep=False)
         #dur = time.time() - t
         #print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
