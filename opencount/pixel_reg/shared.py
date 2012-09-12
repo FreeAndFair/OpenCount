@@ -82,7 +82,6 @@ def NCC(I,patch):
     outPad[0:Iout.shape[0],0:Iout.shape[1]]=Iout
     return outPad
     
-
 def variableDiffThr(I,patch):
     #estimate threshold for comparison: 
     try:
@@ -95,6 +94,7 @@ def variableDiffThr(I,patch):
         diff=np.abs(I-patch);
         # sum values of diffs above  threshold
         err=np.sum(diff[np.nonzero(diff>thr)])
+
     except Exception as e:
         print e
         traceback.print_exc()
