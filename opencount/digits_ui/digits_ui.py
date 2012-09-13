@@ -815,8 +815,8 @@ matching. Saving to: _errtmp_npimg.png"
         """Extracts box from the currently-displayed image. """
         coords = Box.make_canonical(box)
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
-        #npimg = scipy.misc.imread(imgpath, flatten=True)
-        npimg = shared.standardImread(imgpath, flatten=True)
+        #npimg = scipy.misc.imread(self.imgpath, flatten=True)
+        npimg = shared.standardImread(self.imgpath, flatten=True)
         x1,y1,x2,y2=map(lambda n: int(round(n*self.rszFac)),coords)
         return npimg[y1:y2, x1:x2]
 

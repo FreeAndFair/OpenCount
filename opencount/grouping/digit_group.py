@@ -104,13 +104,20 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     if ignorelist == None:
         ignorelist = []
     result = {} # maps {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)}
-    # 0.) Construct digit exemplars
-    # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
-    t = time.time()
-    print "Computing Digit Exemplars..."
-    exemplars = compute_digit_exemplars(project)
-    dur = time.time() - t
-    print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
+    if os.path.exists(os.path.join(project.projdir_path,
+                                   project.digitmultexemplars)):
+        print "Loading previously-computed Digit Exemplars."
+        exemplars = pickle.load(open(os.path.join(project.projdir_path,
+                                                  project.digitmultexemplars_map),
+                                     'rb'))
+    else:
+        # 0.) Construct digit exemplars
+        # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
+        t = time.time()
+        print "Computing Digit Exemplars..."
+        exemplars = compute_digit_exemplars(project)
+        dur = time.time() - t
+        print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
 
     digit_exs = make_digithashmap(project, exemplars)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
@@ -465,12 +472,15 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
     # Munge the grouping results into grouping_results, digit_results
     ## Note: the isflip_i/side_i info from digitgroup_results gets
     ## thrown out after these blocks. Do I actually need them?
+    digitattrtype = None
     if not util.is_multipage(proj):
         for attr_type in attr_types:
             for ballotid in bal2imgs:
                 if ballotid in ignorelist:
                     continue
                 if common.is_digitbased(proj, attr_type):
+                    if digitattrtype == None:
+                        digitattrtype = attr_type
                     if ballotid not in digitgroup_results:
                         # This is OK, it means that we did not have to
                         # run digitocr on ballotid.
@@ -488,6 +498,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
                 if ballotid in ignorelist:
                     continue
                 if common.is_digitbased(proj, attr_type):
+                    if digitattrtype == None:
+                        digitattrtype = attr_type
                     # Note: digitgroup_results has correct side info
                     sidepath = frontpath if frontpath in digitgroup_results else backpath
                     if sidepath not in digitgroup_results:
@@ -503,7 +515,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
 
     groups = []
     # Seed initial set of digit-based groups
-    alldigits = digits_results.keys()
+    #alldigits = digits_results.keys()
+    alldigits = common.get_attrtype_possiblevals(proj, digitattrtype)
     for digit, lst in digits_results.iteritems():
         elements = []
         rankedlist = make_digits_rankedlist(digit, alldigits, grouplabel_record)
