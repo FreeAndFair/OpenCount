@@ -16,6 +16,7 @@ class VerifyContestGrouping(wx.Panel):
 
         self.ocrdir = ocrdir
         self.dirList = dirList
+        print "SET TO", equivs
         self.equivs = equivs
         self.reorder = reorder
         self.reorder_inverse = reorder_inverse
@@ -78,6 +79,8 @@ class VerifyContestGrouping(wx.Panel):
             self.callback([(self.processgroups[k],v) for k,v in self.is_valid.items()])
             self.frame.Close(True)
 
+        print self.equivs[self.processgroups[self.group_index]]
+        print self.equivs
         for ballot,contest in self.equivs[self.processgroups[self.group_index]]:
             #print ballot, contest
             ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
