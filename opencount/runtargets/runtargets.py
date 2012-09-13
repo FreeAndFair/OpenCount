@@ -129,6 +129,21 @@ class RunThread(threading.Thread):
         csvPattern = pathjoin(self.proj.target_locs_dir,'%s_targetlocs.csv')
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
+        print "Start loading groupings results"
+        fh=open(self.proj.grouping_results)
+        dreader=csv.DictReader(fh)
+        bal2tpl={}
+        print "Now load quarantined data"
+        qfile = open(self.proj.quarantined, 'r')
+        qfiles = set([f.strip() for f in qfile.readlines()])
+        qfile.close()
+        print "Now process them all"
+        for row in dreader:
+            sample = os.path.abspath(row['samplepath'])
+            if sample not in qfiles:
+                bal2tpl[sample]=row['templatepath']
+        fh.close()
+
         if self.rerun:
             bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
@@ -137,6 +152,7 @@ class RunThread(threading.Thread):
                 print "Starting call to convertImagesSingleMAP"
                 res = convertImagesSingleMAP(bal2imgs,
                                              tpl2imgs,
+                                             bal2tpl,
                                              csvPattern,
                                              self.proj.extracted_dir, 
                                              self.proj.extracted_metadata,
@@ -145,20 +161,6 @@ class RunThread(threading.Thread):
                                              self.stopped,
                                              self.proj)
             else:
-                print "Start loading groupings results"
-                fh=open(self.proj.grouping_results)
-                dreader=csv.DictReader(fh)
-                bal2tpl={}
-                print "Now load quarantined data"
-                qfile = open(self.proj.quarantined, 'r')
-                qfiles = set([f.strip() for f in qfile.readlines()])
-                qfile.close()
-                print "Now process them all"
-                for row in dreader:
-                    sample = os.path.abspath(row['samplepath'])
-                    if sample not in qfiles:
-                        bal2tpl[sample]=row['templatepath']
-                fh.close()
                 print "Starting call to convertImagesMultiMAP"
                 res = convertImagesMultiMAP(bal2imgs,
                                             tpl2imgs,
