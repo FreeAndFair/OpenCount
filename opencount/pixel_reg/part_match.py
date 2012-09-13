@@ -391,6 +391,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
     patchExample = digitList[0]
 
     nProc=sh.numProcs()
+
     if nProc < 2:
         results = []
         for x in imList:

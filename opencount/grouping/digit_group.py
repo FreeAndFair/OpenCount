@@ -183,12 +183,14 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         print "== Extracting Voted Digit Patches..."
         # Note: I use pass_idx=True because I need to assign a unique
         #       ID to the {0}_votedextract.png patch paths.
+
         r, d = partask.do_partask(extract_voted_digitpatches,
                                   digitparse_results,
                                   _args=(bb, digitattr, voteddigits_dir, img2bal, project.samplesdir),
                                   combfn=my_combfn,
                                   init=({},{}),
                                   pass_idx=True) 
+
         for ballotid, lsts in r.iteritems():
             result.setdefault(ballotid,[]).extend(lsts)
         for patchpath, (bb, side, isflip, ballotid) in d.iteritems():
@@ -238,7 +240,7 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             assert isinstance(isflip, bool)
             img = cv.LoadImage(imgpath, False)
             if isflip == True:
-                cv.Flip(img)
+                cv.Flip(img, flipMode=-1)
             # _y1, etc. are coordinates of digit patch w.r.t image coords.
             _y1 = int(bb[0]+y1)
             _y2 = int(bb[0]+y2)
