@@ -189,7 +189,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                   _args=(bb, digitattr, voteddigits_dir, img2bal, project.samplesdir),
                                   combfn=my_combfn,
                                   init=({},{}),
-                                  pass_idx=True) 
+                                  pass_idx=True)
 
         for ballotid, lsts in r.iteritems():
             result.setdefault(ballotid,[]).extend(lsts)
@@ -238,16 +238,23 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip, ballotid)
             assert isinstance(isflip, bool)
-            img = cv.LoadImage(imgpath, False)
+            #img = cv.LoadImage(imgpath, False)
+            #if isflip == True:
+            #    cv.Flip(img, flipMode=-1)
+            img = scipy.misc.imread(imgpath, flatten=True)
             if isflip == True:
-                cv.Flip(img, flipMode=-1)
+                img = sh.fastFlip(img)
+            img = sh.remove_border_topleft(img)
             # _y1, etc. are coordinates of digit patch w.r.t image coords.
-            _y1 = int(bb[0]+y1)
-            _y2 = int(bb[0]+y2)
-            _x1 = int(bb[2]+x1)
-            _x2 = int(bb[2]+x2)
+            # Expand by E pixels, for user benefit.
+            E = 3
+            _y1 = int(bb[0]+y1 - E)
+            _y2 = int(bb[0]+y2 + E)
+            _x1 = int(bb[2]+x1 - E)
+            _x2 = int(bb[2]+x2 + E)
             outdigitpatch = img[_y1:_y2, _x1:_x2]
-            cv.SaveImage(outpath, outdigitpatch)
+            #cv.SaveImage(outpath, outdigitpatch)
+            scipy.misc.imsave(outpath, outdigitpatch)
             meta_out.append((y1,y2,x1,x2, digit, outpath, score))
             ctr += 1
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))

@@ -356,8 +356,29 @@ def process_one(args):
     I1 = sh.standardImread(imP,flatten=True)
     if do_flip == True:
         I1 = sh.fastFlip(I1)
+    # 0.) For Yolo (and perhaps other elections), upside-down voted
+    # ballots were problematic. Recall that the ballot straightener
+    # will pad the voted ballot with a black border if the B isn't
+    # of the specified canonical size (W,H). Currently, the straightener
+    # adds the padding to the bottom+right of the image. However, if the
+    # voted ballot is upside down, then the padding is added to the 
+    # top+left (after undoing the flip), which results in a large shift
+    # which our algorithms aren't able to gracefully handle.
+    I1 = sh.remove_border_topleft(I1)
     #I1=sh.prepOpenCV(I1)
-    I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+    E_i = 0.00  # factor to expand bbSearch by
+    E_j = 0.00 
+    amt_i = int(round(E_i*(bbSearch[1]-bbSearch[0])))
+    amt_j = int(round(E_j*(bbSearch[3]-bbSearch[2])))
+    bb = [max(0, bbSearch[0]-amt_i),
+          min(I1.shape[0]-1, bbSearch[1]+amt_i),
+          max(0, bbSearch[2]-amt_j),
+          min(I1.shape[1]-1, bbSearch[3]+amt_j)]
+    #I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+    I1 = I1[bb[0]:bb[1], bb[2]:bb[3]]
+    #misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
+    #                                     str(do_flip)),
+    #            I1)
     rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
     accepted_hash = accepted_hashes.get(imP, None) if accepted_hashes else None
     # perform matching for all digits
@@ -391,6 +412,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
     patchExample = digitList[0]
 
     nProc=sh.numProcs()
+    #nProc = 1
 
     if nProc < 2:
         results = []
