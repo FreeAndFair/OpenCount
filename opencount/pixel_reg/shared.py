@@ -555,3 +555,22 @@ def standardImread(fNm,flatten=False):
     if flatten:
         I=rgb2gray(I)
     return I
+
+def remove_border_topleft(A):
+    """ Removes black border from the top+left  of A - created due to
+    the straightener adding padding to voted ballots.
+    """
+    h,w = A.shape
+    out = np.zeros(A.shape, dtype=A.dtype)
+    for i in xrange(h):
+        thesum = np.sum(A[i])
+        if thesum != 0:
+            break
+    for j in xrange(w):
+        thesum = np.sum(A[:,j])
+        if thesum != 0:
+            break
+    # i is the number of rows with all-black
+    # j is the number of cols with all-black
+    out[0:h-i, 0:w-j] = A[i:,j:]
+    return out
