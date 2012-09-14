@@ -504,6 +504,9 @@ in queue: 0")
             given, then this will use the 'globally'-defined record,
             which is meant for 'Verify Overlays' at the end of OpenCount.
         """
+        if not groups:
+            print "Uhoh, there aren't any groups passed into VerifyPanel."
+            pdb.set_trace()
         self.project = proj
         if grouplabel_record == None:
             self.grouplabel_record = common.load_grouplabel_record(proj)
