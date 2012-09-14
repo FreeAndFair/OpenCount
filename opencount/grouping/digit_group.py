@@ -245,7 +245,8 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             if isflip == True:
                 img = sh.fastFlip(img)
             img = sh.remove_border_topleft(img)
-            # _y1, etc. are coordinates of digit patch w.r.t image coords.
+            # _y1, etc. are coordinates of digit patch w.r.t image coords,
+            # whereas (y1,etc.) are coords w.r.t digit patch
             # Expand by E pixels, for user benefit.
             E = 3
             _y1 = int(bb[0]+y1 - E)

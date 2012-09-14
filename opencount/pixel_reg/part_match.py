@@ -331,7 +331,7 @@ def pm2(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
         ocr_str += key[0]
         i2=i1+digit_hash[key].shape[0]
         j2=j1+digit_hash[key].shape[1]
-        P = I[i1:i2,j1:j2]
+        #P = I[i1:i2,j1:j2]
         bbs.append((i1,i2,j1,j2))
         #patches.append(P)
         patches.append(None)
@@ -366,28 +366,42 @@ def process_one(args):
     # which our algorithms aren't able to gracefully handle.
     I1 = sh.remove_border_topleft(I1)
     #I1=sh.prepOpenCV(I1)
-    E_i = 0.00  # factor to expand bbSearch by
-    E_j = 0.00 
-    amt_i = int(round(E_i*(bbSearch[1]-bbSearch[0])))
-    amt_j = int(round(E_j*(bbSearch[3]-bbSearch[2])))
-    bb = [max(0, bbSearch[0]-amt_i),
-          min(I1.shape[0]-1, bbSearch[1]+amt_i),
-          max(0, bbSearch[2]-amt_j),
-          min(I1.shape[1]-1, bbSearch[3]+amt_j)]
+    E_i1 = 0.10  # factor to expand bbSearch by
+    E_i2 = 0.33
+    E_j1 = 0.05
+    E_j2 = 0.05 
+    h, w = int(bbSearch[1] - bbSearch[0]), int(bbSearch[3]-bbSearch[2])
+    amt_i1 = int(round(E_i1*h))
+    amt_i2 = int(round(E_i2*h))
+    amt_j1 = int(round(E_j1*w))
+    amt_j2 = int(round(E_j2*w))
+    bb = [max(0, bbSearch[0]-amt_i1),
+          min(I1.shape[0]-1, bbSearch[1]+amt_i2),
+          max(0, bbSearch[2]-amt_j1),
+          min(I1.shape[1]-1, bbSearch[3]+amt_j2)]
     #I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
     I1 = I1[bb[0]:bb[1], bb[2]:bb[3]]
-    #misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
-    #                                     str(do_flip)),
-    #            I1)
+    #if do_flip == False:
+    #    misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
+    #                                         str(do_flip)),
+    #                I1)
     rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
     accepted_hash = accepted_hashes.get(imP, None) if accepted_hashes else None
     # perform matching for all digits
     # return best matching digit
     # mask out 
+    # res := (str ocr_str, list patches, list bbs, list scores, list matched_keys)
     res = pm2(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
     #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+    # 1.) Remember to correct for E_i,E_j expansion factor from earlier
+    newbbs = []
+    for bb in res[2]:
+        newbbs.append((max(0, bb[0]-amt_i1), 
+                       min(I1.shape[0]-1, bb[1]-amt_i1),
+                       max(0, bb[2]-amt_j1), 
+                       min(I1.shape[1]-1, bb[3]-amt_j1)))
 
-    return (imP,res[0],res[1],res[2],res[3])
+    return (imP,res[0],res[1],newbbs,res[3])
 
 def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
                rejected_hashes=None, accepted_hashes=None):
