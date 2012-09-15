@@ -867,7 +867,6 @@ matching. Saving to: _errtmp_npimg.png"
                 return
             #scipy.misc.imsave('before_crop.png', npimg)
             #scipy.misc.imsave('after_crop.png', npimg_crop)
-            npimg_crop = np.float32(npimg_crop / 255.0)
             self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
     def onMotion(self, evt):
@@ -880,8 +879,9 @@ matching. Saving to: _errtmp_npimg.png"
         """Extracts box from the currently-displayed image. """
         coords = Box.make_canonical(box)
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
-        npimg = np.array(Image.open(self.imgpath).convert('L'))
-        x1,y1,x2,y2=map(lambda n:n*self.rszFac,coords)
+        #npimg = scipy.misc.imread(self.imgpath, flatten=True)
+        npimg = shared.standardImread(self.imgpath, flatten=True)
+        x1,y1,x2,y2=map(lambda n: int(round(n*self.rszFac)),coords)
         return npimg[y1:y2, x1:x2]
 
     def onPaint(self, evt):
@@ -918,7 +918,7 @@ class ThreadDoTempMatch(threading.Thread):
         
     def run(self):
         h, w =  self.img1.shape
-        bb = [0, h, 0, w]
+        bb = [0, h-1, 0, w-1]
         regions = []
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):

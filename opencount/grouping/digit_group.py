@@ -104,13 +104,20 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     if ignorelist == None:
         ignorelist = []
     result = {} # maps {ballotid: ((attrtype_i, ocrresult_i, meta_i, isflip_i, side_i), ...)}
-    # 0.) Construct digit exemplars
-    # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
-    t = time.time()
-    print "Computing Digit Exemplars..."
-    exemplars = compute_digit_exemplars(project)
-    dur = time.time() - t
-    print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
+    if os.path.exists(os.path.join(project.projdir_path,
+                                   project.digitmultexemplars)):
+        print "Loading previously-computed Digit Exemplars."
+        exemplars = pickle.load(open(os.path.join(project.projdir_path,
+                                                  project.digitmultexemplars_map),
+                                     'rb'))
+    else:
+        # 0.) Construct digit exemplars
+        # exemplars := maps {str digit: ((temppath_i, bb_i, exemplarP_i), ...)}
+        t = time.time()
+        print "Computing Digit Exemplars..."
+        exemplars = compute_digit_exemplars(project)
+        dur = time.time() - t
+        print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
 
     digit_exs = make_digithashmap(project, exemplars)
     numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
@@ -176,12 +183,14 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         print "== Extracting Voted Digit Patches..."
         # Note: I use pass_idx=True because I need to assign a unique
         #       ID to the {0}_votedextract.png patch paths.
+
         r, d = partask.do_partask(extract_voted_digitpatches,
                                   digitparse_results,
                                   _args=(bb, digitattr, voteddigits_dir, img2bal, project.samplesdir),
                                   combfn=my_combfn,
                                   init=({},{}),
-                                  pass_idx=True) 
+                                  pass_idx=True)
+
         for ballotid, lsts in r.iteritems():
             result.setdefault(ballotid,[]).extend(lsts)
         for patchpath, (bb, side, isflip, ballotid) in d.iteritems():
@@ -229,16 +238,24 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip, ballotid)
             assert isinstance(isflip, bool)
-            img = cv.LoadImage(imgpath, False)
+            #img = cv.LoadImage(imgpath, False)
+            #if isflip == True:
+            #    cv.Flip(img, flipMode=-1)
+            img = scipy.misc.imread(imgpath, flatten=True)
             if isflip == True:
-                cv.Flip(img)
-            # _y1, etc. are coordinates of digit patch w.r.t image coords.
-            _y1 = int(bb[0]+y1)
-            _y2 = int(bb[0]+y2)
-            _x1 = int(bb[2]+x1)
-            _x2 = int(bb[2]+x2)
+                img = sh.fastFlip(img)
+            img = sh.remove_border_topleft(img)
+            # _y1, etc. are coordinates of digit patch w.r.t image coords,
+            # whereas (y1,etc.) are coords w.r.t digit patch
+            # Expand by E pixels, for user benefit.
+            E = 3
+            _y1 = int(bb[0]+y1 - E)
+            _y2 = int(bb[0]+y2 + E)
+            _x1 = int(bb[2]+x1 - E)
+            _x2 = int(bb[2]+x2 + E)
             outdigitpatch = img[_y1:_y2, _x1:_x2]
-            cv.SaveImage(outpath, outdigitpatch)
+            #cv.SaveImage(outpath, outdigitpatch)
+            scipy.misc.imsave(outpath, outdigitpatch)
             meta_out.append((y1,y2,x1,x2, digit, outpath, score))
             ctr += 1
         result.setdefault(ballotid, []).append((digitattr, ocr_str, meta_out, isflip, side))
@@ -465,12 +482,15 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
     # Munge the grouping results into grouping_results, digit_results
     ## Note: the isflip_i/side_i info from digitgroup_results gets
     ## thrown out after these blocks. Do I actually need them?
+    digitattrtype = None
     if not util.is_multipage(proj):
         for attr_type in attr_types:
             for ballotid in bal2imgs:
                 if ballotid in ignorelist:
                     continue
                 if common.is_digitbased(proj, attr_type):
+                    if digitattrtype == None:
+                        digitattrtype = attr_type
                     if ballotid not in digitgroup_results:
                         # This is OK, it means that we did not have to
                         # run digitocr on ballotid.
@@ -488,6 +508,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
                 if ballotid in ignorelist:
                     continue
                 if common.is_digitbased(proj, attr_type):
+                    if digitattrtype == None:
+                        digitattrtype = attr_type
                     # Note: digitgroup_results has correct side info
                     sidepath = frontpath if frontpath in digitgroup_results else backpath
                     if sidepath not in digitgroup_results:
@@ -503,7 +525,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
 
     groups = []
     # Seed initial set of digit-based groups
-    alldigits = digits_results.keys()
+    #alldigits = digits_results.keys()
+    alldigits = common.get_attrtype_possiblevals(proj, digitattrtype)
     for digit, lst in digits_results.iteritems():
         elements = []
         rankedlist = make_digits_rankedlist(digit, alldigits, grouplabel_record)

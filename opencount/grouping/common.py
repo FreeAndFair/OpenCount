@@ -337,9 +337,10 @@ def is_digitbased(project, attrtype):
             return attrdict['is_digitbased']
     # 2.) Try custom attributes
     customattrs = cust_attrs.load_custom_attrs(project)
-    for cattr in customattrs:
-        if cattr.attrname == attrtype:
-            return False
+    if customattrs:
+        for cattr in customattrs:
+            if cattr.attrname == attrtype:
+                return False
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 

@@ -27,7 +27,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
     # check if more than one vertical or horizontal cell
     if (vCells>1) or (hCells>1):
         I2=imagesAlign(I1,Iref1,type=type)[1];
-        I2 = np.nan_to_num(I2)
+        #I2 = np.nan_to_num(I2)
         Iout=np.copy(Iref1);
         pFac=.25;
         vStep=math.ceil(I1.shape[0]/vCells); vPad=pFac*vStep;

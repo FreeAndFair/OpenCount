@@ -755,7 +755,7 @@ def merge_contests(ballot_data, fulltargets):
         new_ballot = []
         for group in targets:
             #print 'targs is', group
-            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
+            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
             equal_uniq = list(set(equal))
             #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])

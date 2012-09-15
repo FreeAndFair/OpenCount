@@ -77,20 +77,29 @@ def bbsInCell(bbs,i1,i2,j1,j2):
 
     return bbOut
 
-def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
+def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
 
     # parameter specified number of cells
     # for each cell, grab the targets that fall in the center
     #   compute super-region and pad
 
     ''' Perform local alignment around each target, then crop out target  '''
+    '''
+    if balP != None and '329_672_157_3_3' in balP:
+        print "SPECIAL ONE"
+        #pdb.set_trace()
+    else:
+        print "NORMAL"
+        #pdb.set_trace()
+    '''
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs);
+    IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05);
     t0=time.clock();
-    IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
+    IO=imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=rszFac)
+    #IO = (np.eye(3), I, 0.0)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
-
+    #misc.imsave('_Ireg.png', IO[1])
     H1=IO[0]; I1=IO[1]
     result = []
     pFac=7;
@@ -113,10 +122,15 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
             Ic=sh.cropBb(I1,bbOut)
             IrefcNOMASK=sh.cropBb(Iref,bbOut)
             Irefc=sh.cropBb(IrefM,bbOut)
-
+            #misc.imsave('_Ic.png', Ic)
+            #misc.imsave('_IrefcNOMASK.png', IrefcNOMASK)
+            #misc.imsave('_Irefc.png', Irefc)
             rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
             IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
             Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
+            #misc.imsave('_Ic1.png', Ic1)
+            #if balP != None and '329_672_157_3_3' in balP:
+            #    pdb.set_trace()
 
             for k in range(bbsOff.shape[0]):
                 bbOff1=bbsOff[k,:]
@@ -347,13 +361,15 @@ def convertImagesWorkerMAP(job):
         # need to load the template images
         tplImL=[]
         for tplP in tplL:
-            tplImL.append(sh.standardImread(tplP));
+            tplImL.append(sh.standardImread(tplP, flatten=True));
 
     # load images
     balImL=[]
 
     for b in balL:
-        balImL.append(sh.standardImread(b));
+        #if '329_672_157_3_3' in b:
+        #    pdb.set_trace()
+        balImL.append(sh.standardImread(b, flatten=True));
 
     print 'load bal: ', time.clock()-t0
     # check if ballot is flipped
@@ -376,7 +392,7 @@ def convertImagesWorkerMAP(job):
         tpl=tplImL[idx]
         bbs=bbsL[idx]
         bal=res[1]; flipped=res[0]
-        writeMAP(extractTargetsRegions(bal,tpl,bbs,verbose=True), targetDir, targetDiffDir, 
+        writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=b), targetDir, targetDiffDir, 
                  targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
     print "DONE"
 
@@ -394,7 +410,8 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     create_dirs(imageMetaDir)
 
     nProc=sh.numProcs()
-
+    #nProc = 1
+    
     if nProc < 2:
         print 'using only 1 processes'
         # default behavior for non multiproc machines
@@ -426,22 +443,29 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     print 'done.'
     return True
 
-def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, verbose=False):
+def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, verbose=False):
 
     targetDiffDir=targetDir+'_diffs'
 
-    tplNm=tpl2imgs.iterkeys().next()
-    tplL=tpl2imgs[tplNm]
+    #tplNm=tpl2imgs.iterkeys().next()
+    #tplL=tpl2imgs[tplNm]
 
-    tplImL=[]
-    bbsL=[]
-    for tplP in tplL:
-        csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-        bbsL.append(sh.csv2bbs(csvP));
-        tplImL.append(sh.standardImread(tplP))
+    #tplImL=[]
+    
+    #bbsL=[]
+    
+    #for tplP in tplL:
+    #    csvP=csvPattern % get_filename(tplP, NO_EXT=True)
+    #    bbsL.append(sh.csv2bbs(csvP));
+    #    tplImL.append(sh.standardImread(tplP))
 
     jobs = []
     for k in bal2imgs.keys():
+        tplP = bal2tpl[k]
+        csvP = csvPattern % get_filename(tplP, NO_EXT=True)
+        bbsL = [sh.csv2bbs(csvP)]
+        tplL = [tplP]
+        tplImL = [sh.standardImread(tplP, flatten=True)]
         balL=bal2imgs[k]
         jobs.append([tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
 
@@ -515,7 +539,7 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
 
 def convertImagesMultiMAP_makejobs(args):
     (keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, qfiles, verbose) = args
-    print map(type, args)
+    #print map(type, args)
     targetDiffDir=targetDir+'_diffs'
     jobs = []
     print 'going up to', len(keyset)

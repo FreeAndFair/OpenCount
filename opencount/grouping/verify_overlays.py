@@ -180,7 +180,7 @@ class VerifyPanel(wx.Panel):
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
         self._misclassify_history = {} # maps {str ballotid: int count}
-        
+
         self.accepted_hashes = None
         self.rejected_hashes = None
         self.digitmatch_info = None
@@ -504,6 +504,9 @@ in queue: 0")
             given, then this will use the 'globally'-defined record,
             which is meant for 'Verify Overlays' at the end of OpenCount.
         """
+        if not groups:
+            print "Uhoh, there aren't any groups passed into VerifyPanel."
+            pdb.set_trace()
         self.project = proj
         if grouplabel_record == None:
             self.grouplabel_record = common.load_grouplabel_record(proj)
@@ -1574,11 +1577,39 @@ elements num. is {1}".format(oldcount, newcount)
         """
         elements = group.elements
         qfile = open(self.project.quarantined, 'a')
+        votedpaths = set()
         for element in elements:
-            print >>qfile, os.path.abspath(element[0])
+            votedpath = os.path.abspath(element[0])
+            print >>qfile, votedpath
+            votedpaths.add(votedpath)
         qfile.close()
         if doremove:
             self.remove_group(group)
+        # Finally, remove the quarantined ballots from the GroupClasses.
+        # Remember to remove any resulting 0-element GroupClasses.
+        def pred(element, votedpaths):
+            return element[0] not in votedpaths
+        self.queueList.Clear()
+        newqueue = []
+        for group in self.queue:
+            group.elements = tuple([el for el in group.elements if pred(el, votedpaths)])
+            if group.elements:
+                newqueue.append(group)
+                gl_idx = group.getcurrentgrouplabel()
+                attrtype, attrval = common.get_attrpair_grouplabel(self.project, gl_idx, self.grouplabel_record)
+                self.queueList.Append("{0}->{1}: {2} elements".format(attrtype, attrval, len(group.elements)))
+        newfinished = []
+        for group in self.finished:
+            group.elements = tuple([el for el in group.elements if pred(el, votedpaths)])
+            if group.elements:
+                newfinished.append(group)
+        self.queue = newqueue
+        self.finished = newfinished
+        for sampleid in self._misclassify_history.keys():
+            if sampleid in votedpaths:
+                cnt = self._misclassify_history.pop(sampleid)
+                self._mismatch_cnt -= cnt
+                self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
         
     def OnClickQuarantine(self, event):
         if (self.currentGroup != None):
