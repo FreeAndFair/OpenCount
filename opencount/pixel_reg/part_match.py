@@ -375,6 +375,14 @@ def process_one(args):
     amt_i2 = int(round(E_i2*h))
     amt_j1 = int(round(E_j1*w))
     amt_j2 = int(round(E_j2*w))
+    if (bbSearch[0] - amt_i1) < 0:
+        amt_i1 = bbSearch[0]
+    if (bbSearch[1] + amt_i2) > (I1.shape[0]-1):
+        amt_i2 = (I1.shape[0]-1 - bbSearch[1])
+    if (bbSearch[2] - amt_j1) < 0:
+        amt_j1 = bbSearch[2]
+    if (bbSearch[3] + amt_j2) > (I1.shape[1]-1):
+        amt_j2 = (I1.shape[1]-1 - bbSearch[3])
     bb = [max(0, bbSearch[0]-amt_i1),
           min(I1.shape[0]-1, bbSearch[1]+amt_i2),
           max(0, bbSearch[2]-amt_j1),
