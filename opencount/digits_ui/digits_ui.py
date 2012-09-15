@@ -600,7 +600,6 @@ digit.")
         for regionpath, stuff in self.matches.iteritems():
             self.update_precinct_txt(regionpath)
 
-        print self.get_patch2precinct().items()
         patch2precincts = self.get_patch2precinct().items()
         # Filter out the case where the precinct string is just the label
         # 'Precinct Number' instead of an empty string
@@ -608,10 +607,9 @@ digit.")
             if x[1] == 'Precinct Number':
                 loc = patch2precincts.index(x)
                 patch2precincts[loc] = (x[0],'')
-        print patch2precincts
+
         sorted_patches = sorted(patch2precincts, key=lambda x: len(x[1]))
         sorted_patches = [x[0] for x in sorted_patches]
-        print sorted_patches
 
         # Reset instance variables. Consider integrating this into reset method when it is created.
         self.i, self.j = 0, 0    # Keeps track of all boxes
@@ -677,7 +675,7 @@ digit.")
 
         # self.parent.parent?
         patch2precinct = self.get_patch2precinct()
-        print patch2precinct
+
         num_digitsmap = pickle.load(open(pathjoin(self.parent.parent.project.projdir_path,
                                                  self.parent.parent.project.num_digitsmap)))
         
