@@ -8,7 +8,7 @@ import random
 sys.path.append('..')
 from pixel_reg.imagesAlign import imagesAlign
 
-def make_minmax_overlay(imgpaths, do_align=False):
+def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
     overlayMin, overlayMax = None, None
     Iref = None
     for path in imgpaths:
@@ -16,7 +16,7 @@ def make_minmax_overlay(imgpaths, do_align=False):
         if do_align and Iref == None:
             Iref = img
         elif do_align:
-            (H, img, err) = imagesAlign(img, Iref, fillval=0)
+            (H, img, err) = imagesAlign(img, Iref, fillval=0, rszFac=rszFac)
         if (overlayMin == None):
             overlayMin = img
         else:
@@ -37,14 +37,14 @@ def make_minmax_overlay(imgpaths, do_align=False):
     #overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
     return overlayMin, overlayMax
 
-def make_minmax_overlay2(imgs, do_align=False):
+def make_minmax_overlay2(imgs, do_align=False, rszFac=1.0):
     overlayMin, overlayMax = None, None
     Iref = None
     for img in imgs:
         if do_align and Iref == None:
             Iref = img
         elif do_align:
-            (H, img, err) = imagesAlign(img, Iref, fillval=0)
+            (H, img, err) = imagesAlign(img, Iref, fillval=0, rszFac=rszFac)
         if (overlayMin == None):
             overlayMin = img
         else:
