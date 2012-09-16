@@ -152,7 +152,7 @@ class GridShow(wx.ScrolledWindow):
                         for ct in range(self.numcols):
                             self.markWrong(i+ct)
                     if text == "Generate Overlays Starting Here...":
-                        self.show_overlays(i)
+                        self.show_overlays(ii, event1)
 
                 a = m.Append(-1, "Set Threshold")
                 self.Bind(wx.EVT_MENU, decide, a)
@@ -303,13 +303,17 @@ class GridShow(wx.ScrolledWindow):
 
         self.drawThreshold()
 
-    def show_overlays(self, start_idx):
-        """ Starting at START_IDX, generate min/max overlays from all
-        voting targets, up to the last image.
+    def show_overlays(self, ii, evt):
+        """ Starting at the place where the user right-clicked, generate 
+        min/max overlays from all voting targets, up to the last target.
         """
-        imgpaths = []
+        start_idx = ii+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
 
-        # ...magic...
+        print 'start_idx:', start_idx
+        imgpaths = []
+        for idx, (target_imgpath, id) in enumerate(self.enumerateOverFullList()):
+            if idx >= start_idx:
+                imgpaths.append(target_imgpath)
 
         frame = ViewOverlays.SimpleOverlayFrame(self, imgpaths)
         frame.Show()
@@ -508,7 +512,6 @@ class GridShow(wx.ScrolledWindow):
             newthresh, bound = self.findBoundry()
             self.onScroll(bound)
             self.setLine(newthresh)
-                    
 
     def onScroll(self, pos=None, evtpos=None):
         if evtpos != None:
