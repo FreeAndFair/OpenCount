@@ -39,7 +39,7 @@ class OverlayPanel(ScrolledPanel):
         """ Displays the images given by imgpaths. """
         self.imgpaths = imgpaths
         # 0.) Create min/max overlays, optionally aligning
-        minimg, maximg = make_overlays.make_minmax_overlay(imgpaths, do_align=do_align)
+        minimg, maximg = make_overlays.make_minmax_overlay(imgpaths, do_align=do_align, rszFac=0.75)
         h, w = minimg.shape
         # 1.) Convert numpy array to wxImage
         min_wxbmp = wx.EmptyBitmap(w, h)
@@ -77,7 +77,7 @@ class SimpleOverlayFrame(wx.Frame):
         btn_sizer.Add(self.chkbox_doalign)
         
         sizer.Add(self.overlaypanel, proportion=1, flag=wx.EXPAND)        
-        sizer.Add(btn_sizer)
+        sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
         self.SetSizer(sizer)
 
