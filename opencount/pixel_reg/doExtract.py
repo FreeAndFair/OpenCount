@@ -459,28 +459,22 @@ def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, t
     """
     targetDiffDir=targetDir+'_diffs'
 
-    #tplNm=tpl2imgs.iterkeys().next()
-    #tplL=tpl2imgs[tplNm]
+    qfile = open(quarantineCvr, 'r')
+    qfiles = set([f.strip() for f in qfile.readlines()])
 
-    #tplImL=[]
-    
-    #bbsL=[]
-    
-    #for tplP in tplL:
-    #    csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-    #    bbsL.append(sh.csv2bbs(csvP));
-    #    tplImL.append(sh.standardImread(tplP))
-
+    print "...Prepping jobs"
+    t = time.time()
     jobs = []
     for k in bal2imgs.keys():
-        tplP = bal2tpl[k]
-        csvP = csvPattern % get_filename(tplP, NO_EXT=True)
-        bbsL = [sh.csv2bbs(csvP)]
-        tplL = [tplP]
-        #tplImL = [sh.standardImread(tplP, flatten=True)]
-        balL = bal2imgs[k]
-        jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-
+        if k not in qfiles:
+            tplP = bal2tpl[k]
+            csvP = csvPattern % get_filename(tplP, NO_EXT=True)
+            bbsL = [sh.csv2bbs(csvP)]
+            tplL = [tplP]
+            balL = bal2imgs[k]
+            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+    dur = time.time() - t
+    print "...finished Prepping jobs. ({0} s).".format(dur)
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
