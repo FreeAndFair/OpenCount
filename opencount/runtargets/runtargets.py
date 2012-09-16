@@ -149,6 +149,7 @@ class RunThread(threading.Thread):
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
 
             if all(x==1 for x in map(len,tpl2imgs.values())):
+                # Single-sided election
                 print "Starting call to convertImagesSingleMAP"
                 res = convertImagesSingleMAP(bal2imgs,
                                              tpl2imgs,
@@ -161,6 +162,7 @@ class RunThread(threading.Thread):
                                              self.stopped,
                                              self.proj)
             else:
+                # Multi-page election
                 print "Starting call to convertImagesMultiMAP"
                 res = convertImagesMultiMAP(bal2imgs,
                                             tpl2imgs,

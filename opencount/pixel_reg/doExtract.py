@@ -268,8 +268,9 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
     Errs=[];K=0
 
     for K in range(len(jobs)):
+        # job := [tplL_i, bbsL_i, balL_i, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDira_i]
         job=jobs[K]
-        balL=job[3]
+        balL=job[2]
         for balP in balL:
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
@@ -353,15 +354,15 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplL, csvPattern, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     print "START"
-    (tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+    (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     t0=time.clock();
-    if tplImL==-1:
-        # need to load the template images
-        tplImL=[]
-        for tplP in tplL:
-            tplImL.append(sh.standardImread(tplP, flatten=True));
+
+    # need to load the template images
+    tplImL=[]
+    for tplP in tplL:
+        tplImL.append(sh.standardImread(tplP, flatten=True));
 
     # load images
     balImL=[]
@@ -397,6 +398,15 @@ def convertImagesWorkerMAP(job):
     print "DONE"
 
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=False):
+    """ Called by both single and multi-page elections. Performs
+    Target Extraction.
+    Input:
+        targetDir:
+        targetMetaDir:
+        imageMetaDir:
+        list jobs: [[tmppaths_i, bbs_i, imgpaths_i, targetDir_i, targetDiffDir_i, imageMetaDir_i], ...]
+        stopped:
+    """
     targetDiffDir=targetDir+'_diffs'
 
     if os.path.exists(targetDir): shutil.rmtree(targetDir)
@@ -444,7 +454,9 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     return True
 
 def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, verbose=False):
-
+    """ Starts the target-extraction routines. Preps some input, and then
+    calls convertImagesMasterMAP. For single-page elections.
+    """
     targetDiffDir=targetDir+'_diffs'
 
     #tplNm=tpl2imgs.iterkeys().next()
@@ -465,9 +477,9 @@ def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, t
         csvP = csvPattern % get_filename(tplP, NO_EXT=True)
         bbsL = [sh.csv2bbs(csvP)]
         tplL = [tplP]
-        tplImL = [sh.standardImread(tplP, flatten=True)]
-        balL=bal2imgs[k]
-        jobs.append([tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+        #tplImL = [sh.standardImread(tplP, flatten=True)]
+        balL = bal2imgs[k]
+        jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
 
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
@@ -499,44 +511,6 @@ def fix_ballot_order(balL, proj):
     assert None not in out
     return out
 
-"""    
-def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
-    targetDiffDir=targetDir+'_diffs'
-
-    jobs = []
-
-    qfile = open(quarantineCvr, 'r')
-    qfiles = set([f.strip() for f in qfile.readlines()])
-    i = 0
-    for k in bal2imgs.keys():
-        print i
-        i += 1
-        if i > 20: break
-        if k not in qfiles:
-            baltpl = bal2tpl[k]
-            #try:
-            tplL=tpl2imgs[baltpl]
-            #except Exception as e:
-            #    print e
-            #    pdb.set_trace()
-            balL=bal2imgs[k]
-            # correct ordering in balL, via ballot_to_page
-            balL = fix_ballot_order(balL, project)
-            bbsL=[]
-            for tplP in tplL:
-                csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-                bbsL.append(sh.csv2bbs(csvP));
-
-            jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-            
-    print hash(str(jobs)), map(hash,map(str,jobs)), len(jobs)
-
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
-    if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
-    return worked
-"""
-
 def convertImagesMultiMAP_makejobs(args):
     (keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, qfiles, verbose) = args
     #print map(type, args)
@@ -561,7 +535,7 @@ def convertImagesMultiMAP_makejobs(args):
                 csvP=csvPattern % get_filename(tplP, NO_EXT=True)
                 bbsL.append(sh.csv2bbs(csvP));
 
-            jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
     return jobs
 
 def hack_stopped():
