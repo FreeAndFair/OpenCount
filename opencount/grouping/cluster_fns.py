@@ -97,7 +97,19 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
     return assigns
 
 def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
+              assigns=None,
               MAX_ITERS=200, VERBOSE=True):
+    """ Runs K-means on data.
+    Input:
+        nparray data: An NxHxW matrix, where N is the number of
+            observations, and (H,W) is the shape of each image.
+        list initial: A list of initial means to use.
+            If not given, then this will be randomly generated.
+        int K:
+        str distfn_method:
+    Output:
+        An ASSIGNS list of idxs.
+    """
     def assignment(data, assigns, means, distfn):
         """ For each observation A in DATA, assign A to the closest
         mean in MEANS, by mutating ASSIGNS.
@@ -115,7 +127,12 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                     print "Uhoh, nan dist."
                     pdb.set_trace()
                 if bestidx == None or dist < mindist:
-                    bestidx = idx
+                    if dist == mindist:
+                        # To prevent cycles, always tie-break via smallest
+                        # index.
+                        bestidx = min(bestidx, idx)
+                    else:
+                        bestidx = idx
                     mindist = dist
             assigns[i] = bestidx
         return assigns
@@ -134,8 +151,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                 pdb.set_trace()
             means[i] = mean_i
         return means
-    distfn = _get_distfn(distfn_method)
-    if initial == None:
+    def init_means(data):
         initial_idxs = []
         _len = range(data.shape[0])
         for _ in xrange(K):
@@ -143,7 +159,13 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
             while _i in initial_idxs:
                 _i = random.choice(_len)
             initial_idxs.append(_i)
-    means = data[initial_idxs]
+        return initial_idxs
+
+    distfn = _get_distfn(distfn_method)
+    if initial == None:
+        means = data[init_means(data)]
+    else:
+        means = initial
     # TODO: Why infinite loop?
     #initial_idxs = [np.array([16]), np.array([23])]
     if VERBOSE:
@@ -165,13 +187,27 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
         elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
-            print "...len-2 Cycle detected, aborting."
-            done = True
+            print "...len-2 Cycle detected, restarting..."
+            means = update_means(data, assigns, means)
+            iters += 1
+            #means = data[init_means(data)]
+            #assigns = np.zeros(data.shape[0])
+            #prevprev_assigns = None
         else:
             # 3.) Re-compute clusters from new clusters
             means = update_means(data, assigns, means)
             prevprev_assigns = prev_assigns
             iters += 1
+    if np.all(assigns == assigns[0]):
+        # Currently, this happens if all elements in DATA are 'too close',
+        # i.e. distfn always outputs 0.0.
+        print "Degenerate clustering detected - splitting evenly."
+        _chunk = int(len(assigns) / K)
+        out = np.zeros(data.shape[0])
+        for i in xrange(K-1):
+            out[i*_chunk:(i+1)*_chunk] = i
+        out[(K-1)*_chunk:] = (K-1)
+        return out
     return assigns
 
 def kmediods_2D(data, initial=None, K=2, distfn_method='L2',

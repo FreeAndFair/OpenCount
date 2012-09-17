@@ -1256,11 +1256,9 @@ attribute grouping? ", style=wx.YES | wx.NO)
                 retstatus = dlg.ShowModal()
                 if retstatus == wx.ID_YES:
                     # Remember to delete the LabelAttributes state
-                    # TODO: Shift the LabelPanel.STATE_FILE path into 
-                    # the Project class, to keep everything consolidated.
                     try:
                         os.remove(pathjoin(self.project.projdir_path,
-                                           label_attributes.LabelPanel.STATE_FILE))
+                                           self.project.labelpanel_state))
                     except Exception as e:
                         # Sometimes, the _labelpanelstate.p doesn't exist.
                         # Don't crash if this is the case.

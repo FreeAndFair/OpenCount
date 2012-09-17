@@ -444,6 +444,8 @@ def to_groupclasses_digits(proj, digitgroup_results, ignorelist=None, grouplabel
     Output:
         List of GroupClass instances.
     """
+    if not digitgroup_results:
+        return []
     if ignorelist == None:
         ignorelist = []
     if grouplabel_record == None:

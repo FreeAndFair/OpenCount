@@ -1041,6 +1041,110 @@ just doing a naive split."
                 print "Wat?"
                 pdb.set_trace()
         return groups
+
+    def split_kmeans2(self, K=2):
+        """ Performs our hand-rolled K-Means implementation. """
+        if len(self.elements) == 2:
+            if type(self) == GroupClass:
+                return (GroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        GroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                return (DigitGroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        DigitGroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running k-means2"
+        clusters = cluster_imgs.kmeans_2D(patchpaths, k=K, 
+                                          distfn_method='vardiff',
+                                          do_align=True)
+        print "...Completed running k-means2 ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        found_patchpaths = set()
+        for clusterid, c_patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(c_patchpaths))
+            elements = []
+            for c_patchpath in c_patchpaths:
+                if c_patchpath in found_patchpaths:
+                    print "Uhoh, element {0} was present in multiple clusters.".format(c_patchpath)
+                    pdb.set_trace()
+                found_patchpaths.add(c_patchpath)
+                elements.append(patchpath_map[c_patchpath] + (c_patchpath,))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                         user_data=self.user_data))
+        if len(found_patchpaths) != len(patchpaths):
+            print "Uhoh, only found {0} patchpaths, but should have found {1}".format(len(found_patchpaths),
+                                                                                      len(patchpaths))
+            pdb.set_trace()
+        assert len(groups) == K
+        return groups
+
+    def split_kmediods(self, K=2):
+        """ Performs our hand-rolled K-Mediods implementation. """
+        if len(self.elements) == 2:
+            if type(self) == GroupClass:
+                return (GroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        GroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                return (DigitGroupClass((self.elements[0],),
+                                   user_data=self.user_data),
+                        DigitGroupClass((self.elements[1],),
+                                   user_data=self.user_data))
+            else:
+                print "Wat?"
+                pdb.set_trace()
+
+        # 1.) Gather images
+        patchpaths = []
+        # patchpath_map used to re-construct 'elements' later on.
+        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        for (sampleid, rlist, patchpath) in self.elements:
+            patchpaths.append(patchpath)
+            patchpath_map[patchpath] = (sampleid, rlist)
+        # 2.) Call kmeans clustering
+        _t = time.time()
+        print "...running k-mediods."
+        clusters = cluster_imgs.kmediods_2D(patchpaths, k=K, 
+                                            distfn_method='vardiff',
+                                            do_align=True)
+        print "...Completed running k-mediods ({0} s).".format(time.time() - _t)
+        # 3.) Create GroupClasses
+        groups = []
+        for clusterid, patchpaths in clusters.iteritems():
+            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            elements = []
+            for patchpath in patchpaths:
+                elements.append(patchpath_map[patchpath] + (patchpath,))
+            if type(self) == GroupClass:
+                groups.append(GroupClass(elements,
+                                         user_data=self.user_data))
+            elif type(self) == DigitGroupClass:
+                groups.append(DigitGroupClass(elements,
+                                         user_data=self.user_data))
+                
+        assert len(groups) == K
+        return groups
         
     def split(self, mode='kmeans'):
         if mode == 'rankedlist':
@@ -1049,6 +1153,13 @@ just doing a naive split."
             return self.split_kmeans(K=2)
         elif mode == 'pca_kmeans':
             return self.split_pca_kmeans(K=3)
+        elif mode == 'kmeans2':
+            return self.split_kmeans2(K=2)
+        elif mode == 'kmediods':
+            return self.split_kmediods(K=2)
+        else:
+            print "Unrecognized mode: {0}. Defaulting to kmeans.".format(mode)
+            return self.split_kmeans(K=2)
 
 class DigitGroupClass(GroupClass):
     """
