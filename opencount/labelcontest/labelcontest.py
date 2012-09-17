@@ -308,18 +308,23 @@ class LabelContest(wx.Panel):
                     newvalids[len(cleared)] = new_valid
                     cleared.append(new_group)
             fixed = cleared + [newgroup]
-            newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
+            #newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
             self.groups_saved = fixed
             tmp = self.validequivs
-            self.compute_equivs_2(run_verification=True)
+            self.compute_equivs_2(run_verification=False)
             def putresults(x):
                 print "AND NOW GET", x
-                newvalids[x.keys()[0]] = newvalids[x.values()[0]]
-                print "FINALLY", newvalids
-                print self.validequivs
-            frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-            VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs[-1], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
-            frame.Show()
+                if len(x) == 1:
+                    newvalids[len(newvalids)] = x[0][1]
+                    print "FINALLY", newvalids
+                    print self.validequivs
+
+            print "OKAYSO", newvalids
+
+            if any(len(x) > 1 for x in self.equivs):
+                frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
+                VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, [self.equivs[-1]], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+                frame.Show()
 
             print "B"*200
             print tmp
@@ -455,10 +460,10 @@ class LabelContest(wx.Panel):
             print 'bboxes', contestbboxes
             for targetlist in ballot:
                 print 'picking rep ', targetlist[0][2:]
-                w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) for x in bblist)]
+                w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                 if len(w) != 1:
                     print 'I got', w, 'of them'
-                    print [bblist for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) for x in bblist)]
+                    print [bblist for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                     print 'gr', gr
                     print 'mapping', mapping
                     print 'contest bboxes', contestbboxes
@@ -498,6 +503,7 @@ class LabelContest(wx.Panel):
             self.validequivs = dict(data)
 
         if any(len(x) > 1 for x in self.equivs) and run_verification:
+            print "RUN"
             frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
             VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
             frame.Show()

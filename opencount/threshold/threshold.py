@@ -15,6 +15,9 @@ from wx.lib.pubsub import Publisher
 import array
 import pickle
 
+sys.path.append('..')
+import ViewOverlays
+
 class GridShow(wx.ScrolledWindow):
     """
     Class that displays voting targets
@@ -148,6 +151,8 @@ class GridShow(wx.ScrolledWindow):
                     if text == "Mark Row Wrong":
                         for ct in range(self.numcols):
                             self.markWrong(i+ct)
+                    if text == "Generate Overlays Starting Here...":
+                        self.show_overlays(ii, event1)
 
                 a = m.Append(-1, "Set Threshold")
                 self.Bind(wx.EVT_MENU, decide, a)
@@ -155,6 +160,8 @@ class GridShow(wx.ScrolledWindow):
                 self.Bind(wx.EVT_MENU, decide, b)
                 c = m.Append(-1, "Mark Row Wrong")
                 self.Bind(wx.EVT_MENU, decide, c)
+                d = m.Append(-1, "Generate Overlays Starting Here...")
+                self.Bind(wx.EVT_MENU, decide, d)
                 pos = event1.GetPosition()
                 pos = self.ScreenToClient(pos)
                 m.Bind(wx.EVT_CONTEXT_MENU, decide)
@@ -295,6 +302,21 @@ class GridShow(wx.ScrolledWindow):
         self.threshold = which
 
         self.drawThreshold()
+
+    def show_overlays(self, ii, evt):
+        """ Starting at the place where the user right-clicked, generate 
+        min/max overlays from all voting targets, up to the last target.
+        """
+        start_idx = ii+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
+
+        print 'start_idx:', start_idx
+        imgpaths = []
+        for idx, (target_imgpath, id) in enumerate(self.enumerateOverFullList()):
+            if idx >= start_idx:
+                imgpaths.append(target_imgpath)
+
+        frame = ViewOverlays.SimpleOverlayFrame(self, imgpaths)
+        frame.Show()
 
     def __init__(self, parent, proj):
         """
@@ -490,7 +512,6 @@ class GridShow(wx.ScrolledWindow):
             newthresh, bound = self.findBoundry()
             self.onScroll(bound)
             self.setLine(newthresh)
-                    
 
     def onScroll(self, pos=None, evtpos=None):
         if evtpos != None:
@@ -600,7 +621,7 @@ class GridShow(wx.ScrolledWindow):
 class ThresholdPanel(wx.Panel):
     def __init__(self, parent, size):
         wx.Panel.__init__(self, parent, id=-1, size=size) 
-        print "AND SIZE", parent.GetSize()
+        #print "AND SIZE", parent.GetSize()
         self.parent = parent
         self.parent.Fit()
 

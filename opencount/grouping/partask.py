@@ -9,7 +9,8 @@ might as well abstract the pattern.
 
 def do_partask(fn, jobs, _args=None, blocking=True,
                combfn=None, init=None,
-               pass_idx=False):
+               pass_idx=False,
+               singleproc=False):
     """ The developer-facing main function. do_partask will split up
     'jobs' into N equally-sized chunks C_i, and apply 'fn' to each
     C_i in parallel, in addition to (optionally) providing additional
@@ -32,6 +33,11 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         flat-list.
     TODO: non-blocking functionality is not implemented.
     """
+    if singleproc:
+        if pass_idx:
+            return fn(jobs, _args, 0)
+        else:
+            return fn(jobs, _args)
     manager = multiprocessing.Manager()
     queue = manager.Queue()
 

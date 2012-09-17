@@ -5,9 +5,14 @@ import os
 
 sys.path.append("..")
 from util import pil2wxb
+import grouping.view_overlays
+import grouping.common
+from pixel_reg.imagesAlign import imagesAlign
+import numpy as np
+import scipy.misc
 
 
-class VerifyContestGrouping(wx.Panel):
+class VerifyContestGrouping_old(wx.Panel):
     def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
         print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
         wx.Panel.__init__(self, parent, wx.ID_ANY)
@@ -78,11 +83,12 @@ class VerifyContestGrouping(wx.Panel):
             self.callback([(self.processgroups[k],v) for k,v in self.is_valid.items()])
             self.frame.Close(True)
 
+        print self.equivs[self.processgroups[self.group_index]]
+        print self.equivs
         for ballot,contest in self.equivs[self.processgroups[self.group_index]]:
             #print ballot, contest
             ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
             boundingbox = (ballot, contest)
-            print 'mbc', self.multiboxcontests, boundingbox
             if any(boundingbox in x for x in self.multiboxcontests):
                 boundingboxes = [x for x in self.multiboxcontests if boundingbox in x][0]
                 print boundingboxes
@@ -93,32 +99,26 @@ class VerifyContestGrouping(wx.Panel):
                 boundingboxes = [self.mapping_inverse[boundingbox][1]]
                 
             boundingboxes = sorted(boundingboxes)
-            print 'bb', boundingboxes
 
             ballotdir = os.path.join(self.ocrdir,ballotname+"-dir")
             boundingboxdirs = [os.path.join(ballotdir, '-'.join(map(str,bb))) for bb in boundingboxes]
-            print 'bbdir', boundingboxdirs
             order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
             images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
             # TODO: Figure out if I need to update this code.
             # Do I need a sort_nicely call somewhere? For Marin,
             # I'm OK, since there aren't more than 1000 blank ballots.
 
-            print 'im1', images
             images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
-            print 'im2', images
             title = images[0][0]
             images = [(i,y) for i,x in enumerate(images) for y in x[1:]]
             orderedimages = [None]*(len(images)+1)
             orderedimages[0] = (0, title)
-            print 'im3', images
-            print 'ord', order
-            print 'szs', len(order), len(images)
             for i in range(len(images)):
                 orderedimages[i+1] = images[order[i]]
             print orderedimages
             paths = [os.path.join(boundingboxdirs[i],img) for i,img in orderedimages]
             self.orderedpaths.append(paths)
+        print self.orderedpaths
 
         if self.group_index not in self.is_valid:
             self.is_valid[self.group_index] = [None]*len(self.orderedpaths)
@@ -187,9 +187,84 @@ class VerifyContestGrouping(wx.Panel):
                                          pos=(512, 0))
 
 
-if __name__ == "__main__":
-    app = wx.App()
-    frame = wx.Frame (None, -1, 'Test', size=(1024, 768))
-    VerifyContestGrouping(frame, '/home/nicholas/opencount/opencount/projects/orange/ocr_tmp_dir', ['/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3116_1_36_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3114_1_32_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3117_1_38_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3115_1_34_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3113_1_30_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3136_1_31_1.png'], [[(0, 4), (2, 4)], [(0, 2), (2, 2), (3, 2), (4, 2), (5, 3)], [(1, 3), (3, 3), (4, 3)], [(1, 4), (3, 4), (4, 4)], [(1, 2)], [(5, 4)], [(5, 5)], [(0, 3), (2, 3)], [(1, 5), (3, 5), (4, 5)], [(5, 0)], [(5, 6)], [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 2)]], {(1, 2): {(1, 2): [(0, 0), (1, 1), (2, 2)]}, (0, 1): {(0, 1): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16), (17, 17), (18, 18), (19, 19), (20, 20), (21, 21), (22, 22), (23, 23), (24, 24)], (4, 1): [(0, 18), (1, 19), (2, 20), (3, 21), (4, 22), (5, 23), (6, 24), (7, 0), (8, 1), (9, 2), (10, 3), (11, 4), (12, 5), (13, 6), (14, 7), (15, 8), (16, 9), (17, 10), (18, 11), (19, 12), (20, 13), (21, 14), (22, 15), (23, 16), (24, 17)], (3, 1): [(0, 18), (1, 19), (2, 20), (3, 21), (4, 22), (5, 23), (6, 24), (7, 0), (8, 1), (9, 2), (10, 3), (11, 4), (12, 5), (13, 6), (14, 7), (15, 8), (16, 9), (17, 10), (18, 11), (19, 12), (20, 13), (21, 14), (22, 15), (23, 16), (24, 17)], (2, 1): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16), (17, 17), (18, 18), (19, 19), (20, 20), (21, 21), (22, 22), (23, 23), (24, 24)], (5, 2): [(0, 4), (1, 5), (2, 6), (3, 7), (4, 8), (5, 9), (6, 10), (7, 11), (8, 12), (9, 13), (10, 14), (11, 15), (12, 16), (13, 17), (14, 18), (15, 19), (16, 20), (17, 21), (18, 22), (19, 23), (20, 24), (21, 0), (22, 1), (23, 2), (24, 3)], (1, 1): [(0, 18), (1, 19), (2, 20), (3, 21), (4, 22), (5, 23), (6, 24), (7, 0), (8, 1), (9, 2), (10, 3), (11, 4), (12, 5), (13, 6), (14, 7), (15, 8), (16, 9), (17, 10), (18, 11), (19, 12), (20, 13), (21, 14), (22, 15), (23, 16), (24, 17)]}, (5, 4): {(5, 4): [(0, 0), (1, 1), (2, 2)]}, (1, 3): {(1, 3): [(0, 0), (1, 1), (2, 2)], (3, 3): [(0, 0), (1, 1), (2, 2)], (4, 3): [(0, 0), (1, 1), (2, 2)]}, (5, 5): {(5, 5): [(0, 0), (1, 1), (2, 2)]}, (5, 6): {(5, 6): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (1, 4): {(4, 4): [(0, 0), (1, 1), (2, 2)], (3, 4): [(0, 0), (1, 1), (2, 2)], (1, 4): [(0, 0), (1, 1), (2, 2)]}, (1, 5): {(4, 5): [(0, 0), (1, 1), (2, 2), (3, 3)], (1, 5): [(0, 0), (1, 1), (2, 2), (3, 3)], (3, 5): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (5, 0): {(5, 0): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (0, 4): {(2, 4): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)], (0, 4): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]}, (0, 3): {(0, 3): [(0, 0), (1, 1), (2, 2), (3, 3)], (2, 3): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (0, 2): {(4, 2): [(0, 0), (1, 1), (2, 2)], (3, 2): [(0, 0), (1, 1), (2, 2)], (5, 3): [(0, 0), (1, 1), (2, 2)], (0, 2): [(0, 0), (1, 1), (2, 2)], (2, 2): [(0, 0), (1, 1), (2, 2)]}}, {(1, 3): (1, 3), (5, 6): (5, 6), (5, 4): (5, 4), (2, 1): (0, 1), (0, 3): (0, 3), (1, 2): (1, 2), (3, 3): (1, 3), (4, 4): (1, 4), (1, 5): (1, 5), (5, 0): (5, 0), (0, 4): (0, 4), (3, 5): (1, 5), (4, 1): (0, 1), (1, 1): (0, 1), (3, 2): (0, 2), (4, 5): (1, 5), (2, 2): (0, 2), (1, 4): (1, 4), (2, 3): (0, 3), (4, 2): (0, 2), (5, 5): (5, 5), (0, 1): (0, 1), (5, 3): (0, 2), (5, 2): (0, 1), (3, 1): (0, 1), (0, 2): (0, 2), (4, 3): (1, 3), (3, 4): (1, 4), (2, 4): (0, 4)}, {(1, (1103, 1485, 1592, 1889)): (1, 4), (1, (1103, 587, 1592, 1094)): (1, 5), (2, (1110, 587, 1601, 1095)): (2, 3), (2, (1110, 281, 1601, 593)): (2, 1), (3, (619, 278, 1113, 2647)): (3, 1), (3, (1107, 1486, 1598, 1890)): (3, 4), (1, (1103, 1088, 1592, 1491)): (1, 3), (2, (1110, 1089, 1601, 1832)): (2, 4), (4, (619, 285, 1113, 2647)): (4, 1), (3, (1107, 1089, 1598, 1492)): (3, 3), (1, (614, 280, 1109, 2645)): (1, 1), (5, (1114, 1488, 1604, 1890)): (5, 5), (5, (1114, 2188, 1604, 2532)): (5, 3), (5, (624, 284, 1120, 2649)): (5, 2), (4, (1107, 1487, 1598, 1891)): (4, 4), (4, (1107, 591, 1598, 1096)): (4, 5), (5, (139, 1152, 630, 1451)): (5, 0), (1, (1103, 280, 1592, 593)): (1, 1), (3, (1107, 278, 1598, 595)): (3, 1), (0, (1109, 280, 1598, 590)): (0, 1), (5, (1114, 590, 1604, 1098)): (5, 6), (2, (1110, 2131, 1601, 2474)): (2, 2), (4, (1107, 1090, 1598, 1493)): (4, 3), (4, (1107, 285, 1598, 597)): (4, 1), (0, (1109, 584, 1598, 1091)): (0, 3), (3, (1107, 2187, 1598, 2530)): (3, 2), (0, (1109, 2127, 1598, 2471)): (0, 2), (2, (621, 281, 1116, 2645)): (2, 1), (1, (1103, 2185, 1592, 2529)): (1, 2), (0, (620, 280, 1115, 2642)): (0, 1), (5, (1114, 284, 1604, 596)): (5, 2), (3, (1107, 589, 1598, 1095)): (3, 5), (5, (1114, 1092, 1604, 1494)): (5, 4), (0, (1109, 1085, 1598, 1829)): (0, 4), (4, (1107, 2188, 1598, 2532)): (4, 2)}, {(1, 3): (1, (1103, 1088, 1592, 1491)), (5, 6): (5, (1114, 590, 1604, 1098)), (5, 4): (5, (1114, 1092, 1604, 1494)), (2, 1): (2, (621, 281, 1116, 2645)), (0, 3): (0, (1109, 584, 1598, 1091)), (1, 2): (1, (1103, 2185, 1592, 2529)), (3, 3): (3, (1107, 1089, 1598, 1492)), (4, 4): (4, (1107, 1487, 1598, 1891)), (1, 5): (1, (1103, 587, 1592, 1094)), (5, 0): (5, (139, 1152, 630, 1451)), (2, 2): (2, (1110, 2131, 1601, 2474)), (3, 5): (3, (1107, 589, 1598, 1095)), (4, 1): (4, (1107, 285, 1598, 597)), (1, 1): (1, (1103, 280, 1592, 593)), (3, 2): (3, (1107, 2187, 1598, 2530)), (4, 5): (4, (1107, 591, 1598, 1096)), (0, 4): (0, (1109, 1085, 1598, 1829)), (5, 5): (5, (1114, 1488, 1604, 1890)), (1, 4): (1, (1103, 1485, 1592, 1889)), (2, 3): (2, (1110, 587, 1601, 1095)), (4, 2): (4, (1107, 2188, 1598, 2532)), (5, 3): (5, (1114, 2188, 1604, 2532)), (0, 1): (0, (620, 280, 1115, 2642)), (3, 4): (3, (1107, 1486, 1598, 1890)), (3, 1): (3, (1107, 278, 1598, 595)), (0, 2): (0, (1109, 2127, 1598, 2471)), (4, 3): (4, (1107, 1090, 1598, 1493)), (5, 2): (5, (1114, 284, 1604, 596)), (2, 4): (2, (1110, 1089, 1601, 1832))}, [[(0, 0), (0, 1)], [(1, 0), (1, 1)], [(2, 0), (2, 1)], [(3, 0), (3, 1)], [(4, 0), (4, 1)], [(5, 1), (5, 2)]], lambda x: x)
-    frame.Show()
+class VerifyContestGrouping(wx.Panel):
+    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
+        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
+        wx.Panel.__init__(self, parent, wx.ID_ANY)
+        self.frame = parent
+        self.callback = callback
+
+        self.ocrdir = ocrdir
+        self.dirList = dirList
+        self.equivs = equivs
+        self.reorder = reorder
+        self.reorder_inverse = reorder_inverse
+        self.mapping = mapping
+        self.mapping_inverse = mapping_inverse
+        self.multiboxcontests = multiboxcontests
+        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1][:-1]
+
+        res = []
+        for i in range(len(self.processgroups)):
+            res += self.align(self.generate_one(i))
+
+        frame = grouping.view_overlays.ViewOverlaysFrame(None, res)
+        frame.Maximize()
+        frame.Show()
+
+    def generate_one(self, which):
+        orderedpaths = []
+        for ballot,contest in self.equivs[self.processgroups[which]]:
+            #print ballot, contest
+            ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
+            boundingbox = (ballot, contest)
+            if any(boundingbox in x for x in self.multiboxcontests):
+                boundingboxes = [x for x in self.multiboxcontests if boundingbox in x][0]
+                print boundingboxes
+                boundingbox = [x for x in boundingboxes if x in self.mapping_inverse][0]
+                print boundingbox
+                boundingboxes = [k[1] for k,v in self.mapping.items() if v == boundingbox]
+            else:
+                boundingboxes = [self.mapping_inverse[boundingbox][1]]
+                
+            boundingboxes = sorted(boundingboxes)
+
+            ballotdir = os.path.join(self.ocrdir,ballotname+"-dir")
+            boundingboxdirs = [os.path.join(ballotdir, '-'.join(map(str,bb))) for bb in boundingboxes]
+            order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
+            images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
+
+            images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
+            title = images[0][0]
+            images = [(i,y) for i,x in enumerate(images) for y in x[1:]]
+            orderedimages = [None]*(len(images)+1)
+            orderedimages[0] = (0, title)
+            for i in range(len(images)):
+                orderedimages[i+1] = images[order[i]]
+            print orderedimages
+            paths = [os.path.join(boundingboxdirs[i],img) for i,img in orderedimages]
+            orderedpaths.append(paths)
+        return orderedpaths
+
+    def align(self, dat):
+        res = []
+        for group in zip(*dat):
+            a = scipy.misc.imread(group[0], flatten=1)
+            a = np.nan_to_num(a)
+            r = []
+            for each in group:
+                b = scipy.misc.imread(each, flatten=1)
+                b = np.nan_to_num(b)
+                b = grouping.common.resize_img_norescale(b, (a.shape[1], a.shape[0]))
+                print a.shape, b.shape
+                (H, align, err) = imagesAlign(a, b)
+                align = np.nan_to_num(align)
+                scipy.misc.imsave("tmp/"+each.replace("/", "_"), align)
+                r.append("tmp/"+each.replace("/", "_"))
+            res.append(r)
+        return res
+
+if __name__ == '__main__':
+    app = wx.App(False)
+    VerifyContestGrouping(None, '../projects/orange/ocr_tmp_dir', ['/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3113_1_30_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3114_1_32_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3115_1_34_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3116_1_36_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3117_1_38_1.png', '/home/nicholas/opencount/opencount/projects/orange/blankballots_straight/339_3136_1_31_1.png'], [[(3, 4), (4, 4)], [(0, 1), (1, 1), (2, 1)], [(0, 3), (1, 3), (2, 3)], [(0, 4), (1, 4), (2, 4)], [(0, 2), (3, 2), (5, 3)], [(1, 2)], [(2, 2), (4, 2)], [(3, 1), (4, 1)], [(5, 2)], [(5, 4)], [(5, 5)], [(0, 5), (1, 5), (2, 5), (3, 3), (4, 3)], [(5, 0)], [(5, 6)], [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 1)]], {(0, 1): {(0, 1): [(0, 0), (1, 1), (2, 2)], (1, 1): [(2, 2), (0, 0), (1, 1)], (2, 1): [(2, 2), (0, 0), (1, 1)]}, (1, 2): {(1, 2): [(0, 0), (1, 1), (2, 2)]}, (5, 4): {(5, 4): [(0, 0), (1, 1), (2, 2)]}, (3, 1): {(3, 1): [(0, 0), (1, 1), (2, 2)], (4, 1): [(2, 2), (0, 0), (1, 1)]}, (5, 5): {(5, 5): [(0, 0), (1, 1), (2, 2)]}, (5, 6): {(5, 6): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (5, 2): {(5, 2): [(0, 0), (1, 1), (2, 2)]}, (2, 2): {(4, 2): [(0, 0), (2, 2), (1, 1)], (2, 2): [(0, 0), (1, 1), (2, 2)]}, (0, 0): {(0, 0): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16), (17, 17), (18, 18), (19, 19), (20, 20), (21, 21)], (3, 0): [(4, 11), (9, 16), (18, 1), (10, 17), (6, 13), (14, 21), (20, 3), (0, 7), (7, 14), (12, 19), (19, 2), (2, 9), (13, 20), (5, 12), (11, 18), (3, 10), (8, 15), (21, 4), (17, 0), (1, 8), (15, 5), (16, 6)], (2, 0): [(9, 9), (18, 18), (11, 11), (10, 10), (4, 4), (7, 7), (19, 19), (12, 12), (5, 5), (2, 2), (15, 15), (0, 0), (14, 14), (8, 8), (20, 20), (17, 17), (6, 6), (16, 16), (13, 13), (1, 1), (21, 21), (3, 3)], (5, 1): [(10, 21), (9, 20), (4, 15), (19, 6), (13, 0), (7, 18), (18, 5), (3, 14), (20, 7), (8, 19), (2, 13), (5, 16), (15, 2), (14, 1), (0, 11), (21, 8), (17, 4), (6, 17), (16, 3), (1, 12), (12, 9), (11, 10)], (1, 0): [(10, 10), (4, 4), (7, 7), (6, 6), (9, 9), (20, 20), (11, 11), (14, 14), (13, 13), (15, 15), (3, 3), (0, 0), (2, 2), (8, 8), (16, 16), (12, 12), (18, 18), (5, 5), (19, 19), (17, 17), (21, 21), (1, 1)], (4, 0): [(4, 11), (7, 14), (10, 17), (11, 18), (14, 21), (13, 20), (12, 19), (6, 13), (18, 1), (19, 2), (0, 7), (2, 9), (5, 12), (20, 3), (17, 0), (9, 16), (8, 15), (3, 10), (1, 8), (21, 4), (15, 6), (16, 5)]}, (0, 5): {(1, 5): [(3, 3), (1, 1), (2, 2), (0, 0)], (2, 5): [(3, 3), (2, 2), (0, 0), (1, 1)], (0, 5): [(0, 0), (1, 1), (2, 2), (3, 3)], (3, 3): [(3, 3), (2, 0), (0, 1), (1, 2)], (4, 3): [(3, 3), (2, 0), (1, 2), (0, 1)]}, (5, 0): {(5, 0): [(0, 0), (1, 1), (2, 2), (3, 3)]}, (0, 4): {(2, 4): [(2, 2), (0, 0), (1, 1)], (1, 4): [(2, 2), (0, 0), (1, 1)], (0, 4): [(0, 0), (1, 1), (2, 2)]}, (0, 3): {(0, 3): [(0, 0), (1, 1), (2, 2)], (1, 3): [(2, 2), (0, 0), (1, 1)], (2, 3): [(2, 2), (0, 0), (1, 1)]}, (3, 4): {(4, 4): [(5, 5), (1, 1), (2, 2), (4, 4), (3, 3), (0, 0)], (3, 4): [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]}, (0, 2): {(3, 2): [(2, 2), (0, 0), (1, 1)], (0, 2): [(0, 0), (1, 1), (2, 2)], (5, 3): [(2, 2), (1, 1), (0, 0)]}}, {(1, 3): (0, 3), (5, 6): (5, 6), (5, 4): (5, 4), (2, 1): (0, 1), (5, 1): (0, 0), (0, 3): (0, 3), (2, 5): (0, 5), (4, 0): (0, 0), (1, 2): (1, 2), (5, 5): (5, 5), (4, 4): (3, 4), (3, 0): (0, 0), (1, 5): (0, 5), (5, 0): (5, 0), (2, 2): (2, 2), (3, 3): (0, 5), (4, 1): (3, 1), (1, 1): (0, 1), (3, 2): (0, 2), (0, 0): (0, 0), (0, 4): (0, 4), (1, 4): (0, 4), (2, 3): (0, 3), (4, 2): (2, 2), (1, 0): (0, 0), (5, 3): (0, 2), (0, 1): (0, 1), (3, 4): (3, 4), (3, 1): (3, 1), (2, 4): (0, 4), (2, 0): (0, 0), (4, 3): (0, 5), (0, 5): (0, 5), (5, 2): (5, 2), (0, 2): (0, 2)}, {(1, (1103, 1485, 1592, 1889)): (1, 4), (1, (1103, 587, 1592, 1094)): (1, 5), (0, (1107, 285, 1598, 597)): (0, 1), (1, (1103, 1088, 1592, 1491)): (1, 3), (2, (1107, 589, 1598, 1095)): (2, 5), (3, (1109, 584, 1598, 1091)): (3, 3), (1, (614, 280, 1109, 2645)): (1, 0), (2, (1107, 2187, 1598, 2530)): (2, 2), (3, (1109, 2127, 1598, 2471)): (3, 2), (0, (1107, 2188, 1598, 2532)): (0, 2), (5, (1114, 2188, 1604, 2532)): (5, 3), (5, (624, 284, 1120, 2649)): (5, 1), (2, (1107, 278, 1598, 595)): (2, 1), (4, (1110, 281, 1601, 593)): (4, 1), (2, (1107, 1486, 1598, 1890)): (2, 4), (2, (619, 278, 1113, 2647)): (2, 0), (4, (1110, 2131, 1601, 2474)): (4, 2), (0, (1107, 1090, 1598, 1493)): (0, 3), (3, (1109, 1085, 1598, 1829)): (3, 4), (3, (620, 280, 1115, 2642)): (3, 0), (4, (621, 281, 1116, 2645)): (4, 0), (1, (1103, 280, 1592, 593)): (1, 1), (0, (619, 285, 1113, 2647)): (0, 0), (5, (1114, 590, 1604, 1098)): (5, 6), (0, (1107, 591, 1598, 1096)): (0, 5), (5, (139, 1152, 630, 1451)): (5, 0), (4, (1110, 587, 1601, 1095)): (4, 3), (4, (1110, 1089, 1601, 1832)): (4, 4), (1, (1103, 2185, 1592, 2529)): (1, 2), (5, (1114, 1488, 1604, 1890)): (5, 5), (5, (1114, 284, 1604, 596)): (5, 2), (0, (1107, 1487, 1598, 1891)): (0, 4), (2, (1107, 1089, 1598, 1492)): (2, 3), (3, (1109, 280, 1598, 590)): (3, 1), (5, (1114, 1092, 1604, 1494)): (5, 4)}, {(1, 3): (1, (1103, 1088, 1592, 1491)), (3, 0): (3, (620, 280, 1115, 2642)), (5, 4): (5, (1114, 1092, 1604, 1494)), (2, 1): (2, (1107, 278, 1598, 595)), (5, 6): (5, (1114, 590, 1604, 1098)), (5, 1): (5, (624, 284, 1120, 2649)), (0, 3): (0, (1107, 1090, 1598, 1493)), (2, 5): (2, (1107, 589, 1598, 1095)), (4, 0): (4, (621, 281, 1116, 2645)), (1, 2): (1, (1103, 2185, 1592, 2529)), (3, 3): (3, (1109, 584, 1598, 1091)), (4, 4): (4, (1110, 1089, 1601, 1832)), (1, 5): (1, (1103, 587, 1592, 1094)), (5, 0): (5, (139, 1152, 630, 1451)), (2, 2): (2, (1107, 2187, 1598, 2530)), (4, 1): (4, (1110, 281, 1601, 593)), (1, 1): (1, (1103, 280, 1592, 593)), (3, 2): (3, (1109, 2127, 1598, 2471)), (0, 0): (0, (619, 285, 1113, 2647)), (0, 4): (0, (1107, 1487, 1598, 1891)), (5, 5): (5, (1114, 1488, 1604, 1890)), (1, 4): (1, (1103, 1485, 1592, 1889)), (0, 5): (0, (1107, 591, 1598, 1096)), (4, 2): (4, (1110, 2131, 1601, 2474)), (1, 0): (1, (614, 280, 1109, 2645)), (5, 3): (5, (1114, 2188, 1604, 2532)), (0, 1): (0, (1107, 285, 1598, 597)), (5, 2): (5, (1114, 284, 1604, 596)), (3, 1): (3, (1109, 280, 1598, 590)), (0, 2): (0, (1107, 2188, 1598, 2532)), (2, 0): (2, (619, 278, 1113, 2647)), (4, 3): (4, (1110, 587, 1601, 1095)), (2, 3): (2, (1107, 1089, 1598, 1492)), (3, 4): (3, (1109, 1085, 1598, 1829)), (2, 4): (2, (1107, 1486, 1598, 1890))}, [], None)
     app.MainLoop()
