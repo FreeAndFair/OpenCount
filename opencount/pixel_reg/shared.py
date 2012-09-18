@@ -428,6 +428,16 @@ def expandBbsMulti(bbs,iMx,jMx,pFac):
 def expandBbs(bbs,iMx,jMx,pFac):
     ''' Assumed that bbs are all the same dim. Padding is relative to the size 
         one bb.
+    Input:
+        list bbs: List of bounding boxes
+        int iMx: Maximum height
+        int jMx: Maximum width
+        int pFac: Amount by which to adjust padding.
+    Output:
+        list bbsOut: A new list of bounding boxes, but where each bb_i has 
+                     been (safely) expanded.
+        list bbsOff: A list of offsets required to go from coords in BBS
+                     to coords in BBSOUT.
     '''
     # don't allow the resulting image to take up more than 33% of the width
     if len(bbs.shape)==1:
