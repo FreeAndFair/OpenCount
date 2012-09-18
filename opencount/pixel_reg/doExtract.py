@@ -90,26 +90,44 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     Output:
         [(int targetID, nparray img, tuple bbImgLoc, float err), ...]
     """
-    # parameter specified number of cells
-    # for each cell, grab the targets that fall in the center
-    #   compute super-region and pad
-
     ''' Perform local alignment around each target, then crop out target  '''
     # 0.) Mask out targets on Iref, coarsely-align I to Iref.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     t0=time.clock()
-    IO=imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=rszFac)
+    H1, I1, err =imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=rszFac)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
-    H1=IO[0]
-    I1=IO[1]
     result = []
     pFac=7
 
     # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
     #     then extract bb.
-    
+    for bb in bbs:
+        # bb := [i1, i2, j1, j2, targetID]
+        bbExp, bbOff = sh.expandBbsSingle(bb, I1.shape[0], I1.shape[1], pFac)
+        I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+        IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+        rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
+        H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, rszFac=rszFac, type='rigid')
+        targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
+        # 2.) Unwind transformation to get the global location of TARG
+        rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
+        rOff_tr=pttransform(I_patch,np.linalg.inv(H2),np.array([bbOff[2],bbOff[0],1]))
+        targLocGl=np.zeros(4)
+        iLen = bbOff[1] - bbOff[0]
+        jLen = bbOff[3] - bbOff[2]
+        targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
+        targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
+        targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
+        targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
+
+        # weird bug in imsave where if the matrix is all ones, it saves as pure black
+        result.append((bb[4],targ,map(int,tuple(targLocGl)),err))
+    '''
+    # parameter specified number of cells
+    # for each cell, grab the targets that fall in the center
+    #   compute super-region and pad
     vStep=math.ceil(Iref.shape[0]/vCells);
     hStep=math.ceil(Iref.shape[1]/hCells);
     for i in range(vCells):
@@ -154,12 +172,10 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
 
                 # weird bug in imsave where if the matrix is all ones, it saves as pure black
                 result.append((bbs1[k,4],targ,map(int,tuple(targLocGl)),err))
-        
+    '''
     if(verbose):
         print 'total extract time = ',time.clock()-t0,'(s)'
-
     return result
-
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, balP, tplP, flipped):
     fullpath = encodepath(balP)
