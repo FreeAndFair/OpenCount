@@ -217,7 +217,7 @@ class VerifyContestGrouping(wx.Panel):
 
     def generate_one(self, which):
         orderedpaths = []
-        print "STARTING", self.equivs[self.processgroups[which]]
+        #print "STARTING", self.equivs[self.processgroups[which]]
         for ballot,contest in self.equivs[self.processgroups[which]]:
             ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
             boundingbox = (ballot, contest)
@@ -234,7 +234,7 @@ class VerifyContestGrouping(wx.Panel):
             boundingboxdirs = [os.path.join(ballotdir, '-'.join(map(str,bb))) for bb in boundingboxes]
             order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
             images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
-            print 'from', boundingboxdirs, 'get', images
+            #print 'from', boundingboxdirs, 'get', images
 
             images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
             title = images[0][0]

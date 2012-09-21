@@ -753,6 +753,11 @@ class Contest:
             root1.depth += 1
             root2.children.append(root1)
     
+def do_group_pairing_map(data):
+    lst = []
+    for i,a,j,b in data:
+        lst.append(((i,j),compare(a[2], b[2])))
+    return lst
 
 def group_by_pairing(contests_text):
     """
@@ -762,24 +767,31 @@ def group_by_pairing(contests_text):
     and then do a linear scan through each of them to make the groups.
     """
 
+    print "Prepare"
+    pool = mp.Pool(mp.cpu_count())
+    args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
+    sets = [[] for _ in range(mp.cpu_count())]
+    for i,each in enumerate(args):
+        sets[i%len(sets)].append(each)
+    print "Start"
+    res = pool.map(do_group_pairing_map, sets)
+    print "Done"
     diff = {}
-    for i,cont1 in enumerate(contests_text):
-        for j,cont2 in enumerate(contests_text):
-            if j > i: continue
-            diff[i,j] = compare(cont1[2], cont2[2])
-            #print diff[i,j]
-
+    for each in res:
+        for k,v in each:
+            diff[k] = v
     diff = sorted(diff.items(), key=lambda x: x[1][0])
+    print "Finish"
 
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
     for (k1,k2),d in diff:
         contests[k1].similarity[k2] = d
         contests[k2].similarity[k1] = d
-    
+    print "Created"
     for (k1,k2),d in diff:
-        if d[0] < .2:
+        if d[0] < .1:
             contests[k1].join(contests[k2])
-
+    print "Traverse"
     seen = {}
     res = []
     for contest in contests:
