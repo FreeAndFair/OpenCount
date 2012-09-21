@@ -147,12 +147,15 @@ class RunThread(threading.Thread):
         if self.rerun:
             bal2imgs=pickle.load(open(self.proj.ballot_to_images,'rb'))
             tpl2imgs=pickle.load(open(self.proj.template_to_images,'rb'))
+            img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
 
             if all(x==1 for x in map(len,tpl2imgs.values())):
+                # Single-sided election
                 print "Starting call to convertImagesSingleMAP"
                 res = convertImagesSingleMAP(bal2imgs,
                                              tpl2imgs,
                                              bal2tpl,
+                                             img2bal,
                                              csvPattern,
                                              self.proj.extracted_dir, 
                                              self.proj.extracted_metadata,
@@ -161,10 +164,12 @@ class RunThread(threading.Thread):
                                              self.stopped,
                                              self.proj)
             else:
+                # Multi-page election
                 print "Starting call to convertImagesMultiMAP"
                 res = convertImagesMultiMAP(bal2imgs,
                                             tpl2imgs,
                                             bal2tpl,
+                                            img2bal,
                                             csvPattern,
                                             self.proj.extracted_dir, 
                                             self.proj.extracted_metadata,

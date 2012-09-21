@@ -377,7 +377,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         #self.gridsizer.Add(staticbitmap)
         self.gridsizer.Add(s, border=10, flag=wx.ALL)
 
-    def setup_grid(self):
+    def setup_grid(self, sorted=False,sorted_patches=None):
         """Reads in the digit patches (given by self.extracted_dir),
         and displays them on a grid.
         """
@@ -386,20 +386,30 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.MAX_WIDTH = w_suggested
         self.cell_w = w_suggested
 
-        for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
-            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                imgpath = pathjoin(dirpath, imgname)
-                pil_img = util_gui.open_as_grayscale(imgpath)
-                w, h = pil_img.size
-                c = float(w) / self.MAX_WIDTH
-                w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-                if self.cellh == None:
-                    self.cellh = h_scaled
-                if self.rszFac == None:
-                    self.rszFac = c
-                pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
-                b = util_gui.PilImageToWxBitmap(pil_img)
-                self.add_img(b, imgpath, pil_img, imgpath, c)
+        def add_patches(imgname,dirpath):
+            imgpath = pathjoin(dirpath, imgname)
+            pil_img = util_gui.open_as_grayscale(imgpath)
+            w, h = pil_img.size
+            c = float(w) / self.MAX_WIDTH
+            w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
+            if self.cellh == None:
+                self.cellh = h_scaled
+            if self.rszFac == None:
+                self.rszFac = c
+            pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
+            b = util_gui.PilImageToWxBitmap(pil_img)
+            self.add_img(b, imgpath, pil_img, imgpath, c)
+
+
+        if sorted == True:
+            for imgname in sorted_patches:
+                add_patches(imgname,'')
+        else:            
+            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
+                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                    add_patches(imgname,dirpath)
+        
+        
         print 'num images:', len(self.imgID2cell)
         self.Refresh()
 
@@ -580,20 +590,71 @@ digit.")
             self.cells[regionpath].boxes = boxes
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
-
+    
     def sort_cells(self):
-        """ Sorts cells by average intensity (most-intense cells
-        at the beginning of the grid). This is to allow the UI to
-        present only the cells that probably still have digits-to-be-
-        labeled.
-        """
+        """ Sorts by strlen of the precinct digit string, the cells with the
+        shortest digit strings will be displayed first """
         self.Disable()
-        dlg = wx.MessageDialog(self, message="Sorry, this feature \
-hasn't been implemented yet. Stay tuned!",
-                               style=wx.OK)
-        dlg.ShowModal()
+
+        # Make sure the precinct txts are up to date.
+        for regionpath, stuff in self.matches.iteritems():
+            self.update_precinct_txt(regionpath)
+
+        patch2precincts = self.get_patch2precinct().items()
+        # Filter out the case where the precinct string is just the label
+        # 'Precinct Number' instead of an empty string
+        for x in patch2precincts:
+            if x[1] == 'Precinct Number':
+                loc = patch2precincts.index(x)
+                patch2precincts[loc] = (x[0],'')
+
+        sorted_patches = sorted(patch2precincts, key=lambda x: len(x[1]))
+        sorted_patches = [x[0] for x in sorted_patches]
+
+        # Reset instance variables. Consider integrating this into reset method when it is created.
+        self.i, self.j = 0, 0    # Keeps track of all boxes
+        self.i_cur, self.j_cur = 0, 0  # Keeps track of currently display boxes
+        self.imgID2cell = {}
+        self.cell2imgID = {}
+        self.cells = {}
+        self.precinct_txts = {}
+
+        self.gridsizer.Clear(deleteWindows=True)
+        self.setup_grid(sorted=True,sorted_patches=sorted_patches)
+        
+        def get_digit(patchpath):
+            """ patchpaths are of the form:
+                <projdir>/digit_exemplars/0_examples/*.png
+            """
+            return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
+        
+        # Add digit bounding boxes to the UI
+        for regionpath, matches in self.matches.iteritems():
+            boxes = []
+            for (patchpath, matchID, digit, score, y1,y2,x1,x2,rszFac) in matches:
+                x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+                # Then, scale it by the resizing done in setup_grid
+                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                digit = get_digit(patchpath)
+                box = Box(x1,y1,x2,y2,digit=digit)
+                boxes.append(box)
+            self.cells[regionpath].boxes = boxes
+
+        digits = {}
+        
+        # Set the Precinct Text labels
+        for regionpath, cell in self.cells.iteritems():
+            digits[regionpath] = cell.get_digits()
+
+        for regionpath, digits_str in digits.iteritems():
+            i, j = self.imgID2cell[regionpath]
+            k = (self.NUM_COLS * i) + j
+            self.precinct_txts[regionpath].SetLabel("{0}: Precinct Number: {1}".format(str(k),
+                                                                                       digits_str))
+        
+        self.gridsizer.Layout()
         self.Enable()
-                
+                   
     def compute_and_save_digitexemplars_map(self):
         digitexemplars_map = {} # maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)}
         for regionpath, stuff in self.matches.iteritems():
@@ -608,10 +669,13 @@ hasn't been implemented yet. Stay tuned!",
         """ Invoked when the user clicks the "I'm done" button:
         make sure that len(all digit strings) == number user specified, returns false if any of the digit strings
         are not long enough. """
-        
+        # Make sure the precinct txts are up to date.
+        for regionpath, stuff in self.matches.iteritems():
+            self.update_precinct_txt(regionpath)
+
         # self.parent.parent?
         patch2precinct = self.get_patch2precinct()
-        
+
         num_digitsmap = pickle.load(open(pathjoin(self.parent.parent.project.projdir_path,
                                                  self.parent.parent.project.num_digitsmap)))
         
@@ -654,8 +718,6 @@ are not of proper length.'
     
     def get_patch2cellID(self):
         """ Return dictionary mapping patchpath to the cell ID on the digit UI """
-        # TODO: INTEGRATE THIS INTO EITHER THE IM DONE EVENT OR A SEPARATE BUTTON TO LET
-        # USER KNOW WHICH CELL IDS ARE NOT OF PROPER LENGTH
         result = {}
         for patchpath, txt in self.precinct_txts.iteritems():
             assert patchpath not in result
@@ -664,7 +726,7 @@ are not of proper length.'
         return result
 
     def get_patch2precinct(self):
-        """ Called by on_done. Computes the result dictionary:
+        """ Called by on_done, sort_cells, and check_digit_strings. Computes the result dictionary:
             {str patchpath: str precinct number},
         where patchpath is the path to the precinct patch of
         some blank ballot.
@@ -803,7 +865,6 @@ matching. Saving to: _errtmp_npimg.png"
                 return
             #scipy.misc.imsave('before_crop.png', npimg)
             #scipy.misc.imsave('after_crop.png', npimg_crop)
-            npimg_crop = np.float32(npimg_crop / 255.0)
             self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
     def onMotion(self, evt):
@@ -816,8 +877,9 @@ matching. Saving to: _errtmp_npimg.png"
         """Extracts box from the currently-displayed image. """
         coords = Box.make_canonical(box)
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
-        npimg = np.array(Image.open(self.imgpath).convert('L'))
-        x1,y1,x2,y2=map(lambda n:n*self.rszFac,coords)
+        #npimg = scipy.misc.imread(self.imgpath, flatten=True)
+        npimg = shared.standardImread(self.imgpath, flatten=True)
+        x1,y1,x2,y2=map(lambda n: int(round(n*self.rszFac)),coords)
         return npimg[y1:y2, x1:x2]
 
     def onPaint(self, evt):
@@ -854,7 +916,7 @@ class ThreadDoTempMatch(threading.Thread):
         
     def run(self):
         h, w =  self.img1.shape
-        bb = [0, h, 0, w]
+        bb = [0, h-1, 0, w-1]
         regions = []
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for dirpath, dirnames, filenames in os.walk(self.regionsdir):
