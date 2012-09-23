@@ -650,7 +650,7 @@ def compare(otexts1, otexts2):
     val = sum(row_dist(*x) for x in zip(titles1, titles2))
     #print 'dist of titles is', val
 
-    best_val = 1<<30, None, None
+    all_vals = []
     for num_writeins in range(len(texts2)):
         rottexts2 = [texts2[i:-num_writeins]+texts2[:i]+texts2[-num_writeins:] for i in range(len(texts2)-num_writeins)]
         values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
@@ -659,48 +659,22 @@ def compare(otexts1, otexts2):
 
         #print 'min', order, minweight
 
-        if best_val[0] > minweight:
-            #print "SET", minweight
-            best_val = minweight, order, num_writeins
+        all_vals.append((minweight, order, num_writeins))
     #print "BEST:", best_val
     #print 'so should be equal'
     #print texts1
     #print texts2[best_val[1]:-best_val[2]]+texts2[:best_val[1]]+texts2[-best_val[2]:]
-
-    reorder = range(len(texts1))[best_val[1]:-best_val[2]]+range(len(texts1))[:best_val[1]]+range(len(texts1))[-best_val[2]:]
-    #print 'order1', reorder
-    return float(best_val[0]+val)/size, zip(range(len(reorder)), reorder), best_val[2]
-    """
-    
-    """
-    matching = []
-    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
-    while texts1 != [] and texts2 != []:
-        found = False
-        for weight,a,b in weights:
-            if a in texts1 and b in texts2:
-                print 'w', weight, texts1.index(a), texts2.index(b)
-                #print 'pair', a, b
-                matching.append((ordering1[texts1.index(a)],
-                                 ordering2[texts2.index(b)]))
-                del ordering1[texts1.index(a)]
-                del ordering2[texts2.index(b)]
-                del texts1[texts1.index(a)]
-                del texts2[texts2.index(b)]
-                val += weight
-                found = True
-                break
-        if not found:
-            print "---- FAILURE"
-            #print otexts1
-            #print otexts2
-            #print texts1
-            #print texts2
-            return 1<<30, None
-    print "MATCHING", matching
-    print "result weight", float(val)/size
-    return float(val)/size, matching
-    #"""
+    all_vals = sorted(all_vals)
+    res = {}
+    best = 1<<30, None
+    for weight,order,num_writeins in all_vals:
+        lst = range(len(texts1))
+        new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
+        if float(weight+val)/size < best[0]:
+            best = float(weight+val)/size, num_writeins
+        res[num_writeins] = (float(weight+val)/size,
+                             zip(lst, new_order))
+    return res, best
 
 def first_pass(contests):
     """
@@ -722,7 +696,7 @@ class Contest:
         self.parent = self
         self.depth = 0
         self.children = []
-        self.writin_num = 0
+        self.writein_num = 0
 
     def all_children(self):
         res = [self]
@@ -734,24 +708,47 @@ class Contest:
         while self.parent != self.parent.parent:
             self.parent = self.parent.parent
         return self.parent
+
+    def isClose(self, other, num_writein):
+        group1 = self.all_children()
+        group2 = other.all_children()
+        best = 1<<30, None
+        print 'joining', len(group1), len(group2)
+        for nwi in set([self.writein_num, other.writein_num, num_writein]):
+            distance = 0
+            for c1 in group1:
+                for c2 in group2:
+                    distance += c1.similarity[c2.cid][nwi][0]
+            distance /= len(group1)*len(group2)
+            print nwi, distance
+            if distance < best[0]:
+                best = distance, nwi
+        print 'pick', best
+        return best[0] < .2, best[1]
     
-    def join(self, new_parent):
+    def join(self, new_parent, num_writein):
         if self.get_root() == new_parent.get_root():
             return
 
         root1 = self.parent
         root2 = new_parent.parent
 
+        close, winum = root1.isClose(root2, num_writein)
+        if not close: return
+
         if root1.depth < root2.depth:
             root1.parent = root2
             root2.children.append(root1)
+            root2.writein_num = winum
         elif root2.depth < root1.depth:
             root2.parent = root1
             root1.children.append(root1)
+            root1.writein_num = winum
         else:
             root1.parent = root2
             root1.depth += 1
             root2.children.append(root1)
+            root2.writein_num = winum
     
 def do_group_pairing_map(data):
     lst = []
@@ -774,7 +771,7 @@ def group_by_pairing(contests_text):
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
     print "Start"
-    res = pool.map(do_group_pairing_map, sets)
+    res = map(do_group_pairing_map, sets)
     print "Done"
     diff = {}
     for each in res:
@@ -784,13 +781,13 @@ def group_by_pairing(contests_text):
     print "Finish"
 
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
-    for (k1,k2),d in diff:
-        contests[k1].similarity[k2] = d
-        contests[k2].similarity[k1] = d
+    for (k1,k2),(dmap,best) in diff:
+        contests[k1].similarity[k2] = dmap
+        contests[k2].similarity[k1] = dmap
     print "Created"
-    for (k1,k2),d in diff:
-        if d[0] < .1:
-            contests[k1].join(contests[k2])
+    for (k1,k2),(dmap,best) in diff:
+        if best[0] < .2:
+            contests[k1].join(contests[k2], best[1])
     print "Traverse"
     seen = {}
     res = []
@@ -798,7 +795,8 @@ def group_by_pairing(contests_text):
         if contest.get_root() in seen: continue
         seen[contest.get_root()] = True
         v = [x.cid for x in contest.get_root().all_children()]
-        res.append([(contests_text[x][:2],contest.similarity[x][1]) for x in v])
+        write = contest.get_root().writein_num
+        res.append([(contests_text[x][:2],contest.similarity[x][write][1]) for x in v])
         print res[-1]
 
     return res
@@ -868,7 +866,7 @@ def extend_multibox(ballots, box1, box2, orders):
 
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
-    print "ARGUMENTS", (t, paths, giventargets, lang_map)
+    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
@@ -931,4 +929,24 @@ def final_grouping(ballots, giventargets):
     return equ_class(ballots)
 
 
-#equ_class([[(0, [(619, 285, 1113, 2647)], [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'E \xa4Av\xa4\xa4 ALEX Lsvnrr\nParty Prelerence; Democratic\nComputer Scientist/Engineer\n\n'), (True, u'E 0\u2022=<n.v mrz\nPany Preference; Republican\nDoctor/Atiorney/Busirmessxuornan\n\n'), (True, u'Z AL Rnuunzz\nParty Prelerenuez Republimn\nBusinessman\n\n'), (True, u'E DIRK ALl.EN Kouovnx\nParty Preference: Republi \xa4 n\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republi n\nRetired Administralion Direcfor\n\n'), (True, u'E MIKE sTR\xa4M|.1N<;\nParty Preference; Democratic\nConsumer Rights Attomey\n\n'), (True, u'\xa4 DIANE srEwARr\nParty Preference: Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'E NAK SHAH\nParty Preference: Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 NAcHuM SHIFREN\nPar1y Preference: Republican\nEducator/Author/Businessman\n\n'), (True, u'E DENNIS JACKSON\nParty Preference; Republican\nAerospace General Manager\n\n'), (True, u'E DAN Hucuzs\nParty Prelerence: Republican\nSmall Business Owner\n\n'), (True, u'\xa4 GREG c0NL0r~1\nParty Prelerencez Republican\nBusinessman/CPA\n\n'), (True, u'E JOHN B0RuFr\nParty Prelerencez Republican\nBusinessman\n\n'), (True, u'2 oscm ALEJANDR0 sRAuN\nParty Prslerenoe: Republican\nBusinessman/Rancher\n\n'), (True, u'\xa4 MARSHA Ferwumu\nParty Preference; Peace and Freedom\nRetired Teacher\n\n'), (True, u'D DIANNE \u2022=E1NsrE1N\nParty Preference: Democratic\nUnited States Senator\n\n'), (True, u'E c0u.EEN SHEA FERNALD\nParty Preference: Democratic\nMoiher/C0nsu|tanIIAr1isl\n\n'), (True, u'E EuzAsErH EMKEN\nParty Preference: Republican\nBusiness\xbbumnanIN<x1pro|it Executive\n\n'), (True, u'E KABIRUDDIN \xbb<AR\xa4M ALI\nPany Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E RICK wnnuxxms\nParty Preference: Republican\nBusiness Atiomey\n\n'), (True, u'E R0<;Eu0 T. cn.0RaA\nParty Preference; Republican\nGraduate Student/Businessman\n\n'), (True, u'\xa4 \xa40N Jr cnuwummu\nParty Preference. American Independen\nDoctor of Chiropractic\n\n')]), (0, [(1107, 285, 1598, 597)], [(False, u'\n'), (True, u'E ROBERT LAUTEN\nParty Preference: Republican\n\n'), (True, u'\xa4 Gm K, uGHn=00T\nParty Prererenw. Ubedarian\nRetired Nurse\n\n'), (True, u'Z\n\n')]), (0, [(1107, 591, 1598, 1096)], [(False, u'UNITED STATES REPRESENTATIVE\n3901 District\nVote lor One\n\n'), (True, u'\xa4 cmmne Mun.AmER\xa4\nParty Prelerence; None\nCommunity Volunteer\n\n'), (True, u'E .uAv cum\nParty Preference: Democratic\nBusinessman/School Bcardmember\n\n'), (True, u'D ED Rovcz\nParty Preference: Repubhcan\nU.S. Representative\n\n'), (True, u'Z\n\n')]), (0, [(1107, 1090, 1598, 1493)], [(False, u'STATE SENATOR\n29th Disfrict\nVote for Ons\n\n'), (True, u'\xa4 GREG DIAMOND\nParty Prelerencez Democratic\nWort<ers\u2018 Rights Attorney\n\n'), (True, u'E Roaenr "BOB" Hur=F\nParty Preference: Republican\nLawmakerlBusiness Owner\n\n'), (True, u'III\n\n')]), (0, [(1107, 1487, 1598, 1891)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n55\\h District\nVous for Ons\n\n'), (True, u'E cum HAGMAN\nParty Preference: Republican\nBusiness Owner/Assemblyman\n\n'), (True, u'Q GREGG D. \xbb=Rnc\xbb\u2014n.E\nParty Preference; Democratic\nSocial Worker\n\n'), (True, u'lj\n\n')]), (0, [(1107, 2188, 1598, 2532)], [(False, u'JudgaoI\u20221*\xa4aS\u2022.;>ori01C\xa4\xa4rt\nOfhcaN0.1\nV\xa4ts|0fOnc\n\n'), (True, u'E Euseme .uzHA\xbb<\nGeneral Practice Attorney\n\n'), (True, u'E mzaomxu .1.CHUANG\nJudge ol the Superior Court\n\n'), (True, u'III\n\n')])], [(1, [(614, 280, 1109, 2645)], [(False, u'UNITED STATES SENATOR\nVote for Ono\n\n'), (True, u'E \xa4Avn0 Auax uavrrr\nParty Preference: Democraiic\nComputer Scientist/Engineer\n\n'), (True, u'\xa4 0RLv TA|rz\nParty Preference: Repdzlium\nDoctor/Attorney/Bsnsinesswunarn\n\n'), (True, u'E AL Rmvnasz\nParty Preference: Republican\nBusinessman\n\n'), (True, u'E DIRK ALLEN K0N0n\xa4n<\nParty Preference: Republican\nMBA Student\n\n'), (True, u'D DONALD KRAMPE\nParty Preterence: Republican\nRetired Administration Director\n\n'), (True, u'E Mme smnmuwc\nParty Prelerencez Democratic\nConsumer Rights Attorney\n\n'), (True, u'E DIANE STEWART\nParty Preference; Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'Z NAK slum\nParty Prelerence: Democratic\nEnvironmental Health Consultant\n\n'), (True, u'E NAc+\u2022uM sHnr=REN\nParty Preference: Republican\nEducator/Autfror/Businessrnan\n\n'), (True, u'E DENNIS JAcr<s0N\nParty Prelerence: Republican\nAerospace General Manager\n\n'), (True, u'E DAN HUGHES\nParty Preference: Republican\nSmall Business Owner\n\n'), (True, u'E GREG comow\nParty Preference: Republican\nBusinessman/CPA\n\n'), (True, u'E Jon-aw a0Ru\xbb=\xbb=\nPany Prelerenoe: Republi n\nBusinessman\n\n'), (True, u'Z 0scAR ALEJANDRO BRAuN\nParty Prelerencez Repubhcan\nBusinessman/Rancher\n\n'), (True, u'E MARsuA FEINLAND\nParty Preference; Peace and Freedom\nRetired Teacher\n\n'), (True, u'E \xa4nANNE Franwsrenw\nParty Preference: Democratic\nUnited States Senator\n\n'), (True, u'\xa4 c0|.LEEr~1 SHEA FERNALD\nParty Preference: Democratic\nMother/Consultantlmtist\n\n'), (True, u'E EUZABETH EMKEN\nParty Preference: Republican\nBusinesswcerman/Nor1pr0Ii\\ Execume\n\n'), (True, u'E \u2022<Aa1Ru\xa4mN Kmnm ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'D Rncx wu.uAMs\nParty Prdecenoex Republican\nBusiness Attorney\n\n'), (True, u'E R0GEu0 T. c;|.0R|A\nParty Prelerencez Republican\nGraduate StudentIBusinessman\n\n'), (True, u'E DON J. GRUNDMANN\nParty Preference: American lndependem\nDoctor ol Chnropractic\n\n')]), (1, [(1103, 280, 1592, 593)], [(False, u'\n'), (True, u'\xa4 Romam |.AuTEN\nParty Prelercncez Repuxlican\n\n'), (True, u'\xa4 GAIL K u<;mi=00T\nParty Preterencei Libertarian\nRetired Nurse\n\n'), (True, u'III\n\n')]), (1, [(1103, 587, 1592, 1094)], [(False, u'UNITED STATES REPRESENTATIVE\n39th Dlstdci\nVqts Icr Ona\n\n'), (True, u'\xa4 \xa4\xb7MARra Mumwnenn\nParty Preference: None\nCommunaty Volunteer\n\n'), (True, u'E JAY cum\nParty Preference: Demouatic\nBusinessman/School Boardmember\n\n'), (True, u'\xa4 ED Rovcra\nParty Preference: Repubhmn\nU.5, Representative\n\n'), (True, u'[II\n\n')]), (1, [(1103, 1088, 1592, 1491)], [(False, u'STATE SENATOR\n29m District\nVob br Ona\n\n'), (True, u"E GREG DIAMOND\nParty Preterence: Democratic\nW0rkers' Rights Attorney\n\n"), (True, u'\xa4 ROBERT \xb7\xb7BOB\xb7 \u2022-\u2022ur=r=\nParty Preference: Republican\nLawmaker/Business Owner\n\n'), (True, u'Z\n\n')]), (1, [(1103, 1485, 1592, 1889)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n55\\h Distrid\nVous for One\n\n'), (True, u'\xa4 cum HAGrv1AN\nParty Preference: Repubhcan\nBusiness Owner/Assemblyman\n\n'), (True, u'E GREGG D. Fnncr-me\nParly Preference: Democratic\nSocial Worker\n\n'), (True, u'E\n\n')]), (1, [(1103, 2185, 1592, 2529)], [(False, u'JlK$\xb0O0\u2018IYBS|.Q0|i\xa2\xa5C(Xl\u2018{\n0||i0\xa4N0.1\nV0hf\xa4fOna\n\n'), (True, u'E EUGENE .nzm\xbb<\nGeneral Practace Attorney\n\n'), (True, u'E 0r;B0RAH J. cHuANG\nJudge ol me Superior Coun\n\n'), (True, u'EI\n\n')])], [(2, [(619, 278, 1113, 2647)], [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'\xa4 \xa4Av\u2022c> ALEX Lzzvm\nParty Preference: Democratic\nComputer Scieniist/Engineer\n\n'), (True, u'E 0RLv Tmz\nParty Preference; Republican\nDoctor/Att0rneylBusinessw\xa4\u2022\u2018nan\n\n'), (True, u'Q AL RAMrR&z\nParty Preference; Republican\nBusinessman\n\n'), (True, u'E \xa4u=<\xbb< ALLEN \u2022<0r~10\u2022>n<\nPany Preference: Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference; Republican\nRetired Adminisvation Direcwr\n\n'), (True, u'D MIKE sTRrMuNG\nParty Preference: Democratic\nConsumer Rights Attorney\n\n'), (True, u'E muws STEWART\nParty Prelerencez Demcualic\nBusinesswcman/Finance Manager\n\n'), (True, u'E MAK sum\nParty Preterenoe; Democratic\nEnvironmental Health Consultant\n\n'), (True, u'D mcnum SHIFREN\nParty Prelerencez Republican\nEducator/Auttwor/Busirmessrnan\n\n'), (True, u'E DENNIS JACKSON\nParty Preference: Republican\nAerospace General Manager\n\n'), (True, u'E DAN Hucsuss\nParty Preference; Republkzan\nSmall Busmess Owner\n\n'), (True, u'Z GREG c0NL0N\nParty Prelerenoe: Republican\nBusinessman/CPA\n\n'), (True, u'\xa4 J0HN Bc>Rur=F\nParty Preference: Republican\nBusinessman\n\n'), (True, u'E OSCAR ALEJANDRO awww\nParty Preference: Republican\nBus6nessmanIRa1cher\n\n'), (True, u'D Mmsm Famumu\nPa\u20221y Preference: Peace and Freedom\nRetired Teacher\n\n'), (True, u'Q DIANNE Fenwsmm\nParty Pretsrence: Democratic\nUnited States Senator\n\n'), (True, u'\xa4 c0LL&EN sun FERNAL0\nParty Preference; Democratic\nMother/Consultant/Artist\n\n'), (True, u'E E\xa4.nzABETH EMKEN\nParty Preierenoe: Republican\nBusinessw0manIN0npr0Ht Executive\n\n'), (True, u'E KABIRUDDIN KARIM ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E RICK wu.uAMs\nParty Preference: Republican\nBusiness Attorney\n\n'), (True, u'E Rocssuo T. cLc>RnA\nParty Preference: Repubhcan\nGraduate S!uden\\IBusinessman\n\n'), (True, u'D mom J. GRUNDMANN\nParty Preference: American lndepcnden\nDoctor of Chircpradic\n\n')]), (2, [(1107, 278, 1598, 595)], [(False, u'\n'), (True, u'\xa4 Roszm murem\nParty Preference. Republican\n\n'), (True, u'D Gm K. ucurroor\nParty Preference: Libertarian\nRetired Nurse\n\n'), (True, u'EI\n\n')]), (2, [(1107, 589, 1598, 1095)], [(False, u'UNITED STATES REPRESENTATIVE\n39th District\nVote Ior Ono\n\n'), (True, u'Q D\xb7MAR\xa4E MuLAmERn\nParty Preference: None\nCommunity Vulunteer\n\n'), (True, u'\xa4 Jn cwan\nParty Preisrencex Democratic\nBusinessman/Scmol Bnammember\n\n'), (True, u'E so Royce\nPady Preference: Republican\nU.S. Representative\n\n'), (True, u'IZ\n\n')]), (2, [(1107, 1089, 1598, 1492)], [(False, u'STATE SENATOR\n29Ih District\nVote Iur Ons\n\n'), (True, u"Q case DIAMOND\nParty Preference: Democratic\nW0rkers' Rights Attorney\n\n"), (True, u'D Rosaar \xb7\xa40\xa4\xb7 Hur:\nParty Preference: Republican\nLawmaksr/Business Ounev\n\n'), (True, u'Z\n\n')]), (2, [(1107, 1486, 1598, 1890)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n551h District\n[gm kx Ons\n\n'), (True, u'\xa4 cum HAGMAN\nParty Preference: Republi  n\nBusiness Oomev/Assemblyman\n\n'), (True, u'\xa4 emacs D \xbb=\xa4nc\xbb\u2014sLE\nParty Pretevence; Democratic\nSoda! Worker\n\n'), (True, u'IZ\n\n')]), (2, [(1107, 2187, 1598, 2530)], [(False, u'Judgs0Hh\xa4Sup\u2022ri0rCo\u2022n\nO|1lcoN0.1\nv\xa4n\xa4brOne\n\n'), (True, u'D EUGENE JIZHAK\nGeneral Practice Attorney\n\n'), (True, u'\xa4 DEBORAH J. cuumc\nJudge 0I the Superior Court\n\n'), (True, u'I2\n\n')])], [(3, [(620, 280, 1115, 2642)], [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'D ELIZABETH EMKEN\nParty Preierence Republican\nBusinessw0rnanINcnpr\xa4Ht Executive\n\n'), (True, u'E KABIRUDDIN \u2022<ARuv\xa4 ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'E Rncx w|LuAMs\nParty Prelerencer Republican\nBusiness Aticmey\n\n'), (True, u'E R0<sEu0 T. G\xa4.0R\xa4A\nPany Preierence: Republican\nGraduate Student/Businessman\n\n'), (True, u'E 00N J. GRUNDMANN\nParty Preference: American lndependen\nDoctor 01 Chiropractic\n\n'), (True, u'D Roazm LAUTEN\nParty Preference; Republican\n\n'), (True, u'E ami. K. ucv-m=00T\nParty Preference: Libertarian\nRetired Nurse\n\n'), (True, u'E \xa4Avn\xa4 max Lsvnrr\nParty Prelerence; Democratic\nComputer S<:ientistlEngineer\n\n'), (True, u'\xa4 0RLY mrz\nParty Preference: Republi \xbb n\nDoctor/Attorney/Businessworrran\n\n'), (True, u'E AL RAMrREz\nParty Preference; Republican\nBusinessman\n\n'), (True, u'D 01RK ALLEN \u2022<0NOPn<\nParty Preference: Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republican\nRetired Administration Director\n\n'), (True, u'Q MIKE smnmuwc;\nParty Preference; Demouatic\nConsumer Rights Attomey\n\n'), (True, u'Q 0:ANE srew/mr\nParty Preference; Democratic\nBusinesswoman/Finance Manager\n\n'), (True, u'Q NAK sHA\xbb-1\nParty Prelevenoe; Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 mcnum sunmzm\nParty Preierence: Republican\nEducator/Author/Businessrnan\n\n'), (True, u'E DENNIS JAc\u2022<s0N\nParty Preference Republican\nAerospace General Manager\n\n'), (True, u'\xa4 DAN HUGHES\nParty Pralerence: Republican\nSmall Business Owner\n\n'), (True, u'E GREG <:0r~1L0N\nParty Preference: Republican\nBusmessman/CPA\n\n'), (True, u'E Jo}-iN BORUFF\nPariy Preference, Republican\nBusinessman\n\n'), (True, u'D OSCAR ALEJANDRO BRAUN\nParty Preference: Republican\nBusinessman/Rancher\n\n'), (True, u'\xa4 MARSHA Fznwumn\nParty Prelerence: Peace and Freedom\nRehred Teacher\n\n')]), (3, [(1109, 280, 1598, 590)], [(False, u'\n'), (True, u'Z DIANNE Ferwsrerw\nParty Preference: Democratic\nUnited States Senator\n\n'), (True, u'E c0Lu;&N SHEA FERNALD\nParty Preference: DemOcfa\\ic\nMother/Consultant/Artist\n\n'), (True, u'EI\n\n')]), (3, [(1109, 584, 1598, 1091)], [(False, u'UNITED STATES REPRESENTATIVE\n48th District\nVote lor One\n\n'), (True, u'\xa4 DANA R0:-aRABAcHeR\nPany Preference: Republican\nU.S. Representative\n\n'), (True, u'\xa4 ALAN SCHLAR\nParty Preference: None\nMarketing Sales Executive\n\n'), (True, u'D RON vARAs1\xb7EH\nPariy Preference: Democratic\nEngineer/Small Businessman\n\n'), (True, u'IZ]\n\n')]), (3, [(1109, 1085, 1598, 1829)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n72nd District\nVoin kx Ons\n\n'), (True, u'E \xb7rRAvls ALLEN\nParty Preference: Republican\nSmall Business Owner\n\n'), (True, u'm ALBERT AYALA\nParty Preference: Democratic\nRetired Police Commander\n\n'), (True, u'E JOE \xa40v1NH\nParty Preierence: Democratic\nCity Commissioner/Businessperson\n\n'), (True, u'E LONc PHAM\nParty Prelerence: Republican\nMember, Orange County Board oi\nEducation\n\n'), (True, u'\xa4 mov EDGAR\nParty Preference: Republican\nBusinessman/Mayor\n\n'), (True, u'E\n\n')]), (3, [(1109, 2127, 1598, 2471)], [(False, u'Judge 0Hhs Superior Court\nOffice N0.1\nV0te|0rOne\n\n'), (True, u'E Eucseue .uz\u2022-\u2022A\xbb<\nGeneral Practice Attomey\n\n'), (True, u'm DEBORAH J, cHuAN<;\nJudge ul the Superior Court\n\n'), (True, u'III\n\n')])], [(4, [(621, 281, 1116, 2645)], [(False, u'UNITED STATES SENATOR\nVote lor One\n\n'), (True, u'Q Er.|zABErH EMKEN\nParty Preference Republican\nBusinesswoman/Nonproht Executive\n\n'), (True, u'E r<ABrRu\xa4\xa4\xa4N r<ARrM ALI\nParty Preference: Peace and Freedom\nBusinessman\n\n'), (True, u'Q Rncx w\xbbLuAMs\nParty Preference: Republican\nBusiness Allcmey\n\n'), (True, u'E ROGELIO T. G|.0R|A\nParty Preference; Republican\nGraduate Studen|IBusin$sma\\\n\n'), (True, u'D DON .1. <sRuN\xa4MANN\nParty Preierence: American Independen\nDodor 01 Chiropraciic\n\n'), (True, u'E Roarzm murem\nParty Preference; Republican\n\n'), (True, u'E GAIL K. uGHTF00T\nParry Preference: Libertarian\nRetired Nurse\n\n'), (True, u'D \xa4Avn0 Auax Levm\nParty Preference: Democratic\nComputer Scientist/Engineer\n\n'), (True, u'Z 0Ra.v mrz\nParty Preference: Repubhcan\nDoctorlAttomey/Businesswcrnan\n\n'), (True, u'E AL RAMnRE2\nParty Preference; Republican\nBusinessman\n\n'), (True, u'E max ALLEN \u2022<0N0Pn<\nParty Preference; Republican\nMBA Student\n\n'), (True, u'E DONALD KRAMPE\nParty Preference: Republican\nRetired Adminnstration Director\n\n'), (True, u'E mma STRIMLING\nParty Preference: Democratic\nConsumer Rights Attorney\n\n'), (True, u'E name sTEwARr\nParty Preference: Democratic\nBusinessw0manlFinanoe Manager\n\n'), (True, u'E NAK si-im\nParty Preference: Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 NAc\u2022-cum snnmew\nParty Preference: Republican\nEducator/Autfnor/Businessunan\n\n'), (True, u'E neuuns mcxm\nParty Prelerenuez Republican\nAerospace General Manager\n\n'), (True, u'E DAN Hucr-ues\nParty Prekzrenuez Republican\nSmall Business Owner\n\n'), (True, u'Z GREG c0N\xa4.0N\nParty Preierencex Republican\nBusinessman/CPA\n\n'), (True, u'\xa4 .10HN B0Rui=r\nPany Preference: Republican\nBusinessman\n\n'), (True, u'E 0scAR ALEJANDR0 BRAUN\nParty Preference: Republican\nBusinessmanIRancher\n\n'), (True, u'E MARSHA FEINLAND\nParty Preference: Peace and Freedom\nRetired Teacher\n\n')]), (4, [(1110, 281, 1601, 593)], [(False, u'\n'), (True, u'\xa4 DIANNE Fenwsrsm\nParty Prelerencez Democratic\nUnited States Senator\n\n'), (True, u'Q c0LLEEN SHEA FERNALD\nPany Preference: Democratic\nMother/Consultant/Artist\n\n'), (True, u'Z\n\n')]), (4, [(1110, 587, 1601, 1095)], [(False, u'UNITED STATES REPRESENTATIVE\n48Ih District\nVon Inr Ons\n\n'), (True, u'Q mm ROHRABACHER\nParty Preterencet Republican\nUS. Representative\n\n'), (True, u'\xa4 ALAN scH1.AR\nParty Prelerence None\nMarketing Sales Executive\n\n'), (True, u'E Rom vARAsm\xb71\nParty Preference: Democratic\nEngineer/Small Businessman\n\n'), (True, u'EI\n\n')]), (4, [(1110, 1089, 1601, 1832)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n72nd Disfrict\nVote for Ons\n\n'), (True, u'E TRAv\xa4s ALLEN\nParty Prelerervce: Republi n\nSmall Business Owner\n\n'), (True, u'\xa4 ALBERT AYALA\nParty Preference; Democratic\nRetired Police Commander\n\n'), (True, u'E Joe 00vmH\nParty Preference: Democratic\nCity Commissioner/Businessperson\n\n'), (True, u'\xa4 Lows PHAM\nParty Preferencet Republican\nMember, Orange County Board or\nEducation\n\n'), (True, u'\xa4 mov sucm\nParly Preference: Republican\nBusinessman/Mayor\n\n'), (True, u'EI\n\n')]), (4, [(1110, 2131, 1601, 2474)], [(False, u'Judgaoimcsenpovicrccnxt\nOffIt\xbbN0.1\nV\xa4m|or0ne\n\n'), (True, u'\xa4 EUGENE JIZHAK\nGeneral Practnce Attorney\n\n'), (True, u'2 \xa4za0RAH J. cnumcs\nJudge ol the Superior Court\n\n'), (True, u'E\n\n')])], [(5, [(139, 1152, 630, 1451)], [(False, u'PRESIDENT OF THE UNITED STATES\nVote lor Ons\n\n'), (True, u'E sTEwART ALEXANDER\n\n'), (True, u'E STEPHEN DURHAM\n\n'), (True, u'E ROSS c. \xb7R0c\u2022<Y\xb7 ANDERSON\n\n'), (True, u'EI\n\n')]), (5, [(624, 284, 1120, 2649)], [(False, u'UNITED STATES SENATOR\nVote for One\n\n'), (True, u'Q oscm ALEJANDRO BRAUN\nParty Preference: Republican\nBusinessman/Rancher\n\n'), (True, u'E MARs\xbb\u20141A FEnr~u.AN0\nParty Preference: Peace and Freedom\nRetired Teacher\n\n'), (True, u'\xa4 Dimmu; r=ErNsTr;n~1\nParty Preference: Democratic\nUnited States Senator\n\n'), (True, u'E c0LLsEN sa-on FERNALD\nParty Prelerenoez Democratic\nM0lherIC\xa4nsuItant/Artist\n\n'), (True, u'D ei.nzABem EMKEN\nParty Preference: Republican\nBusinesswornan/Nonprofit Executive\n\n'), (True, u'\xa4 KABIRUDDIN KARIM ALI\nParty Prelerencez Peace and Freedom\nBusinessman\n\n'), (True, u'E RICK wu.uAMs\nParty Preference: Republican\nBusiness Attomey\n\n'), (True, u'Z Roceuo TA c\xa4.0RnA\nParty Preference: Republican\nGraduate Student/Businessman\n\n'), (True, u'E DON J. GRUNDMANN\nParty Preference: American Independcn\nDoctor oi Chiropractic\n\n'), (True, u'Z ROBERT LAUTEN\nParty Prelerencez Republican\n\n'), (True, u'E GAnL K. uc}-nFOOT\nParty Preference; Libedarian\nRetired Nurse\n\n'), (True, u'E DAVID Auax Lzvnrr\nParty Preference: Democratic\nComputer SdentisvJEngineer\n\n'), (True, u'E 0RLY mrrz\nParty Prekzrencez Republican\nD0ct0rIAtt0rney/Busir\\essw0\u2022nan\n\n'), (True, u'Z AL RAMIREZ\nParty Preference: Republican\nBusinessman\n\n'), (True, u'E DIRK ALLEN K0N0Pn<\nParty Preterence: Republi \xbb\xa2 n\nMBA Student\n\n'), (True, u'Z DONALD KRAMPE\nParty Preference: Republican\nRetired Administration Director\n\n'), (True, u'E Mme sTRnMuNG\nParty Preference: Democratic\nConsumer Rights Attorney\n\n'), (True, u'Z umm; STEWART\nParty Prelevence: Democratic\nBusmesswuman/Finance Managa\n\n'), (True, u'\xa4 MAK sl-1AH\nParty Preterence: Democratic\nEnvironmental Health Consultant\n\n'), (True, u'\xa4 NACHUM so-uFREN\nParty Preference: Republican\nEducator/Autr\u2022orIBusinessman\n\n'), (True, u'D DENNIS JACKSON\nParty Prelerence: Republican\nAerospace General Manager\n\n'), (True, u'D DAN Hucnss\nParty Prelerence: Republican\nSmall Business Owner\n\n')]), (5, [(1114, 284, 1604, 596)], [(False, u'\n'), (True, u'\xa4 GREG commu\nParty Preference: Republican\nBusmessman/CPA\n\n'), (True, u'\xa4 Jon-in \xa40Ru\xbb=\u2022=\nParty Preference: Republican\nBusinessman\n\n'), (True, u'IZ\n\n')]), (5, [(1114, 590, 1604, 1098)], [(False, u'UNITED STATES REPRESENTATIVE\n45th Distric!\nVon lor Ons\n\n'), (True, u'D .10HN wana\nParty Preference: Republican\nSmall Business Owner\n\n'), (True, u'\xa4 sum-use KANG\nParty Preference: Democratic\nMayor ol Irvine\n\n'), (True, u'E .100-1N CAMPBELL\nParty Preference: Republican\nBusinessmanIU.S, Representative\n\n'), (True, u'EZI\n\n')]), (5, [(1114, 1092, 1604, 1494)], [(False, u'STATE SENATOR\n3701 District\nVots for Ons\n\n'), (True, u'E Mwu wALTERs\nParty Preference: Repubhcan\nBusinesssucrnan/Senator\n\n'), (True, u'E s\xb7rEvE voumc\nParty Preference: Democratic\nCivil Justice Attorney\n\n'), (True, u'EI\n\n')]), (5, [(1114, 1488, 1604, 1890)], [(False, u'MEMBER OF THE STATE ASSEMBLY\n68th Distric!\n[ow br One\n\n'), (True, u'\xa4 cunnsnm AVALOS\nParty Prelerenoez Democratic\n\n'), (True, u'Q DONALD P. (Dom WAGNER\nParty Prelerence: Republican\nAssembly Member\n\n'), (True, u'III\n\n')]), (5, [(1114, 2188, 1604, 2532)], [(False, u'Judge ofthe Superior Court\nOfhce N0.1\nV\xa4tel\xa4rOne\n\n'), (True, u'\xa4 EUGENE Jnzwxx\nGeneral Practice Atiomey\n\n'), (True, u'E oEB0RAH J. cHuANG\nJudge of the Superior Court\n\n'), (True, u'III\n\n')])]])
+if __name__ == "__main__":
+    from labelcontest import LabelContest
+    p = "../projects/yolotest/"
+    # Regroup the targets so that equal contests are merged.
+    class FakeProj:
+        target_locs_dir = p+"target_locations"
+    class FakeMe(LabelContest):
+        proj = FakeProj()
+    fakeme = FakeMe(None, None)
+    LabelContest.gatherData(fakeme)
+    groupedtargets = fakeme.groupedtargets
+    targets = []
+    for bid,ballot in enumerate(groupedtargets):
+        ballotlist = []
+        for gid,targlist in enumerate(ballot):
+            ballotlist.append([x[2:] for x in targlist])
+        targets.append(ballotlist)
+
+    internal = pickle.load(open(p+"contest_internal.p"))[2]
+    print internal
+    final_grouping(internal, targets)

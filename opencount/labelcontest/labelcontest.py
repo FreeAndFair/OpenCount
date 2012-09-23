@@ -21,6 +21,7 @@ from wx.lib.pubsub import Publisher
 
 class LabelContest(wx.Panel):
     def __init__(self, parent, size):
+        if not parent: return
         wx.Panel.__init__(self, parent, id=-1, size=size)
 
         self.parent = parent
