@@ -709,32 +709,57 @@ class Contest:
             self.parent = self.parent.parent
         return self.parent
 
+    def dominating_set(self):
+        root = self.get_root()
+        children = root.all_children()
+        conn = {}
+        for c1 in children:
+            lst = []
+            for c2 in children:
+                if c1.similarity[c2.cid][root.writein_num][0] < .1:
+                    lst.append(c2.cid)
+            conn[c1.cid] = lst
+        conn = conn.items()
+        rem = {}
+        used = []
+        while len(rem) != len(children):
+            item = max(conn, key=lambda x: len(x[1]))
+            used.append(item[0])
+            for v in item[1]:
+                rem[v] = True
+            rem[item[0]] = True
+            conn = [(k,[x for x in v if x not in rem]) for k,v in conn if k not in rem]
+        print "SET", used
+
     def isClose(self, other, num_writein):
         group1 = self.all_children()
         group2 = other.all_children()
         best = 1<<30, None
-        print 'joining', len(group1), len(group2)
+        #print 'joining', len(group1), len(group2)
         for nwi in set([self.writein_num, other.writein_num, num_writein]):
             distance = 0
             for c1 in group1:
                 for c2 in group2:
                     distance += c1.similarity[c2.cid][nwi][0]
             distance /= len(group1)*len(group2)
-            print nwi, distance
+            #print nwi, distance
             if distance < best[0]:
                 best = distance, nwi
-        print 'pick', best
+        #print 'pick', best
         return best[0] < .2, best[1]
     
-    def join(self, new_parent, num_writein):
+    def join(self, new_parent, num_writein, force=True):
         if self.get_root() == new_parent.get_root():
             return
 
         root1 = self.parent
         root2 = new_parent.parent
 
-        close, winum = root1.isClose(root2, num_writein)
-        if not close: return
+        if force:
+            winum = num_writein
+        else:
+            close, winum = root1.isClose(root2, num_writein)
+            if not close: return
 
         if root1.depth < root2.depth:
             root1.parent = root2
@@ -764,6 +789,26 @@ def group_by_pairing(contests_text):
     and then do a linear scan through each of them to make the groups.
     """
 
+    contests = [Contest(contests_text, i) for i in range(len(contests_text))]
+
+    print "Linear Scan"
+    contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
+    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
+        data, (score,winum) = compare(c1[2], c2[2])
+        if score < .1:
+            contests[i].join(contests[i+1], winum, force=True)
+    
+    print len(contests)
+    seen = {}
+    for contest in contests:
+        if contest.get_root() in seen: continue
+        seen[contest.get_root()] = True
+
+    print len(seen)
+    print sum([len(x.all_children())**.5 for x in seen])
+    
+    
+        
     print "Prepare"
     pool = mp.Pool(mp.cpu_count())
     args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
@@ -771,7 +816,7 @@ def group_by_pairing(contests_text):
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
     print "Start"
-    res = map(do_group_pairing_map, sets)
+    res = pool.map(do_group_pairing_map, sets)
     print "Done"
     diff = {}
     for each in res:
@@ -780,7 +825,6 @@ def group_by_pairing(contests_text):
     diff = sorted(diff.items(), key=lambda x: x[1][0])
     print "Finish"
 
-    contests = [Contest(contests_text, i) for i in range(len(contests_text))]
     for (k1,k2),(dmap,best) in diff:
         contests[k1].similarity[k2] = dmap
         contests[k2].similarity[k1] = dmap
@@ -793,11 +837,12 @@ def group_by_pairing(contests_text):
     res = []
     for contest in contests:
         if contest.get_root() in seen: continue
+        contest.get_root().dominating_set()
         seen[contest.get_root()] = True
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
         res.append([(contests_text[x][:2],contest.similarity[x][write][1]) for x in v])
-        print res[-1]
+        print "HASHCODE", hash(str(sorted(res[-1])))
 
     return res
             
@@ -813,7 +858,8 @@ def equ_class(contests):
     for group in groups:
         result += group_by_pairing(group)
         print "Finished one group"
-    print "RETURNING", result
+    
+    #print "RETURNING", result
     return result
 
 def merge_contests(ballot_data, fulltargets):
@@ -906,7 +952,7 @@ def group_given_contests_map(arg):
         
 def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
-    print "ARGUMENTS", (t, paths, giventargets, lang_map)
+    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
@@ -931,7 +977,7 @@ def final_grouping(ballots, giventargets):
 
 if __name__ == "__main__":
     from labelcontest import LabelContest
-    p = "../projects/yolotest/"
+    p = "../projects/my_yolo/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
@@ -948,5 +994,4 @@ if __name__ == "__main__":
         targets.append(ballotlist)
 
     internal = pickle.load(open(p+"contest_internal.p"))[2]
-    print internal
     final_grouping(internal, targets)
