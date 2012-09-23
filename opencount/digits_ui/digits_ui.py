@@ -142,7 +142,8 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
         btn_zoomout = wx.Button(self, label="Zoom Out.")
         btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
-
+	self.reset_button = wx.Button(self, label="Reset")
+	self.reset_button.Bind(wx.EVT_BUTTON, self.onButton_reset)
         self.digitpanel = DigitLabelPanel(self, extracted_dir,
                                           digit_exemplars_outdir,
                                           precinctnums_outpath,
@@ -156,7 +157,8 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         sizerbtns.Add(btn_zoomin)
         sizerbtns.Add((20,20))
         sizerbtns.Add(btn_zoomout)
-        
+        sizerbtns.Add((20,20))
+        sizerbtns.Add(self.reset_button)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizerbtns, border=10, flag=wx.EXPAND | wx.ALL)
         self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
@@ -181,6 +183,9 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def onButton_done(self, evt):
         self.digitpanel.on_done()
+
+    def onButton_reset(self, evt):
+	self.digitpanel.reset()    
 
     def onButton_zoomin(self, evt):
         dlg = wx.MessageDialog(self, message="Not implemented yet.")
@@ -591,6 +596,26 @@ digit.")
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
     
+    def reset(self):
+        """ resets the labelling state and digit ui """
+        self.current_digit = None
+        self.matches = {}   
+        self.cells = {}
+        self.precinct_txts = {}
+        self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
+        self.rszFac = None
+        self.i, self.j = 0, 0 
+        self.i_cur, self.j_cur = 0, 0
+        self.imgID2cell = {} 
+        self.cell2imgID = {} 
+        self._box = None 
+            
+        # reset the UI
+
+        self.gridsizer.Clear(deleteWindows=True)
+        self.setup_grid()
+        self.gridsizer.Layout()
+
     def sort_cells(self):
         """ Sorts by strlen of the precinct digit string, the cells with the
         shortest digit strings will be displayed first """
