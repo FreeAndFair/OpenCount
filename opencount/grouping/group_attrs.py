@@ -251,6 +251,71 @@ def compute_exemplars(mapping, bb_map=None):
                     i += 1
     return exemplars
 
+def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
+               padSearch=0.75, padPatch=0.0):
+    bb = list(bb)
+    if bbSearch != None:
+        bbSearch = list(bbSearch)
+    if bbSearches != None:
+        bbSearches = list(bbSearches)
+    matchList = [] # (filename, left,right,up,down)
+
+    I = np.round(shared.fastResize(I,rszFac)*255.)/255;
+
+    bb[0] = bb[0]*rszFac
+    bb[1] = bb[1]*rszFac
+    bb[2] = bb[2]*rszFac
+    bb[3] = bb[3]*rszFac
+    [bbOut,bbOff]=shared.expand(bb[0],bb[1],bb[2],bb[3],I.shape[0],I.shape[1],padPatch)
+    patchFoo = I[bbOut[0]:bbOut[1],bbOut[2]:bbOut[3]]
+
+    patch = patchFoo[bbOff[0]:bbOff[1],bbOff[2]:bbOff[3]]
+
+    if bbSearch != None:
+        bbSearch[0] = bbSearch[0]*rszFac
+        bbSearch[1] = bbSearch[1]*rszFac
+        bbSearch[2] = bbSearch[2]*rszFac
+        bbSearch[3] = bbSearch[3]*rszFac
+
+    for cur_i, imP in enumerate(imList):
+        if bbSearches != None:
+            bbSearch = map(lambda c: c*rszFac, bbSearches[cur_i])
+        I1 = shared.standardImread(imP,flatten=True)
+        I1 = np.round(shared.fastResize(I1,rszFac)*255.)/255.
+        # crop to region if specified
+        if bbSearch != None:
+            [bbOut1,bbOff1]=shared.expand(bbSearch[0],bbSearch[1],
+                                   bbSearch[2],bbSearch[3],
+                                   I1.shape[0],I1.shape[1],padSearch)
+            I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
+
+        patchCv=cv.fromarray(np.copy(patch))
+        ICv=cv.fromarray(np.copy(I1))
+        outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1, cv.CV_32F)
+        
+        cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+        Iout=np.asarray(outCv)
+        
+        Iout[Iout==1.0]=0.995; # opencv bug
+        
+        score1 = Iout.max() # NCC score
+        YX=np.unravel_index(Iout.argmax(),Iout.shape)
+        i1=YX[0]; i2=YX[0]+patch.shape[0]
+        j1=YX[1]; j2=YX[1]+patch.shape[1]
+
+        (err,diff,Ireg)=shared.lkSmallLarge(patch,I1,i1,i2,j1,j2)
+        score2 = err / diff.size # pixel reg score
+        if bbSearch != None:
+            matchList.append((imP,score1,score2,Ireg,
+                              i1+bbOut1[0],i2+bbOut1[0],
+                              j1+bbOut1[2],j2+bbOut1[2],rszFac))
+        else:
+            matchList.append((imP,score1,score2,Ireg,
+                              i1,i2,j1,j2,rszFac))
+
+    return matchList
+    
+
 def compute_exemplars_fullimg(mapping, MAXCAP=None):
     """ Given a mapping {str label: ((imgpath_i, bb_i),...)}, extracts a subset
     of the imgpaths {str label: (imgpath_i, ...)} such that these
@@ -268,7 +333,8 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
         if bb == None:
             bb = [0, img.shape[0]-1, 0, img.shape[1]-1]
             bbs2 = None
-        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
+        #matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
+        matches = temp_match(img, bb, imgpaths2, bbSearches=bbs2)
         #dur = time.time() - t
         #print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
         if not matches:

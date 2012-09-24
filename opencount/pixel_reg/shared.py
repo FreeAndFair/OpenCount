@@ -207,7 +207,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
         patchCv=cv.fromarray(np.copy(patch))
         ICv=cv.fromarray(np.copy(I1))
         outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1, cv.CV_32F)
-
+        
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
         
