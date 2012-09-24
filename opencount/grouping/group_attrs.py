@@ -585,12 +585,13 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
         if bb == None:
             bb = [0, img.shape[0]-1, 0, img.shape[1]-1]
             bbs2 = None
-        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.1, doPrep=False)
+        matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
         #dur = time.time() - t
         #print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
         if not matches:
             print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
-            return None, 9999, None
+            pdb.set_trace()
+            return 9999, bb
         matches = sorted(matches, key=lambda t: t[2])
         imgpath, bb, rszFac = (matches[0][0], matches[0][4:8], matches[0][8])
         bb = map(lambda c: int(round(c / rszFac)), bb)
