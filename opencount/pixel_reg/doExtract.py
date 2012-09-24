@@ -68,33 +68,66 @@ def extractTargets(I,Iref,bbs,verbose=False):
     return result
 
 def bbsInCell(bbs,i1,i2,j1,j2):
+    """ Given a list of bbs, and a box (i1,i2,j1,j2), return all bbs in
+    BBS whose center lies within (I1,I2,J1,J1).
+    Output:
+        An NxM dimension array, where N is the number of bbs that satisfy
+        the criterion.
+    """
     bbOut=np.zeros((0,5))
     for bb in bbs:
         iCtr=(bb[0]+bb[1])/2.
         jCtr=(bb[2]+bb[3])/2.        
-        if (iCtr>i1) & (iCtr<i2) & (jCtr>j1) & (jCtr<j2):
+        if (iCtr>i1) and (iCtr<i2) and (jCtr>j1) and (jCtr<j2):
             bbOut=np.vstack((bbOut,bb))
 
     return bbOut
 
-def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
+def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
+    """ Given an image I (voted) and a ref image Iref (blank), extracts
+    boundingboxes given by BBS from I, performing local image alignment
+    between I and Iref.
+    Output:
+        [(int targetID, nparray img, tuple bbImgLoc, float err), ...]
+    """
+    ''' Perform local alignment around each target, then crop out target  '''
+    # 0.) Mask out targets on Iref, coarsely-align I to Iref.
+    rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
+    IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
+    t0=time.clock()
+    H1, I1, err =imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=rszFac)
+    if(verbose):
+        print 'coarse align time = ',time.clock()-t0,'(s)'
+    result = []
+    pFac=7
 
+    # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
+    #     then extract bb.
+    for bb in bbs:
+        # bb := [i1, i2, j1, j2, targetID]
+        bbExp, bbOff = sh.expandBbsSingle(bb, I1.shape[0], I1.shape[1], pFac)
+        I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+        IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+        rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
+        H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, rszFac=rszFac, type='rigid')
+        targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
+        # 2.) Unwind transformation to get the global location of TARG
+        rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
+        rOff_tr=pttransform(I_patch,np.linalg.inv(H2),np.array([bbOff[2],bbOff[0],1]))
+        targLocGl=np.zeros(4)
+        iLen = bbOff[1] - bbOff[0]
+        jLen = bbOff[3] - bbOff[2]
+        targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
+        targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
+        targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
+        targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
+
+        # weird bug in imsave where if the matrix is all ones, it saves as pure black
+        result.append((bb[4],targ,map(int,tuple(targLocGl)),err))
+    '''
     # parameter specified number of cells
     # for each cell, grab the targets that fall in the center
     #   compute super-region and pad
-
-    ''' Perform local alignment around each target, then crop out target  '''
-    rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs);
-    t0=time.clock();
-    IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
-    if(verbose):
-        print 'coarse align time = ',time.clock()-t0,'(s)'
-
-    H1=IO[0]; I1=IO[1]
-    result = []
-    pFac=7;
-
     vStep=math.ceil(Iref.shape[0]/vCells);
     hStep=math.ceil(Iref.shape[1]/hCells);
     for i in range(vCells):
@@ -113,11 +146,16 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
             Ic=sh.cropBb(I1,bbOut)
             IrefcNOMASK=sh.cropBb(Iref,bbOut)
             Irefc=sh.cropBb(IrefM,bbOut)
-
+            #misc.imsave('_Ic.png', Ic)
+            #misc.imsave('_IrefcNOMASK.png', IrefcNOMASK)
+            #misc.imsave('_Irefc.png', Irefc)
             rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
             IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
             Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
-
+            #misc.imsave('_Ic1.png', Ic1)
+            #if balP != None and '329_672_157_3_3' in balP:
+            #    pdb.set_trace()
+            pdb.set_trace()
             for k in range(bbsOff.shape[0]):
                 bbOff1=bbsOff[k,:]
                 iLen=bbOff1[1]-bbOff1[0]
@@ -134,12 +172,10 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False):
 
                 # weird bug in imsave where if the matrix is all ones, it saves as pure black
                 result.append((bbs1[k,4],targ,map(int,tuple(targLocGl)),err))
-        
+    '''
     if(verbose):
         print 'total extract time = ',time.clock()-t0,'(s)'
-
     return result
-
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, balP, tplP, flipped):
     fullpath = encodepath(balP)
@@ -205,7 +241,7 @@ def findOutliers(Errs,thr,N):
     return qFlag
 
 
-def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir=[] ):
+def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, img2bal, imageMetaDir=[] ):
 
     # Algorithm.
     # Pick percentage p,e.g., .1%
@@ -221,7 +257,8 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
     diffList=os.listdir(targetDiffDir)
     ballot2targets={}
     # create Hash
-    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(diffList))
+    if wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(diffList))
 
     for f1 in diffList:
         if fnmatch.fnmatch(f1,'*npy'):
@@ -232,13 +269,12 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
             else:
                 ballot2targets[f3]=[]
                 ballot2targets[f3].append(f1)
-        
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
 
     # Voted ballots with no contests/voting targets will not be
     # found within diffList - thus, we have to add them in and
     # add dummy values
-    img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
     for votedpath in img2bal:
         voted_abspath = os.path.abspath(votedpath)
         enc_path = encodepath(voted_abspath)
@@ -246,7 +282,8 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
             ballot2targets[enc_path] = []
 
     print 'Done w/ hash.'
-    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
+    if wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
 
     # STEP 1: load in all error values
     ErrHash={}
@@ -254,8 +291,9 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
     Errs=[];K=0
 
     for K in range(len(jobs)):
+        # job := [tplL_i, bbsL_i, balL_i, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDira_i]
         job=jobs[K]
-        balL=job[3]
+        balL=job[2]
         for balP in balL:
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
@@ -296,7 +334,8 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, imageMetaDir
             ErrHash[k1]=Errs
             JobHash[k1]=jList
             K+=1
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
 
     print 'Done reading in errs.'
 
@@ -339,21 +378,23 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplL, csvPattern, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     print "START"
-    (tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+    (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     t0=time.clock();
-    if tplImL==-1:
-        # need to load the template images
-        tplImL=[]
-        for tplP in tplL:
-            tplImL.append(sh.standardImread(tplP));
+
+    # need to load the template images
+    tplImL=[]
+    for tplP in tplL:
+        tplImL.append(sh.standardImread(tplP, flatten=True));
 
     # load images
     balImL=[]
 
     for b in balL:
-        balImL.append(sh.standardImread(b));
+        #if '329_672_157_3_3' in b:
+        #    pdb.set_trace()
+        balImL.append(sh.standardImread(b, flatten=True));
 
     print 'load bal: ', time.clock()-t0
     # check if ballot is flipped
@@ -376,11 +417,20 @@ def convertImagesWorkerMAP(job):
         tpl=tplImL[idx]
         bbs=bbsL[idx]
         bal=res[1]; flipped=res[0]
-        writeMAP(extractTargetsRegions(bal,tpl,bbs,verbose=True), targetDir, targetDiffDir, 
+        writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=b), targetDir, targetDiffDir, 
                  targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
     print "DONE"
 
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=False):
+    """ Called by both single and multi-page elections. Performs
+    Target Extraction.
+    Input:
+        targetDir:
+        targetMetaDir:
+        imageMetaDir:
+        list jobs: [[tmppaths_i, bbs_i, imgpaths_i, targetDir_i, targetDiffDir_i, imageMetaDir_i], ...]
+        stopped:
+    """
     targetDiffDir=targetDir+'_diffs'
 
     if os.path.exists(targetDir): shutil.rmtree(targetDir)
@@ -394,7 +444,8 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     create_dirs(imageMetaDir)
 
     nProc=sh.numProcs()
-
+    #nProc = 1
+    
     if nProc < 2:
         print 'using only 1 processes'
         # default behavior for non multiproc machines
@@ -426,28 +477,35 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     print 'done.'
     return True
 
-def convertImagesSingleMAP(bal2imgs, tpl2imgs, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, verbose=False):
-
+def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern,
+                           targetDir, targetMetaDir, imageMetaDir, 
+                           quarantineCvr, stopped, project, 
+                           verbose=False):
+    """ Starts the target-extraction routines. Preps some input, and then
+    calls convertImagesMasterMAP. For single-page elections.
+    """
     targetDiffDir=targetDir+'_diffs'
 
-    tplNm=tpl2imgs.iterkeys().next()
-    tplL=tpl2imgs[tplNm]
+    qfile = open(quarantineCvr, 'r')
+    qfiles = set([f.strip() for f in qfile.readlines()])
 
-    tplImL=[]
-    bbsL=[]
-    for tplP in tplL:
-        csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-        bbsL.append(sh.csv2bbs(csvP));
-        tplImL.append(sh.standardImread(tplP))
-
+    print "...Prepping jobs"
+    t = time.time()
     jobs = []
     for k in bal2imgs.keys():
-        balL=bal2imgs[k]
-        jobs.append([tplL, tplImL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
+        if k not in qfiles:
+            tplP = bal2tpl[k]
+            csvP = csvPattern % get_filename(tplP, NO_EXT=True)
+            bbsL = [sh.csv2bbs(csvP)]
+            tplL = [tplP]
+            balL = bal2imgs[k]
+            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+    dur = time.time() - t
+    print "...finished Prepping jobs. ({0} s).".format(dur)
+    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir,
+                                    jobs, stopped, verbose=verbose)
     if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
+        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
 
 def fix_ballot_order(balL, proj):
@@ -475,47 +533,9 @@ def fix_ballot_order(balL, proj):
     assert None not in out
     return out
 
-"""    
-def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
-    targetDiffDir=targetDir+'_diffs'
-
-    jobs = []
-
-    qfile = open(quarantineCvr, 'r')
-    qfiles = set([f.strip() for f in qfile.readlines()])
-    i = 0
-    for k in bal2imgs.keys():
-        print i
-        i += 1
-        if i > 20: break
-        if k not in qfiles:
-            baltpl = bal2tpl[k]
-            #try:
-            tplL=tpl2imgs[baltpl]
-            #except Exception as e:
-            #    print e
-            #    pdb.set_trace()
-            balL=bal2imgs[k]
-            # correct ordering in balL, via ballot_to_page
-            balL = fix_ballot_order(balL, project)
-            bbsL=[]
-            for tplP in tplL:
-                csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-                bbsL.append(sh.csv2bbs(csvP));
-
-            jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-            
-    print hash(str(jobs)), map(hash,map(str,jobs)), len(jobs)
-
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
-    if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
-    return worked
-"""
-
 def convertImagesMultiMAP_makejobs(args):
     (keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, qfiles, verbose) = args
-    print map(type, args)
+    #print map(type, args)
     targetDiffDir=targetDir+'_diffs'
     jobs = []
     print 'going up to', len(keyset)
@@ -537,13 +557,13 @@ def convertImagesMultiMAP_makejobs(args):
                 csvP=csvPattern % get_filename(tplP, NO_EXT=True)
                 bbsL.append(sh.csv2bbs(csvP));
 
-            jobs.append([tplL, -1, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
+            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
     return jobs
 
 def hack_stopped():
     return False
     
-def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
+def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
     targetDiffDir=targetDir+'_diffs'
 
     qfile = open(quarantineCvr, 'r')
@@ -571,6 +591,6 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, ta
 
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
     if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project,imageMetaDir=imageMetaDir)
+        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
 

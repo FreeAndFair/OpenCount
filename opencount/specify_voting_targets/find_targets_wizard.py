@@ -89,7 +89,7 @@ class SpecifyTargetsPanel(wx.Panel):
     # Number of times to automatically re-run template matching
     NUM_ITERS = 0
     # Default 'confidence' parameter value for Template Matching
-    TEMPMATCH_DEFAULT_PARAM = 0.85
+    TEMPMATCH_DEFAULT_PARAM = 0.93
     INFERCONTESTS_JOB_ID = util.GaugeID("InferContestsJobId")
 
     def __init__(self, parent, *args, **kwargs):

@@ -13,7 +13,7 @@ MAX_PRECINCT_PATCH_DIM=800
 MIN_PRECINCT_PATCH_DIM=20
 MAX_PRECINCT_PATCH_DISPLAY=800
 FLIP_CHECK_HEIGHT=200
-COARSE_BALLOT_REG_HEIGHT=500
+COARSE_BALLOT_REG_HEIGHT=725#500
 LOCAL_PATCH_REG_HEIGHT=250
 MAX_DIFF_HEIGHT=10
 
@@ -82,7 +82,6 @@ def NCC(I,patch):
     outPad[0:Iout.shape[0],0:Iout.shape[1]]=Iout
     return outPad
     
-
 def variableDiffThr(I,patch):
     #estimate threshold for comparison: 
     try:
@@ -95,6 +94,7 @@ def variableDiffThr(I,patch):
         diff=np.abs(I-patch);
         # sum values of diffs above  threshold
         err=np.sum(diff[np.nonzero(diff>thr)])
+
     except Exception as e:
         print e
         traceback.print_exc()
@@ -428,6 +428,16 @@ def expandBbsMulti(bbs,iMx,jMx,pFac):
 def expandBbs(bbs,iMx,jMx,pFac):
     ''' Assumed that bbs are all the same dim. Padding is relative to the size 
         one bb.
+    Input:
+        list bbs: List of bounding boxes
+        int iMx: Maximum height
+        int jMx: Maximum width
+        int pFac: Amount by which to adjust padding.
+    Output:
+        list bbsOut: A new list of bounding boxes, but where each bb_i has 
+                     been (safely) expanded.
+        list bbsOff: A list of offsets required to go from coords in BBS
+                     to coords in BBSOUT.
     '''
     # don't allow the resulting image to take up more than 33% of the width
     if len(bbs.shape)==1:
@@ -555,3 +565,22 @@ def standardImread(fNm,flatten=False):
     if flatten:
         I=rgb2gray(I)
     return I
+
+def remove_border_topleft(A):
+    """ Removes black border from the top+left  of A - created due to
+    the straightener adding padding to voted ballots.
+    """
+    h,w = A.shape
+    out = np.zeros(A.shape, dtype=A.dtype)
+    for i in xrange(h):
+        thesum = np.sum(A[i])
+        if thesum != 0:
+            break
+    for j in xrange(w):
+        thesum = np.sum(A[:,j])
+        if thesum != 0:
+            break
+    # i is the number of rows with all-black
+    # j is the number of cols with all-black
+    out[0:h-i, 0:w-j] = A[i:,j:]
+    return out

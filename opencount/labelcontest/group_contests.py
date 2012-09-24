@@ -588,7 +588,13 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print blocks
     return blocks
 
+import editdist
+
 def row_dist(a, b):
+    v = editdist.distance(a.encode("ascii", "ignore"), 
+                          b.encode("ascii", "ignore"))
+    #print 'r', v, a == b
+    return v
     """
     Compute the edit distance between two strings.
     """
@@ -634,7 +640,7 @@ def compare(otexts1, otexts2):
     ordering1 = range(len(texts1))
     ordering2 = range(len(texts2))
     size = sum(map(len,[x for _,x in otexts1]))+sum(map(len,[x for _,x in otexts2]))
-    print 'size', size
+    #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
         return 0, []
@@ -642,52 +648,33 @@ def compare(otexts1, otexts2):
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
     val = sum(row_dist(*x) for x in zip(titles1, titles2))
-    print 'dist of titles is', val
+    #print 'dist of titles is', val
 
-    """
-    rottexts2 = [texts2[i:]+texts2[:i] for i in range(len(texts2))]
-    values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
-    print values
-    minweight,order = min(values)
-    print 'min', order, minweight
-    print 'so should be equal'
-    print texts1
-    print rottexts2[order]
-    
-    reorder = range(len(texts1))[order:]+range(len(texts1))[:order]
-    print 'order1', reorder
-    #return float(minweight+val)/size, zip(range(len(texts1)), reorder)
-    """
-    
+    all_vals = []
+    for num_writeins in range(len(texts2)):
+        rottexts2 = [texts2[i:-num_writeins]+texts2[:i]+texts2[-num_writeins:] for i in range(len(texts2)-num_writeins)]
+        values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
+        #print values
+        minweight,order = min(values)
 
-    matching = []
-    weights = sorted([(row_dist(a,b),a,b) for a in texts1 for b in texts2])
-    while texts1 != [] and texts2 != []:
-        found = False
-        for weight,a,b in weights:
-            if a in texts1 and b in texts2:
-                print 'w', weight, texts1.index(a), texts2.index(b)
-                #print 'pair', a, b
-                matching.append((ordering1[texts1.index(a)],
-                                 ordering2[texts2.index(b)]))
-                del ordering1[texts1.index(a)]
-                del ordering2[texts2.index(b)]
-                del texts1[texts1.index(a)]
-                del texts2[texts2.index(b)]
-                val += weight
-                found = True
-                break
-        if not found:
-            print "---- FAILURE"
-            #print otexts1
-            #print otexts2
-            #print texts1
-            #print texts2
-            return 1<<30, None
-    print "MATCHING", matching
-    print "result weight", float(val)/size
-    return float(val)/size, matching
-    #"""
+        #print 'min', order, minweight
+
+        all_vals.append((minweight, order, num_writeins))
+    #print "BEST:", best_val
+    #print 'so should be equal'
+    #print texts1
+    #print texts2[best_val[1]:-best_val[2]]+texts2[:best_val[1]]+texts2[-best_val[2]:]
+    all_vals = sorted(all_vals)
+    res = {}
+    best = 1<<30, None
+    for weight,order,num_writeins in all_vals:
+        lst = range(len(texts1))
+        new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
+        if float(weight+val)/size < best[0]:
+            best = float(weight+val)/size, num_writeins
+        res[num_writeins] = (float(weight+val)/size,
+                             zip(lst, new_order))
+    return res, best
 
 def first_pass(contests):
     """
@@ -700,37 +687,167 @@ def first_pass(contests):
         ht[len(each[2])].append(each)
     return ht.values()
 
-def split_to_equal(contests):
+class Contest:
+    def __init__(self, contests_text, cid):
+        self.contests_text = contests_text
+        self.cid = cid
+        # CID -> [(distance, order, numwritein)]
+        self.similarity = {}
+        self.parent = self
+        self.depth = 0
+        self.children = []
+        self.writein_num = 0
+
+    def all_children(self):
+        res = [self]
+        for child in self.children:
+            res += child.all_children()
+        return res
+
+    def get_root(self):
+        while self.parent != self.parent.parent:
+            self.parent = self.parent.parent
+        return self.parent
+
+    def dominating_set(self):
+        root = self.get_root()
+        children = root.all_children()
+        conn = {}
+        for c1 in children:
+            lst = []
+            for c2 in children:
+                if c1.similarity[c2.cid][root.writein_num][0] < .1:
+                    lst.append(c2.cid)
+            conn[c1.cid] = lst
+        conn = conn.items()
+        rem = {}
+        used = []
+        while len(rem) != len(children):
+            item = max(conn, key=lambda x: len(x[1]))
+            used.append(item[0])
+            for v in item[1]:
+                rem[v] = True
+            rem[item[0]] = True
+            conn = [(k,[x for x in v if x not in rem]) for k,v in conn if k not in rem]
+        print "SET", used
+
+    def isClose(self, other, num_writein):
+        group1 = self.all_children()
+        group2 = other.all_children()
+        best = 1<<30, None
+        #print 'joining', len(group1), len(group2)
+        for nwi in set([self.writein_num, other.writein_num, num_writein]):
+            distance = 0
+            for c1 in group1:
+                for c2 in group2:
+                    distance += c1.similarity[c2.cid][nwi][0]
+            distance /= len(group1)*len(group2)
+            #print nwi, distance
+            if distance < best[0]:
+                best = distance, nwi
+        #print 'pick', best
+        return best[0] < .2, best[1]
+    
+    def join(self, new_parent, num_writein, force=True):
+        if self.get_root() == new_parent.get_root():
+            return
+
+        root1 = self.parent
+        root2 = new_parent.parent
+
+        if force:
+            winum = num_writein
+        else:
+            close, winum = root1.isClose(root2, num_writein)
+            if not close: return
+
+        if root1.depth < root2.depth:
+            root1.parent = root2
+            root2.children.append(root1)
+            root2.writein_num = winum
+        elif root2.depth < root1.depth:
+            root2.parent = root1
+            root1.children.append(root1)
+            root1.writein_num = winum
+        else:
+            root1.parent = root2
+            root1.depth += 1
+            root2.children.append(root1)
+            root2.writein_num = winum
+    
+def do_group_pairing_map(data):
+    lst = []
+    for i,a,j,b in data:
+        lst.append(((i,j),compare(a[2], b[2])))
+    return lst
+
+def group_by_pairing(contests_text):
     """
-    Split a set of contests in to a set of those which are 
-    truly equal. Create a set of known equiv-classes, and for
-    each target, compare with every class. If it's not in any,
-    put it in a class of its own.
+    Group contests together by pairing them one at a time.
+
+    Currently this is very slow. It's going to run n^2 comparisons,
+    and then do a linear scan through each of them to make the groups.
     """
-    sets = []
-    print 'run up to', len(contests)
-    #print "CONTS", contests
-    for i,each in enumerate(contests):
-        print 'on', i, '#', len(sets)
-        found = False
-        for s in sets:
-            # get a representitive, then get the non-matching part, then the text
-            print 'running compare of'
-            #print s[0][0][2]
-            #print '---'
-            #print each[2]
-            score, matching = compare(s[0][0][2], each[2])
-            print 'the matching is', matching
-            if score < .2:
-                s.append((each, matching))
-                found = True
-                break
-        if not found:
-            sets.append([(each, list(zip(range(len(each[2])-1), range(len(each[2])-1))))])
-    print 'done'
-    return sets
+
+    contests = [Contest(contests_text, i) for i in range(len(contests_text))]
+
+    print "Linear Scan"
+    contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
+    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
+        data, (score,winum) = compare(c1[2], c2[2])
+        if score < .1:
+            contests[i].join(contests[i+1], winum, force=True)
+    
+    print len(contests)
+    seen = {}
+    for contest in contests:
+        if contest.get_root() in seen: continue
+        seen[contest.get_root()] = True
+
+    print len(seen)
+    print sum([len(x.all_children())**.5 for x in seen])
+    
+    
+        
+    print "Prepare"
+    pool = mp.Pool(mp.cpu_count())
+    args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
+    sets = [[] for _ in range(mp.cpu_count())]
+    for i,each in enumerate(args):
+        sets[i%len(sets)].append(each)
+    print "Start"
+    res = pool.map(do_group_pairing_map, sets)
+    print "Done"
+    diff = {}
+    for each in res:
+        for k,v in each:
+            diff[k] = v
+    diff = sorted(diff.items(), key=lambda x: x[1][0])
+    print "Finish"
+
+    for (k1,k2),(dmap,best) in diff:
+        contests[k1].similarity[k2] = dmap
+        contests[k2].similarity[k1] = dmap
+    print "Created"
+    for (k1,k2),(dmap,best) in diff:
+        if best[0] < .2:
+            contests[k1].join(contests[k2], best[1])
+    print "Traverse"
+    seen = {}
+    res = []
+    for contest in contests:
+        if contest.get_root() in seen: continue
+        contest.get_root().dominating_set()
+        seen[contest.get_root()] = True
+        v = [x.cid for x in contest.get_root().all_children()]
+        write = contest.get_root().writein_num
+        res.append([(contests_text[x][:2],contest.similarity[x][write][1]) for x in v])
+        print "HASHCODE", hash(str(sorted(res[-1])))
+
+    return res
             
 def equ_class(contests):
+    #print "EQU", contests
     #print map(len, contests)
     #print contests
     contests = [x for sublist in contests for x in sublist]
@@ -739,9 +856,10 @@ def equ_class(contests):
     # Each group is known to be different.
     result = []
     for group in groups:
-        result += split_to_equal(group)
+        result += group_by_pairing(group)
         print "Finished one group"
-    print "RETURNING", result
+    
+    #print "RETURNING", result
     return result
 
 def merge_contests(ballot_data, fulltargets):
@@ -755,7 +873,7 @@ def merge_contests(ballot_data, fulltargets):
         new_ballot = []
         for group in targets:
             #print 'targs is', group
-            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding)]
+            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
             equal_uniq = list(set(equal))
             #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
@@ -794,7 +912,7 @@ def extend_multibox(ballots, box1, box2, orders):
 
 def do_grouping(t, paths, giventargets, lang_map = {}):
     global tmp
-    print "ARGUMENTS", (t, paths, giventargets, lang_map)
+    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
@@ -834,7 +952,7 @@ def group_given_contests_map(arg):
         
 def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
-    print "ARGUMENTS", (t, paths, giventargets, lang_map)
+    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
     if t[-1] != '/': t += '/'
     tmp = t
@@ -853,17 +971,27 @@ def final_grouping(ballots, giventargets):
     #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
+    #print ballots
     return equ_class(ballots)
 
-'''
-t,b,f = eval(open("g").read())
-b = [b[42]]
-f = [f[42]]
-b = [x.replace("/home/nicholas/yolo/", "yolo-wrong/") for x in b]
-print b
 
+if __name__ == "__main__":
+    from labelcontest import LabelContest
+    p = "../projects/my_yolo/"
+    # Regroup the targets so that equal contests are merged.
+    class FakeProj:
+        target_locs_dir = p+"target_locations"
+    class FakeMe(LabelContest):
+        proj = FakeProj()
+    fakeme = FakeMe(None, None)
+    LabelContest.gatherData(fakeme)
+    groupedtargets = fakeme.groupedtargets
+    targets = []
+    for bid,ballot in enumerate(groupedtargets):
+        ballotlist = []
+        for gid,targlist in enumerate(ballot):
+            ballotlist.append([x[2:] for x in targlist])
+        targets.append(ballotlist)
 
-print find_contests(u'tmp', b, f)
-
-os.popen("open tmp/*")
-'''
+    internal = pickle.load(open(p+"contest_internal.p"))[2]
+    final_grouping(internal, targets)

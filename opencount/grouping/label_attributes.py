@@ -1,4 +1,4 @@
-import os, sys, pdb, wx, threading, Queue, time
+import os, sys, pdb, wx, threading, Queue, time, traceback
 from os.path import join as pathjoin
 from wx.lib.pubsub import Publisher
 import wx.lib.scrolledpanel
@@ -488,7 +488,11 @@ class LabelAttributesPanel(wx.lib.scrolledpanel.ScrolledPanel):
         patchlabels = self.labelpanel.imagelabels
         ballot_attr_labels = {} # maps {imgpath: {attrstr: label}}
         for patchPath, label in patchlabels.iteritems():
-            imgpath, attrtypestr = self.inv_mapping[patchPath]
+            try:
+                imgpath, attrtypestr = self.inv_mapping[patchPath]
+            except:
+                traceback.print_exc()
+                pdb.set_trace()
             ballot_attr_labels.setdefault(imgpath, {})[attrtypestr] = label
             # Finally, also add this labeling for all blank ballots
             # that were grouped together by attr-grouping

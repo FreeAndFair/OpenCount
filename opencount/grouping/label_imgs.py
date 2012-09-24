@@ -124,6 +124,8 @@ values for this caption...")
         """ Adds the 'label' for the given image by updating internal
         data structures. Returns True if it's valid, False o.w.
         """
+        if not label:
+            return False
         if self.possibles and label not in self.possibles:
             return False
         oldlabel = self.imagelabels[imgpath]

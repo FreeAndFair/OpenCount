@@ -180,7 +180,7 @@ class VerifyPanel(wx.Panel):
         self._ok_history = {} # maps {str votedpath: int count}
         # self._misclassify_history
         self._misclassify_history = {} # maps {str ballotid: int count}
-        
+
         self.accepted_hashes = None
         self.rejected_hashes = None
         self.digitmatch_info = None
@@ -504,6 +504,9 @@ in queue: 0")
             given, then this will use the 'globally'-defined record,
             which is meant for 'Verify Overlays' at the end of OpenCount.
         """
+        if not groups:
+            print "Uhoh, there aren't any groups passed into VerifyPanel."
+            pdb.set_trace()
         self.project = proj
         if grouplabel_record == None:
             self.grouplabel_record = common.load_grouplabel_record(proj)
@@ -1508,13 +1511,16 @@ finished! Press 'Ok', then you may continue to the next step.",
             self.splitMode = 'kmeans'
         elif status == ChooseSplitModeDialog.ID_PCA_KMEANS:
             self.splitMode = 'pca_kmeans'
+        elif status == ChooseSplitModeDialog.ID_KMEANS2:
+            self.splitMode = 'kmeans2'
+        elif status == ChooseSplitModeDialog.ID_KMEDIODS:
+            self.splitMode = 'kmediods'
         else:
             dlg = wx.MessageDialog(self, message="Unrecognized split mode.", style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
             return
-        
 
     def OnClickMerge(self, event):
         """ Take all currently-displayed groups A, and 'condense' them
@@ -1574,11 +1580,39 @@ elements num. is {1}".format(oldcount, newcount)
         """
         elements = group.elements
         qfile = open(self.project.quarantined, 'a')
+        votedpaths = set()
         for element in elements:
-            print >>qfile, os.path.abspath(element[0])
+            votedpath = os.path.abspath(element[0])
+            print >>qfile, votedpath
+            votedpaths.add(votedpath)
         qfile.close()
         if doremove:
             self.remove_group(group)
+        # Finally, remove the quarantined ballots from the GroupClasses.
+        # Remember to remove any resulting 0-element GroupClasses.
+        def pred(element, votedpaths):
+            return element[0] not in votedpaths
+        self.queueList.Clear()
+        newqueue = []
+        for group in self.queue:
+            group.elements = tuple([el for el in group.elements if pred(el, votedpaths)])
+            if group.elements:
+                newqueue.append(group)
+                gl_idx = group.getcurrentgrouplabel()
+                attrtype, attrval = common.get_attrpair_grouplabel(self.project, gl_idx, self.grouplabel_record)
+                self.queueList.Append("{0}->{1}: {2} elements".format(attrtype, attrval, len(group.elements)))
+        newfinished = []
+        for group in self.finished:
+            group.elements = tuple([el for el in group.elements if pred(el, votedpaths)])
+            if group.elements:
+                newfinished.append(group)
+        self.queue = newqueue
+        self.finished = newfinished
+        for sampleid in self._misclassify_history.keys():
+            if sampleid in votedpaths:
+                cnt = self._misclassify_history.pop(sampleid)
+                self._mismatch_cnt -= cnt
+                self.misclassify_txt.SetLabel("Mismatches in queue: {0}".format(self._mismatch_cnt))
         
     def OnClickQuarantine(self, event):
         if (self.currentGroup != None):
@@ -1791,6 +1825,8 @@ class ChooseSplitModeDialog(wx.Dialog):
     ID_RANKEDLIST = 42
     ID_KMEANS = 43
     ID_PCA_KMEANS = 44
+    ID_KMEANS2 = 45
+    ID_KMEDIODS = 46
 
     def __init__(self, parent, disable=None, *args, **kwargs):
         """ disable is a list of ID's (ID_RANKEDLIST, etc.) to disable. """
@@ -1803,13 +1839,22 @@ class ChooseSplitModeDialog(wx.Dialog):
         self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)', style=wx.RB_GROUP)
         self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
         self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
+        self.kmeans2_rbtn = wx.RadioButton(self, label="K-means V2 (not-as-fast)")
+        self.kmediods_rbtn = wx.RadioButton(self, label="K-Mediods")
         
         if parent.splitMode == 'rankedlist':
             self.rankedlist_rbtn.SetValue(1)
         elif parent.splitMode == 'kmeans':
             self.kmeans_rbtn.SetValue(1)
-        else:
+        elif parent.splitMode == 'pca_kmeans':
             self.pca_kmeans_rbtn.SetValue(1)
+        elif parent.splitMode == 'kmeans2':
+            self.kmeans2_rbtn.SetValue(1)
+        elif parent.splitMode == 'kmediods':
+            self.kmediods_rbtn.SetValue(1)
+        else:
+            print "Unrecognized parent.splitMode: {0}. Defaulting to kmeans.".format(parent.splitMode)
+            self.kmeans_rbtn.SetValue(1)
 
         if ChooseSplitModeDialog.ID_RANKEDLIST in disable:
             self.rankedlist_rbtn.Disable()
@@ -1817,6 +1862,10 @@ class ChooseSplitModeDialog(wx.Dialog):
             self.kmeans_rbtn.Disable()
         if ChooseSplitModeDialog.ID_PCA_KMEANS in disable:
             self.pca_kmeans_rbtn.Disable()
+        if ChooseSplitModeDialog.ID_KMEANS2 in disable:
+            self.kmeans2_rbtn.Disable()
+        if ChooseSplitModeDialog.ID_KMEDIODS in disable:
+            self.kmediods_rbtn.Disable()
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Ok")
         btn_cancel = wx.Button(self, label="Cancel")
@@ -1825,7 +1874,9 @@ class ChooseSplitModeDialog(wx.Dialog):
         
         btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
 
-        sizer.AddMany([(txt,), ((20,20),), (self.rankedlist_rbtn,), (self.kmeans_rbtn,), (self.pca_kmeans_rbtn,)])
+        sizer.AddMany([(txt,), ((20,20),), (self.rankedlist_rbtn,),
+                       (self.kmeans_rbtn,), (self.pca_kmeans_rbtn,),
+                       (self.kmeans2_rbtn,), (self.kmediods_rbtn),])
         sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
         self.SetSizer(sizer)
@@ -1836,6 +1887,15 @@ class ChooseSplitModeDialog(wx.Dialog):
             self.EndModal(self.ID_RANKEDLIST)
         elif self.kmeans_rbtn.GetValue():
             self.EndModal(self.ID_KMEANS)
-        else:
+        elif self.pca_kmeans_rbtn.GetValue():
             self.EndModal(self.ID_PCA_KMEANS)
+        elif self.kmeans2_rbtn.GetValue():
+            self.EndModal(self.ID_KMEANS2)
+        elif self.kmediods_rbtn.GetValue():
+            self.EndModal(self.ID_KMEDIODS)
+        else:
+            print "Unrecognized split mode. Defaulting to K-means."
+            self.EndModal(self.ID_KMEANS)
+
+
 
