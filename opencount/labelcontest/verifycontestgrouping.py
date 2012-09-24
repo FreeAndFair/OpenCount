@@ -211,9 +211,21 @@ class VerifyContestGrouping(wx.Panel):
             res += self.align(self.generate_one(i))
         print len(res), map(len,res)
 
-        frame = grouping.view_overlays.ViewOverlaysFrame(self, res)
+        frame = grouping.view_overlays.ViewOverlaysFrame(self, res, ondone=self.on_verify_done)
         frame.Maximize()
         frame.Show()
+
+    def on_verify_done(self, results):
+        """ Called when user finishes verifying the grouping.
+        Input:
+            list results: List of lists, where each sublist is considered
+                one 'group': [[imgpath_0i, ...], [imgpath_1i, ...], ...]
+        """
+        print "There are {0} total groups.".format(len(results))
+        for group in results:
+            for contestpatch in group:
+                pass
+            print "...There are {0} elements in this group.".format(len(group))
 
     def generate_one(self, which):
         orderedpaths = []

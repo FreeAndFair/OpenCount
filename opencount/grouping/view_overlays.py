@@ -20,6 +20,12 @@ class ViewOverlays(wxScrolledPanel):
         print parent
         wxScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
+        
+        # self.out: A list of lists of imagepaths, where each sublist
+        # is considered one 'group':
+        #    [[imgpath_0i, ...], [imgpath_1i, ...], ...]
+        # is set after the user finishes verifying the groups.
+        self.out = None
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.verifypanel = VerifyPanel(self, verifymode=VerifyPanel.MODE_YESNO2)
@@ -27,13 +33,17 @@ class ViewOverlays(wxScrolledPanel):
         self.SetSizer(sizer)
         self.Fit()
         
-    def start(self, imggroups):
+    def start(self, imggroups, ondone=None):
         """ Displays the images in IMGGROUPS. 
         Input:
             list IMGGROUPS: A list of lists of imagepaths, where each 
                 sublist is considered one 'group':
                     [[imgpath_0i, ...], [imgpath_1i, ...], ...]
+            fn ondone: a function of one argument, that will be called
+                after the user is done verifying the grouping. Should
+                accept one argument, a list of lists of imagepaths.
         """
+        self.ondone = ondone
         gl_record = []
         groups = []
         elements_map = {} # maps {int gl_idx: elements}
@@ -51,7 +61,24 @@ class ViewOverlays(wxScrolledPanel):
                 element[1] = rlist
             groups.append(common.GroupClass(elements))
 
-        self.verifypanel.start(groups, None, None, grouplabel_record=gl_record)
+        self.verifypanel.start(groups, None, None, grouplabel_record=gl_record, ondone=self.verify_done)
+
+    def verify_done(self, results, gl_record):
+        """ Called when user is finished verifying the overlays.
+        Input:
+            dict results: maps {int gl_idx: [GroupClass_i, ...]}
+            list gl_record: [int gl_idx_i, ...]
+        """
+        out = [] # list of lists, [[imgpath_0i, ...], [imgpath_1i, ...], ...]
+        for gl_idx, groups in results.iteritems():
+            imgpaths = []
+            for group in groups:
+                imgpaths.extend([imgpath for (imgpath, _, _) in group.elements])
+            out.append(imgpaths)
+
+        if self.ondone:
+            self.ondone(out)
+        self.out = out
 
 class ViewOverlaysFrame(wx.Frame):
     def __init__(self, parent, imgpaths, *args, **kwargs):
