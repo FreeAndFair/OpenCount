@@ -96,6 +96,18 @@ class GroupingMasterPanel(wx.Panel):
 
     def start(self):
         self.grouplabel_record = common.load_grouplabel_record(self.project)
+        result = sanitycheck_blankballots(self.project)
+        if result:
+            print "Uhoh, blank ballots failed our sanity check."
+            dlg = wx.MessageDialog(self, message="OpenCount detected that \
+there exists more than one blank ballot for a given set of attribute \
+values. We recommend that the user re-consider the current attribute \
+patch selections. If you continue to run grouping, target extraction \
+will do strange things, and you will probably get poor results.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            
         self.run_grouping.Show()
         self.run_grouping.start()
 
@@ -1250,3 +1262,71 @@ def to_groupclasses(proj, grouplabel_record=None):
         groups.append(common.GroupClass(elements))
     return groups
 
+def sanitycheck_blankballots(proj):
+    """ Makes sure that each blank ballot has a unique set of ballot
+    attributes. If a set S of blank ballots have the same set of ballot
+    attributes, then the check fails if the layouts of the ballots in S
+    are not all the same. 
+    Two ballots A, B have a different 'layout' if:
+        a.) A, B have different number of targets
+        b.) The locations of targets between A, B are not 'close enough'
+    Input:
+        obj proj
+    Output:
+        dict badblanks: a dict containing all sets S that fail the above
+            sanity check, of the form:
+                {(str attrval_i, ...): (str blankpath_i, ...)}
+    """
+    # 0.) Read in blank ballot attributes
+    blanks = {} # maps {str blankid: ((attrtype_i, attrval_i), ...)}
+    attrtypes = []
+    if os.path.exists(pathjoin(proj.projdir_path, proj.digitattrvals_blanks)):
+        # dict mapping {str blankpath: {digitattrtype: digitval}}
+        digitattrvals = pickle.load(open(pathjoin(proj.projdir_path, proj.digitattrvals_blanks), 'rb'))
+    else:
+        digitattrvals = None
+    for dirpath, dirnames, filenames in os.walk(proj.patch_loc_dir):
+        for f in [name for name in filenames if name.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, f), 'rb')
+            reader = csv.DictReader(csvfile)
+            attrs = [] # of the form [(str attrtype_i, str attrval_i), ...]
+            blankid = None
+            for row in reader:
+                if blankid == None: blankid = row['imgpath']
+                if not row['is_tabulation_only']:
+                    attrs.append((row['attr_type'], row['attr_val']))
+            # a.) Handle digitbased-attrs
+            if digitattrvals:
+                for digitattrtype, digitattrval in digitattrvals[blankid].iteritems():
+                    if not common.is_tabulationonly(proj, digitattrtype):
+                        attrs.append((digitattrtype, digitattrval))
+            # b.) Handle custom-attrs
+            if common.exists_customattrs(proj):
+                cattrs = common.load_custom_attrs(proj)
+                for cattr in cattrs:
+                    if not cattr.is_tabulationonly and not cattr.is_votedonly:
+                        if cattr.mode == common.CustomAttribute.M_SPREADSHEET:
+                            inval = [v for (t, v) in attrs if t == cattr.attrin][0]
+                            attrval = common.custattr_map_inval_ss(proj, cattr.attrname,
+                                                                   inval)
+                        elif cattr.mode == common.CustomAttribute.M_FILENAME:
+                            attrval = common.custattr_apply_filename(cattr, blankid)
+                        else:
+                            print "Unexpected CustomAttribute mode."
+                            pdb.set_trace()
+                        attrs.append((cattr.attrname, attrval))
+            blanks[blankid] = attrs
+    # 1.) Construct inverse mapping of blanks
+    inv_blanks = {} # maps {((attrtype_i, attrval_i), ...): str blankid}
+    for blankid, pairs in blanks.iteritems():
+        inv_blanks.setdefault(sorted(pairs, key=lambda tup: tup[0]), []).append(blankid)
+    # 2.) Filter out all buckets with more than one blank ballot
+    for attrpairs in inv_blanks.keys():
+        if len(inv_blanks[attrpairs]) == 1:
+            inv_blanks.pop(attrpairs)
+    # 3.) Terminate if no blank ballots have same attribute values
+    if not inv_blanks:
+        return {}
+    # 4.) Do 'involved' check between contests in each set S
+    
+    
