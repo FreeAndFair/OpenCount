@@ -189,7 +189,7 @@ class VerifyContestGrouping_old(wx.Panel):
 
 class VerifyContestGrouping(wx.Panel):
     def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
-        print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
+        #print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
         wx.Panel.__init__(self, parent, wx.ID_ANY)
         self.frame = parent
         self.callback = callback
@@ -223,9 +223,10 @@ class VerifyContestGrouping(wx.Panel):
         """
         print "There are {0} total groups.".format(len(results))
         for group in results:
-            for contestpatch in group:
-                pass
             print "...There are {0} elements in this group.".format(len(group))
+            for contestpatch in group:
+                print contestpatch
+                pass
 
     def generate_one(self, which):
         orderedpaths = []

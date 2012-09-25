@@ -795,7 +795,7 @@ def group_by_pairing(contests_text):
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
     print "Start"
-    res = pool.map(do_group_pairing_map, sets)
+    res = map(do_group_pairing_map, sets)
     print "Done"
     diff = {}
     for each in res:
@@ -834,18 +834,21 @@ def full_group(contests_text):
         if score < .1:
             if prev == None:
                 prev = i
+            elif i-prev > 10:
+                joins.append((prev, i))
+                prev = None
         else:
             if prev != None:
                 joins.append((prev,i))
             prev = None
     if prev != None: joins.append((prev, i))
+    print joins
 
     exclude = dict([(i,start) for start,end in joins for i in range(start+1,end)])
     
     new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
     new_contests = [contests_text[x] for x in new_indexs]
 
-    #groups = group_by_pairing(contests_text)
     newgroups = group_by_pairing(new_contests)
 
     mapping = {}
@@ -855,7 +858,7 @@ def full_group(contests_text):
     print "mapping", mapping
 
     for dst,src in exclude.items():
-        print "Get", dst, "from", src
+        #print "Get", dst, "from", src
         bid,cids = contests_text[src][:2]
         index = mapping[bid,tuple(cids)]
         find = newgroups[index][0][0]
@@ -963,7 +966,7 @@ def find_contests(t, paths, giventargets):
     os.popen("rm -r "+tmp+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
     #ballots = map(extract_contest, args)
     #print "RETURNING", ballots
     return ballots
@@ -1002,7 +1005,7 @@ def final_grouping(ballots, giventargets):
 
 if __name__ == "__main__":
     from labelcontest import LabelContest
-    p = "../projects/yolotest/"
+    p = "../projects/my_yolo/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
