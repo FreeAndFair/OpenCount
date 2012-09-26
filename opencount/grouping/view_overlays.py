@@ -81,11 +81,11 @@ class ViewOverlays(wxScrolledPanel):
         self.out = out
 
 class ViewOverlaysFrame(wx.Frame):
-    def __init__(self, parent, imgpaths, *args, **kwargs):
+    def __init__(self, parent, imgpaths, ondone, *args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.viewoverlays = ViewOverlays(self)
         self.imgpaths = imgpaths
-        self.viewoverlays.start(imgpaths)
+        self.viewoverlays.start(imgpaths, ondone=ondone)
 
 def is_img_ext(p):
     return os.path.splitext(p)[1].lower() in ('.png', '.jpg', '.jpeg', '.bmp')

@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw
 import os, sys
-from random import random
+import random
 sys.path.append('..')
 try:
     from collections import Counter
@@ -498,7 +498,7 @@ def extract_contest(args):
         new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-line-2.png")
     
         for l,u,r,d in squares:
-            c = (int(random()*255), int(random()*255), int(random()*255))
+            c = (int(random.random()*255), int(random.random()*255), int(random.random()*255))
             imd.rectangle((l,u,r,d), fill=c)
         new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-box.png")
 
@@ -643,7 +643,7 @@ def compare(otexts1, otexts2):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return 0, []
+        return {}, (1<<30, None)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
@@ -748,18 +748,15 @@ class Contest:
         #print 'pick', best
         return best[0] < .2, best[1]
     
-    def join(self, new_parent, num_writein, force=True):
+    def join(self, new_parent, num_writein):
         if self.get_root() == new_parent.get_root():
             return
 
         root1 = self.parent
         root2 = new_parent.parent
 
-        if force:
-            winum = num_writein
-        else:
-            close, winum = root1.isClose(root2, num_writein)
-            if not close: return
+        close, winum = root1.isClose(root2, num_writein)
+        if not close: return
 
         if root1.depth < root2.depth:
             root1.parent = root2
@@ -791,24 +788,6 @@ def group_by_pairing(contests_text):
 
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
 
-    print "Linear Scan"
-    contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
-    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
-        data, (score,winum) = compare(c1[2], c2[2])
-        if score < .1:
-            contests[i].join(contests[i+1], winum, force=True)
-    
-    print len(contests)
-    seen = {}
-    for contest in contests:
-        if contest.get_root() in seen: continue
-        seen[contest.get_root()] = True
-
-    print len(seen)
-    print sum([len(x.all_children())**.5 for x in seen])
-    
-    
-        
     print "Prepare"
     pool = mp.Pool(mp.cpu_count())
     args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
@@ -816,7 +795,7 @@ def group_by_pairing(contests_text):
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
     print "Start"
-    res = pool.map(do_group_pairing_map, sets)
+    res = map(do_group_pairing_map, sets)
     print "Done"
     diff = {}
     for each in res:
@@ -842,9 +821,58 @@ def group_by_pairing(contests_text):
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
         res.append([(contests_text[x][:2],contest.similarity[x][write][1]) for x in v])
-        print "HASHCODE", hash(str(sorted(res[-1])))
 
     return res
+
+def full_group(contests_text):
+    print "Linear Scan"
+    contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
+    joins = []
+    prev = None
+    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
+        data, (score,winum) = compare(c1[2], c2[2])
+        if score < .1:
+            if prev == None:
+                prev = i
+            elif i-prev > 10:
+                joins.append((prev, i))
+                prev = None
+        else:
+            if prev != None:
+                joins.append((prev,i))
+            prev = None
+    if prev != None: joins.append((prev, i))
+    print joins
+
+    exclude = dict([(i,start) for start,end in joins for i in range(start+1,end)])
+    
+    new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
+    new_contests = [contests_text[x] for x in new_indexs]
+
+    newgroups = group_by_pairing(new_contests)
+
+    mapping = {}
+    for i,each in enumerate(newgroups):
+        for item in each:
+            mapping[item[0][0],tuple(item[0][1])] = i
+    print "mapping", mapping
+
+    for dst,src in exclude.items():
+        #print "Get", dst, "from", src
+        bid,cids = contests_text[src][:2]
+        index = mapping[bid,tuple(cids)]
+        find = newgroups[index][0][0]
+        text = [text for bid,cid,text in contests_text if (bid,cid) == find][0]
+        data,(score,winum) = compare(text, contests_text[dst][2])
+        newgroups[index].append((contests_text[dst][:2], data[winum][1]))
+    
+    #print "SO GET"
+    #print sorted(map(hash,map(str,map(sorted,groups))))
+    #print sorted(map(hash,map(str,map(sorted,newgroups))))
+
+    return newgroups
+    
+
             
 def equ_class(contests):
     #print "EQU", contests
@@ -856,7 +884,7 @@ def equ_class(contests):
     # Each group is known to be different.
     result = []
     for group in groups:
-        result += group_by_pairing(group)
+        result += full_group(group)
         print "Finished one group"
     
     #print "RETURNING", result
@@ -938,7 +966,7 @@ def find_contests(t, paths, giventargets):
     os.popen("rm -r "+tmp+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
     #ballots = map(extract_contest, args)
     #print "RETURNING", ballots
     return ballots
@@ -977,7 +1005,7 @@ def final_grouping(ballots, giventargets):
 
 if __name__ == "__main__":
     from labelcontest import LabelContest
-    p = "../projects/my_yolo/"
+    p = "../projects/orange_label_grouping/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
@@ -994,4 +1022,5 @@ if __name__ == "__main__":
         targets.append(ballotlist)
 
     internal = pickle.load(open(p+"contest_internal.p"))[2]
+    print type(internal)
     final_grouping(internal, targets)
