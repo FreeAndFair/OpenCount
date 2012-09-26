@@ -323,9 +323,7 @@ class LabelContest(wx.Panel):
             print "OKAYSO", newvalids
 
             if any(len(x) > 1 for x in self.equivs):
-                frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-                VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, [self.equivs[-1]], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
-                frame.Show()
+                VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [self.equivs[-1]], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
 
             print "B"*200
             print tmp
@@ -505,9 +503,7 @@ class LabelContest(wx.Panel):
 
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
-            frame = wx.Frame (None, -1, 'Verify Contest Grouping', size=(1024, 768))
-            VerifyContestGrouping(frame, self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
-            frame.Show()
+            VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
 
     def save(self):
         self.saveText(removeit=False)

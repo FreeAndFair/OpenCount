@@ -643,7 +643,7 @@ def compare(otexts1, otexts2):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return 0, []
+        return {}, (1<<30, None)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
@@ -1005,7 +1005,7 @@ def final_grouping(ballots, giventargets):
 
 if __name__ == "__main__":
     from labelcontest import LabelContest
-    p = "../projects/my_yolo/"
+    p = "../projects/orange_label_grouping/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
@@ -1022,4 +1022,5 @@ if __name__ == "__main__":
         targets.append(ballotlist)
 
     internal = pickle.load(open(p+"contest_internal.p"))[2]
+    print type(internal)
     final_grouping(internal, targets)

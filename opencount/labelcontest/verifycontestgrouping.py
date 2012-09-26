@@ -187,11 +187,9 @@ class VerifyContestGrouping_old(wx.Panel):
                                          pos=(512, 0))
 
 
-class VerifyContestGrouping(wx.Panel):
-    def __init__(self, parent, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
+class VerifyContestGrouping:
+    def __init__(self, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
         #print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback)
-        wx.Panel.__init__(self, parent, wx.ID_ANY)
-        self.frame = parent
         self.callback = callback
 
         self.ocrdir = ocrdir
