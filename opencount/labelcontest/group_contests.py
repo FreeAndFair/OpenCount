@@ -677,12 +677,12 @@ def compare(otexts1, otexts2):
             best = float(weight+val)/size, num_writeins
         res[num_writeins] = (float(weight+val)/size,
                              (len(texts1), order, num_writeins))
-    return res, best
+    return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):
     lst = range(length)
     new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
-    return zip(lst, new_order)
+    return list(zip(lst, new_order))
 
 def first_pass(contests):
     """
@@ -837,32 +837,33 @@ def group_by_pairing(contests_text):
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
         res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
-
     return res
 
 def full_group(contests_text):
     print "Linear Scan"
 
     contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
-    joins = []
-    prev = None
-    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
-        data, (score,winum) = compare(c1[2], c2[2])
-        if score < .15:
-            if prev == None:
-                prev = i
-            elif i-prev > 50:
-                joins.append((prev, i))
-                prev = None
-        else:
-            if prev != None:
-                joins.append((prev,i))
-            prev = None
-    if prev != None: joins.append((prev, i))
-    print joins
-
-    exclude = dict([(i,start) for start,end in joins for i in range(start+1,end)])
+    joins = dict((i,[]) for i in range(len(contests_text)))
+    for offset in range(1,2):
+        for i,(c1,c2) in enumerate(zip(contests_text, contests_text[offset:])):
+            data, (score,winum) = compare(c1[2], c2[2])
+            if score < .1:
+                joins[i].append(i+offset)
+                joins[i+offset].append(i)
+    seen = {}
+    exclude = {}
+    for i in joins:
+        if i in seen: continue
+        items = dfs(joins, i)
+        first = min(items)
+        for each in items: seen[each] = True
+        for each in items: 
+            if first != each:
+                exclude[each] = first
     
+
+    print sorted(exclude.items())
+
     new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
     new_contests = [contests_text[x] for x in new_indexs]
 
@@ -882,7 +883,7 @@ def full_group(contests_text):
         find = newgroups[index][0][0]
         text = [text for bid,cid,text in contests_text if (bid,cid) == find][0]
         data,(score,winum) = compare(text, contests_text[dst][2])
-        newgroups[index].append((contests_text[dst][:2], data[winum][1]))
+        newgroups[index].append((contests_text[dst][:2], get_order(*data[winum][1])))
     
     #print "SO GET"
     #print sorted(map(hash,map(str,map(sorted,groups))))
@@ -1026,7 +1027,7 @@ if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))))
 
     from labelcontest import LabelContest
-    p = "../projects/orange_label_grouping/"
+    p = "../projects/label_grouping/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
