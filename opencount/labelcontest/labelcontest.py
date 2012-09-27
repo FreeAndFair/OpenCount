@@ -499,7 +499,7 @@ class LabelContest(wx.Panel):
 
         def putresults(data):
             print "I get the data", data
-            self.validequivs = dict(data)
+            self.equivs_processed = data
 
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
@@ -918,13 +918,9 @@ class LabelContest(wx.Panel):
         if any(x in y for x in cur for y in self.equivs):
             print 'yes'
             # Find the equivilance class
-            for i,each in enumerate(self.equivs):
+            for i,each in enumerate(self.equivs_processed):
                 if any(x in cur for x in each):
-                    print 'found', each
-                    if i in self.validequivs:
-                        eqclass = [x for x,y in zip(each, self.validequivs[i]) if y]
-                    else:
-                        eqclass = each
+                    eqclass = each
                     break
             print 'diff', eqclass
             # Get the different one
