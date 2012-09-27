@@ -648,7 +648,7 @@ def compare(otexts1, otexts2):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return {}, (1<<30, None)
+        return [(1<<30,None) for _ in range(len(texts1))], (1<<30, None)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
