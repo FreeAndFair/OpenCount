@@ -206,10 +206,10 @@ class VerifyContestGrouping:
         print self.processgroups
         res = []
         for i in range(len(self.processgroups)):
-            res += self.align(self.generate_one(i))
+            res += self.align(i, self.generate_one(i))
         print len(res), map(len,res)
 
-        frame = grouping.view_overlays.ViewOverlaysFrame(self, res, ondone=self.on_verify_done)
+        frame = grouping.view_overlays.ViewOverlaysFrame(None, res, ondone=self.on_verify_done)
         frame.Maximize()
         frame.Show()
 
@@ -219,46 +219,62 @@ class VerifyContestGrouping:
             list results: List of lists, where each sublist is considered
                 one 'group': [[imgpath_0i, ...], [imgpath_1i, ...], ...]
         """
-        print "There are {0} total groups.".format(len(results))
-        for group in results:
-            print "...There are {0} elements in this group.".format(len(group))
-            for contestpatch in group:
-                print contestpatch
-                pass
+        mapping = {}
+        for i,group in enumerate(results):
+            for j,path in enumerate(group):
+                print path
+                mapping[path] = i
+        sets = {}
+        for groupid in self.processgroups:
+            group = self.equivs[groupid]
+            print "NEXT GROUP"
+            for ballot, contest in group:
+                print "NEW", ballot, contest
+                ids = tuple([mapping[self.translate(f)] for f in self.get_files(ballot, contest)])
+                if ids not in sets: sets[ids] = []
+                sets[ids].append((ballot, contest))
+            print
+        print sets
+        
+
+    def get_files(self, ballot, contest):
+        ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
+        boundingbox = (ballot, contest)
+        if any(boundingbox in x for x in self.multiboxcontests):
+            boundingboxes = [x for x in self.multiboxcontests if boundingbox in x][0]
+            boundingbox = [x for x in boundingboxes if x in self.mapping_inverse][0]
+            boundingboxes = [k[1] for k,v in self.mapping.items() if v == boundingbox]
+        else:
+            boundingboxes = [self.mapping_inverse[boundingbox][1]]
+            
+        boundingboxes = sorted(boundingboxes)
+
+        ballotdir = os.path.join(self.ocrdir,ballotname+"-dir")
+        boundingboxdirs = [os.path.join(ballotdir, '-'.join(map(str,bb))) for bb in boundingboxes]
+        order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
+        images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
+
+        images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
+        title = images[0][0]
+        images = [(i,y) for i,x in enumerate(images) for y in x[1:]]
+        orderedimages = [None]*(len(images)+1)
+        orderedimages[0] = (0, title)
+        for i in range(len(images)):
+            orderedimages[i+1] = images[order[i]]
+        paths = [os.path.join(boundingboxdirs[i],img) for i,img in orderedimages]
+        return paths
 
     def generate_one(self, which):
         orderedpaths = []
-        #print "STARTING", self.equivs[self.processgroups[which]]
+        print "STARTING", self.equivs[self.processgroups[which]]
         for ballot,contest in self.equivs[self.processgroups[which]]:
-            ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
-            boundingbox = (ballot, contest)
-            if any(boundingbox in x for x in self.multiboxcontests):
-                boundingboxes = [x for x in self.multiboxcontests if boundingbox in x][0]
-                boundingbox = [x for x in boundingboxes if x in self.mapping_inverse][0]
-                boundingboxes = [k[1] for k,v in self.mapping.items() if v == boundingbox]
-            else:
-                boundingboxes = [self.mapping_inverse[boundingbox][1]]
-                
-            boundingboxes = sorted(boundingboxes)
-
-            ballotdir = os.path.join(self.ocrdir,ballotname+"-dir")
-            boundingboxdirs = [os.path.join(ballotdir, '-'.join(map(str,bb))) for bb in boundingboxes]
-            order = dict(self.reorder[self.reorder_inverse[ballot,contest]][ballot,contest])
-            images = [[img for img in os.listdir(bbdir) if img[-3:] != 'txt'] for bbdir in boundingboxdirs]
-            #print 'from', boundingboxdirs, 'get', images
-
-            images = [sorted(imgs, key=lambda x: int(x.split('.')[0])) for imgs in images]
-            title = images[0][0]
-            images = [(i,y) for i,x in enumerate(images) for y in x[1:]]
-            orderedimages = [None]*(len(images)+1)
-            orderedimages[0] = (0, title)
-            for i in range(len(images)):
-                orderedimages[i+1] = images[order[i]]
-            paths = [os.path.join(boundingboxdirs[i],img) for i,img in orderedimages]
-            orderedpaths.append(paths)
+            orderedpaths.append(self.get_files(ballot, contest))
         return orderedpaths
 
-    def align(self, dat):
+    def translate(self, name):
+        return "tmp/"+name.replace("/","~")
+
+    def align(self, groupid, dat):
         res = []
         for group in zip(*dat):
             a = scipy.misc.imread(group[0], flatten=1)
@@ -271,8 +287,9 @@ class VerifyContestGrouping:
                 #(H, align, err) = imagesAlign(a, b)
                 #align = np.nan_to_num(align)
                 align = b
-                scipy.misc.imsave("tmp/"+each.replace("/", "_"), align)
-                r.append("tmp/"+each.replace("/", "_"))
+                name = self.translate(each)
+                scipy.misc.imsave(name, align)
+                r.append(name)
             res.append(r)
         return res
 
