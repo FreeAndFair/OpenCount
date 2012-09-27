@@ -690,9 +690,12 @@ def first_pass(contests):
     set contains the same number of voting targets.
     """
     ht = {}
+    i = 0
     for each in contests:
-        if len(each[2]) not in ht: ht[len(each[2])] = []
-        ht[len(each[2])].append(each)
+        key = (len(each[2]), i)
+        i = (i+1)%10
+        if key not in ht: ht[key] = []
+        ht[key].append(each)
     return ht.values()
 
 class Contest:
