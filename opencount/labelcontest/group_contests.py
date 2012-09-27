@@ -549,7 +549,7 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print 'all', targets
     targets = [x for x in targets if intersect(contest, x) == x]
     l,u,r,d = contest
-    cont_area = load_num(pilimg=num2pil(image).crop((l+10,u+10,r-10,d-10)))
+    cont_area = None
     #print "TEXT FOR", contest
     #print "bottom of box", d
     #print 'targets', targets
@@ -571,6 +571,7 @@ def compare_preprocess(lang, path, image, contest, targets):
         #print len(cont_area[upper:lower])
         name = os.path.join(path, str(count)+".tif")
         if not os.path.exists(name):
+            if cont_area == None: cont_area = load_num(pilimg=num2pil(image).crop((l+10,u+10,r-10,d-10)))
             img = num2pil(cont_area[upper:lower])
             img.save(name)
             os.popen("tesseract %s %s -l %s"%(name, name, lang))
@@ -581,6 +582,10 @@ def compare_preprocess(lang, path, image, contest, targets):
         else:
             print "-"*40
             print "OCR FAILED"
+            print path
+            print contest
+            print lang
+            print count, upper, lower
             print "-"*40
             blocks.append((istarget, ""))
             
@@ -668,13 +673,16 @@ def compare(otexts1, otexts2):
     res = {}
     best = 1<<30, None
     for weight,order,num_writeins in all_vals:
-        lst = range(len(texts1))
-        new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
         if float(weight+val)/size < best[0]:
             best = float(weight+val)/size, num_writeins
         res[num_writeins] = (float(weight+val)/size,
-                             zip(lst, new_order))
+                             (len(texts1), order, num_writeins))
     return res, best
+
+def get_order(length, order, num_writeins):
+    lst = range(length)
+    new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
+    return zip(lst, new_order)
 
 def first_pass(contests):
     """
@@ -774,7 +782,9 @@ class Contest:
     
 def do_group_pairing_map(data):
     lst = []
-    for i,a,j,b in data:
+    print "GO UP TO", len(data)
+    for x,(i,a,j,b) in enumerate(data):
+        if x%10000 == 0: print x
         lst.append(((i,j),compare(a[2], b[2])))
     return lst
 
@@ -789,13 +799,19 @@ def group_by_pairing(contests_text):
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
 
     print "Prepare"
-    pool = mp.Pool(mp.cpu_count())
+    pool = mp.Pool(mp.cpu_count()/3)
+    sizes = [sum(len(x[1]) for x in cont[2]) for cont in contests_text]
+    print 'a'
     args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
-    sets = [[] for _ in range(mp.cpu_count())]
+    print 'b'
+            
+    print "Length of arguments", len(args)
+    sets = [[] for _ in range(mp.cpu_count()/3)]
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
+    print "sets sizes", map(len, sets)
     print "Start"
-    res = map(do_group_pairing_map, sets)
+    res = pool.map(do_group_pairing_map, sets)
     print "Done"
     diff = {}
     for each in res:
@@ -820,21 +836,22 @@ def group_by_pairing(contests_text):
         seen[contest.get_root()] = True
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
-        res.append([(contests_text[x][:2],contest.similarity[x][write][1]) for x in v])
+        res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
 
     return res
 
 def full_group(contests_text):
     print "Linear Scan"
+
     contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
     joins = []
     prev = None
     for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
         data, (score,winum) = compare(c1[2], c2[2])
-        if score < .1:
+        if score < .15:
             if prev == None:
                 prev = i
-            elif i-prev > 10:
+            elif i-prev > 50:
                 joins.append((prev, i))
                 prev = None
         else:
@@ -849,6 +866,7 @@ def full_group(contests_text):
     new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
     new_contests = [contests_text[x] for x in new_indexs]
 
+    print "Of sizes", len(contests_text), len(new_contests)
     newgroups = group_by_pairing(new_contests)
 
     mapping = {}
@@ -996,14 +1014,17 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
 
 def final_grouping(ballots, giventargets):
     print "RUNNING FINAL GROUPING"
-    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
+    pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
     return equ_class(ballots)
 
 
+
 if __name__ == "__main__":
+    equ_class(merge_contests(*pickle.load(open("../orangedata"))))
+
     from labelcontest import LabelContest
     p = "../projects/orange_label_grouping/"
     # Regroup the targets so that equal contests are merged.
