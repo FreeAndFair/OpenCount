@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, re, shutil
+import sys, csv, copy, pdb, os, re, shutil, math
 import threading, time
 import timeit
 sys.path.append('../')
@@ -1332,28 +1332,116 @@ def sanitycheck_blankballots(proj):
     output = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i]}
     print "...Exists blank ballots with same attribute values, need to dig deeper."
     for attrpairs, group in inv_blanks.iteritems():
-        by_layout = separate_by_layout(group)
+        by_layout = separate_by_layout(group, proj)
         if len(by_layout) != 1:
             # a.) Physical layout is different!
             output.setdefault(attrpairs, []).extend(group)
         else:
             # b.) Layout is same. Check text interpretation, if possible.
-            by_text = separate_by_text(group)
+            by_text = separate_by_text(group, proj)
             if len(by_text) != 1:
                 output.setdefault(attrpairs, []).extend(group)
     return output
 
-def separate_by_layout(blankpaths):
+def separate_by_layout(blankpaths, proj):
     """ Given a list of blank ballot paths, group the blank ballots
     by ballot layout, purely based on location of contests+voting targets.
     Input:
         list blankpaths: [blankpath_i, ...]
+        obj proj:
     Output:
         list groups: [[blankpath_i0, ...], [blankpath_i1, ...], ...]
     """
-    return [blankpaths]
+    csvpath_map = pickle.load(open(pathjoin(proj.target_locs_dir, 'csvpath_map.p'),
+                                   'rb'))
+    # 0.) Read in all targets/contests information
+    layouts = {} # maps {str blankpath: [[x, y, w, h, is_contest], ...]}
+    _set_blankpaths = set(blankpaths)
+    for csvpath, blankpath in csvpath_map.iteritems():
+        if blankpath not in _set_blankpaths: continue
+        f = open(csvpath, 'rb')
+        reader = csv.DictReader(f)
+        for row in reader:
+            entry = [row['x'], row['y'], row['width'], row['height'], row['is_contest']]
+            entry = [int(n) for n in entry]
+            layouts.setdefault(blankpath, []).append(entry)
+        f.close()
+    # 1.) Do comparisons.
+    blankpaths = blankpaths[:]
+    output = [] # list of groups
+    while len(blankpaths) > 0:
+        bp_i = blankpaths.pop()
+        layout_i = layouts[bp_i]
+        group_i = [bp_i]
+        j = 0
+        while j < len(blankpaths):
+            bp_j = blankpaths[j]
+            layout_j = layouts[bp_j]
+            if is_layout_same(layout_i, layout_j):
+                group_i.append(bp_j)
+                blankpaths.pop()
+            else:
+                j += 1
+        output.append(group_i)
+    return output
     
-def separate_by_text(blankpaths):
+def is_layout_same(layoutA, layoutB, C=0.75):
+    """ Returns True iff LAYOUTA is reasonably close to LAYOUTB.
+    Input:
+        list layoutA: [[x,y,w,h,is_contest], ...]
+        list layoutB: [[x,y,w,h,is_contest], ...]
+        float C: Param controlling how far away (in terms of target w/h)
+            two targets can be and still be considered 'paired'.
+    Output:
+        True/False.
+    """
+    def check_boxes(boxesA, boxesB):
+        boxesA = boxesA[:]
+        boxesB = boxesB[:]
+        while len(boxesA) > 0:
+            bA = boxesA.pop()
+            j = 0
+            foundit = False
+            while j < len(boxesB) and not foundit:
+                bB = boxesB[j]
+                if distL2(bA[0], bA[1], bB[0], bB[1]) <= (bA[3]*C): # height*C
+                    foundit = True
+                else:
+                    j += 1
+            if not foundit:
+                # Couldn't find a target close enough to bA
+                return False
+            else:
+                try:
+                    boxesB.pop(j)
+                except:
+                    traceback.print_exc()
+                    pdb.set_trace()
+        return True
+    # 0.) Simple sanity checks
+    if len(layoutA) != len(layoutB):
+        return False
+    targetsA, contestsA = [], []
+    targetsB, contestsB = [], []
+    for (x,y,w,h,is_contest) in layoutA:
+        if is_contest == 1:
+            contestsA.append((x,y,w,h,is_contest))
+        else:
+            targetsA.append((x,y,w,h,is_contest))
+    for (x,y,w,h,is_contest) in layoutB:
+        if is_contest == 1:
+            contestsB.append((x,y,w,h,is_contest))
+        else:
+            targetsB.append((x,y,w,h,is_contest))
+    if len(targetsA) != len(targetsB) or len(contestsA) != len(contestsB):
+        return False
+    # 1.) Check targets and contests pairwise
+    return check_boxes(targetsA, targetsB) and check_boxes(contestsA, contestsB)
+
+def distL2(x1,y1,x2,y2):
+    return math.sqrt((y1-y2)**2 + (x1-x2)**2)
+
+def separate_by_text(blankpaths, proj):
     """ Given a list of blank ballot paths, group the ballots by text
     interpretation. Assumes that BLANKPATHS contains blank ballots with
     the same layout, i.e. separate_by_layout(BLANKPATHS)[0] == BLANKPATHS.
