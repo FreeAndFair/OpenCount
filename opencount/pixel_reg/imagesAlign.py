@@ -13,7 +13,25 @@ from scipy.ndimage import gaussian_filter
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False):
-
+    """ Aligns I to IREF.
+    Input:
+        np.array I: Image you want to align.
+        np.array Iref: Image you want to align against.
+        int fillval: 
+        str type: What image transformation to solve for. They are (in
+            order of complexity): 'translation', 'rigid', 'similarity',
+            'affine', and 'projective'. A nice page that describes
+            these are at: 
+                http://homepages.inf.ed.ac.uk/rbf/HIPR2/affine.htm
+        int vCells, hCells: Params to allow aligning subcells of the 
+            image, followed by stitching. Appears to rarely be used.
+        float rszFac: Amount by which to scale the image - for
+            performance, you want to scale down (i.e. 0.75).
+    Output:
+        (H, Ireg, err). H is the transformation matrix that was found
+        to best align I to Iref. Ireg is the result of aligning I to
+        Iref. err is the alignment error.
+    """
     if len(I.shape)==3:
         I1=sh.rgb2gray(I)
     else:
