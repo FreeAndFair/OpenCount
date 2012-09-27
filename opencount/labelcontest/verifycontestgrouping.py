@@ -235,6 +235,7 @@ class VerifyContestGrouping:
                 sets[ids].append((ballot, contest))
             print
         print sets
+        self.callback(sets.values())
         
 
     def get_files(self, ballot, contest):
