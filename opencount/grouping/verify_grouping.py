@@ -1468,4 +1468,5 @@ def separate_by_text(blankpaths, proj):
     Output:
         list groups: [[blankpath_i0, ...], [blankpath_i1, ...]]
     """
+    # TODO: Implement me!
     return [blankpaths]
