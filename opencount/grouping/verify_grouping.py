@@ -107,6 +107,11 @@ will do strange things, and you will probably get poor results.", style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
+            for attrpairs, badgroup in result.iteritems():
+                print "attrs:", attrpairs
+                for bpath in badgroup:
+                    print "    ", bpath
+                print
             
         self.run_grouping.Show()
         self.run_grouping.start()
@@ -1293,24 +1298,24 @@ def sanitycheck_blankballots(proj):
             blankid = None
             for row in reader:
                 if blankid == None: blankid = row['imgpath']
-                if not row['is_tabulationonly']:
+                if row['is_tabulationonly'] == 'False':
                     attrs.append((row['attr_type'], row['attr_val']))
             # a.) Handle digitbased-attrs
             if digitattrvals:
-                for digitattrtype, digitattrval in digitattrvals[blankid].iteritems():
+                for digitattrtype, (digitattrval, bb, side) in digitattrvals[blankid].iteritems():
                     if not common.is_tabulationonly(proj, digitattrtype):
                         attrs.append((digitattrtype, digitattrval))
             # b.) Handle custom-attrs
             if common.exists_customattrs(proj):
-                cattrs = common.load_custom_attrs(proj)
+                cattrs = cust_attrs.load_custom_attrs(proj)
                 for cattr in cattrs:
                     if not cattr.is_tabulationonly and not cattr.is_votedonly:
-                        if cattr.mode == common.CustomAttribute.M_SPREADSHEET:
+                        if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
                             inval = [v for (t, v) in attrs if t == cattr.attrin][0]
-                            attrval = common.custattr_map_inval_ss(proj, cattr.attrname,
-                                                                   inval)
-                        elif cattr.mode == common.CustomAttribute.M_FILENAME:
-                            attrval = common.custattr_apply_filename(cattr, blankid)
+                            attrval = cust_attrs.custattr_map_inval_ss(proj, cattr.attrname,
+                                                                       inval)
+                        elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                            attrval = cust_attrs.custattr_apply_filename(cattr, blankid)
                         else:
                             print "Unexpected CustomAttribute mode."
                             pdb.set_trace()
@@ -1366,8 +1371,13 @@ def separate_by_layout(blankpaths, proj):
             entry = [int(n) for n in entry]
             layouts.setdefault(blankpath, []).append(entry)
         f.close()
+    if False:
+        FLAG = True
+    else:
+        FLAG = False
     # 1.) Do comparisons.
     blankpaths = blankpaths[:]
+    bp_cpy = blankpaths[:]
     output = [] # list of groups
     while len(blankpaths) > 0:
         bp_i = blankpaths.pop()
@@ -1377,7 +1387,7 @@ def separate_by_layout(blankpaths, proj):
         while j < len(blankpaths):
             bp_j = blankpaths[j]
             layout_j = layouts[bp_j]
-            if is_layout_same(layout_i, layout_j):
+            if is_layout_same(layout_i, layout_j, debug=FLAG):
                 group_i.append(bp_j)
                 blankpaths.pop()
             else:
@@ -1385,7 +1395,7 @@ def separate_by_layout(blankpaths, proj):
         output.append(group_i)
     return output
     
-def is_layout_same(layoutA, layoutB, C=0.75):
+def is_layout_same(layoutA, layoutB, C=0.75, debug=False):
     """ Returns True iff LAYOUTA is reasonably close to LAYOUTB.
     Input:
         list layoutA: [[x,y,w,h,is_contest], ...]
@@ -1402,21 +1412,29 @@ def is_layout_same(layoutA, layoutB, C=0.75):
             bA = boxesA.pop()
             j = 0
             foundit = False
-            while j < len(boxesB) and not foundit:
+            if debug:
+                print "...Trying to find box:", bA
+            minDist, minJ = None, None
+            while j < len(boxesB):
                 bB = boxesB[j]
-                if distL2(bA[0], bA[1], bB[0], bB[1]) <= (bA[3]*C): # height*C
-                    foundit = True
+                dist = distL2(bA[0], bA[1], bB[0], bB[1])
+                if debug:
+                    print 'dist is:', dist
+                if dist <= (bA[3]*C): # height*C
+                    if minDist == None or dist < minDist:
+                        minDist = dist
+                        minJ = j
+                    else:
+                        j += 1
                 else:
                     j += 1
-            if not foundit:
+            if minDist == None:
                 # Couldn't find a target close enough to bA
+                if debug:
+                    pdb.set_trace()
                 return False
             else:
-                try:
-                    boxesB.pop(j)
-                except:
-                    traceback.print_exc()
-                    pdb.set_trace()
+                boxesB.pop(minJ)
         return True
     # 0.) Simple sanity checks
     if len(layoutA) != len(layoutB):
