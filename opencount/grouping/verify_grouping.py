@@ -112,6 +112,8 @@ will do strange things, and you will probably get poor results.", style=wx.OK)
                 for bpath in badgroup:
                     print "    ", bpath
                 print
+        else:
+            print "...Sanity check passed! Blank ballots are OK."
             
         self.run_grouping.Show()
         self.run_grouping.start()
