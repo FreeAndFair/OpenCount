@@ -29,14 +29,23 @@ Usage:
     python do_single_textract.py /home/arya/opencount/opencount/projects/Yolo_2012 \
 /media/data1/audits2012_straight/yolo/votedballots/yolo_s2_074/yolo_s2_074-020.png bad_out
 
+Or, as a super-simple shortcut, the following is equivalent:
+  
+    python do_single_textract.py bad_out
+
 This will do target extraction on yolo_s2_074-020.png, and dump it to bad_out/.
 """
 
 def main():
     args = sys.argv[1:]
-    projdir = args[0]
-    votedpath = args[1]
-    outdir = args[2]
+    if len(args) == 1:
+        outdir = args[0]
+        projdir = '/home/arya/opencount/opencount/projects/Yolo_2012'
+        votedpath = '/media/data1/audits2012_straight/yolo/votedballots/yolo_s2_074/yolo_s2_074-020.png'
+    else:
+        projdir = args[0]
+        votedpath = args[1]
+        outdir = args[2]
     
     bal2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p'), 'rb'))
     tpl2imgs = pickle.load(open(pathjoin(projdir, 'template_to_images.p'), 'rb'))
