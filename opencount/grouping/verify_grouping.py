@@ -1275,7 +1275,7 @@ def sanitycheck_blankballots(proj):
     Output:
         dict badblanks: a dict containing all sets S that fail the above
             sanity check, of the form:
-                {(str attrval_i, ...): (str blankpath_i, ...)}
+                {((attrtype_i, attrval_i), ...): (str blankpath_i, ...)}
     """
     # 0.) Read in blank ballot attributes
     blanks = {} # maps {str blankid: ((attrtype_i, attrval_i), ...)}
@@ -1293,7 +1293,7 @@ def sanitycheck_blankballots(proj):
             blankid = None
             for row in reader:
                 if blankid == None: blankid = row['imgpath']
-                if not row['is_tabulation_only']:
+                if not row['is_tabulationonly']:
                     attrs.append((row['attr_type'], row['attr_val']))
             # a.) Handle digitbased-attrs
             if digitattrvals:
@@ -1317,16 +1317,49 @@ def sanitycheck_blankballots(proj):
                         attrs.append((cattr.attrname, attrval))
             blanks[blankid] = attrs
     # 1.) Construct inverse mapping of blanks
-    inv_blanks = {} # maps {((attrtype_i, attrval_i), ...): str blankid}
+    inv_blanks = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i, ...]}
     for blankid, pairs in blanks.iteritems():
-        inv_blanks.setdefault(sorted(pairs, key=lambda tup: tup[0]), []).append(blankid)
+        inv_blanks.setdefault(tuple(sorted(pairs, key=lambda tup: tup[0])), []).append(blankid)
     # 2.) Filter out all buckets with more than one blank ballot
     for attrpairs in inv_blanks.keys():
         if len(inv_blanks[attrpairs]) == 1:
             inv_blanks.pop(attrpairs)
     # 3.) Terminate if no blank ballots have same attribute values
     if not inv_blanks:
+        print "No blank ballots exist with same attribute values, done!"
         return {}
     # 4.) Do 'involved' check between contests in each set S
+    output = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i]}
+    print "...Exists blank ballots with same attribute values, need to dig deeper."
+    for attrpairs, group in inv_blanks.iteritems():
+        by_layout = separate_by_layout(group)
+        if len(by_layout) != 1:
+            # a.) Physical layout is different!
+            output.setdefault(attrpairs, []).extend(group)
+        else:
+            # b.) Layout is same. Check text interpretation, if possible.
+            by_text = separate_by_text(group)
+            if len(by_text) != 1:
+                output.setdefault(attrpairs, []).extend(group)
+    return output
+
+def separate_by_layout(blankpaths):
+    """ Given a list of blank ballot paths, group the blank ballots
+    by ballot layout, purely based on location of contests+voting targets.
+    Input:
+        list blankpaths: [blankpath_i, ...]
+    Output:
+        list groups: [[blankpath_i0, ...], [blankpath_i1, ...], ...]
+    """
+    return [blankpaths]
     
-    
+def separate_by_text(blankpaths):
+    """ Given a list of blank ballot paths, group the ballots by text
+    interpretation. Assumes that BLANKPATHS contains blank ballots with
+    the same layout, i.e. separate_by_layout(BLANKPATHS)[0] == BLANKPATHS.
+    Input:
+        list blankpaths: [blankpath_i, ...]
+    Output:
+        list groups: [[blankpath_i0, ...], [blankpath_i1, ...]]
+    """
+    return [blankpaths]
