@@ -3,10 +3,14 @@ from os.path import join as pathjoin
 from wx.lib.pubsub import Publisher
 import wx.lib.scrolledpanel
 from PIL import Image
-import scipy
+import scipy, cv
 import scipy.misc
-import pickle
 import csv
+
+try:
+    import cPickle as pickle
+except ImportError as e:
+    import pickle
 
 sys.path.append('..')
 from labelcontest.labelcontest import LabelContest
@@ -105,11 +109,12 @@ def clusters_to_groupclasses(proj, attrgroups):
     
 def extract_attrpatches(tasks):
     for (imgpath, outpath, bb) in tasks:
-        bb = map(lambda c: int(round(c)), bb)
-        img = Image.open(imgpath)
-        img = img.convert('L')
-        img = img.crop((bb[2], bb[0], bb[3], bb[1]))
-        img.save(outpath)
+        y1, y2, x1, x2 = map(lambda c: int(round(c)), bb)
+        img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        patch = cv.CreateImage(((x2-x1), (y2-y1)), img.depth, img.channels)
+        cv.SetImageROI(img, (int(x1), int(y1), int(x2-x1), int(y2-y1)))
+        cv.Copy(img, patch)
+        cv.SaveImage(outpath, patch)
     return []
 
 def no_digitattrs(attrdata):
@@ -641,14 +646,21 @@ def extract_attr_patches(blanks, (proj,)):
                     #if True:
                         # TODO: Only extract+save the imge patches
                         # when you /have/ to.
-                        img = shared.standardImread(imgpath, flatten=True)
+                        # shared.standardImread: ~0.40s
+                        # scipy.misc.imread: ~0.192s
+                        # PIL: ~0.168s
+                        # OpenCV: ~0.06s
                         if abs(y1-y2) == 0 or abs(x1-x2) == 0:
                             print "Uh oh, about to crash. Why is this happening?"
                             print "    proj.imgsize:", proj.imgsize
                             print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
                             pdb.set_trace()
-                        patch = img[y1:y2,x1:x2]
-                        scipy.misc.imsave(patchoutP, patch)
+                        img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                        patch = cv.CreateImage(((x2-x1), (y2-y1)), img.depth, img.channels)
+                        cv.SetImageROI(img, (int(x1), int(y1), int(x2-x1), int(y2-y1)))
+                        cv.Copy(img, patch)
+                        cv.SaveImage(patchoutP, patch)
+                        
                     mapping.setdefault(imgpath, {})[attrtype] = patchoutP
                     inv_mapping[patchoutP] = (imgpath, attrtype)
     return mapping, inv_mapping, blank2attrpatch, invblank2attrpatch

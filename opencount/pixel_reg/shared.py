@@ -64,6 +64,12 @@ def fastFlip(I):
     return Iout
 
 def estimateBg(I):
+    """ Estimates the background-intensity value of I by histogramming
+    the pixel intensity values of I into 10 buckets. Then, it takes
+    the most-heavily populated bucket, and returns the lowest-intensity
+    value of the range in that bucket (recall that hist-buckets range
+    from [A,B]. estimateBg chooses A).
+    """
     Ival = I
     Ival[np.isnan(Ival)] = 1
     Ihist = np.histogram(Ival,bins=10);
@@ -83,6 +89,9 @@ def NCC(I,patch):
     return outPad
     
 def variableDiffThr(I,patch):
+    """ Image-difference metric between I, PATCH. Tries to filter out
+    the unwanted effects of background by doing the following.
+    """
     #estimate threshold for comparison: 
     try:
         Ibg = estimateBg(I);
