@@ -948,9 +948,9 @@ def extend_multibox(ballots, box1, box2, orders):
                 continue
             #print '-'*30
             #print 'consec', c1, c2
-            score, order = compare(txt, t1[2]+t2[2])
+            data, (score, winum) = compare(txt, t1[2]+t2[2])
             if score < .2:
-                #print "THEY ARE EQUAL"
+                print "THEY ARE EQUAL"
                 res.append((c1, c2))
                 print 'txt', t1, t2
                 newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), order))

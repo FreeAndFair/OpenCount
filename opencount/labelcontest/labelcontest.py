@@ -293,6 +293,11 @@ class LabelContest(wx.Panel):
             
             print "MULTIBOX"
             print self.multiboxcontests_enter
+
+            self.compute_equivs(None)
+
+            return
+
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             print boxes_in_new_group
             cleared = []
