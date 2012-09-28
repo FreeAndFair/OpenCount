@@ -31,7 +31,7 @@ def bestmatch(A, B):
     #     "With 0.94 confidence, I predict that A is present at image
     #     location (i,j)."
     # For the cv.CV_TM_CCOEFF_NORMED method, higher values is better -
-    # thus, a response value of 1.0 means an exact match.
+    # thus, a response value of 1.0 means an exact match was found.
     s_mat = cv.CreateMat(h_B - h_A + 1, w_B - w_A + 1, cv.CV_32F)
     cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
     
