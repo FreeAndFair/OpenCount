@@ -924,6 +924,7 @@ class LabelContest(wx.Panel):
         if any(x in y for x in cur for y in self.equivs):
             print 'yes'
             # Find the equivilance class
+            eqclass = []
             for i,each in enumerate(self.equivs_processed):
                 if any(x in cur for x in each):
                     eqclass = each
