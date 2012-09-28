@@ -452,13 +452,14 @@ class LabelContest(wx.Panel):
 
         print gr
         mapping = {}
+        # Parallelize this!
         for ballot_count, ballot in enumerate(self.groupedtargets):
             print 'on ballot', ballot_count
             # All of the bounding boxes for a ballot.
             contestbboxes = [x[1] for x in sum(gr, []) if x[0] == ballot_count]
-            print 'bboxes', contestbboxes
+            #print 'bboxes', contestbboxes
             for targetlist in ballot:
-                print 'picking rep ', targetlist[0][2:]
+                #print 'picking rep ', targetlist[0][2:]
                 w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                 if len(w) != 1:
                     print 'I got', w, 'of them'
@@ -468,8 +469,8 @@ class LabelContest(wx.Panel):
                     print 'contest bboxes', contestbboxes
                     print 'targetlist', targetlist
                     raise Exception("OH NO SOMETHING WENT WRONG")
-                print 'w', w
-                print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
+                #print 'w', w
+                #print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
                 for bbox in contestbboxes[w[0]]:
                     mapping[ballot_count, bbox] = (ballot_count, targetlist[0][1])
         self.mapping = mapping
