@@ -42,7 +42,8 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
                                      unlabeled_imgpaths,
                                      _args=(I,
                                             bb,
-                                            bb, THRESHOLD))
+                                            bb, THRESHOLD),
+                                     singleproc=True)
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
         if matches:
             # 0.) Retrieve best matches from matches (may have multiple
@@ -52,14 +53,14 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
             for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
                 y1, y2, x1, x2 = map(lambda c: int(round(c/rszFac)), (y1, y2, x1, x2))
                 if filename not in bestmatches:
-                    bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                    bestmatches[filename] = (filename,sc1,sc2,y1,y2,x1,x2,rszFac)
                 else:
                     old_sc2 = bestmatches[filename][2]
                     if sc2 < old_sc2:
-                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                        bestmatches[filename] = (filename,sc1,sc2,y1,y2,x1,x2,rszFac)
             print "...found {0} matches".format(len(bestmatches))
             # 1.) Handle the best matches
-            for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+            for _, (filename,sc1,sc2,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
                 unlabeled_imgpaths.remove(filename)
                 clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
         else:
@@ -71,7 +72,7 @@ happened."
 
 def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
     return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
-                                       threshold=threshold)
+                                       threshold=threshold, forceFind=True)
 
 def group_attributes_V2(project, job_id=None, THRESHOLD=0.95):
     """ Try to cluster all attribute patches from blank ballots into

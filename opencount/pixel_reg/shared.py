@@ -73,7 +73,12 @@ def estimateBg(I):
     Ival = I
     Ival[np.isnan(Ival)] = 1
     Ihist = np.histogram(Ival,bins=10);
-    return Ihist[1][np.argmax(Ihist[0])] # background
+    #return Ihist[1][np.argmax(Ihist[0])] # background
+    bucketIdx = np.argmax(Ihist[0])
+    a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
+    T = a + ((b-a)/2.0)
+    print "found {0}, old was {1}".format(T, Ihist[1][bucketIdx])
+    return T
     
 def NCC(I,patch):
     I = prepOpenCV(I);
@@ -97,12 +102,13 @@ def variableDiffThr(I,patch):
         Ibg = estimateBg(I);
         Pbg = estimateBg(patch);
 
-        Ithr = (Ibg - I.min())/2
-        Pthr = (Pbg - patch.min())/2
+        Ithr = (Ibg - I.min()) / 2
+        Pthr = (Pbg - patch.min()) / 2
         thr = min(Ithr,Pthr)
+        print 'thr is:', thr
         diff=np.abs(I-patch);
         # sum values of diffs above  threshold
-        err=np.sum(diff[np.nonzero(diff>thr)])
+        err=np.sum(diff[idxs])
 
     except Exception as e:
         print e
@@ -152,6 +158,8 @@ Input:
   threshold: only return matches above this value
   rszFac: downsampling factor for speed
   region: bounding box to limit search for speed (TODO) (y1,y2,x1,x2)
+  bool forceFind: If True, then if it can't find a match greater than
+      the threshold, return the highest-scoring one.
 
 Output:
   list of tuples, one for every match
@@ -172,7 +180,8 @@ Output:
 
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
-                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True):
+                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True,
+                         forceFind=False):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
@@ -198,6 +207,8 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
         bbSearch[2] = bbSearch[2]*rszFac
         bbSearch[3] = bbSearch[3]*rszFac
 
+    bestScore, bestMatch = None, None
+
     for cur_i, imP in enumerate(imList):
         if bbSearches != None:
             bbSearch = map(lambda c: c*rszFac, bbSearches[cur_i])
@@ -220,9 +231,10 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
         
-        Iout[Iout==1.0]=0; # opencv bug
-
+        Iout[Iout==1.0]=0.95; # opencv bug
+        foundone = False
         while Iout.max() > threshold:
+            foundone = True
             score1 = Iout.max() # NCC score
             YX=np.unravel_index(Iout.argmax(),Iout.shape)
             i1=YX[0]; i2=YX[0]+patch.shape[0]
@@ -231,20 +243,26 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
             (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             score2 = err / diff.size # pixel reg score
             if bbSearch != None:
-                matchList.append((imP,score1,score2,Ireg,
-                                  i1+bbOut1[0],i2+bbOut1[0],
-                                  j1+bbOut1[2],j2+bbOut1[2],rszFac))
+                m = (imP,score1,score2,None,
+                     i1+bbOut1[0],i2+bbOut1[0],
+                     j1+bbOut1[2],j2+bbOut1[2],rszFac)
             else:
-                matchList.append((imP,score1,score2,Ireg,
-                                  i1,i2,j1,j2,rszFac))
-                
+                m = (imP,score1,score2,None,
+                     i1,i2,j1,j2,rszFac)
+            matchList.append(m)
+            if bestScore == None or score2 < bestScore:
+                bestScore = score2
+                bestMatch = m
             # mask out detected region
             i1mask = max(0,i1-patch.shape[0]/3)
             i2mask = min(Iout.shape[0],i1+patch.shape[0]/3)
             j1mask = max(0,j1-patch.shape[1]/3)
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
             Iout[i1mask:i2mask,j1mask:j2mask]=0
-
+    if not matchList:
+        if forceFind:
+            return [bestMatch]
+        print "Warning - couldn't find any matches."
     return matchList
 
 def matchAll(digit_hash,I):
