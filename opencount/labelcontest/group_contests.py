@@ -692,8 +692,7 @@ def first_pass(contests):
     ht = {}
     i = 0
     for each in contests:
-        key = (len(each[2]), i)
-        i = (i+1)%10
+        key = (len(each[2]), 0)
         if key not in ht: ht[key] = []
         ht[key].append(each)
     return ht.values()
@@ -745,7 +744,7 @@ class Contest:
     def isClose(self, other, num_writein):
         group1 = self.all_children()
         group2 = other.all_children()
-        best = 1<<30, None
+        best = 1<<31, None
         #print 'joining', len(group1), len(group2)
         for nwi in set([self.writein_num, other.writein_num, num_writein]):
             distance = 0
@@ -815,6 +814,8 @@ def group_by_pairing(contests_text):
     print "sets sizes", map(len, sets)
     print "Start"
     res = pool.map(do_group_pairing_map, sets)
+    pool.close()
+    pool.join()
     print "Done"
     diff = {}
     for each in res:
@@ -835,11 +836,15 @@ def group_by_pairing(contests_text):
     res = []
     for contest in contests:
         if contest.get_root() in seen: continue
-        contest.get_root().dominating_set()
+        #contest.get_root().dominating_set()
         seen[contest.get_root()] = True
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
-        res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
+        if len(v) == 1:
+            r = range(len(contests_text[contest.cid][2]))
+            res.append([(contests_text[x][:2],list(zip(r,r))) for x in v])
+        else:
+            res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
     return res
 
 def full_group(contests_text):
@@ -860,24 +865,26 @@ def full_group(contests_text):
         items = dfs(joins, i)
         first = min(items)
         for each in items: seen[each] = True
-        for each in items: 
+        for each in items:
             if first != each:
                 exclude[each] = first
     
 
-    print sorted(exclude.items())
+    #print sorted(exclude.items())
 
     new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
     new_contests = [contests_text[x] for x in new_indexs]
 
     print "Of sizes", len(contests_text), len(new_contests)
+    for x in new_contests[::100]:
+        print x
     newgroups = group_by_pairing(new_contests)
 
     mapping = {}
     for i,each in enumerate(newgroups):
         for item in each:
             mapping[item[0][0],tuple(item[0][1])] = i
-    print "mapping", mapping
+    #print "mapping", mapping
 
     for dst,src in exclude.items():
         #print "Get", dst, "from", src
@@ -905,7 +912,11 @@ def equ_class(contests):
     groups = first_pass(contests)
     # Each group is known to be different.
     result = []
-    for group in groups:
+    print "Go up to", len(groups)
+    for i,group in enumerate(groups):
+        print "-"*50
+        print "ON GROUP", i
+        print "-"*50
         result += full_group(group)
         print "Finished one group"
     
@@ -989,6 +1000,8 @@ def find_contests(t, paths, giventargets):
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
+    pool.close()
+    pool.join()
     #ballots = map(extract_contest, args)
     #print "RETURNING", ballots
     return ballots
@@ -1012,19 +1025,19 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     pool = mp.Pool(mp.cpu_count())
     args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
     ballots = pool.map(group_given_contests_map, args)
+    pool.close()
+    pool.join()
     #ballots = map(group_given_contests_map, args)
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
 def final_grouping(ballots, giventargets):
     print "RUNNING FINAL GROUPING"
-    pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
+    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
     return equ_class(ballots)
-
-
 
 if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))))
@@ -1048,4 +1061,4 @@ if __name__ == "__main__":
 
     internal = pickle.load(open(p+"contest_internal.p"))[2]
     print type(internal)
-    final_grouping(internal, targets)
+    print final_grouping(internal, targets)
