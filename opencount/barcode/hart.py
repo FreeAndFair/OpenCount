@@ -58,6 +58,24 @@ def decode(imgpath):
                 return find_len(decs, 10)
         else:
             return decs[0]
+    def makehoriz(mat):
+        """ Rotates barcode to be horizontal - for some reason, zbar works
+        much better on horizontal barcodes.
+        """
+        flat = cv.CreateMat(mat.cols, mat.rows, mat.type)
+        cv.Transpose(mat, flat)
+        cv.Flip(flat, flat, 1)
+        return flat
+    def doresize(mat, C=2.5):
+        new_w, new_h = int(round(mat.cols * C)), int(round(mat.rows * C))
+        newmat = cv.CreateMat(new_h, new_w, mat.type)
+        cv.Resize(mat, newmat, interpolation=cv.CV_INTER_CUBIC)
+        return newmat
+    def dothreshold(mat):
+        newmat = cv.CreateMat(mat.rows, mat.cols, mat.type)
+        cv.Threshold(mat, newmat, 0.0, 255.0, cv.CV_THRESH_BINARY | cv.CV_THRESH_OTSU)
+        return newmat
+        
     # UpperLeft: 15% of width, 30% of height.
     # LowerLeft: 15% of width, 30% of height.
     # LowerRight: 15% of width, 30% of height.
@@ -68,7 +86,8 @@ def decode(imgpath):
     # 1.) First, try to find LowerLeft first. If it fails, then we
     # guess that the ballot is flipped.
     LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-    dec_ll = decode_patch(LL)
+    LLhoriz = dothreshold(doresize(makehoriz(LL)))
+    dec_ll = decode_patch(LLhoriz)
     if not dec_ll:
         # 1.a.) Flip it
         isflipped = True
@@ -77,13 +96,16 @@ def decode(imgpath):
         I = tmp
         # 1.b.) Re-do LowerLeft
         LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-        dec_ll = decode_patch(LL)
+        LLhoriz = dothreshold(doresize(makehoriz(LL)))
+        dec_ll = decode_patch(LLhoriz)
     # 2.) Decode UpperLeft, LowerRight.
     UL = cv.GetSubRect(I, (0, 0, int(round(w * 0.15)), int(round(h * 0.3))))
     LR = cv.GetSubRect(I, (w-1 - int(round(w * 0.15)), h-1 - int(round(h*0.3)),
                           int(round(w * 0.15)), int(round(h * 0.3))))
-    dec_ul = decode_patch(UL)
-    dec_lr = decode_patch(LR)
+    ULhoriz = dothreshold(doresize(makehoriz(UL)))
+    dec_ul = decode_patch(ULhoriz)
+    LRhoriz = dothreshold(doresize(makehoriz(LR)))
+    dec_lr = decode_patch(LRhoriz)
     return (check_result(dec_ul), check_result(dec_ll), check_result(dec_lr), isflipped)
 
 def main():
