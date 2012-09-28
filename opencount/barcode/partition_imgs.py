@@ -57,7 +57,7 @@ def main():
     print "Copying groups to outdir {0}...".format(outdir)
     t = time.time()
     for barcodes, group in grouping.iteritems():
-        bcs = ''.join(barcodes[:3])
+        bcs = '_'.join(barcodes[:3])
         rootdir = os.path.join(outdir, bcs)
         try:
             os.makedirs(rootdir)

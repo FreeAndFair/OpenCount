@@ -46,9 +46,9 @@ def decode(imgpath):
             for foo in seq:
                 if len(foo) == n:
                     return foo
-            return "ERROR"
+            return "ERROR1"
         if not decs:
-            return "ERROR"
+            return "ERROR0"
         elif len(decs) > 1:
             if type == 'UL':
                 return find_len(decs, 14)
