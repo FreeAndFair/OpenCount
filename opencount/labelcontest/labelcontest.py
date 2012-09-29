@@ -293,6 +293,11 @@ class LabelContest(wx.Panel):
             
             print "MULTIBOX"
             print self.multiboxcontests_enter
+
+            self.compute_equivs(None)
+
+            return
+
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             print boxes_in_new_group
             cleared = []
@@ -919,6 +924,7 @@ class LabelContest(wx.Panel):
         if any(x in y for x in cur for y in self.equivs):
             print 'yes'
             # Find the equivilance class
+            eqclass = []
             for i,each in enumerate(self.equivs_processed):
                 if any(x in cur for x in each):
                     eqclass = each
