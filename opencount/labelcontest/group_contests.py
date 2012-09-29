@@ -620,7 +620,7 @@ def row_dist(a, b):
 
 
 count = 0
-def compare(otexts1, otexts2):
+def compare(otexts1, otexts2, debug=False):
     """
     Compute the distance between two contests.
     
@@ -659,6 +659,12 @@ def compare(otexts1, otexts2):
     for num_writeins in range(len(texts2)):
         rottexts2 = [texts2[i:-num_writeins]+texts2[:i]+texts2[-num_writeins:] for i in range(len(texts2)-num_writeins)]
         values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
+        if debug:
+            print "DEBUG", size, size-sum(map(len,titles1))-sum(map(len,titles2))
+            print num_writeins
+            print [([row_dist(a,b) for a,b in zip(texts1, t2)],i) for i,t2 in enumerate(rottexts2)]
+            print map(len,texts1), map(len,texts2)
+            print min(values)
         #print values
         minweight,order = min(values)
 
@@ -830,6 +836,11 @@ def group_by_pairing(contests_text):
     print "Created"
     for (k1,k2),(dmap,best) in diff:
         if best[0] < .2:
+            if best[0] > .19:
+                print 'do test'
+                print contests_text[k1][2], contests_text[k2][2]
+                compare(contests_text[k1][2], contests_text[k2][2], debug=True)
+            print contests_text[k1], contests_text[k2]
             contests[k1].join(contests[k2], best[1])
     print "Traverse"
     seen = {}
@@ -856,6 +867,7 @@ def full_group(contests_text):
         for i,(c1,c2) in enumerate(zip(contests_text, contests_text[offset:])):
             data, (score,winum) = compare(c1[2], c2[2])
             if score < .1:
+                #print 'merged', c1[2], c2[2]
                 joins[i].append(i+offset)
                 joins[i+offset].append(i)
     seen = {}
@@ -959,9 +971,9 @@ def extend_multibox(ballots, box1, box2, orders):
                 continue
             #print '-'*30
             #print 'consec', c1, c2
-            score, order = compare(txt, t1[2]+t2[2])
+            data, (score, winum) = compare(txt, t1[2]+t2[2])
             if score < .2:
-                #print "THEY ARE EQUAL"
+                print "THEY ARE EQUAL"
                 res.append((c1, c2))
                 print 'txt', t1, t2
                 newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), order))
