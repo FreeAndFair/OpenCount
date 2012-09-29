@@ -5,6 +5,10 @@ import cv
 TOP_GUARD_IMGP = 'hart_topguard.png'
 BOT_GUARD_IMGP = 'hart_botguard.png'
 
+BC_14_IMGP = 'hart_bc_14.png'
+BC_12_IMGP = 'hart_bc_12.png'
+BC_10_IMGP = 'hart_bc_10.png'
+
 def decode_i2of5(img):
     """ Decodes the interleaved two-of-five barcode. Returns a string.
     Input:
@@ -17,10 +21,30 @@ def decode_i2of5(img):
     BOT_GUARD = cv.LoadImageM(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
     
     # 1.) Find location of top/bottom guards, to find location of barcode
-    (itop, jtop) = bestmatch(TOP_GUARD, img)
-    (ibot, jbot) = bestmatch(BOT_GUARD, img)
+    #matches_top = get_tempmatches(TOP_GUARD, img)
+    #matches_bot = get_tempmatches(BOT_GUARD, img)
+    # 1.a.) Choose top-most match for TOP, bottom-most match for BOT.
+    # TODO: Implement Me.
+    #(itop, jtop) = 0, 0
+    #(ibot, jbot) = 0, 0
     
+    BC = cv.LoadImageM('bc_10.png', cv.CV_LOAD_IMAGE_GRAYSCALE)
+    (i, j) = bestmatch(BC, img)
+    print i,j
+    imgcpy = cv.CloneMat(img)
+    cv.Circle(imgcpy, (i, j), 10, (0, 0, 0, 0), thickness=4)
+    cv.SaveImage("imgcpy_bc.png", imgcpy)
+    exit(1)
+
+    
+    imgcpy = cv.CloneMat(img)
+    cv.Circle(imgcpy, (itop, jtop), 10, (255, 0, 0, 0), thickness=4)
+    cv.Circle(imgcpy, (ibot, jbot), 5, (0, 255, 0, 0), thickness=4)
+    cv.SaveImage("imgcpy.png", imgcpy)
+    exit(1)
+
     # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
+    
 
     # 3.) Collapse the barcode to be 1D (by summing pix intensity values
     # to the parallel axis). 
@@ -111,3 +135,34 @@ def bestmatch(A, B):
     cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc
+
+def get_tempmatches(A, B, T=0.85):
+    """ Runs template matching, trying to find image A within image
+    B. Returns location (and responses) of all matches greater than
+    some threshold T.
+    Input:
+        cvMat A:
+        cvMat B:
+        float T:
+    Output:
+        list matches, i.e. [(i1, j1, float resp), ...]
+    """
+    w_A, h_A = A.cols, A.rows
+    w_B, h_B = B.cols, B.rows
+    s_mat = cv.CreateMat(h_B - h_A + 1, w_B - w_A + 1, cv.CV_32F)
+    cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
+    # TODO: IMPLEMENT ME
+
+def main():
+    args = sys.argv[1:]
+    imgpath = args[0]
+    img = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    t = time.time()
+    print "Starting decode_i2of5..."
+    decoded = decode_i2of5(img)
+    dur = time.time() - t
+    print "...Finished decode_i2of5 ({0} s)".format(dur)
+    print "Decoded was:", decoded
+    
+if __name__ == '__main__':
+    main()
