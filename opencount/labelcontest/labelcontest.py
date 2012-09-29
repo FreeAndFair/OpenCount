@@ -396,7 +396,7 @@ class LabelContest(wx.Panel):
                         else:
                             break
                     else:
-                        if row[take] == 'language':
+                        if row[take].lower() == 'language' or row[take].lower() == 'lang':
                             language = row[take+1].lower()
                             print 'found with lang', language
                             if language in mapping:
@@ -433,7 +433,7 @@ class LabelContest(wx.Panel):
         #print "ALL", targets
 
         if self.grouping_cached:
-            groups = final_grouping(self.grouping_cached, targets)
+            groups = final_grouping(self.grouping_cached, targets, self.dirList, self.load_languages())
         else:
             if not self.proj.infer_bounding_boxes:
                 dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)

@@ -595,15 +595,15 @@ def compare_preprocess(lang, path, image, contest, targets):
     return blocks
 
 #import editdist
-from Levenshtein import ratio
+from Levenshtein import distance
 
 def row_dist(a, b):
     if type(a) == unicode or type(b) == unicode:
-        return ratio(unicode(a), unicode(b))
+        return distance(unicode(a), unicode(b))
     else:
-        return ratio(a, b)
-    v = editdist.distance(a.encode("ascii", "ignore"), 
-                          b.encode("ascii", "ignore"))
+        return distance(a, b)
+    #v = editdist.distance(a.encode("ascii", "ignore"), 
+    #                      b.encode("ascii", "ignore"))
     #print 'r', v, a == b
     return v
     """
@@ -696,7 +696,7 @@ def get_order(length, order, num_writeins):
     new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
     return list(zip(lst, new_order))
 
-def first_pass(contests):
+def first_pass(contests, languages):
     """
     Split a set of contests in to a set of sets, where each
     set contains the same number of voting targets.
@@ -704,7 +704,7 @@ def first_pass(contests):
     ht = {}
     i = 0
     for each in contests:
-        key = (len(each[2]), 0)
+        key = (len(each[2]), languages[each[0]])
         if key not in ht: ht[key] = []
         ht[key].append(each)
     return ht.values()
@@ -921,13 +921,13 @@ def full_group(contests_text):
     
 
             
-def equ_class(contests):
+def equ_class(contests, languages):
     #print "EQU", contests
     #print map(len, contests)
     #print contests
     contests = [x for sublist in contests for x in sublist]
     #print contests
-    groups = first_pass(contests)
+    groups = first_pass(contests, languages)
     # Each group is known to be different.
     result = []
     print "Go up to", len(groups)
@@ -1047,15 +1047,17 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     pool.join()
     #ballots = map(group_given_contests_map, args)
     #print "WORKING ON", ballots
-    return ballots, final_grouping(ballots, giventargets)
+    return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
-def final_grouping(ballots, giventargets):
+def final_grouping(ballots, giventargets, paths, languages):
+    lookup = dict((x,i) for i,x in enumerate(paths))
+    languages = dict((lookup[k],v) for k,v in languages.items())
     print "RUNNING FINAL GROUPING"
     #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
-    return equ_class(ballots)
+    return equ_class(ballots, languages)
 
 if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))))
