@@ -1,4 +1,5 @@
 import os, sys, time, pdb
+import numpy as np
 import cv
 
 TOP_GUARD_IMGP = 'hart_topguard.png'
