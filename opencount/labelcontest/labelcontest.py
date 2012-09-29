@@ -380,7 +380,7 @@ class LabelContest(wx.Panel):
 
     def load_languages(self):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
-        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
+        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chi': 'chi_sim', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
         blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
         util.sort_nicely(blankballot_attrlocs)

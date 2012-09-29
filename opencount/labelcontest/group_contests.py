@@ -582,6 +582,7 @@ def compare_preprocess(lang, path, image, contest, targets):
         else:
             print "-"*40
             print "OCR FAILED"
+            print name
             print path
             print contest
             print lang
@@ -593,9 +594,14 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print blocks
     return blocks
 
-import editdist
+#import editdist
+from Levenshtein import ratio
 
 def row_dist(a, b):
+    if type(a) == unicode or type(b) == unicode:
+        return ratio(unicode(a), unicode(b))
+    else:
+        return ratio(a, b)
     v = editdist.distance(a.encode("ascii", "ignore"), 
                           b.encode("ascii", "ignore"))
     #print 'r', v, a == b
