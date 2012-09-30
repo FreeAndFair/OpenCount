@@ -122,7 +122,8 @@ def main():
     if mode == 'full':
         decoded = decode(imgpath)
     elif mode == 'patch':
-        decoded = decode_patch(imgpath)
+        n = args[2]
+        decoded = decode_patch(imgpath, n)
     else:
         print "Unrecognized mode:", mode
         return
