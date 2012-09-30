@@ -23,17 +23,20 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
         str decoded.
     """
     # For now, assume that the barcode is bottom-to-top.
-    #TOP_GUARD = cv.LoadImageM(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    #BOT_GUARD = cv.LoadImageM(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    TOP_GUARD = cv.LoadImageM(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    BOT_GUARD = cv.LoadImageM(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
     
     # 1.) Find location of top/bottom guards, to find location of barcode
     #matches_top = get_tempmatches(TOP_GUARD, img)
     #matches_bot = get_tempmatches(BOT_GUARD, img)
     # 1.a.) Choose top-most match for TOP, bottom-most match for BOT.
+    (xtop, ytop), s_mat1 = bestmatch(TOP_GUARD, img)
+    (xbot, ybot), s_mat2 = bestmatch(BOT_GUARD, img)
     #(itop, jtop) = 0, 0
     #(ibot, jbot) = 0, 0
 
     # 1.a.) Search for the barcode.
+    '''
     if n == 14:
         bcP = BC_14_IMGP
     elif n == 12:
@@ -45,17 +48,21 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
         return None
     
     BC = cv.LoadImageM(bcP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    (i, j) = bestmatch(BC, img)
-
+    (jb, ib), s_mat = bestmatch(BC, img)
+    '''
+    
     '''
     imgcpy = cv.CloneMat(img)
-    cv.Circle(imgcpy, (i, j), 10, (0, 0, 0, 0), thickness=4)
+    cv.Circle(imgcpy, (xtop, ytop), 10, (0, 0, 0, 0), thickness=4)
+    cv.Circle(imgcpy, (xbot, ybot), 4, (0, 0, 0, 0), thickness=2)
     cv.SaveImage("imgcpy_bc.png", imgcpy)
     exit(1)
     '''
 
     # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
-    img_post = cv.GetSubRect(img, (i, j, BC.cols, BC.rows))
+    img_post = cv.GetSubRect(img, (xtop, ytop, max(TOP_GUARD.cols, BOT_GUARD.cols),
+                                   ybot - ytop + BOT_GUARD.rows))
+    img_post = dothreshold(img_post)
 
     # TODO: Implement Me.
 
@@ -141,7 +148,7 @@ decoding anyways."
                 pdb.set_trace()
             return None
         decs_blk.append(sym)
-    for bars_sym in gen_by_n(bars_wht, 5):
+    for blk_i, bars_sym in enumerate(gen_by_n(bars_wht, 5)):
         sym = get_i2of5_val(bars_sym)
         if sym == None:
             print "...Invalid symbol:", bars_sym
@@ -156,7 +163,7 @@ decoding anyways."
 def is_pix_on(val, pix_on, pix_off):
     return abs(pix_on - val) < abs(pix_off - val)
 def w_or_n(cnt, w_narrow, w_wide, step=1):
-    return NARROW if (abs((cnt+(step*(cnt-1)) - w_narrow)) < abs((cnt+(step*(cnt-1)) - w_wide))) else WIDE
+    return NARROW if (abs((cnt+((step-1)*cnt)) - w_narrow) < abs((cnt+((step-1)*cnt)) - w_wide)) else WIDE
 
 def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
     """ Walks through FLAT_NP, turning the 1D-array into a series of
@@ -178,6 +185,7 @@ def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
     i += 1
     cnt += 1
     is_on = True if is_pix_on(prev_val, pix_on, pix_off) else False
+
     while i < len(flat_np):
         val = flat_np[i]
         ispixon = is_pix_on(val, pix_on, pix_off)
@@ -243,14 +251,19 @@ def bestmatch(A, B):
         cvMat A: Patch to search for
         cvMat B: Image to search over
     Output:
-        (x,y) location on B of the best match for A.
+        ((x,y), s_mat),  location on B of the best match for A.
     """
     w_A, h_A = A.cols, A.rows
     w_B, h_B = B.cols, B.rows
     s_mat = cv.CreateMat(h_B - h_A + 1, w_B - w_A + 1, cv.CV_32F)
     cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
-    return maxLoc
+    return maxLoc, s_mat
+
+def dothreshold(mat):
+    newmat = cv.CreateMat(mat.rows, mat.cols, mat.type)
+    cv.Threshold(mat, newmat, 0.0, 255.0, cv.CV_THRESH_BINARY | cv.CV_THRESH_OTSU)
+    return newmat
 
 def get_tempmatches(A, B, T=0.85):
     """ Runs template matching, trying to find image A within image
