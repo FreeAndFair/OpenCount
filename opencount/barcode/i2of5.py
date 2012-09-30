@@ -78,10 +78,10 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
 
     # 4.a.) Find PIX_ON, PIX_OFF
     bins, binsizes = np.histogram(flat_np)
-    bins_asort = np.argsort(bins)
+    bins_asort = np.argsort(bins)[::-1]
     a_idx, b_idx = bins_asort[0], bins_asort[1]
-    a_val = binsizes[a_idx]
-    b_val = binsizes[b_idx]
+    a_val = (binsizes[a_idx] + binsizes[a_idx+1]) / 2.0
+    b_val = (binsizes[b_idx] + binsizes[b_idx+1]) / 2.0
     if a_val < b_val:
         pix_on = a_val
         pix_off = b_val
@@ -133,16 +133,20 @@ decoding anyways."
     bars_blk, bars_wht = bars[::2], bars[1::2]
 
     decs_blk, decs_wht = [], []
-    for bars in gen_by_n(bars_blk, 5):
-        sym = get_i2of5_val(bars)
+    for bars_sym in gen_by_n(bars_blk, 5):
+        sym = get_i2of5_val(bars_sym)
         if sym == None:
-            print "...Invalid symbol:", bars
+            print "...Invalid symbol:", bars_sym
+            if debug:
+                pdb.set_trace()
             return None
         decs_blk.append(sym)
-    for bars in gen_by_n(bars_wht, 5):
-        sym = get_i2of5_val(bars)
+    for bars_sym in gen_by_n(bars_wht, 5):
+        sym = get_i2of5_val(bars_sym)
         if sym == None:
-            print "...Invalid symbol:", bars
+            print "...Invalid symbol:", bars_sym
+            if debug:
+                pdb.set_trace()
             return None
         decs_wht.append(sym)
     decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))

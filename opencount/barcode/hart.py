@@ -3,7 +3,7 @@ import cv
 #import zbar
 import i2of5
 
-def decode_patch(img, n):
+def decode_patch(img, n, debug=False):
     """ Decodes the barcode present in IMG, returns it as a string.
     Input:
         IMG: Either a string (imgpath), or an image object.
@@ -30,7 +30,7 @@ def decode_patch(img, n):
         symbols.append(symbol.data)
     return symbols
     '''
-    return i2of5.decode_i2of5(I, n)
+    return i2of5.decode_i2of5(I, n, debug=debug)
 
 def decode(imgpath):
     """ Given a Hart-style ballot, returns the barcodes in the order
