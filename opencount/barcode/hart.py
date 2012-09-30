@@ -101,16 +101,18 @@ def decode(imgpath):
         dec_ll = decode_patch(LL, 12)
     # 2.) Decode UpperLeft, LowerRight.
     UL = cv.GetSubRect(I, (0, 0, int(round(w * 0.15)), int(round(h * 0.3))))
-    LR = cv.GetSubRect(I, (w-1 - int(round(w * 0.15)), h-1 - int(round(h*0.3)),
-                          int(round(w * 0.15)), int(round(h * 0.3))))
+    #LR = cv.GetSubRect(I, (w-1 - int(round(w * 0.15)), h-1 - int(round(h*0.3)),
+    #                      int(round(w * 0.15)), int(round(h * 0.3))))
     #ULhoriz = dothreshold(doresize(makehoriz(UL)))
     #dec_ul = decode_patch(ULhoriz, 14)
     #LRhoriz = dothreshold(doresize(makehoriz(LR)))
     #dec_lr = decode_patch(LRhoriz, 10)
     dec_ul = decode_patch(UL, 14)
-    dec_lr = decode_patch(LR, 10)
-    return (check_result(dec_ul, type='UL'), check_result(dec_ll, type='LL'), 
-            check_result(dec_lr, type='LR'), isflipped)
+    #dec_lr = decode_patch(LR, 10)
+    dec_ul_res = check_result(dec_ul, type='UL')
+    dec_ll_res = check_result(dec_ll, type='LL')
+    #dec_lr_res = check_result(dec_lr, type='LR')
+    return (dec_ul_res, dec_ll_res, isflipped)
 
 def main():
     args = sys.argv[1:]
