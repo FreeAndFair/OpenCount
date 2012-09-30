@@ -96,11 +96,15 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
         pix_on = b_val
         pix_off = a_val
 
-    # 4.b.) Find W_NARROW, W_WIDE
+    # 4.b.) Find W_NARROW, W_WIDE, B_NARROW, B_WIDE
+    # Due to image artifacts, wide/narrow may differ for black/white.
     w_narrow, w_wide = 0.0, 0.0
-    # TODO: For now, hardcode w_narrow, w_wide
-    w_narrow = 5.0
-    w_wide = 10.0
+    b_narrow, b_wide = 0.0, 0.0
+
+    w_narrow = 2.0
+    w_wide = 8.0
+    b_narrow = 5.0
+    b_wide = 10.0
     
     # 5.) Convert the FLAT_NP to something like [Nblk, Nwht, Wblk, Wwht],
     # i.e. 'Narrow black', 'Wide white'. 
@@ -120,7 +124,7 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
             pdb.set_trace()
         return ''
     # 5.b.) Do Convert.
-    bars = _convert_flat(flat_np, i, pix_on, pix_off, w_narrow, w_wide)
+    bars = _convert_flat(flat_np, i, pix_on, pix_off, w_narrow, w_wide, b_narrow, b_wide)
     # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
     test1 = bars[:4] == [NARROW, NARROW, NARROW, NARROW]
     if not test1:
@@ -165,7 +169,7 @@ def is_pix_on(val, pix_on, pix_off):
 def w_or_n(cnt, w_narrow, w_wide, step=1):
     return NARROW if (abs((cnt+((step-1)*cnt)) - w_narrow) < abs((cnt+((step-1)*cnt)) - w_wide)) else WIDE
 
-def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
+def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide, b_narrow, b_wide):
     """ Walks through FLAT_NP, turning the 1D-array into a series of
     [NARROW, WIDE, ...]. Note that it alternates from black->white, and
     the first bar is always black.
@@ -192,7 +196,7 @@ def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
         if ispixon == is_on:
             cnt += 1
         elif is_on:
-            bars.append(w_or_n(cnt, w_narrow, w_wide, step=step))
+            bars.append(w_or_n(cnt, b_narrow, b_wide, step=step))
             cnt = 0
             is_on = False
         else:

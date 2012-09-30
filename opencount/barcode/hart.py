@@ -86,7 +86,7 @@ def decode(imgpath):
     LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
     #LLhoriz = dothreshold(doresize(makehoriz(LL)))
     #dec_ll = decode_patch(LLhoriz, 12)
-    dec_ll = decode_patch(LL, 12, debug=True)
+    dec_ll = decode_patch(LL, 12)
     check_ll = check_result(dec_ll, type='LL')
     if "ERR" in check_ll:
         # 1.a.) Flip it
