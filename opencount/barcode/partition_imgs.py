@@ -1,6 +1,9 @@
 import os, sys, pdb, traceback, time, shutil
 import hart, diebold, sequoia
 
+sys.path.append('..')
+import grouping.partask as partask
+
 decode_fns = {'hart': hart.decode}
 
 def partition_imgs(imgpaths, vendor="hart"):
@@ -24,6 +27,9 @@ def partition_imgs(imgpaths, vendor="hart"):
         grouping.setdefault(barcodes, []).append(imgpath)
         
     return grouping
+
+def _do_partition_imgs(imgpaths, (vendor,)):
+    return partition_imgs(imgpaths, vendor=vendor)
 
 def main():
     def isimgext(f):
@@ -50,14 +56,18 @@ def main():
             break
     print "Starting partition_imgs..."
     t = time.time()
-    grouping = partition_imgs(imgpaths, vendor=vendor)
+    #grouping = partition_imgs(imgpaths, vendor=vendor)
+    grouping = partask.do_partask(_do_partition_imgs, 
+                                  imgpaths,
+                                  _args=(vendor,),
+                                  combfn="dict")
     dur = time.time() - t
     print "...Finished partition_imgs ({0} s).".format(dur)
 
     print "Copying groups to outdir {0}...".format(outdir)
     t = time.time()
     for barcodes, group in grouping.iteritems():
-        bcs = '_'.join(barcodes[:3])
+        bcs = '_'.join([thing for thing in barcodes if type(thing) == str])
         rootdir = os.path.join(outdir, bcs)
         try:
             os.makedirs(rootdir)
