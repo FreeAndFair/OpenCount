@@ -11,6 +11,8 @@ BC_10_IMGP = 'hart_bc_10.png'
 
 VERTICAL = 1
 HORIZONTAL = 2
+WIDE = 3
+NARROW = 4
 
 def decode_i2of5(img, n, orient=VERTICAL):
     """ Decodes the interleaved two-of-five barcode. Returns a string.
@@ -70,7 +72,7 @@ def decode_i2of5(img, n, orient=VERTICAL):
     # Or, we could compute the length of each 'group', then histogram the
     # group lengths into two bins - the median value from each bin will
     # tell us 'narrow' and 'wide'.
-    flat_np = np.asarray(flat)
+    flat_np = np.asarray(flat)[::-1]
     pix_on, pix_off = 0.0, 0.0
 
     # 4.a.) Find PIX_ON, PIX_OFF
@@ -109,6 +111,15 @@ def decode_i2of5(img, n, orient=VERTICAL):
         pdb.set_trace()
     # 5.b.) Do Convert.
     bars = _convert_flat(flat_np, i, pix_on, pix_off, w_narrow, w_wide)
+    # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
+    test1 = bars[:4] == [NARROW, NARROW, NARROW, NARROW]
+    if not test1:
+        pdb.set_trace()
+    test2 = bars[-3:] == [WIDE, NARROW, NARROW]
+    if not test2:
+        pdb.set_trace()
+    bars = bars[4:]
+    bars = bars[:-3]
     # 6.) Interpret BARS.
     bars_blk, bars_wht = bars[::2], bars[1::2]
 
@@ -117,17 +128,18 @@ def decode_i2of5(img, n, orient=VERTICAL):
         decs_blk.append(get_i2of5_val(bars))
     for bars in gen_by_n(bars_wht, 5):
         decs_wht.append(get_i2of5_val(bars))
-    decoded = zip(decs_blk, decs_wht)
+    decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
     return decoded
 
 def is_pix_on(val, pix_on, pix_off):
     return abs(pix_on - val) < abs(pix_off - val)
-def w_or_n(cnt, w_narrow, w_wide):
-    return 'N' if (abs(cnt - w_narrow) < abs(cnt - w_wide)) else 'W'
+def w_or_n(cnt, w_narrow, w_wide, step=1):
+    return NARROW if (abs((cnt+(step*(cnt-1)) - w_narrow)) < abs((cnt+(step*(cnt-1)) - w_wide))) else WIDE
 
 def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
     """ Walks through FLAT_NP, turning the 1D-array into a series of
-    ['NB', 'NW', 'WB', 'WW']. 
+    [NARROW, WIDE, ...]. Note that it alternates from black->white, and
+    the first bar is always black.
     TODO: This is currently the most expensive operation. Perhaps 
     doing this in OpenCV (say, computing the derivative?) would be the
     best thing to do.
@@ -138,6 +150,7 @@ def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
     is_on = False
     n_step = int(round(w_narrow / 2.0))
     w_step = int(round(w_wide / 2.0))
+    step = 1
     # Start forward once
     prev_val = flat_np[i]
     i += 1
@@ -149,15 +162,15 @@ def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide):
         if ispixon == is_on:
             cnt += 1
         elif is_on:
-            bars.append(w_or_n(cnt, w_narrow, w_wide)+'B')
+            bars.append(w_or_n(cnt, w_narrow, w_wide, step=step))
             cnt = 0
             is_on = False
         else:
-            bars.append(w_or_n(cnt, w_narrow, w_wide)+'W')
+            bars.append(w_or_n(cnt, w_narrow, w_wide, step=step))
             cnt = 0
             is_on = True
-        # Optimization: Step-size larger than 1
-        i += n_step
+        # Optimization: Step-size larger than 1 (BUGGY)
+        i += step
         prev_val = val
     return bars
 
@@ -165,12 +178,23 @@ def get_i2of5_val(bars):
     """ Given a sequence of narrow/wide, returns the value of the
     sequence, as dictated by Interleaved-2-of-5.
     Input:
-        list bars: List of strings, i.e.:
-            ['NB', 'NW', 'WB', 'WW', 'NW']
+        list bars: List of ints, i.e.:
+            [NARROW, NARROW, WIDE, WIDE, NARROW]
     Output:
         str decimal value.
     """
-    return '0'
+    N = NARROW; W = WIDE
+    mapping = {(N, N, W, W, N): '0',
+               (W, N, N, N, W): '1',
+               (N, W, N, N, W): '2',
+               (W, W, N, N, N): '3',
+               (N, N, W, N, W): '4',
+               (W, N, W, N, N): '5',
+               (N, W, W, N, N): '6',
+               (N, N, N, W, W): '7',
+               (W, N, N, W, N): '8',
+               (N, W, N, W, N): '9'}
+    return mapping[tuple(bars)]
         
 def gen_by_n(seq, n):
     """ Outputs elements from seq in N-sized chunks. """
@@ -189,9 +213,6 @@ def gen_by_n(seq, n):
     if out:
         yield out
         
-def fuzzy_eq(a, b, C=10e-04):
-    return abs(a-b) <= C
-
 def bestmatch(A, B):
     """ Tries to find the image A within the (larger) image B.
     For instance, A could be a voting target, and B could be a
