@@ -9,8 +9,7 @@ def decode_patch(img, n):
         IMG: Either a string (imgpath), or an image object.
         int N: Number of decimals in the barcode.
     Output:
-        A tuple of strings, where each string is the decoding of some
-        barcode in IMG.
+        A string.
     """
     if type(img) == str:
         I = cv.LoadImageM(img, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -43,26 +42,20 @@ def decode(imgpath):
         (list barcodes, bool isflipped). BARCODES is a list of three
         strings. ISFLIPPED is True if we detected the ballot was flipped.
     """
-    def check_result(decs, type='UL'):
+    def check_result(decoded, type='UL'):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
         LowerRight has 10 digits.
         """
-        def find_len(seq, n):
-            for foo in seq:
-                if len(foo) == n:
-                    return foo
-            return "ERROR1"
-        if not decs:
-            return "ERROR0"
-        elif len(decs) > 1:
-            if type == 'UL':
-                return find_len(decs, 14)
-            elif type == 'LL':
-                return find_len(decs, 12)
-            else:
-                return find_len(decs, 10)
+        if not decoded:
+            return "ERR0"
+        elif type == 'UL' and len(decoded) != 14:
+            return "ERR1"
+        elif type == 'LL' and len(decoded) != 12:
+            return "ERR1"
+        elif type == 'LR' and len(decoded) != 10:
+            return "ERR1"
         else:
-            return decs[0]
+            return decoded
     def makehoriz(mat):
         """ Rotates barcode to be horizontal - for some reason, zbar works
         much better on horizontal barcodes.
@@ -91,9 +84,11 @@ def decode(imgpath):
     # 1.) First, try to find LowerLeft first. If it fails, then we
     # guess that the ballot is flipped.
     LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-    LLhoriz = dothreshold(doresize(makehoriz(LL)))
-    dec_ll = decode_patch(LLhoriz, 12)
-    if not dec_ll:
+    #LLhoriz = dothreshold(doresize(makehoriz(LL)))
+    #dec_ll = decode_patch(LLhoriz, 12)
+    dec_ll = decode_patch(LL, 12)
+    check_ll = check_result(dec_ll, type='LL')
+    if "ERR" in check_ll:
         # 1.a.) Flip it
         isflipped = True
         tmp = cv.CreateMat(I.rows, I.cols, I.type)
@@ -101,17 +96,21 @@ def decode(imgpath):
         I = tmp
         # 1.b.) Re-do LowerLeft
         LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-        LLhoriz = dothreshold(doresize(makehoriz(LL)))
-        dec_ll = decode_patch(LLhoriz, 12)
+        #LLhoriz = dothreshold(doresize(makehoriz(LL)))
+        #dec_ll = decode_patch(LLhoriz, 12)
+        dec_ll = decode_patch(LL, 12)
     # 2.) Decode UpperLeft, LowerRight.
     UL = cv.GetSubRect(I, (0, 0, int(round(w * 0.15)), int(round(h * 0.3))))
     LR = cv.GetSubRect(I, (w-1 - int(round(w * 0.15)), h-1 - int(round(h*0.3)),
                           int(round(w * 0.15)), int(round(h * 0.3))))
-    ULhoriz = dothreshold(doresize(makehoriz(UL)))
-    dec_ul = decode_patch(ULhoriz, 14)
-    LRhoriz = dothreshold(doresize(makehoriz(LR)))
-    dec_lr = decode_patch(LRhoriz, 10)
-    return (check_result(dec_ul), check_result(dec_ll), check_result(dec_lr), isflipped)
+    #ULhoriz = dothreshold(doresize(makehoriz(UL)))
+    #dec_ul = decode_patch(ULhoriz, 14)
+    #LRhoriz = dothreshold(doresize(makehoriz(LR)))
+    #dec_lr = decode_patch(LRhoriz, 10)
+    dec_ul = decode_patch(UL, 14)
+    dec_lr = decode_patch(LR, 10)
+    return (check_result(dec_ul, type='UL'), check_result(dec_ll, type='LL'), 
+            check_result(dec_lr, type='LR'), isflipped)
 
 def main():
     args = sys.argv[1:]

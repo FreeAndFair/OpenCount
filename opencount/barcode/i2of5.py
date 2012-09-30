@@ -55,10 +55,8 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
     '''
 
     # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
-    img_post = cv.GetSubRect(img, (j, i, BC.cols, BC.rows))
-    cv.SaveImage('_img.png', img)
-    cv.SaveImage('_img_post.png', img_post)
-    pdb.set_trace()
+    img_post = cv.GetSubRect(img, (i, j, BC.cols, BC.rows))
+
     # TODO: Implement Me.
 
     # 3.) Collapse the barcode to be 1D (by summing pix intensity values
@@ -136,11 +134,19 @@ decoding anyways."
 
     decs_blk, decs_wht = [], []
     for bars in gen_by_n(bars_blk, 5):
-        decs_blk.append(get_i2of5_val(bars))
+        sym = get_i2of5_val(bars)
+        if sym == None:
+            print "...Invalid symbol:", bars
+            return None
+        decs_blk.append(sym)
     for bars in gen_by_n(bars_wht, 5):
-        decs_wht.append(get_i2of5_val(bars))
+        sym = get_i2of5_val(bars)
+        if sym == None:
+            print "...Invalid symbol:", bars
+            return None
+        decs_wht.append(sym)
     decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
-    print 'decoded:', decoded
+    print 'decoded:', decoded, len(decoded)
     return decoded
 
 def is_pix_on(val, pix_on, pix_off):
@@ -206,7 +212,7 @@ def get_i2of5_val(bars):
                (N, N, N, W, W): '7',
                (W, N, N, W, N): '8',
                (N, W, N, W, N): '9'}
-    return mapping[tuple(bars)]
+    return mapping.get(tuple(bars), None)
         
 def gen_by_n(seq, n):
     """ Outputs elements from seq in N-sized chunks. """
