@@ -14,7 +14,7 @@ HORIZONTAL = 2
 WIDE = 3
 NARROW = 4
 
-def decode_i2of5(img, n, orient=VERTICAL):
+def decode_i2of5(img, n, orient=VERTICAL, debug=False):
     """ Decodes the interleaved two-of-five barcode. Returns a string.
     Input:
         cvMat img:
@@ -55,7 +55,10 @@ def decode_i2of5(img, n, orient=VERTICAL):
     '''
 
     # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
-    img_post = cv.CloneMat(img)
+    img_post = cv.GetSubRect(img, (j, i, BC.cols, BC.rows))
+    cv.SaveImage('_img.png', img)
+    cv.SaveImage('_img_post.png', img_post)
+    pdb.set_trace()
     # TODO: Implement Me.
 
     # 3.) Collapse the barcode to be 1D (by summing pix intensity values
@@ -108,16 +111,24 @@ def decode_i2of5(img, n, orient=VERTICAL):
             i += 1
     if not foundbegin: 
         print "Uhoh, couldn't find start of barcode?"
-        pdb.set_trace()
+        if debug:
+            pdb.set_trace()
+        return ''
     # 5.b.) Do Convert.
     bars = _convert_flat(flat_np, i, pix_on, pix_off, w_narrow, w_wide)
     # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
     test1 = bars[:4] == [NARROW, NARROW, NARROW, NARROW]
     if not test1:
-        pdb.set_trace()
+        print "Warning: Begin-guard not found. Continuing \
+to try decoding anyways."
+        if debug:
+            pdb.set_trace()
     test2 = bars[-3:] == [WIDE, NARROW, NARROW]
     if not test2:
-        pdb.set_trace()
+        print "Warning: End-guard not found. Continuing to try \
+decoding anyways."
+        if debug:
+            pdb.set_trace()
     bars = bars[4:]
     bars = bars[:-3]
     # 6.) Interpret BARS.
@@ -129,6 +140,7 @@ def decode_i2of5(img, n, orient=VERTICAL):
     for bars in gen_by_n(bars_wht, 5):
         decs_wht.append(get_i2of5_val(bars))
     decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
+    print 'decoded:', decoded
     return decoded
 
 def is_pix_on(val, pix_on, pix_off):
