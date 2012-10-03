@@ -30,7 +30,7 @@ class SelectTargetsPanel(ScrolledPanel):
         # self.cur_i: Index of currently-displayed image (w.r.t self.IMGPATHS)
         self.cur_i = None
 
-        self.imagepanel = ImagePanel(self)
+        self.imagepanel = BoxDrawPanel(self)
 
         txt = wx.StaticText(self, label="Select all Voting Targets from \
 this partition.")
@@ -99,6 +99,10 @@ this partition.")
         self.display_prev()
 
 class ImagePanel(wx.Panel):
+    """ Basic widget class that display one image out of N image paths.
+    Also comes with a 'Next' and 'Previous' button. Extend me to add
+    more functionality (i.e. mouse-related events).
+    """
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -106,11 +110,17 @@ class ImagePanel(wx.Panel):
         self.img = None
         self.imgbitmap = None
 
+        self._setup_ui()
+        self._setup_evts()
+
+    def _setup_ui(self):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
+    def _setup_evts(self):
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
+        self.Bind(wx.EVT_LEFT_UP, self.onLeftUp)
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
         
@@ -137,6 +147,8 @@ class ImagePanel(wx.Panel):
         if self.imgbitmap:
             dc.DrawBitmap(self.imgbitmap, 0, 0)
 
+        return dc
+
     def onLeftDown(self, evt):
         #x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         x, y = evt.GetPositionTuple()
@@ -154,6 +166,117 @@ class ImagePanel(wx.Panel):
         #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
         pass
 
+class BoxDrawPanel(ImagePanel):
+    """ A widget that allows a user to draw boxes on a displayed image,
+    and each image remembers its list of boxes.
+    """
+
+    """ Mouse Mouse:
+        M_CREATE: Create a box on LeftDown.
+        M_IDLE: Allow user to resize/move/select(multiple) boxes.
+    """
+    M_CREATE = 0
+    M_IDLE = 1
+
+    def __init__(self, parent, *args, **kwargs):
+        ImagePanel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+        # self.boxes := [(x1, y1, x2, y2), ...]
+        self.boxes = []
+
+        # Vars to keep track of box-being-created
+        self.isCreate = False
+        # (x1,y1) is coords of first mouse click
+        self.x1, self.y1 = 0, 0
+        # (x2,y2) is coords of second mouse click
+        self.x2, self.y2 = 0, 0
+
+        self.mode_m = BoxDrawPanel.M_CREATE
+
+    def _setup_evts(self):
+        ImagePanel._setup_evts(self)
+
+    def set_mode_m(self, mode):
+        """ Sets my MouseMode. """
+        self.mode_m = mode
+
+    def startBox(self, x, y):
+        """ Starts creating a box at (x,y). """
+        print "...Creating Box:", (x,y)
+        self.isCreate = True
+        self.x1, self.y1 = x, y
+
+    def finishBox(self, x, y):
+        """ Finishes box creation at (x,y). """
+        print "...Finished Creating Box:", (x,y)
+        self.isCreate = False
+        # 0.) Canonicalize box coords s.t. order is: UpperLeft, LowerRight.
+        box = canonicalize_box((self.x1, self.y1, self.x2, self.y2))
+        return box
+
+    def onLeftDown(self, evt):
+        x, y = evt.GetPositionTuple()
+        if self.mode_m == BoxDrawPanel.M_CREATE:
+            self.startBox(x, y)
+
+    def onLeftUp(self, evt):
+        x, y = evt.GetPositionTuple()
+        if self.isCreate:
+            box = self.finishBox(x, y)
+            self.boxes.append(box)
+            self.Refresh()
+        
+    def onMotion(self, evt):
+        x, y = evt.GetPositionTuple()
+        if self.isCreate:
+            self.x2, self.y2 = x, y
+            self.Refresh()
+
+    def onPaint(self, evt):
+        dc = ImagePanel.onPaint(self, evt)
+        self.drawBoxes(self.boxes, dc)
+        if self.isCreate:
+            # Draw Box-Being-Created
+            can_box = canonicalize_box((self.x1, self.y1, self.x2, self.y2))
+            self.drawBox(can_box, dc)
+        return dc
+        
+    def drawBoxes(self, boxes, dc):
+        for box in self.boxes:
+            self.drawBox(box, dc)
+
+    def drawBox(self, box, dc):
+        """ Draws BOX onto DC.
+        Input:
+            list box: (x1, y1, x2, y2)
+            wxDC DC:
+        """
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        dc.SetPen(wx.Pen("Green", 3))
+        w = int(abs(box[0] - box[2]))
+        h = int(abs(box[3] - box[1]))
+        dc.DrawRectangle(box[0], box[1], w, h)
+
+def canonicalize_box(box):
+    """ Takes two arbitrary (x,y) points and re-arranges them
+    such that we get:
+        (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
+    """
+    xa, ya, xb, yb = box
+    w, h = abs(xa - xb), abs(ya - yb)
+    if xa < xb and ya < yb:
+        # UpperLeft, LowerRight
+        return (xa, ya, xb, yb)
+    elif xa < xb and ya > yb:
+        # LowerLeft, UpperRight
+        return (xa, ya - h, xb, yb + h)
+    elif xa > xb and ya < yb:
+        # UpperRight, LowerLeft
+        return (xa - w, ya, xb + w, yb)
+    else:
+        # LowerRight, UpperLeft
+        return (xb, yb, xa, ya)
 
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """
