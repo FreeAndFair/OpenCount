@@ -33,7 +33,7 @@ def bestmatch(A, B):
     # For the cv.CV_TM_CCOEFF_NORMED method, higher values is better -
     # thus, a response value of 1.0 means an exact match was found.
     s_mat = cv.CreateMat(h_B - h_A + 1, w_B - w_A + 1, cv.CV_32F)
-    cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
+    cv.MatchTemplate(B, A, s_mat, cv.CV_TM_CCOEFF_NORMED)
     
     # Now that we've run template matching, let's grab the location
     # of the highest response value from the similarity matrix s_mat.
