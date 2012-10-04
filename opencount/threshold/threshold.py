@@ -96,22 +96,43 @@ class GridShow(wx.ScrolledWindow):
 
         targetname = os.path.split(targetpath)[-1]
 
+        indexs = []
         for each in self.sample_to_targets(encodepath(ballotpath)):
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
+            ind = next(i for i,(p,_) in enumerate(self.enumerateOverFullList()) if each in p)
             n = os.path.split(each)[-1][:-4]
             dat = pickle.load(open(os.path.join(self.proj.extracted_metadata,n)))
             locs = dat['bbox']
-            color = (200,0,0) if each == targetname else (0, 0, 200)
+            indexs.append(([a/fact for a in locs], ind))
+            color = (0,255,0) if each == targetname else (0, 0, 200)
             draw.rectangle(((locs[2])/fact-1, (locs[0])/fact-1, 
                             (locs[3])/fact+1, (locs[1])/fact+1),
                            outline=color)
             draw.rectangle(((locs[2])/fact-2, (locs[0])/fact-2, 
                             (locs[3])/fact+2, (locs[1])/fact+2),
                            outline=color)
+            isfilled = (ind < self.threshold)^(ind in self.wrong)
+            if isfilled:
+                draw.rectangle(((locs[2])/fact, (locs[0])/fact, 
+                                (locs[3])/fact, (locs[1])/fact),
+                               fill=(255, 0, 0))
+                
 
         img = wx.StaticBitmap(pan, -1, pil2wxb(Image.blend(before, temp, .5)))
+
+        def markwrong(evt):
+            x,y = evt.GetPositionTuple()
+            print "click at", (x,y)
+            print indexs
+            for (u,d,l,r),index in indexs:
+                if l <= x <= r and u <= y <= d:
+                    print "IS", index
+                    self.markWrong(index)
+            print evt
+
+        img.Bind(wx.EVT_LEFT_DOWN, markwrong)
         def remove(x):
             pan.Destroy()
 

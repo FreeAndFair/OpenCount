@@ -303,6 +303,7 @@ class LabelContest(wx.Panel):
             cleared = []
 
             print '---'
+            print self.equivs
             print self.equivs_processed
             exit(0)
 
@@ -556,7 +557,7 @@ class LabelContest(wx.Panel):
 
         pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
         if self.has_equiv_classes:
-            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter), open(self.proj.contest_grouping_data, "w"))
+            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed), open(self.proj.contest_grouping_data, "w"))
 
                     
     def setupBoxes(self):
@@ -657,12 +658,16 @@ class LabelContest(wx.Panel):
         self.has_equiv_classes = False
         self.multiboxcontests = []
         self.multiboxcontests_enter = []
-        self.validequivs = {}
+        self.equivs_processed = []
 
         if os.path.exists(self.proj.contest_grouping_data):
             if open(self.proj.contest_grouping_data).read():
                 print 'GOT THE DATA'
-                self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = pickle.load(open(self.proj.contest_grouping_data))
+                dat = pickle.load(open(self.proj.contest_grouping_data))
+                if len(dat) == 9:
+                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = dat
+                else:
+                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed = dat
                 self.has_equiv_classes = True
 
         # The PIL image for the contest.
