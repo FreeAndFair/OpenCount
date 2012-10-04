@@ -76,8 +76,9 @@ def estimateBg(I):
     #return Ihist[1][np.argmax(Ihist[0])] # background
     bucketIdx = np.argmax(Ihist[0])
     a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
-    T = a + ((b-a)/2.0)
-    print "found {0}, old was {1}".format(T, Ihist[1][bucketIdx])
+    T = a
+    #T = a + ((b-a)/2.0)
+    #print "found {0}, old was {1}".format(T, Ihist[1][bucketIdx])
     return T
     
 def NCC(I,patch):
