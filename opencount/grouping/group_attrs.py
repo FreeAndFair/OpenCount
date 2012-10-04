@@ -33,7 +33,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
     clusters = {}
     unlabeled_imgpaths = list(imgpaths)
     while unlabeled_imgpaths:
-        curimgpath = unlabeled_imgpaths[0]
+        curimgpath = unlabeled_imgpaths.pop()
         bb = bb_map[curimgpath]
         I = shared.standardImread(curimgpath, flatten=True)
         _t = time.time()
@@ -44,6 +44,8 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
                                             bb,
                                             bb, THRESHOLD))
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
+        # Manually add in I
+        matches.append((curimgpath, -1.0, 1.0, None, bb[0], bb[1], bb[2], bb[3], 1.0))
         if matches:
             # 0.) Retrieve best matches from matches (may have multiple
             # matches for the same imagepath)
@@ -52,15 +54,14 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
             for (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in matches:
                 y1, y2, x1, x2 = map(lambda c: int(round(c/rszFac)), (y1, y2, x1, x2))
                 if filename not in bestmatches:
-                    bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                    bestmatches[filename] = (filename,sc1,sc2,y1,y2,x1,x2,rszFac)
                 else:
                     old_sc2 = bestmatches[filename][2]
                     if sc2 < old_sc2:
-                        bestmatches[filename] = (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac)
+                        bestmatches[filename] = (filename,sc1,sc2,y1,y2,x1,x2,rszFac)
             print "...found {0} matches".format(len(bestmatches))
             # 1.) Handle the best matches
-            for _, (filename,sc1,sc2,Ireg,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
-                unlabeled_imgpaths.remove(filename)
+            for _, (filename,sc1,sc2,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
                 clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
         else:
             print "...Uh oh, no matches found. This shouldnt' have \

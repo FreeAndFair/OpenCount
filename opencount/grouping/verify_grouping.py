@@ -1,4 +1,4 @@
-import sys, csv, copy, pdb, os, re, shutil
+import sys, csv, copy, pdb, os, re, shutil, math
 import threading, time
 import timeit
 sys.path.append('../')
@@ -96,6 +96,25 @@ class GroupingMasterPanel(wx.Panel):
 
     def start(self):
         self.grouplabel_record = common.load_grouplabel_record(self.project)
+        result = sanitycheck_blankballots(self.project)
+        if result:
+            print "Uhoh, blank ballots failed our sanity check."
+            dlg = wx.MessageDialog(self, message="OpenCount detected that \
+there exists more than one blank ballot for a given set of attribute \
+values. We recommend that the user re-consider the current attribute \
+patch selections. If you continue to run grouping, target extraction \
+will do strange things, and you will probably get poor results.", style=wx.OK)
+            self.Disable()
+            dlg.ShowModal()
+            self.Enable()
+            for attrpairs, badgroup in result.iteritems():
+                print "attrs:", attrpairs
+                for bpath in badgroup:
+                    print "    ", bpath
+                print
+        else:
+            print "...Sanity check passed! Blank ballots are OK."
+            
         self.run_grouping.Show()
         self.run_grouping.start()
 
@@ -1250,3 +1269,206 @@ def to_groupclasses(proj, grouplabel_record=None):
         groups.append(common.GroupClass(elements))
     return groups
 
+def sanitycheck_blankballots(proj):
+    """ Makes sure that each blank ballot has a unique set of ballot
+    attributes. If a set S of blank ballots have the same set of ballot
+    attributes, then the check fails if the layouts of the ballots in S
+    are not all the same. 
+    Two ballots A, B have a different 'layout' if:
+        a.) A, B have different number of targets
+        b.) The locations of targets between A, B are not 'close enough'
+    Input:
+        obj proj
+    Output:
+        dict badblanks: a dict containing all sets S that fail the above
+            sanity check, of the form:
+                {((attrtype_i, attrval_i), ...): (str blankpath_i, ...)}
+    """
+    # 0.) Read in blank ballot attributes
+    blanks = {} # maps {str blankid: ((attrtype_i, attrval_i), ...)}
+    attrtypes = []
+    if os.path.exists(pathjoin(proj.projdir_path, proj.digitattrvals_blanks)):
+        # dict mapping {str blankpath: {digitattrtype: digitval}}
+        digitattrvals = pickle.load(open(pathjoin(proj.projdir_path, proj.digitattrvals_blanks), 'rb'))
+    else:
+        digitattrvals = None
+    for dirpath, dirnames, filenames in os.walk(proj.patch_loc_dir):
+        for f in [name for name in filenames if name.lower().endswith('.csv')]:
+            csvfile = open(pathjoin(dirpath, f), 'rb')
+            reader = csv.DictReader(csvfile)
+            attrs = [] # of the form [(str attrtype_i, str attrval_i), ...]
+            blankid = None
+            for row in reader:
+                if blankid == None: blankid = row['imgpath']
+                if row['is_tabulationonly'] == 'False':
+                    attrs.append((row['attr_type'], row['attr_val']))
+            # a.) Handle digitbased-attrs
+            if digitattrvals:
+                for digitattrtype, (digitattrval, bb, side) in digitattrvals[blankid].iteritems():
+                    if not common.is_tabulationonly(proj, digitattrtype):
+                        attrs.append((digitattrtype, digitattrval))
+            # b.) Handle custom-attrs
+            if common.exists_customattrs(proj):
+                cattrs = cust_attrs.load_custom_attrs(proj)
+                for cattr in cattrs:
+                    if not cattr.is_tabulationonly and not cattr.is_votedonly:
+                        if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+                            inval = [v for (t, v) in attrs if t == cattr.attrin][0]
+                            attrval = cust_attrs.custattr_map_inval_ss(proj, cattr.attrname,
+                                                                       inval)
+                        elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+                            attrval = cust_attrs.custattr_apply_filename(cattr, blankid)
+                        else:
+                            print "Unexpected CustomAttribute mode."
+                            pdb.set_trace()
+                        attrs.append((cattr.attrname, attrval))
+            blanks[blankid] = attrs
+    # 1.) Construct inverse mapping of blanks
+    inv_blanks = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i, ...]}
+    for blankid, pairs in blanks.iteritems():
+        inv_blanks.setdefault(tuple(sorted(pairs, key=lambda tup: tup[0])), []).append(blankid)
+    # 2.) Filter out all buckets with more than one blank ballot
+    for attrpairs in inv_blanks.keys():
+        if len(inv_blanks[attrpairs]) == 1:
+            inv_blanks.pop(attrpairs)
+    # 3.) Terminate if no blank ballots have same attribute values
+    if not inv_blanks:
+        print "No blank ballots exist with same attribute values, done!"
+        return {}
+    # 4.) Do 'involved' check between contests in each set S
+    output = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i]}
+    print "...Exists blank ballots with same attribute values, need to dig deeper."
+    for attrpairs, group in inv_blanks.iteritems():
+        by_layout = separate_by_layout(group, proj)
+        if len(by_layout) != 1:
+            # a.) Physical layout is different!
+            output.setdefault(attrpairs, []).extend(group)
+        else:
+            # b.) Layout is same. Check text interpretation, if possible.
+            by_text = separate_by_text(group, proj)
+            if len(by_text) != 1:
+                output.setdefault(attrpairs, []).extend(group)
+    return output
+
+def separate_by_layout(blankpaths, proj):
+    """ Given a list of blank ballot paths, group the blank ballots
+    by ballot layout, purely based on location of contests+voting targets.
+    Input:
+        list blankpaths: [blankpath_i, ...]
+        obj proj:
+    Output:
+        list groups: [[blankpath_i0, ...], [blankpath_i1, ...], ...]
+    """
+    csvpath_map = pickle.load(open(pathjoin(proj.target_locs_dir, 'csvpath_map.p'),
+                                   'rb'))
+    # 0.) Read in all targets/contests information
+    layouts = {} # maps {str blankpath: [[x, y, w, h, is_contest], ...]}
+    _set_blankpaths = set(blankpaths)
+    for csvpath, blankpath in csvpath_map.iteritems():
+        if blankpath not in _set_blankpaths: continue
+        f = open(csvpath, 'rb')
+        reader = csv.DictReader(f)
+        for row in reader:
+            entry = [row['x'], row['y'], row['width'], row['height'], row['is_contest']]
+            entry = [int(n) for n in entry]
+            layouts.setdefault(blankpath, []).append(entry)
+        f.close()
+    if False:
+        FLAG = True
+    else:
+        FLAG = False
+    # 1.) Do comparisons.
+    blankpaths = blankpaths[:]
+    bp_cpy = blankpaths[:]
+    output = [] # list of groups
+    while len(blankpaths) > 0:
+        bp_i = blankpaths.pop()
+        layout_i = layouts[bp_i]
+        group_i = [bp_i]
+        j = 0
+        while j < len(blankpaths):
+            bp_j = blankpaths[j]
+            layout_j = layouts[bp_j]
+            if is_layout_same(layout_i, layout_j, debug=FLAG):
+                group_i.append(bp_j)
+                blankpaths.pop()
+            else:
+                j += 1
+        output.append(group_i)
+    return output
+    
+def is_layout_same(layoutA, layoutB, C=0.75, debug=False):
+    """ Returns True iff LAYOUTA is reasonably close to LAYOUTB.
+    Input:
+        list layoutA: [[x,y,w,h,is_contest], ...]
+        list layoutB: [[x,y,w,h,is_contest], ...]
+        float C: Param controlling how far away (in terms of target w/h)
+            two targets can be and still be considered 'paired'.
+    Output:
+        True/False.
+    """
+    def check_boxes(boxesA, boxesB):
+        boxesA = boxesA[:]
+        boxesB = boxesB[:]
+        while len(boxesA) > 0:
+            bA = boxesA.pop()
+            j = 0
+            foundit = False
+            if debug:
+                print "...Trying to find box:", bA
+            minDist, minJ = None, None
+            while j < len(boxesB):
+                bB = boxesB[j]
+                dist = distL2(bA[0], bA[1], bB[0], bB[1])
+                if debug:
+                    print 'dist is:', dist
+                if dist <= (bA[3]*C): # height*C
+                    if minDist == None or dist < minDist:
+                        minDist = dist
+                        minJ = j
+                    else:
+                        j += 1
+                else:
+                    j += 1
+            if minDist == None:
+                # Couldn't find a target close enough to bA
+                if debug:
+                    pdb.set_trace()
+                return False
+            else:
+                boxesB.pop(minJ)
+        return True
+    # 0.) Simple sanity checks
+    if len(layoutA) != len(layoutB):
+        return False
+    targetsA, contestsA = [], []
+    targetsB, contestsB = [], []
+    for (x,y,w,h,is_contest) in layoutA:
+        if is_contest == 1:
+            contestsA.append((x,y,w,h,is_contest))
+        else:
+            targetsA.append((x,y,w,h,is_contest))
+    for (x,y,w,h,is_contest) in layoutB:
+        if is_contest == 1:
+            contestsB.append((x,y,w,h,is_contest))
+        else:
+            targetsB.append((x,y,w,h,is_contest))
+    if len(targetsA) != len(targetsB) or len(contestsA) != len(contestsB):
+        return False
+    # 1.) Check targets and contests pairwise
+    return check_boxes(targetsA, targetsB) and check_boxes(contestsA, contestsB)
+
+def distL2(x1,y1,x2,y2):
+    return math.sqrt((y1-y2)**2 + (x1-x2)**2)
+
+def separate_by_text(blankpaths, proj):
+    """ Given a list of blank ballot paths, group the ballots by text
+    interpretation. Assumes that BLANKPATHS contains blank ballots with
+    the same layout, i.e. separate_by_layout(BLANKPATHS)[0] == BLANKPATHS.
+    Input:
+        list blankpaths: [blankpath_i, ...]
+    Output:
+        list groups: [[blankpath_i0, ...], [blankpath_i1, ...]]
+    """
+    # TODO: Implement me!
+    return [blankpaths]
