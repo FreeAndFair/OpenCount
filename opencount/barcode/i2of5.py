@@ -260,7 +260,7 @@ def bestmatch(A, B):
     w_A, h_A = A.cols, A.rows
     w_B, h_B = B.cols, B.rows
     s_mat = cv.CreateMat(h_B - h_A + 1, w_B - w_A + 1, cv.CV_32F)
-    cv.MatchTemplate(A, B, s_mat, cv.CV_TM_CCOEFF_NORMED)
+    cv.MatchTemplate(B, A, s_mat, cv.CV_TM_CCOEFF_NORMED)
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
 
