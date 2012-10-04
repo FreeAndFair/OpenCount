@@ -582,6 +582,7 @@ def compare_preprocess(lang, path, image, contest, targets):
         else:
             print "-"*40
             print "OCR FAILED"
+            print name
             print path
             print contest
             print lang
@@ -593,11 +594,16 @@ def compare_preprocess(lang, path, image, contest, targets):
     #print blocks
     return blocks
 
-import editdist
+#import editdist
+from Levenshtein import distance
 
 def row_dist(a, b):
-    v = editdist.distance(a.encode("ascii", "ignore"), 
-                          b.encode("ascii", "ignore"))
+    if type(a) == unicode or type(b) == unicode:
+        return distance(unicode(a), unicode(b))
+    else:
+        return distance(a, b)
+    #v = editdist.distance(a.encode("ascii", "ignore"), 
+    #                      b.encode("ascii", "ignore"))
     #print 'r', v, a == b
     return v
     """
@@ -620,7 +626,7 @@ def row_dist(a, b):
 
 
 count = 0
-def compare(otexts1, otexts2):
+def compare(otexts1, otexts2, debug=False):
     """
     Compute the distance between two contests.
     
@@ -648,7 +654,7 @@ def compare(otexts1, otexts2):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return {}, (1<<30, None)
+        return [(1<<30,None) for _ in range(len(texts1))], (1<<30, None)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
@@ -659,6 +665,12 @@ def compare(otexts1, otexts2):
     for num_writeins in range(len(texts2)):
         rottexts2 = [texts2[i:-num_writeins]+texts2[:i]+texts2[-num_writeins:] for i in range(len(texts2)-num_writeins)]
         values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
+        if debug:
+            print "DEBUG", size, size-sum(map(len,titles1))-sum(map(len,titles2))
+            print num_writeins
+            print [([row_dist(a,b) for a,b in zip(texts1, t2)],i) for i,t2 in enumerate(rottexts2)]
+            print map(len,texts1), map(len,texts2)
+            print min(values)
         #print values
         minweight,order = min(values)
 
@@ -677,22 +689,24 @@ def compare(otexts1, otexts2):
             best = float(weight+val)/size, num_writeins
         res[num_writeins] = (float(weight+val)/size,
                              (len(texts1), order, num_writeins))
-    return res, best
+    return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):
     lst = range(length)
     new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
-    return zip(lst, new_order)
+    return list(zip(lst, new_order))
 
-def first_pass(contests):
+def first_pass(contests, languages):
     """
     Split a set of contests in to a set of sets, where each
     set contains the same number of voting targets.
     """
     ht = {}
+    i = 0
     for each in contests:
-        if len(each[2]) not in ht: ht[len(each[2])] = []
-        ht[len(each[2])].append(each)
+        key = (len(each[2]), languages[each[0]])
+        if key not in ht: ht[key] = []
+        ht[key].append(each)
     return ht.values()
 
 class Contest:
@@ -742,7 +756,7 @@ class Contest:
     def isClose(self, other, num_writein):
         group1 = self.all_children()
         group2 = other.all_children()
-        best = 1<<30, None
+        best = 1<<31, None
         #print 'joining', len(group1), len(group2)
         for nwi in set([self.writein_num, other.writein_num, num_writein]):
             distance = 0
@@ -799,19 +813,21 @@ def group_by_pairing(contests_text):
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
 
     print "Prepare"
-    pool = mp.Pool(mp.cpu_count()/3)
+    pool = mp.Pool(mp.cpu_count())
     sizes = [sum(len(x[1]) for x in cont[2]) for cont in contests_text]
     print 'a'
     args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
     print 'b'
             
     print "Length of arguments", len(args)
-    sets = [[] for _ in range(mp.cpu_count()/3)]
+    sets = [[] for _ in range(mp.cpu_count())]
     for i,each in enumerate(args):
         sets[i%len(sets)].append(each)
     print "sets sizes", map(len, sets)
     print "Start"
     res = pool.map(do_group_pairing_map, sets)
+    pool.close()
+    pool.join()
     print "Done"
     diff = {}
     for each in res:
@@ -826,54 +842,67 @@ def group_by_pairing(contests_text):
     print "Created"
     for (k1,k2),(dmap,best) in diff:
         if best[0] < .2:
+            if best[0] > .19:
+                print 'do test'
+                print contests_text[k1][2], contests_text[k2][2]
+                compare(contests_text[k1][2], contests_text[k2][2], debug=True)
+            print contests_text[k1], contests_text[k2]
             contests[k1].join(contests[k2], best[1])
     print "Traverse"
     seen = {}
     res = []
     for contest in contests:
         if contest.get_root() in seen: continue
-        contest.get_root().dominating_set()
+        #contest.get_root().dominating_set()
         seen[contest.get_root()] = True
         v = [x.cid for x in contest.get_root().all_children()]
         write = contest.get_root().writein_num
-        res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
-
+        if len(v) == 1:
+            r = range(len(contests_text[contest.cid][2]))
+            res.append([(contests_text[x][:2],list(zip(r,r))) for x in v])
+        else:
+            res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
     return res
 
 def full_group(contests_text):
     print "Linear Scan"
 
     contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
-    joins = []
-    prev = None
-    for i,(c1,c2) in enumerate(zip(contests_text, contests_text[1:])):
-        data, (score,winum) = compare(c1[2], c2[2])
-        if score < .15:
-            if prev == None:
-                prev = i
-            elif i-prev > 50:
-                joins.append((prev, i))
-                prev = None
-        else:
-            if prev != None:
-                joins.append((prev,i))
-            prev = None
-    if prev != None: joins.append((prev, i))
-    print joins
-
-    exclude = dict([(i,start) for start,end in joins for i in range(start+1,end)])
+    joins = dict((i,[]) for i in range(len(contests_text)))
+    for offset in range(1,2):
+        for i,(c1,c2) in enumerate(zip(contests_text, contests_text[offset:])):
+            data, (score,winum) = compare(c1[2], c2[2])
+            if score < .1:
+                #print 'merged', c1[2], c2[2]
+                joins[i].append(i+offset)
+                joins[i+offset].append(i)
+    seen = {}
+    exclude = {}
+    for i in joins:
+        if i in seen: continue
+        items = dfs(joins, i)
+        first = min(items)
+        for each in items: seen[each] = True
+        for each in items:
+            if first != each:
+                exclude[each] = first
     
+
+    #print sorted(exclude.items())
+
     new_indexs = [x for x in range(len(contests_text)) if x not in exclude]
     new_contests = [contests_text[x] for x in new_indexs]
 
     print "Of sizes", len(contests_text), len(new_contests)
+    for x in new_contests[::100]:
+        print x
     newgroups = group_by_pairing(new_contests)
 
     mapping = {}
     for i,each in enumerate(newgroups):
         for item in each:
             mapping[item[0][0],tuple(item[0][1])] = i
-    print "mapping", mapping
+    #print "mapping", mapping
 
     for dst,src in exclude.items():
         #print "Get", dst, "from", src
@@ -882,7 +911,7 @@ def full_group(contests_text):
         find = newgroups[index][0][0]
         text = [text for bid,cid,text in contests_text if (bid,cid) == find][0]
         data,(score,winum) = compare(text, contests_text[dst][2])
-        newgroups[index].append((contests_text[dst][:2], data[winum][1]))
+        newgroups[index].append((contests_text[dst][:2], get_order(*data[winum][1])))
     
     #print "SO GET"
     #print sorted(map(hash,map(str,map(sorted,groups))))
@@ -892,16 +921,20 @@ def full_group(contests_text):
     
 
             
-def equ_class(contests):
+def equ_class(contests, languages):
     #print "EQU", contests
     #print map(len, contests)
     #print contests
     contests = [x for sublist in contests for x in sublist]
     #print contests
-    groups = first_pass(contests)
+    groups = first_pass(contests, languages)
     # Each group is known to be different.
     result = []
-    for group in groups:
+    print "Go up to", len(groups)
+    for i,group in enumerate(groups):
+        print "-"*50
+        print "ON GROUP", i
+        print "-"*50
         result += full_group(group)
         print "Finished one group"
     
@@ -944,9 +977,9 @@ def extend_multibox(ballots, box1, box2, orders):
                 continue
             #print '-'*30
             #print 'consec', c1, c2
-            score, order = compare(txt, t1[2]+t2[2])
+            data, (score, winum) = compare(txt, t1[2]+t2[2])
             if score < .2:
-                #print "THEY ARE EQUAL"
+                print "THEY ARE EQUAL"
                 res.append((c1, c2))
                 print 'txt', t1, t2
                 newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), order))
@@ -985,6 +1018,8 @@ def find_contests(t, paths, giventargets):
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
+    pool.close()
+    pool.join()
     #ballots = map(extract_contest, args)
     #print "RETURNING", ballots
     return ballots
@@ -1008,25 +1043,27 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     pool = mp.Pool(mp.cpu_count())
     args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
     ballots = pool.map(group_given_contests_map, args)
+    pool.close()
+    pool.join()
     #ballots = map(group_given_contests_map, args)
     #print "WORKING ON", ballots
-    return ballots, final_grouping(ballots, giventargets)
+    return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
-def final_grouping(ballots, giventargets):
+def final_grouping(ballots, giventargets, paths, languages):
+    lookup = dict((x,i) for i,x in enumerate(paths))
+    languages = dict((lookup[k],v) for k,v in languages.items())
     print "RUNNING FINAL GROUPING"
-    pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
+    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
-    return equ_class(ballots)
-
-
+    return equ_class(ballots, languages)
 
 if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))))
 
     from labelcontest import LabelContest
-    p = "../projects/orange_label_grouping/"
+    p = "../projects/label_grouping/"
     # Regroup the targets so that equal contests are merged.
     class FakeProj:
         target_locs_dir = p+"target_locations"
@@ -1044,4 +1081,4 @@ if __name__ == "__main__":
 
     internal = pickle.load(open(p+"contest_internal.p"))[2]
     print type(internal)
-    final_grouping(internal, targets)
+    print final_grouping(internal, targets)

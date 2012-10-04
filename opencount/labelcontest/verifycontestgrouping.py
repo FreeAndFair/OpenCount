@@ -206,9 +206,9 @@ class VerifyContestGrouping:
         print self.processgroups
         res = []
         for i in range(len(self.processgroups)):
-            res += self.align(i, self.generate_one(i))
+            res += self.align(i, self.generate_one(i))[::-1]
         print len(res), map(len,res)
-
+        
         frame = grouping.view_overlays.ViewOverlaysFrame(None, res, ondone=self.on_verify_done)
         frame.Maximize()
         frame.Show()
@@ -235,6 +235,7 @@ class VerifyContestGrouping:
                 sets[ids].append((ballot, contest))
             print
         print sets
+        self.callback(sets.values())
         
 
     def get_files(self, ballot, contest):

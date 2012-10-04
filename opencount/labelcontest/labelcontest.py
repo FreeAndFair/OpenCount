@@ -293,6 +293,11 @@ class LabelContest(wx.Panel):
             
             print "MULTIBOX"
             print self.multiboxcontests_enter
+
+            self.compute_equivs(None)
+
+            return
+
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             print boxes_in_new_group
             cleared = []
@@ -375,7 +380,7 @@ class LabelContest(wx.Panel):
 
     def load_languages(self):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
-        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
+        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chi': 'chi_sim', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
         blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
         util.sort_nicely(blankballot_attrlocs)
@@ -391,7 +396,7 @@ class LabelContest(wx.Panel):
                         else:
                             break
                     else:
-                        if row[take] == 'language':
+                        if row[take].lower() == 'language' or row[take].lower() == 'lang':
                             language = row[take+1].lower()
                             print 'found with lang', language
                             if language in mapping:
@@ -428,7 +433,7 @@ class LabelContest(wx.Panel):
         #print "ALL", targets
 
         if self.grouping_cached:
-            groups = final_grouping(self.grouping_cached, targets)
+            groups = final_grouping(self.grouping_cached, targets, self.dirList, self.load_languages())
         else:
             if not self.proj.infer_bounding_boxes:
                 dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
@@ -452,13 +457,14 @@ class LabelContest(wx.Panel):
 
         print gr
         mapping = {}
+        # Parallelize this!
         for ballot_count, ballot in enumerate(self.groupedtargets):
             print 'on ballot', ballot_count
             # All of the bounding boxes for a ballot.
             contestbboxes = [x[1] for x in sum(gr, []) if x[0] == ballot_count]
-            print 'bboxes', contestbboxes
+            #print 'bboxes', contestbboxes
             for targetlist in ballot:
-                print 'picking rep ', targetlist[0][2:]
+                #print 'picking rep ', targetlist[0][2:]
                 w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                 if len(w) != 1:
                     print 'I got', w, 'of them'
@@ -468,8 +474,8 @@ class LabelContest(wx.Panel):
                     print 'contest bboxes', contestbboxes
                     print 'targetlist', targetlist
                     raise Exception("OH NO SOMETHING WENT WRONG")
-                print 'w', w
-                print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
+                #print 'w', w
+                #print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
                 for bbox in contestbboxes[w[0]]:
                     mapping[ballot_count, bbox] = (ballot_count, targetlist[0][1])
         self.mapping = mapping
@@ -499,7 +505,7 @@ class LabelContest(wx.Panel):
 
         def putresults(data):
             print "I get the data", data
-            self.validequivs = dict(data)
+            self.equivs_processed = data
 
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
@@ -918,13 +924,10 @@ class LabelContest(wx.Panel):
         if any(x in y for x in cur for y in self.equivs):
             print 'yes'
             # Find the equivilance class
-            for i,each in enumerate(self.equivs):
+            eqclass = []
+            for i,each in enumerate(self.equivs_processed):
                 if any(x in cur for x in each):
-                    print 'found', each
-                    if i in self.validequivs:
-                        eqclass = [x for x,y in zip(each, self.validequivs[i]) if y]
-                    else:
-                        eqclass = each
+                    eqclass = each
                     break
             print 'diff', eqclass
             # Get the different one

@@ -97,6 +97,9 @@ class GridShow(wx.ScrolledWindow):
         targetname = os.path.split(targetpath)[-1]
 
         for each in self.sample_to_targets(encodepath(ballotpath)):
+            # Note to self:
+            # when adding target-adjustment from here, you need to some how map
+            # targetID name -> index in the list to find if it is 'wrong' or not.
             n = os.path.split(each)[-1][:-4]
             dat = pickle.load(open(os.path.join(self.proj.extracted_metadata,n)))
             locs = dat['bbox']
@@ -513,6 +516,20 @@ class GridShow(wx.ScrolledWindow):
             self.onScroll(bound)
             self.setLine(newthresh)
 
+
+    def clear_unused(self, low, high):
+        print "Del",
+        keys = self.jpgs.keys()
+        for each in keys:
+            if low <= each <= high: continue
+            print each,
+            del self.jpgs[each]
+            del self.basejpgs[each]
+            self.images[each].Destroy()
+            del self.images[each]
+        print
+
+
     def onScroll(self, pos=None, evtpos=None):
         if evtpos != None:
             print "SET FROM", evtpos
@@ -525,6 +542,8 @@ class GridShow(wx.ScrolledWindow):
         self.lastpos = pos
         low = max(0,pos-GAP)
         high = min(pos+self.numcols*self.numrows+GAP,self.numberOfTargets)
+
+        self.clear_unused(low, high)
 
         # Draw the images from low to high.
         print "Drawing from", low, "to", high
@@ -539,12 +558,7 @@ class GridShow(wx.ScrolledWindow):
                                                 self.basetargetw, self.basetargeth,
                                                 self.targetw, self.targeth)
 
-            # TODO this could use a lot of memory 
-            #    if the person scrolls through all the images.
-            # Keep around only the "important" one 
-            #    which have been marked by the user as wrong.
-
-             # Want to be able to modify this but not the base
+            # Want to be able to modify this but not the base
             self.jpgs[i] = jpg.copy()
             self.basejpgs[i] = jpg
 

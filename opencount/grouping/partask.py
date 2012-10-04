@@ -46,21 +46,29 @@ def do_partask(fn, jobs, _args=None, blocking=True,
 
     num_jobs = len(jobs)
     if combfn == None:
-        results = []
-        while True:
-            subresults = queue.get()
-            if isinstance(subresults, POOL_CLOSED):
-                return results
-            results.extend(subresults)
-        return results
-    else:
-        results = init
-        while True:
-            subresults = queue.get()
-            if isinstance(subresults, POOL_CLOSED):
-                return results
-            results = combfn(results, subresults)
-        return results
+        combfn = combfn_lst
+        init = []
+    elif combfn == 'dict':
+        combfn = combfn_dict
+        init = {}
+        
+    results = init
+    while True:
+        subresults = queue.get()
+        if isinstance(subresults, POOL_CLOSED):
+            return results
+        results = combfn(results, subresults)
+    return results
+
+def combfn_lst(res, subres):
+    res.extend(subres)
+    return res
+def combfn_dict(res, subres):
+    """ Assumes that res/subres maps keys to lists of values. """
+    newres = dict(res)
+    for k, v in subres.iteritems():
+        newres.setdefault(k, []).extend(v)
+    return newres
 
 class POOL_CLOSED:
     """
