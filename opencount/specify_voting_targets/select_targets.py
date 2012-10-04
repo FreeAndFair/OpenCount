@@ -1,4 +1,4 @@
-import sys, os, time, pdb, traceback
+import sys, os, time, pdb, traceback, threading, Queue
 try:
     import cPickle as pickle
 except ImportError:
@@ -86,8 +86,9 @@ this partition.")
                 # results = partask.do_partask(tempmatch, imgpaths, _args=(patch, THRESHOLD))
         # 1.) If this is the first-created box, then do an autofit.
         # Else, use the exact input BOX.
-        if len(self.boxes.values) == 0:
-            patch = autofit(img, box)
+        if len(self.boxes.values()) == 0:
+            patch_prefit = img.crop(box)
+            patch = util_gui.fit_image(patch, padx=0, pady=0)
         else:
             patch = img.crop(box)
         # 2.) Run template matching across all images in self.IMGPATHS,
@@ -390,7 +391,7 @@ class BoxDrawPanel(ImagePanel):
         h = int(abs(box.y2 - box.y1))
         dc.DrawRectangle(box.x1, box.y1, w, h)
 
-class TemplateMatchDrawBox(BoxDrawPanel):
+class TemplateMatchDrawPanel(BoxDrawPanel):
     """ Like a BoxDrawPanel, but when you create a Target box, it runs
     Template Matching to try to find similar instances.
     """
