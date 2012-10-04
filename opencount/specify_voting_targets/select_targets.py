@@ -24,6 +24,8 @@ class SelectTargetsMainPanel(ScrolledPanel):
         self.imgpaths = imgpaths
 
 class SelectTargetsPanel(ScrolledPanel):
+    TEMPLATE_MATCH_JOBID = 830
+
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -71,7 +73,7 @@ this partition.")
         the BOX from IMG as the template.
         Input:
             Box BOX:
-            wximg IMG:
+            PIL IMG:
         """
         class TM_Thread(threading.Thread):
             TEMPLATE_MATCH_JOBID = 48
@@ -89,12 +91,17 @@ this partition.")
         # 1.) If this is the first-created box, then do an autofit.
         # Else, use the exact input BOX.
         if len(self.boxes.values()) == 0:
-            patch_prefit = img.crop(box)
-            patch = util_gui.fit_image(patch, padx=0, pady=0)
+            print "...autocropping..."
+            patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
+            patch = util_gui.fit_image(patch_prefit, padx=0, pady=0)
         else:
-            patch = img.crop(box)
+            print "...using exact box..."
+            patch = img.crop((box.x1, box.y1, box.x2, box.y2))
         # 2.) Run template matching across all images in self.IMGPATHS,
         # using PATCH as the template.
+        patch_prefit.save("_patch_prefit.png")
+        patch.save("_patch.png")
+
         queue = Queue.Queue()
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img, self.imgpaths, self.on_tempmatch_done)
         thread.start()
@@ -232,6 +239,9 @@ class ImagePanel(wx.Panel):
         # self.imgbitmap := A WxBitmap
         self.imgbitmap = None
 
+        # self.scale: Scaling factor used to display self.IMGBITMAP
+        self.scale = 1.0
+
         self._setup_ui()
         self._setup_evts()
 
@@ -252,14 +262,41 @@ class ImagePanel(wx.Panel):
         to match SIZE, maintaining aspect ratio.
         """
         self.img = img
-        self.imgbitmap = img_to_wxbitmap(img, size=size)
 
-        imgsize = self.imgbitmap.GetWidth(), self.imgbitmap.GetHeight()
+        c = size[0] / float(self.img.GetWidth()) if size else 1.0
+        self.set_scale(c)
+        
+    def set_scale(self, scale):
+        """ Changes scale, i.e. to acommodate zoom in/out. Mutates the
+        self.IMGBITMAP.
+        Input:
+            float scale: Smaller values -> zoomed out images.
+        """
+        if self.scale == scale:
+            return
+        self.scale = scale
+        w, h = self.img.GetWidth(), self.img.GetHeight()
+        new_w, new_h = int(round(w*scale)), int(round(h*scale))
+        self.imgbitmap = img_to_wxbitmap(self.img, (new_w, new_h))
         self.sizer.Detach(0)
-        self.sizer.Add(imgsize)
+        self.sizer.Add(self.imgbitmap.GetSize())
         self.Layout()
-        print 'calling Refresh()...'
         self.Refresh()
+        
+        print "...Scale is:", self.scale
+
+    def client_to_imgcoord(self, x, y):
+        """ Transforms client (widget) coordinates to the Image
+        coordinate system -- i.e. accounts for image scaling.
+        Input:
+            int (x,y): Client (UI) Coordinates.
+        Output:
+            int (X,Y), image coordinates.
+        """
+        return (int(round(x/self.scale)), int(round(y/self.scale)))
+    def c2img(self, x, y):
+        """ Convenience method to self.CLIENT_TO_IMGCOORD. """
+        return self.client_to_imgcoord(x,y)
 
     def onPaint(self, evt):
         if self.IsDoubleBuffered():
@@ -330,6 +367,9 @@ class BoxDrawPanel(ImagePanel):
         print "...Creating Box: {0}, {1}".format((x,y), boxtype)
         self.isCreate = True
         self.box_create = boxtype(x, y, x+1, y+1)
+        # Map Box coords to Image coords, not UI coords.
+        self.box_create.scale(1 / self.scale)
+
     def finishBox(self, x, y):
         """ Finishes box creation at (x,y). """
         print "...Finished Creating Box:", (x,y)
@@ -367,6 +407,8 @@ class BoxDrawPanel(ImagePanel):
         x, y = evt.GetPositionTuple()
         if self.isCreate:
             self.box_create.x2, self.box_create.y2 = x, y
+            self.box_create.x2 = int(round(self.box_create.x2 / self.scale))
+            self.box_create.y2 = int(round(self.box_create.y2 / self.scale))
             self.Refresh()
 
     def onPaint(self, evt):
@@ -391,9 +433,11 @@ class BoxDrawPanel(ImagePanel):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         drawops = box.get_draw_opts()
         dc.SetPen(wx.Pen(*drawops))
-        w = int(abs(box.x2 - box.x1))
-        h = int(abs(box.y2 - box.y1))
-        dc.DrawRectangle(box.x1, box.y1, w, h)
+        w = int(round(abs(box.x2 - box.x1) * self.scale))
+        h = int(round(abs(box.y2 - box.y1) * self.scale))
+        client_x, client_y = int(round(box.x1*self.scale)), int(round(box.y1*self.scale))
+        #dc.DrawRectangle(box.x1, box.y1, w, h)
+        dc.DrawRectangle(client_x, client_y, w, h)
 
 class TemplateMatchDrawPanel(BoxDrawPanel):
     """ Like a BoxDrawPanel, but when you create a Target box, it runs
@@ -409,8 +453,7 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             imgpil = util_gui.imageToPil(self.img)
-            pdb.set_trace()
-            self.tempmatch_fn(box, self.img)
+            self.tempmatch_fn(box, imgpil)
             self.Refresh()
         else:
             BoxDrawPanel.onLeftUp(self, evt)
@@ -448,6 +491,11 @@ class Box(object):
             self.x1, self.y1 = xb, yb
             self.x2, self.y2 = xa, ya
         return self
+    def scale(self, scale):
+        self.x1 = int(round(self.x1*scale))
+        self.y1 = int(round(self.y1*scale))
+        self.x2 = int(round(self.x2*scale))
+        self.y2 = int(round(self.y2*scale))
     def copy(self):
         return Box(self.x1, self.y1, self.x2, self.y2)
 class TargetBox(Box):
