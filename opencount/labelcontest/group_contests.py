@@ -654,7 +654,7 @@ def compare(otexts1, otexts2, debug=False):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return [(1<<30,None) for _ in range(len(texts1))], (1<<30, None)
+        return [(1<<30,(0,0,0)) for _ in range(len(texts1))], (1<<30, 0)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
@@ -663,7 +663,7 @@ def compare(otexts1, otexts2, debug=False):
 
     all_vals = []
     for num_writeins in range(len(texts2)):
-        rottexts2 = [texts2[i:-num_writeins]+texts2[:i]+texts2[-num_writeins:] for i in range(len(texts2)-num_writeins)]
+        rottexts2 = [[texts2[i] for _,i in get_order(len(texts2),order,num_writeins)] for order in range(len(texts2))]
         values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
         if debug:
             print "DEBUG", size, size-sum(map(len,titles1))-sum(map(len,titles2))
@@ -693,7 +693,10 @@ def compare(otexts1, otexts2, debug=False):
 
 def get_order(length, order, num_writeins):
     lst = range(length)
-    new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
+    if num_writeins == 0:
+        new_order = lst[order:]+lst[:order]
+    else:
+        new_order = lst[order:-num_writeins]+lst[:order]+lst[-num_writeins:]
     return list(zip(lst, new_order))
 
 def first_pass(contests, languages):
@@ -707,7 +710,7 @@ def first_pass(contests, languages):
         key = (len(each[2]), languages[each[0]])
         if key not in ht: ht[key] = []
         ht[key].append(each)
-    return ht.values()
+    return [x[1] for x in sorted(ht.items())]
 
 class Contest:
     def __init__(self, contests_text, cid):
@@ -816,7 +819,7 @@ def group_by_pairing(contests_text):
     pool = mp.Pool(mp.cpu_count())
     sizes = [sum(len(x[1]) for x in cont[2]) for cont in contests_text]
     print 'a'
-    args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text) if j <= i]
+    args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text)]
     print 'b'
             
     print "Length of arguments", len(args)
@@ -835,33 +838,44 @@ def group_by_pairing(contests_text):
             diff[k] = v
     diff = sorted(diff.items(), key=lambda x: x[1][0])
     print "Finish"
+    #print diff[0]
 
     for (k1,k2),(dmap,best) in diff:
         contests[k1].similarity[k2] = dmap
-        contests[k2].similarity[k1] = dmap
     print "Created"
     for (k1,k2),(dmap,best) in diff:
+        if k1 == k2: continue
         if best[0] < .2:
-            if best[0] > .19:
-                print 'do test'
-                print contests_text[k1][2], contests_text[k2][2]
-                compare(contests_text[k1][2], contests_text[k2][2], debug=True)
-            print contests_text[k1], contests_text[k2]
+            #print 'join', contests_text[k1][0], contests_text[k2][0]
+            #print 'data', contests[k1].writein_num, contests[k2].writein_num
+            #print contests_text[k1][2][1]
+            #print contests_text[k2][2][1]
             contests[k1].join(contests[k2], best[1])
     print "Traverse"
     seen = {}
     res = []
     for contest in contests:
-        if contest.get_root() in seen: continue
-        #contest.get_root().dominating_set()
-        seen[contest.get_root()] = True
-        v = [x.cid for x in contest.get_root().all_children()]
-        write = contest.get_root().writein_num
-        if len(v) == 1:
-            r = range(len(contests_text[contest.cid][2]))
-            res.append([(contests_text[x][:2],list(zip(r,r))) for x in v])
-        else:
-            res.append([(contests_text[x][:2],get_order(*contest.similarity[x][write][1])) for x in v])
+        #print 'try', contest.cid,
+        contest = contest.get_root()
+        if contest in seen: continue
+        #print "SEE", contest
+        #contest.dominating_set()
+        seen[contest] = True
+        v = [x.cid for x in contest.all_children()]
+        #print "CHILDREN", v
+        write = contest.writein_num
+        #print "FOR THIS GROUP", write
+        this = [(contests_text[contest.cid][:2],get_order(*contest.similarity[contest.cid][write][1]))]
+        #print "Base"
+        #print list(enumerate(contests_text[contest.cid][2][1:]))
+        for x in v:
+            if x == contest.cid: continue
+            #print contest.similarity[x]
+            #print contest.similarity[x][write][1], get_order(*contest.similarity[x][write][1])
+            #print "This", list(enumerate(contests_text[x][2][1:]))
+            this.append((contests_text[x][:2],get_order(*contest.similarity[x][write][1])))
+        print this
+        res.append(this)
     return res
 
 def full_group(contests_text):
