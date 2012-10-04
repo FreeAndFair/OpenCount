@@ -699,12 +699,12 @@ def get_order(length, order, num_writeins):
 def first_pass(contests, languages):
     """
     Split a set of contests in to a set of sets, where each
-    set contains the same number of voting targets.
+    set contains the same number of voting targets of the same language.
     """
     ht = {}
     i = 0
     for each in contests:
-        key = (len(each[2]), languages[each[0]])
+        key = (len(each[2]), None if each[0] not in languages else languages[each[0]])
         if key not in ht: ht[key] = []
         ht[key].append(each)
     return ht.values()

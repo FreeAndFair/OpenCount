@@ -283,6 +283,7 @@ class LabelContest(wx.Panel):
                     order.append((m1,m2))
                 orders.append(order)
             print "ORDS", orders
+            print "inv", self.mapping_inverse
             extension, newgroup = extend_multibox(self.grouping_cached,
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count])],
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
@@ -294,46 +295,17 @@ class LabelContest(wx.Panel):
             print "MULTIBOX"
             print self.multiboxcontests_enter
 
-            self.compute_equivs(None)
-
-            return
+            #self.compute_equivs(None)
+            #return
 
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             print boxes_in_new_group
             cleared = []
-            newvalids = {}
-            for i,group in enumerate(self.groups_saved):
-                new_group = []
-                new_valid = []
-                valids = self.validequivs[i] if i in self.validequivs else [True]*len(group)
-                for valid,((bid,boxes,text),order) in zip(valids,group):
-                    if (bid,boxes[0]) not in boxes_in_new_group:
-                        new_group.append(((bid,boxes,text),order))
-                        new_valid.append(valid)
-                if new_group != []:
-                    newvalids[len(cleared)] = new_valid
-                    cleared.append(new_group)
-            fixed = cleared + [newgroup]
-            #newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
-            self.groups_saved = fixed
-            tmp = self.validequivs
-            self.compute_equivs_2(run_verification=False)
-            def putresults(x):
-                print "AND NOW GET", x
-                if len(x) == 1:
-                    newvalids[len(newvalids)] = x[0][1]
-                    print "FINALLY", newvalids
-                    print self.validequivs
 
-            print "OKAYSO", newvalids
+            print '---'
+            print self.equivs_processed
+            exit(0)
 
-            if any(len(x) > 1 for x in self.equivs):
-                VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [self.equivs[-1]], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
-
-            print "B"*200
-            print tmp
-            print newvalids
-            print self.validequivs
 
         button6 = wx.Button(self, label="Mark as Multi-Box")
         button6.Bind(wx.EVT_BUTTON, addmultibox)
