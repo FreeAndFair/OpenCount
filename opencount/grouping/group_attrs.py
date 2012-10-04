@@ -42,8 +42,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
                                      unlabeled_imgpaths,
                                      _args=(I,
                                             bb,
-                                            bb, THRESHOLD),
-                                     singleproc=True)
+                                            bb, THRESHOLD))
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
         # Manually add in I
         matches.append((curimgpath, -1.0, 1.0, None, bb[0], bb[1], bb[2], bb[3], 1.0))
