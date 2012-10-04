@@ -1,8 +1,15 @@
 import sys, os, pdb, traceback, time
 import cv, numpy as np, scipy.misc
 
-import pixel_reg.shared as shared
-import pixel_reg.imagesAlign as imagesAlign
+sys.path.append('..')
+
+import shared
+import imagesAlign
+
+"""
+Usage:
+    python test_imagesalign.py imgA.png imgB.png
+"""
 
 def main():
     args = sys.argv[1:]
