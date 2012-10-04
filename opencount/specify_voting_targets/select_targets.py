@@ -34,7 +34,7 @@ class SelectTargetsPanel(ScrolledPanel):
         self.boxes = {}
 
         self.toolbar = Toolbar(self)
-        self.imagepanel = BoxDrawPanel(self)
+        self.imagepanel = TemplateMatchDrawPanel(self, self.do_tempmatch)
 
         txt = wx.StaticText(self, label="Select all Voting Targets from \
 this partition.")
@@ -63,6 +63,76 @@ this partition.")
         self.display_image(0)
 
         self.SetupScrolling()
+
+    def do_tempmatch(self, box, img):
+        """ Runs template matching on all of my self.IMGPATHS, using 
+        the BOX from IMG as the template.
+        Input:
+            Box BOX:
+            wximg IMG:
+        """
+        class TM_Thread(threading.Thread):
+            TEMPLATE_MATCH_JOBID = 48
+            def __init__(self, queue, job_id, patch, img, imgpaths, callback, *args, **kwargs):
+                self.queue = queue
+                self.job_id = job_id
+                self.patch = patch
+                self.img = img
+                self.imgpaths = imgpaths
+                self.callback = callback
+            def run(self):
+                print "Running template matching..."
+                THRESHOLD = 0.85
+                # results = partask.do_partask(tempmatch, imgpaths, _args=(patch, THRESHOLD))
+        # 1.) If this is the first-created box, then do an autofit.
+        # Else, use the exact input BOX.
+        if len(self.boxes.values) == 0:
+            patch = autofit(img, box)
+        else:
+            patch = img.crop(box)
+        # 2.) Run template matching across all images in self.IMGPATHS,
+        # using PATCH as the template.
+        queue = Queue.Queue()
+        thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img, self.imgpaths, self.on_tempmatch_done)
+        thread.start()
+
+    def on_tempmatch_done(self, results):
+        """ Invoked after template matching computation is complete. 
+        Input:
+            dict RESULTS: maps {str imgpath: [Box_i, ...]}. The matches
+                that template matching discovered.
+        """
+        def is_overlap(rect1, rect2):
+            def is_within_box(pt, box):
+                return box.x1 < pt[0] < box.x2 and box.y1 < pt[1] < box.y2
+            x1, y1, x2, y2 = rect1.x1, rect.y1, rect.x2, rect.y2
+            w, h = abs(x2-x1), abs(y2-y1)
+            # Checks (in order): UL, UR, LR, LL corners
+            return (is_within_box((x1,y1), rect2) or
+                    is_within_box((x1+w,y1), rect2) or 
+                    is_within_box((x1+w,y1+h), rect2) or 
+                    is_within_box((x1,y1+h), rect2))
+        def too_close(b1, b2):
+            w, h = abs(b1.x1-b1.x2), abs(b1.y1-b1.y2)
+            return ((abs(b1.x1 - b2.x1) <= w / 2.0 and
+                     abs(b1.y1 - b2.y1) <= h / 2.0) or
+                    is_overlap(b1, b2) or 
+                    is_overlap(b2, b1))
+        # 1.) Add the new matches to self.BOXES, but also filter out
+        # any matches in RESULTS that are too close to previously-found
+        # matches.
+        for imgpathA, boxesA in self.boxes.iteritems():
+            boxesB = results.get(imgpathA, [])
+            i = 0
+            while i < len(boxesB):
+                boxB = boxesB[i]
+                for boxA in boxesA:
+                    if too_close(boxA, boxB):
+                        boxesB.pop(i)
+                    else:
+                        self.boxes.setdefault(imgpathA, []).append(boxB)
+                        i += 1
+        print "...Finished adding results from tempmatch run."
 
     def display_image(self, idx):
         """ Displays the image at IDX. Also handles reading/saving in
@@ -320,6 +390,24 @@ class BoxDrawPanel(ImagePanel):
         h = int(abs(box.y2 - box.y1))
         dc.DrawRectangle(box.x1, box.y1, w, h)
 
+class TemplateMatchDrawBox(BoxDrawPanel):
+    """ Like a BoxDrawPanel, but when you create a Target box, it runs
+    Template Matching to try to find similar instances.
+    """
+    def __init__(self, parent, tempmatch_fn, *args, **kwargs):
+        BoxDrawPanel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.tempmatch_fn = tempmatch_fn
+
+    def onLeftUp(self, evt):
+        x, y = evt.GetPositionTuple()
+        if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
+            box = self.finishBox(x, y)
+            self.tempmatch_fn(box, self.img)
+            self.Refresh()
+        else:
+            BoxDrawPanel.onLeftUp(self, evt)
+
 class Box(object):
     def __init__(self, x1, y1, x2, y2):
         self.x1, self.y1, self.x2, self.y2 = x1, y1, x2, y2
@@ -327,6 +415,9 @@ class Box(object):
         return "Box({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
     def __repr__(self):
         return "Box({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
+    def __eq__(self, o):
+        return (isinstance(o, Box) and self.x1 == o.x1 and self.x2 == o.x2
+                and self.y1 == o.y1 and self.y2 == o.y2)
     def canonicalize(self):
         """ Re-arranges my points (x1,y1),(x2,y2) such that we get:
             (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
@@ -352,7 +443,6 @@ class Box(object):
         return self
     def copy(self):
         return Box(self.x1, self.y1, self.x2, self.y2)
-
 class TargetBox(Box):
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
