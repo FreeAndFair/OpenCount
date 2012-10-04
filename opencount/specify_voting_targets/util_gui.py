@@ -278,9 +278,12 @@ def PilImageToWxImage( myPilImage, copyAlpha=True ) :
 
 #-----
 
-def imageToPil( myWxImage, mode='L'):
-    myPilImage = Image.new( mode, (myWxImage.GetWidth(), myWxImage.GetHeight()) )
+def imageToPil( myWxImage , flatten=False):
+    w, h = myWxImage.GetWidth(), myWxImage.GetHeight()
+    myPilImage = Image.new( 'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()) )
     myPilImage.fromstring( myWxImage.GetData() )
+    if flatten:
+        myPilImage = myPilImage.convert("L")
     return myPilImage
 
 def WxImageToWxBitmap( myWxImage ) :

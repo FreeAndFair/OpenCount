@@ -9,6 +9,8 @@ sys.path.append('..')
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
+import util_gui
+
 class SelectTargetsMainPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -225,7 +227,9 @@ class ImagePanel(wx.Panel):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
+        # self.img := a WxImage
         self.img = None
+        # self.imgbitmap := A WxBitmap
         self.imgbitmap = None
 
         self._setup_ui()
@@ -404,6 +408,8 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
         x, y = evt.GetPositionTuple()
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
+            imgpil = util_gui.imageToPil(self.img)
+            pdb.set_trace()
             self.tempmatch_fn(box, self.img)
             self.Refresh()
         else:
