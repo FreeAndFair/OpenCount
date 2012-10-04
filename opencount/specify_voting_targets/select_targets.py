@@ -30,6 +30,10 @@ class SelectTargetsPanel(ScrolledPanel):
         # self.cur_i: Index of currently-displayed image (w.r.t self.IMGPATHS)
         self.cur_i = None
 
+        # self.boxes: {int idx: [(x1, y1, x2, y2), ...]}
+        self.boxes = {}
+
+        self.toolbar = Toolbar(self)
         self.imagepanel = BoxDrawPanel(self)
 
         txt = wx.StaticText(self, label="Select all Voting Targets from \
@@ -46,6 +50,7 @@ this partition.")
         
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(txt, flag=wx.ALIGN_CENTER)
+        self.sizer.Add(self.toolbar, flag=wx.EXPAND)
         self.sizer.Add(self.imagepanel, proportion=1, flag=wx.EXPAND)
         self.sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
@@ -60,19 +65,37 @@ this partition.")
         self.SetupScrolling()
 
     def display_image(self, idx):
+        """ Displays the image at IDX. Also handles reading/saving in
+        the currently-created boxes for the old/new image.
+        Input:
+            int IDX: Index (into self.IMGPATHS) that you want to display.
+        Output:
+            Returns the IDX we decided to display, if successful.
+        """
         if idx < 0 or idx >= len(self.imgpaths):
             print "Invalid idx into self.imgpaths:", idx
             pdb.set_trace()
+        # 0.) Save boxes of old image
+        if self.cur_i != None:
+            self.boxes.setdefault(self.cur_i, []).extend(self.imagepanel.boxes)
+            
         self.cur_i = idx
         imgpath = self.imgpaths[self.cur_i]
+        
+        # 1.) Display New Image
         print "...Displaying image:", imgpath
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
-        # 0.) Resize image s.t. width is equal to containing width
+        # 1.a.) Resize image s.t. width is equal to containing width
         wP, hP = self.parent.GetSize()
         _c = wximg.GetWidth() / float(wP)
         wimg = wP
         himg = int(round(wximg.GetHeight() / _c))
         self.imagepanel.set_image(wximg, size=(wimg, himg))
+        
+        # 2.) Read in previously-created boxes for IDX (if exists)
+        boxes = self.boxes.get(self.cur_i, [])
+        self.imagepanel.set_boxes(boxes)
+
         self.SetupScrolling()
         return idx
 
@@ -88,7 +111,7 @@ this partition.")
         
     def display_prev(self):
         prev_idx = self.cur_i - 1
-        if prev_idx <= 0:
+        if prev_idx < 0:
             return None
         return self.display_image(prev_idx)
 
@@ -97,6 +120,30 @@ this partition.")
 
     def onButton_prev(self, evt):
         self.display_prev()
+
+class Toolbar(wx.Panel):
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        
+        self._setup_ui()
+        self._setup_evts()
+        self.Layout()
+
+    def _setup_ui(self):
+        self.btn_addtarget = wx.Button(self, label="Add Target...")
+        self.btn_modify = wx.Button(self, label="Modify...")
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_modify,)])
+        self.sizer.Add(btn_sizer)
+        self.SetSizer(self.sizer)
+
+    def _setup_evts(self):
+        self.btn_addtarget.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_CREATE))
+        self.btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_IDLE))
+    def setmode(self, mode_m):
+        self.parent.imagepanel.set_mode_m(mode_m)
 
 class ImagePanel(wx.Panel):
     """ Basic widget class that display one image out of N image paths.
@@ -182,15 +229,12 @@ class BoxDrawPanel(ImagePanel):
         ImagePanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
-        # self.boxes := [(x1, y1, x2, y2), ...]
+        # self.boxes := [Box_i, ...]
         self.boxes = []
 
         # Vars to keep track of box-being-created
         self.isCreate = False
-        # (x1,y1) is coords of first mouse click
-        self.x1, self.y1 = 0, 0
-        # (x2,y2) is coords of second mouse click
-        self.x2, self.y2 = 0, 0
+        self.box_create = None
 
         self.mode_m = BoxDrawPanel.M_CREATE
 
@@ -201,36 +245,53 @@ class BoxDrawPanel(ImagePanel):
         """ Sets my MouseMode. """
         self.mode_m = mode
 
-    def startBox(self, x, y):
-        """ Starts creating a box at (x,y). """
-        print "...Creating Box:", (x,y)
-        self.isCreate = True
-        self.x1, self.y1 = x, y
+    def set_boxes(self, boxes):
+        self.boxes = boxes
 
+    def startBox(self, x, y, boxtype=None):
+        """ Starts creating a box at (x,y). """
+        if boxtype == None:
+            boxtype = Box
+        print "...Creating Box: {0}, {1}".format((x,y), boxtype)
+        self.isCreate = True
+        self.box_create = boxtype(x, y, x+1, y+1)
     def finishBox(self, x, y):
         """ Finishes box creation at (x,y). """
         print "...Finished Creating Box:", (x,y)
         self.isCreate = False
         # 0.) Canonicalize box coords s.t. order is: UpperLeft, LowerRight.
-        box = canonicalize_box((self.x1, self.y1, self.x2, self.y2))
-        return box
+        self.box_create.canonicalize()
+        toreturn = self.box_create
+        self.box_create = None
+        return toreturn
 
     def onLeftDown(self, evt):
         x, y = evt.GetPositionTuple()
         if self.mode_m == BoxDrawPanel.M_CREATE:
-            self.startBox(x, y)
+            print "...Creating Target box."
+            self.startBox(x, y, TargetBox)
+        elif self.mode_m == BoxDrawPanel.M_IDLE:
+            print "...Creating Selection box."
+            self.startBox(x, y, SelectionBox)
 
     def onLeftUp(self, evt):
         x, y = evt.GetPositionTuple()
-        if self.isCreate:
+        if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             self.boxes.append(box)
             self.Refresh()
-        
+        elif self.mode_m == BoxDrawPanel.M_IDLE and self.isCreate:
+            box = self.finishBox(x, y)
+            boxes = get_boxes_within(self.boxes, box)
+            print "...Selecting {0} boxes.".format(len(boxes))
+            for box in boxes:
+                box.is_selected = True
+            self.Refresh()
+
     def onMotion(self, evt):
         x, y = evt.GetPositionTuple()
         if self.isCreate:
-            self.x2, self.y2 = x, y
+            self.box_create.x2, self.box_create.y2 = x, y
             self.Refresh()
 
     def onPaint(self, evt):
@@ -238,7 +299,7 @@ class BoxDrawPanel(ImagePanel):
         self.drawBoxes(self.boxes, dc)
         if self.isCreate:
             # Draw Box-Being-Created
-            can_box = canonicalize_box((self.x1, self.y1, self.x2, self.y2))
+            can_box = self.box_create.copy().canonicalize()
             self.drawBox(can_box, dc)
         return dc
         
@@ -253,10 +314,72 @@ class BoxDrawPanel(ImagePanel):
             wxDC DC:
         """
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        dc.SetPen(wx.Pen("Green", 3))
-        w = int(abs(box[0] - box[2]))
-        h = int(abs(box[3] - box[1]))
-        dc.DrawRectangle(box[0], box[1], w, h)
+        drawops = box.get_draw_opts()
+        dc.SetPen(wx.Pen(*drawops))
+        w = int(abs(box.x2 - box.x1))
+        h = int(abs(box.y2 - box.y1))
+        dc.DrawRectangle(box.x1, box.y1, w, h)
+
+class Box(object):
+    def __init__(self, x1, y1, x2, y2):
+        self.x1, self.y1, self.x2, self.y2 = x1, y1, x2, y2
+    def __str__(self):
+        return "Box({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
+    def __repr__(self):
+        return "Box({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
+    def canonicalize(self):
+        """ Re-arranges my points (x1,y1),(x2,y2) such that we get:
+            (x_upperleft, y_upperleft, x_lowerright, y_lowerright)
+        """
+        xa, ya, xb, yb = self.x1, self.y1, self.x2, self.y2
+        w, h = abs(xa - xb), abs(ya - yb)
+        if xa < xb and ya < yb:
+            # UpperLeft, LowerRight
+            self.x1, self.y1 = xa, ya
+            self.x2, self.y2 = xb, yb
+        elif xa < xb and ya > yb:
+            # LowerLeft, UpperRight
+            self.x1, self.y1 = xa, ya - h,
+            self.x2, self.y2 = xb, yb + h
+        elif xa > xb and ya < yb:
+            # UpperRight, LowerLeft
+            self.x1, self.y1 = xa - w, ya
+            self.x2, self.y2 = xb + w, yb
+        else:
+            # LowerRight, UpperLeft
+            self.x1, self.y1 = xb, yb
+            self.x2, self.y2 = xa, ya
+        return self
+    def copy(self):
+        return Box(self.x1, self.y1, self.x2, self.y2)
+
+class TargetBox(Box):
+    def __init__(self, x1, y1, x2, y2, is_sel=False):
+        Box.__init__(self, x1, y1, x2, y2)
+        self.is_sel = is_sel
+    def __str__(self):
+        return "TargetBox({0},{1},{2},{3},is_sel={4})".format(self.x1, self.y1, self.x2, self.y2, self.is_sel)
+    def __repr__(self):
+        return "TargetBox({0},{1},{2},{3},is_sel={4})".format(self.x1, self.y1, self.x2, self.y2, self.is_sel)
+    def get_draw_opts(self):
+        """ Given the state of me, return the color+line-width for the
+        DC to use.
+        """
+        if self.is_sel:
+            return ("Yellow", 3)
+        else:
+            return ("Green", 3)
+    def copy(self):
+        return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
+class SelectionBox(Box):
+    def __str__(self):
+        return "SelectionBox({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
+    def __repr__(self):
+        return "SelectionBox({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
+    def get_draw_opts(self):
+        return ("Black", 1)
+    def copy(self):
+        return SelectionBox(self.x1, self.y1, self.x2, self.y2)
 
 def canonicalize_box(box):
     """ Takes two arbitrary (x,y) points and re-arranges them
@@ -277,6 +400,16 @@ def canonicalize_box(box):
     else:
         # LowerRight, UpperLeft
         return (xb, yb, xa, ya)
+
+def get_boxes_within(boxes, box):
+    """ Returns all boxes in BOXES that lie within BOX.
+    Input:
+        list boxes: [Box_i, ...]
+        Box box: Enclosing box.
+    Output:
+        list outboxes.
+    """
+    return []
 
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """
