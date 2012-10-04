@@ -73,13 +73,13 @@ def estimateBg(I):
     Ival = I
     Ival[np.isnan(Ival)] = 1
     Ihist = np.histogram(Ival,bins=10);
-    #return Ihist[1][np.argmax(Ihist[0])] # background
-    bucketIdx = np.argmax(Ihist[0])
-    a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
-    T = a
+    return Ihist[1][np.argmax(Ihist[0])] # background
+    #bucketIdx = np.argmax(Ihist[0])
+    #a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
+    #T = a
     #T = a + ((b-a)/2.0)
     #print "found {0}, old was {1}".format(T, Ihist[1][bucketIdx])
-    return T
+    #return T
     
 def NCC(I,patch):
     I = prepOpenCV(I);
@@ -109,7 +109,7 @@ def variableDiffThr(I,patch):
         print 'thr is:', thr
         diff=np.abs(I-patch);
         # sum values of diffs above  threshold
-        err=np.sum(diff[idxs])
+        err = np.sum(diff[np.nonzero(diff>thr)])
 
     except Exception as e:
         print e
@@ -181,8 +181,7 @@ Output:
 
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
-                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True,
-                         forceFind=False):
+                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
@@ -232,7 +231,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
         
-        Iout[Iout==1.0]=0.95; # opencv bug
+        Iout[Iout==1.0]=0; # opencv bug
         foundone = False
         while Iout.max() > threshold:
             foundone = True
@@ -261,8 +260,6 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
             Iout[i1mask:i2mask,j1mask:j2mask]=0
     if not matchList:
-        if forceFind:
-            return [bestMatch]
         print "Warning - couldn't find any matches."
     return matchList
 

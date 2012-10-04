@@ -33,7 +33,7 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
     clusters = {}
     unlabeled_imgpaths = list(imgpaths)
     while unlabeled_imgpaths:
-        curimgpath = unlabeled_imgpaths[0]
+        curimgpath = unlabeled_imgpaths.pop()
         bb = bb_map[curimgpath]
         I = shared.standardImread(curimgpath, flatten=True)
         _t = time.time()
@@ -45,6 +45,8 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
                                             bb, THRESHOLD),
                                      singleproc=True)
         print "...finished find_patch_matchesV1 ({0} s)".format(time.time() - _t)
+        # Manually add in I
+        matches.append((curimgpath, -1.0, 1.0, None, bb[0], bb[1], bb[2], bb[3], 1.0))
         if matches:
             # 0.) Retrieve best matches from matches (may have multiple
             # matches for the same imagepath)
@@ -61,7 +63,6 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
             print "...found {0} matches".format(len(bestmatches))
             # 1.) Handle the best matches
             for _, (filename,sc1,sc2,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
-                unlabeled_imgpaths.remove(filename)
                 clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
         else:
             print "...Uh oh, no matches found. This shouldnt' have \
@@ -72,7 +73,7 @@ happened."
 
 def findpatchmatches(imlist, (patch, bb, bbsearch, threshold)):
     return shared.find_patch_matchesV1(patch, bb, imlist, bbSearch=bbsearch,
-                                       threshold=threshold, forceFind=True)
+                                       threshold=threshold)
 
 def group_attributes_V2(project, job_id=None, THRESHOLD=0.95):
     """ Try to cluster all attribute patches from blank ballots into
