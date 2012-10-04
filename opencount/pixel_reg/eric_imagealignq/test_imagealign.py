@@ -13,8 +13,12 @@ Usage:
 
 def main():
     args = sys.argv[1:]
-    imgA = args[0]
-    imgB = args[1]
+    if not args:
+        imgA = 'imgA.png'
+        imgB = 'imgB.png'
+    else:
+        imgA = args[0]
+        imgB = args[1]
 
     Ia = shared.standardImread(imgA, True)
     Ib = shared.standardImread(imgB, True)
