@@ -80,7 +80,7 @@ def main():
     print "Note: You'll notice that _imgB_align.png still isn't \
 'perfect' (it's still a tiny bit skewed), despite the fact that imgB \
 was created by rotating imgA! This is likely due to imperfections in \
-the point coorespondences."
+the point coorespondences, as I simply eye-balled the pixel coords."
     
 if __name__ == '__main__':
     main()
