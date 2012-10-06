@@ -2,11 +2,76 @@ from PIL import Image, ImageChops, ImageOps
 from time import clock
 import numpy as np
 import scipy.misc as misc
+import cv
 import sys
 import random
 
 sys.path.append('..')
 from pixel_reg.imagesAlign import imagesAlign
+
+def minmax_cv(imgpaths, do_align=False, rszFac=1.0):
+    """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is
+    True, then this also aligns every image to the first image in
+    IMGPATHS.
+    Input:
+        list IMGPATHS: [str imgpath_i, ...]
+        bool DO_ALIGN:
+        float RSZFAC: Resizing factor for alignment.
+    Output:
+        cvMat minimg, cvMat maximg.
+    """
+    imgpath = imgpaths[0]
+    Imin = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Imax = cv.CloneImage(Imin)
+    #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
+    Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
+    for imgpath in imgpaths[1:]:
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        Iout = matchsize(I, Imax)
+        if do_align:
+            tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
+            H, Ireg, err = imagesAlign(tmp_np, Iref, fillval=0, rszFac=rszFac)
+            Ireg *= 255.0
+            Ireg = Ireg.astype('uint8')
+            Iout = np2iplimage(Ireg)
+
+        cv.Max(Iout, Imax, Imax)
+        cv.Min(Iout, Imin, Imin)
+    return Imin, Imax
+
+def matchsize(A, B):
+    """ Given two cvMats A, B, returns a cropped/padded version of
+    A that has the same dimensions as B.
+    """
+    if A.width == B.width and A.height == B.height:
+        return A
+    wA, hA = A.width, A.height
+    SetImageROI = cv.SetImageROI
+    out = cv.CreateImage((B.width, B.height), A.depth, A.channels)
+    wOut, hOut = out.width, out.height
+    if wA < wOut and hA < hOut:
+        SetImageROI(out, (0, 0, wA, hA))
+    elif wA >= wOut and hA < hOut:
+        SetImageROI(out, (0, 0, wOut, hA))
+        SetImageROI(A, (0, 0, wOut, hA))
+    elif wA < wOut and hA >= hOut:
+        SetImageROI(out, (0, 0, wA, hOut))
+        SetImageROI(A, (0, 0, wA, hOut))
+    else: # wA >= wOut and hA >= hOut:
+        SetImageROI(A, (0, 0, wOut, hOut))
+    cv.Copy(A, out)
+    cv.ResetImageROI(out)
+    cv.ResetImageROI(A)
+    return out
+def iplimage2np(img):
+    a = np.frombuffer(img.tostring(), dtype=np.uint8)
+    a.shape = img.height, img.width
+    return a
+
+def np2iplimage(array):
+    img = cv.CreateImageHeader((array.shape[1], array.shape[0]), cv.IPL_DEPTH_8U, 1)
+    cv.SetData(img, array.tostring(), array.dtype.itemsize * 1 * array.shape[1])
+    return img
 
 def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
     overlayMin, overlayMax = None, None
