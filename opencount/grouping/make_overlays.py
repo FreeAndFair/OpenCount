@@ -39,6 +39,31 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0):
         cv.Min(Iout, Imin, Imin)
     return Imin, Imax
 
+def minmax_cv_V2(imgs, do_align=False, rszFac=1.0):
+    """ Just like minmax_cv(), but accepts a list of cvMat's instead
+    of a list of imgpaths. If you're planning on generating overlays
+    of tens-of-thousands of images, calling this function might result
+    in a gross-amount of memory usage (since this function keeps them
+    all in memory at once).
+    """
+    Imin = cv.CloneImage(imgs[0])
+    Imax = cv.CloneImage(Imin)
+    #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
+    Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
+    for I in imgs[1:]:
+        Iout = matchsize(I, Imax)
+        if do_align:
+            tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
+            H, Ireg, err = imagesAlign(tmp_np, Iref, fillval=0, rszFac=rszFac)
+            Ireg *= 255.0
+            Ireg = Ireg.astype('uint8')
+            Iout = np2iplimage(Ireg)
+
+        cv.Max(Iout, Imax, Imax)
+        cv.Min(Iout, Imin, Imin)
+    return Imin, Imax
+
+
 def matchsize(A, B):
     """ Given two cvMats A, B, returns a cropped/padded version of
     A that has the same dimensions as B.
