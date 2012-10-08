@@ -5,7 +5,7 @@ sys.path.append('..')
 import grouping.make_overlays as make_overlays
 
 """
-A script that demos how to create Min/Max overlays.
+A quick script that demos how to create Min/Max overlays.
 
 Usage:
     python view_minmax.py IMGSDIR
