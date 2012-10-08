@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback
+import os, sys, pdb, traceback
 import cv, numpy as np, scipy.misc
 
 """
