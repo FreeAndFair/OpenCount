@@ -78,6 +78,7 @@ this partition.")
         class TM_Thread(threading.Thread):
             TEMPLATE_MATCH_JOBID = 48
             def __init__(self, queue, job_id, patch, img, imgpaths, callback, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
                 self.queue = queue
                 self.job_id = job_id
                 self.patch = patch
@@ -87,7 +88,8 @@ this partition.")
             def run(self):
                 print "Running template matching..."
                 THRESHOLD = 0.85
-                # results = partask.do_partask(tempmatch, imgpaths, _args=(patch, THRESHOLD))
+                # list results: [[imgpath_i, (x,y), score], ...]
+                results = partask.do_partask(find_matches, imgpaths, _args=(patch, THRESHOLD))
         # 1.) If this is the first-created box, then do an autofit.
         # Else, use the exact input BOX.
         if len(self.boxes.values()) == 0:
@@ -555,6 +557,23 @@ def get_boxes_within(boxes, box):
         list outboxes.
     """
     return []
+
+def find_matches(imgpaths, patch, C=0.8):
+    """ Runs template matching to find PATCH in each IMGPATHS.
+    Input:
+        list imgpaths: [imgpath_i, ...]
+        IplImage patch: 
+        float C:
+    Output:
+        list matches, [[imgpath_i, (x,y), score_i], ...]
+    """
+    matches = []
+    for imgpath in imgpaths:
+        img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        M = cv.CreateMat(img.height-patch.height+1, img.width-patch.width+1, cv.CV_32F)
+        cv.MatchTemplate(img, patch, M, cv.CV_TM_CCOEFF_NORMED)
+        
+    pass
 
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """
