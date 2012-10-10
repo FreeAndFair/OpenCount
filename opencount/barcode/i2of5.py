@@ -20,46 +20,31 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
         cvMat img:
         int n: Number of digits in the barcode.
     Output:
-        str decoded.
+        (str decoded, tuple bb), where BB is the bounding box of the
+        barcode within IMG: (x, y, w, h)
     """
     # For now, assume that the barcode is bottom-to-top.
     TOP_GUARD = cv.LoadImageM(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
     BOT_GUARD = cv.LoadImageM(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+
+    TOP_WHITE_PAD = 24  # Num. pixs from white->top guard barcode
+    BOT_WHITE_PAD = 31
     
     # 1.) Find location of top/bottom guards, to find location of barcode
-    #matches_top = get_tempmatches(TOP_GUARD, img)
-    #matches_bot = get_tempmatches(BOT_GUARD, img)
-    # 1.a.) Choose top-most match for TOP, bottom-most match for BOT.
     (xtop, ytop), s_mat1 = bestmatch(TOP_GUARD, img)
     (xbot, ybot), s_mat2 = bestmatch(BOT_GUARD, img)
-    #(itop, jtop) = 0, 0
-    #(ibot, jbot) = 0, 0
 
-    # 1.a.) Search for the barcode.
-    '''
-    if n == 14:
-        bcP = BC_14_IMGP
-    elif n == 12:
-        bcP = BC_12_IMGP
-    elif n == 10:
-        bcP = BC_10_IMGP
-    else:
-        print "{0}-digit not supported:", n
-        return None
-    
-    BC = cv.LoadImageM(bcP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    (jb, ib), s_mat = bestmatch(BC, img)
-    '''
-    
-    '''
-    imgcpy = cv.CloneMat(img)
-    cv.Circle(imgcpy, (xtop, ytop), 10, (0, 0, 0, 0), thickness=4)
-    cv.Circle(imgcpy, (xbot, ybot), 4, (0, 0, 0, 0), thickness=2)
-    cv.SaveImage("imgcpy_bc.png", imgcpy)
-    exit(1)
-    '''
+    out_bb = [min(xtop, xbot),
+              ytop + TOP_WHITE_PAD,
+              TOP_GUARD.cols, 
+              (ybot - ytop) + BOT_GUARD.rows - TOP_WHITE_PAD]
 
     # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
+    if (ytop >= ybot):
+        # Badness - TOP_GUARD needs to be on top of BOT_GUARD
+        print "Error - TOP_GUARD not on top of BOT_GUARD:", (xtop,ytop),(xbot,ybot)
+        return None, out_bb
+        
     img_post = cv.GetSubRect(img, (xtop, ytop, max(TOP_GUARD.cols, BOT_GUARD.cols),
                                    ybot - ytop + BOT_GUARD.rows))
     img_post = dothreshold(img_post)
@@ -122,7 +107,8 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False):
         print "Uhoh, couldn't find start of barcode?"
         if debug:
             pdb.set_trace()
-        return ''
+        return None, out_bb
+    out_bb[3] -= i    # skip to start of barcode
     # 5.b.) Do Convert.
     bars = _convert_flat(flat_np, i, pix_on, pix_off, w_narrow, w_wide, b_narrow, b_wide)
     # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
@@ -150,7 +136,7 @@ decoding anyways."
             print "...Invalid symbol:", bars_sym
             if debug:
                 pdb.set_trace()
-            return None
+            return None, out_bb
         decs_blk.append(sym)
     for blk_i, bars_sym in enumerate(gen_by_n(bars_wht, 5)):
         sym = get_i2of5_val(bars_sym)
@@ -158,11 +144,12 @@ decoding anyways."
             print "...Invalid symbol:", bars_sym
             if debug:
                 pdb.set_trace()
-            return None
+            return None, out_bb
         decs_wht.append(sym)
     decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
-    print 'decoded:', decoded, len(decoded)
-    return decoded
+    #print 'decoded:', decoded, len(decoded)
+
+    return decoded, out_bb
 
 def is_pix_on(val, pix_on, pix_off):
     return abs(pix_on - val) < abs(pix_off - val)
