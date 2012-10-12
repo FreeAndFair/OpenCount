@@ -1981,10 +1981,12 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
     for cur_ref_img in ref_imgs:
         _count = 0
         jobs = divy_boxes(boxes, N)
-
-        for i, job_boxes in enumerate(jobs):
-            print "Process {0} got {1} jobs".format(i, len(job_boxes))
-            pool.apply_async(tempmatch_process, args=(job_boxes, cur_ref_img, queue, confidence))
+        if N == 1:
+            tempmatch_process(jobs[0], cur_ref_img, queue, confidence)
+        else:
+            for i, job_boxes in enumerate(jobs):
+                print "Process {0} got {1} jobs".format(i, len(job_boxes))
+                pool.apply_async(tempmatch_process, args=(job_boxes, cur_ref_img, queue, confidence))
         while numComplete < NUM_TEMPS:
             match_coords, (h_img, w_img), bounding_boxes, templateimgpath = queue.get()
             wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.tick")
@@ -2028,9 +2030,13 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
 def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
     for (templateimgpath, bounding_boxes) in boxes.items():
         img_array = util_gui.open_img_scipy(templateimgpath)
-        match_coords = util_gui.template_match(img_array,
-                                               cur_ref_img, 
-                                               confidence=confidence)
+        try:
+            match_coords = util_gui.template_match(img_array,
+                                                   cur_ref_img, 
+                                                   confidence=confidence)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
         queue.put((match_coords, img_array.shape, bounding_boxes, templateimgpath))
 
 def make_transfn(proj):
