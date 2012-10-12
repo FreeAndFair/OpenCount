@@ -306,7 +306,7 @@ def make_blank_bitmap(size, val):
     blank_bitmap = PilImageToWxBitmap(Image.fromarray(blank_img))
     return blank_bitmap
     
-def template_match(img, refimg, confidence=0.6):
+def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
     """
     Return all matches of refimg inside img, using Template Matching.
     (Gratefully) borrowed from:
@@ -332,11 +332,10 @@ def template_match(img, refimg, confidence=0.6):
     ref = cv.fromarray(refimg)
     #I = cv.fromarray(np.copy(img))
     #ref = cv.fromarray(np.copy(refimg))
-    print I[0,0]
     I_s = cv.CreateMat(I.rows, I.cols, I.type)
-    cv.Smooth(I, I_s, cv.CV_GAUSSIAN, param1=19, param2=19)
+    cv.Smooth(I, I_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     ref_s = cv.CreateMat(ref.rows, ref.cols, ref.type)
-    cv.Smooth(ref, ref_s, cv.CV_GAUSSIAN, param1=19, param2=19)
+    cv.Smooth(ref, ref_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     #img = np.array(img, dtype='uint8')
     #refimg = np.array(refimg, dtype='uint8')
     result = cv.CreateMat(I_s.rows-ref_s.rows+1, I_s.cols-ref_s.cols+1, cv.CV_32F)
