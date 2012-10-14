@@ -570,8 +570,9 @@ def fit_image(img, padx=0, pady=0, BLACK=0):
     box = ul_corner + lr_corner
     fitted_region = img.crop(box)
     #fitted_region.save('fitted.png')
-    '''
+
     # Code to visually output (as a .png) the results of fitting
+    '''
     orig_img = img.copy()
     for i in range(w):
         for j in range(h):
@@ -586,6 +587,7 @@ def fit_image(img, padx=0, pady=0, BLACK=0):
     thresholded_img.save("threshold_marks.png")
     orig_img.save("orig_marks.png")
     '''
+
     return fitted_region
         
 def test_fit_image():
