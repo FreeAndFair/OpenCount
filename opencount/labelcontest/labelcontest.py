@@ -295,6 +295,7 @@ class LabelContest(wx.Panel):
                     order.append((m1,m2))
                 orders.append(order)
             print "ORDS", orders
+            print "inv", self.mapping_inverse
             extension, newgroup = extend_multibox(self.grouping_cached,
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count])],
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
@@ -322,23 +323,6 @@ class LabelContest(wx.Panel):
 
             self.compute_equivs_2(run_verification=True)
             return
-
-            def putresults(x):
-                print "AND NOW GET", x
-                if len(x) == 1:
-                    newvalids[len(newvalids)] = x[0][1]
-                    print "FINALLY", newvalids
-                    print self.validequivs
-
-            print "OKAYSO", newvalids
-
-            if any(len(x) > 1 for x in self.equivs):
-                VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [self.equivs[-1]], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
-
-            print "B"*200
-            print tmp
-            print newvalids
-            print self.validequivs
 
         button6 = wx.Button(self, label="Mark as Multi-Box")
         button6.Bind(wx.EVT_BUTTON, addmultibox)
@@ -590,7 +574,7 @@ class LabelContest(wx.Panel):
 
         pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
         if self.has_equiv_classes:
-            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter), open(self.proj.contest_grouping_data, "w"))
+            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed), open(self.proj.contest_grouping_data, "w"))
 
                     
     def setupBoxes(self):
@@ -691,12 +675,16 @@ class LabelContest(wx.Panel):
         self.has_equiv_classes = False
         self.multiboxcontests = []
         self.multiboxcontests_enter = []
-        self.validequivs = {}
+        self.equivs_processed = []
 
         if os.path.exists(self.proj.contest_grouping_data):
             if open(self.proj.contest_grouping_data).read():
                 print 'GOT THE DATA'
-                self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = pickle.load(open(self.proj.contest_grouping_data))
+                dat = pickle.load(open(self.proj.contest_grouping_data))
+                if len(dat) == 9:
+                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = dat
+                else:
+                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed = dat
                 self.has_equiv_classes = True
 
         # The PIL image for the contest.

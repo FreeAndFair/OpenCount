@@ -1,6 +1,5 @@
 import sys, os, pickle, pdb, traceback, time
 import cv
-#import zbar
 import i2of5
 
 def decode_patch(img, n, debug=False):
@@ -9,27 +8,13 @@ def decode_patch(img, n, debug=False):
         IMG: Either a string (imgpath), or an image object.
         int N: Number of decimals in the barcode.
     Output:
-        A string.
+        (str DECODED, tuple BB), where BB is the bounding box around the
+        barcode: (x1, y1, w, h)
     """
     if type(img) == str:
         I = cv.LoadImageM(img, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         I = img
-    
-    '''
-    scanner = zbar.ImageScanner()
-    scanner.parse_config('enable')
-    
-    w, h = I.cols, I.rows
-    raw_img = I.tostring()
-    zImg = zbar.Image(w, h, 'Y800', raw_img)
-    scanner.scan(zImg)
-    
-    symbols = []
-    for symbol in zImg:
-        symbols.append(symbol.data)
-    return symbols
-    '''
     return i2of5.decode_i2of5(I, n, debug=debug)
 
 def decode(imgpath):
@@ -39,8 +24,9 @@ def decode(imgpath):
     Input:
         str imgpath:
     Output:
-        (list barcodes, bool isflipped). BARCODES is a list of three
-        strings. ISFLIPPED is True if we detected the ballot was flipped.
+        (list barcodes, bool isflipped, tuple BBS). BARCODES is a list of three
+        strings. ISFLIPPED is True if we detected the ballot was flipped. BBS
+        is a tuple of tuples: [BB_i, ...].
     """
     def check_result(decoded, type='UL'):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
@@ -80,13 +66,14 @@ def decode(imgpath):
     I = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     w, h = I.cols, I.rows
     isflipped = False
+    bbs = [None, None]
 
     # 1.) First, try to find LowerLeft first. If it fails, then we
     # guess that the ballot is flipped.
-    LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-    #LLhoriz = dothreshold(doresize(makehoriz(LL)))
-    #dec_ll = decode_patch(LLhoriz, 12)
-    dec_ll = decode_patch(LL, 12)
+    bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
+    LL = cv.GetSubRect(I, bb_ll)
+
+    dec_ll, outbb_ll = decode_patch(LL, 12)
     check_ll = check_result(dec_ll, type='LL')
     if "ERR" in check_ll:
         # 1.a.) Flip it
@@ -95,24 +82,25 @@ def decode(imgpath):
         cv.Flip(I, tmp, flipMode=-1)
         I = tmp
         # 1.b.) Re-do LowerLeft
-        LL = cv.GetSubRect(I, (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3))))
-        #LLhoriz = dothreshold(doresize(makehoriz(LL)))
-        #dec_ll = decode_patch(LLhoriz, 12)
-        dec_ll = decode_patch(LL, 12)
+        bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
+        LL = cv.GetSubRect(I, bb_ll)
+        dec_ll, outbb_ll = decode_patch(LL, 12)
+    # offset outbb_ll by the cropping we did (bb_ll).
+    bbs[1] = [outbb_ll[0] + bb_ll[0],
+              outbb_ll[1] + bb_ll[1],
+              outbb_ll[2],
+              outbb_ll[3]]
     # 2.) Decode UpperLeft, LowerRight.
-    UL = cv.GetSubRect(I, (0, 0, int(round(w * 0.15)), int(round(h * 0.3))))
-    #LR = cv.GetSubRect(I, (w-1 - int(round(w * 0.15)), h-1 - int(round(h*0.3)),
-    #                      int(round(w * 0.15)), int(round(h * 0.3))))
-    #ULhoriz = dothreshold(doresize(makehoriz(UL)))
-    #dec_ul = decode_patch(ULhoriz, 14)
-    #LRhoriz = dothreshold(doresize(makehoriz(LR)))
-    #dec_lr = decode_patch(LRhoriz, 10)
-    dec_ul = decode_patch(UL, 14)
-    #dec_lr = decode_patch(LR, 10)
+    bb_ul = (0, 0, int(round(w * 0.15)), int(round(h * 0.3)))
+    UL = cv.GetSubRect(I, bb_ul)
+    dec_ul, outbb_ul = decode_patch(UL, 14)
+    bbs[0] = [outbb_ul[0] + bb_ul[0],
+              outbb_ul[1] + bb_ul[1],
+              outbb_ul[2],
+              outbb_ul[3]]
     dec_ul_res = check_result(dec_ul, type='UL')
     dec_ll_res = check_result(dec_ll, type='LL')
-    #dec_lr_res = check_result(dec_lr, type='LR')
-    return (dec_ul_res, dec_ll_res, isflipped)
+    return ((dec_ul_res, dec_ll_res), isflipped, bbs)
 
 def main():
     args = sys.argv[1:]

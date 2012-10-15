@@ -278,9 +278,12 @@ def PilImageToWxImage( myPilImage, copyAlpha=True ) :
 
 #-----
 
-def imageToPil( myWxImage, mode='L'):
-    myPilImage = Image.new( mode, (myWxImage.GetWidth(), myWxImage.GetHeight()) )
+def imageToPil( myWxImage , flatten=False):
+    w, h = myWxImage.GetWidth(), myWxImage.GetHeight()
+    myPilImage = Image.new( 'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()) )
     myPilImage.fromstring( myWxImage.GetData() )
+    if flatten:
+        myPilImage = myPilImage.convert("L")
     return myPilImage
 
 def WxImageToWxBitmap( myWxImage ) :
@@ -303,7 +306,7 @@ def make_blank_bitmap(size, val):
     blank_bitmap = PilImageToWxBitmap(Image.fromarray(blank_img))
     return blank_bitmap
     
-def template_match(img, refimg, confidence=0.6):
+def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
     """
     Return all matches of refimg inside img, using Template Matching.
     (Gratefully) borrowed from:
@@ -322,14 +325,30 @@ def template_match(img, refimg, confidence=0.6):
     # correctly handling when 'img' had no decimals, but 'refimg'
     # had decimal expansions, which I suppose means that internally
     # OpenCV.matchTemplate does exact integer comparisons. 
-    img = np.array(img, dtype='uint8')
-    refimg = np.array(refimg, dtype='uint8')
-    
-    result = cv2.matchTemplate(img, refimg, cv2.TM_CCOEFF_NORMED)
+    img = img.astype('uint8')
+    refimg = refimg.astype('uint8')
+
+    I = cv.fromarray(img)
+    ref = cv.fromarray(refimg)
+    #I = cv.fromarray(np.copy(img))
+    #ref = cv.fromarray(np.copy(refimg))
+    I_s = cv.CreateMat(I.rows, I.cols, I.type)
+    cv.Smooth(I, I_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
+    ref_s = cv.CreateMat(ref.rows, ref.cols, ref.type)
+    cv.Smooth(ref, ref_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
+    #img = np.array(img, dtype='uint8')
+    #refimg = np.array(refimg, dtype='uint8')
+    result = cv.CreateMat(I_s.rows-ref_s.rows+1, I_s.cols-ref_s.cols+1, cv.CV_32F)
+    cv.MatchTemplate(I_s, ref_s, result, cv.CV_TM_CCOEFF_NORMED)
+    #result = cv2.matchTemplate(img, refimg, cv2.TM_CCOEFF_NORMED)
     # result is a 'similarity' matrix, with values from -1.0 (?) to 1.0,
     # where 1.0 is most similar to the template image.
-    match_flatidxs = np.arange(result.size)[(result>confidence).flatten()]
-    return [flatidx_to_pixelidx(flatidx, result.shape) for flatidx in match_flatidxs]
+    result_np = np.asarray(result)
+    match_flatidxs = np.arange(result_np.size)[(result_np>confidence).flatten()]
+    return [flatidx_to_pixelidx(flatidx, result_np.shape) for flatidx in match_flatidxs]
+
+    #match_flatidxs = np.arange(result.size)[(result>confidence).flatten()]
+    #return [flatidx_to_pixelidx(flatidx, result.shape) for flatidx in match_flatidxs]
     
 def overlay_autodetect_results(img, match_coords, refsize):
     """
@@ -551,8 +570,9 @@ def fit_image(img, padx=0, pady=0, BLACK=0):
     box = ul_corner + lr_corner
     fitted_region = img.crop(box)
     #fitted_region.save('fitted.png')
-    '''
+
     # Code to visually output (as a .png) the results of fitting
+    '''
     orig_img = img.copy()
     for i in range(w):
         for j in range(h):
@@ -567,6 +587,7 @@ def fit_image(img, padx=0, pady=0, BLACK=0):
     thresholded_img.save("threshold_marks.png")
     orig_img.save("orig_marks.png")
     '''
+
     return fitted_region
         
 def test_fit_image():

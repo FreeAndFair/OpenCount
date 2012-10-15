@@ -2146,7 +2146,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             except IOError:
                 # Sometimes, a BMP file throws a PIL error: Unsupported BMP Compression,
                 # but wxImage can open it just fine. Weird!
-                img = util_gui.imageToPil(wx.Image(self.current_imgpath))
+                img = util_gui.imageToPil(wx.Image(self.current_imgpath), flatten=True)
             x1, y1, x2, y2 = self._autodet_rect
             w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
             x1 = int(round((x1 / float(w_img)) * img.size[0]))
