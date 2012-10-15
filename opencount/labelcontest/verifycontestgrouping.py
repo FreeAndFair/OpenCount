@@ -8,6 +8,7 @@ from util import pil2wxb, pdb_on_crash
 import grouping.view_overlays
 import grouping.common
 from pixel_reg.imagesAlign import imagesAlign
+import pixel_reg.shared as sh
 import numpy as np
 import scipy.misc
 import multiprocessing as mp
@@ -121,23 +122,55 @@ class VerifyContestGrouping:
         return "tmp/"+name.replace("/","~")
 
     def align(self, groupid, dat):
+        #         res = []
+        # for group in zip(*dat):
+        #     a = scipy.misc.imread(group[0], flatten=1)
+        #     a = np.nan_to_num(a)
+        #     r = []
+        #     for each in group:
+        #         b = scipy.misc.imread(each, flatten=1)
+        #         b = np.nan_to_num(b)
+        #         b = grouping.common.resize_img_norescale(b, (a.shape[1], a.shape[0]))
+        #         #(H, align, err) = imagesAlign(a, b)
+        #         #align = np.nan_to_num(align)
+        #         align = b
+        #         #name = self.translate(each)
+        #         scipy.misc.imsave(each, align)
+        #         r.append(each)
+        #     res.append(r)
+        # #return res
+
         res = []
         for group in zip(*dat):
-            a = scipy.misc.imread(group[0], flatten=1)
-            a = np.nan_to_num(a)
+            
+            Iref=sh.standardImread(group[0],flatten=True)
+            M = np.zeros((Iref.shape[0],Iref.shape[1], len(group)))
             r = []
-            for each in group:
-                b = scipy.misc.imread(each, flatten=1)
-                b = np.nan_to_num(b)
-                b = grouping.common.resize_img_norescale(b, (a.shape[1], a.shape[0]))
-                #(H, align, err) = imagesAlign(a, b)
-                #align = np.nan_to_num(align)
-                align = b
-                #name = self.translate(each)
-                scipy.misc.imsave(each, align)
-                r.append(each)
+        
+            for i in range(len(group)):
+                I=sh.standardImread(group[i],flatten=True)
+                Inorm = np.zeros(Iref.shape)
+                # make patch the same size as Iref
+            
+                min0 = min(I.shape[0],Iref.shape[0])
+                min1 = min(I.shape[1],Iref.shape[1])
+                Inorm[0:min0,0:min1] = I[0:min0,0:min1]
+            
+                diff0 = Iref.shape[0] - I.shape[0]
+                diff1 = Iref.shape[1] - I.shape[1]
+            
+                if diff0 > 0:
+                    Inorm[I.shape[0]:I.shape[0]+diff0,:] = 1
+                if diff1 > 0:
+                    Inorm[:,I.shape[1]:I.shape[1]+diff1] = 1
+            
+                align_res=imagesAlign(Inorm,Iref)
+                scipy.misc.imsave(self.translate(group[i]), align_res[1])
+                r.append(self.translate(group[i]))
             res.append(r)
         return res
+            
+            
 
 if __name__ == '__main__':
     app = wx.App(False)
