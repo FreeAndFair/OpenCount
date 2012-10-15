@@ -4,7 +4,7 @@ from PIL import Image
 import os
 
 sys.path.append("..")
-from util import pil2wxb
+from util import pil2wxb, pdb_on_crash
 import grouping.view_overlays
 import grouping.common
 from pixel_reg.imagesAlign import imagesAlign
@@ -59,14 +59,18 @@ class VerifyContestGrouping:
             print "NEXT GROUP"
             for ballot, contest in group:
                 print "NEW", ballot, contest
-                ids = tuple([mapping[self.translate(f)] for f in self.get_files(ballot, contest)])
+                print self.get_files(ballot, contest)
+                print self.translate(os.path.commonprefix(self.get_files(ballot, contest)))+".png"
+                ids = mapping[self.translate(os.path.commonprefix(map(os.path.abspath,self.get_files(ballot, contest))))+".png"]
+                print ids
+                
                 if ids not in sets: sets[ids] = []
                 sets[ids].append((ballot, contest))
             print
         print sets
         self.callback(sets.values())
         
-
+    @pdb_on_crash
     def get_files(self, ballot, contest):
         ballotname = os.path.split(self.dirList[ballot])[1].split('.')[0]
         boundingbox = (ballot, contest)
@@ -129,9 +133,9 @@ class VerifyContestGrouping:
                 #(H, align, err) = imagesAlign(a, b)
                 #align = np.nan_to_num(align)
                 align = b
-                name = self.translate(each)
-                scipy.misc.imsave(name, align)
-                r.append(name)
+                #name = self.translate(each)
+                scipy.misc.imsave(each, align)
+                r.append(each)
             res.append(r)
         return res
 

@@ -1012,6 +1012,18 @@ def sorted_nicely( l ):
   alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
   return sorted(l, key=alphanum_key)
 
+def pdb_on_crash(f):
+    """
+    Decorator to run PDB on crashing  
+    """
+    def res(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except:
+            import pdb as err_pdb
+            err_pdb.post_mortem()
+    return res
+
 def main():
     app = wx.App(False)
     frame = MainFrame(None)

@@ -217,10 +217,12 @@ class GridShow(wx.ScrolledWindow):
     def drawWrongMark(self, i):
         imgIdx = i-i%self.numcols
         jpg = self.jpgs[imgIdx]
-        imd = ImageDraw.Draw(jpg)
+        copy = jpg.copy()
+        imd = ImageDraw.Draw(copy)
         imd.rectangle((self.targetw*(i-imgIdx), 0,
                        self.targetw*(i-imgIdx)+self.targetw-1, self.targeth-1),
-                      outline=(255,0,0))
+                      fill=(255,0,0))
+        self.jpgs[imgIdx] = Image.blend(jpg, copy, .3)
         self.images[imgIdx].Destroy()
         self.addimg(imgIdx)
 

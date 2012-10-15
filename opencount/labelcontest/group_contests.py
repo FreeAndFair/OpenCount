@@ -996,7 +996,7 @@ def extend_multibox(ballots, box1, box2, orders):
                 print "THEY ARE EQUAL"
                 res.append((c1, c2))
                 print 'txt', t1, t2
-                newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), order))
+                newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), get_order(*data[winum][1])))
     print "RESULT", res
 
     return res, newgroup

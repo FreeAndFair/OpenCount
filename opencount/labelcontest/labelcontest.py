@@ -262,6 +262,18 @@ class LabelContest(wx.Panel):
             regexnext.Bind(wx.EVT_BUTTON, find_next_regex)
     
             template.Add(regexnext)
+
+            def goto_num(x=None):
+                popup = wx.TextEntryDialog(None, "Enter the ballot to go to", 'Title', '')
+    
+                if popup.ShowModal() == wx.ID_OK:
+                    val = popup.GetValue()
+                    self.nexttemplate(int(val)-self.templatenum)
+
+            goto = wx.Button(self, label='Go to ballot number')
+            goto.Bind(wx.EVT_BUTTON, goto_num)
+    
+            template.Add(goto)
     
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
@@ -294,30 +306,23 @@ class LabelContest(wx.Panel):
             print "MULTIBOX"
             print self.multiboxcontests_enter
 
-            self.compute_equivs(None)
-
-            return
-
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
-            print boxes_in_new_group
             cleared = []
-            newvalids = {}
             for i,group in enumerate(self.groups_saved):
+                print group[0]
                 new_group = []
-                new_valid = []
-                valids = self.validequivs[i] if i in self.validequivs else [True]*len(group)
-                for valid,((bid,boxes,text),order) in zip(valids,group):
+                for ((bid,boxes),order) in group:
                     if (bid,boxes[0]) not in boxes_in_new_group:
-                        new_group.append(((bid,boxes,text),order))
-                        new_valid.append(valid)
+                        new_group.append(((bid,boxes),order))
                 if new_group != []:
-                    newvalids[len(cleared)] = new_valid
                     cleared.append(new_group)
-            fixed = cleared + [newgroup]
+            fixed = cleared + [[((bid,boxes),order) for ((bid,boxes,text),order) in newgroup]]
             #newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
             self.groups_saved = fixed
-            tmp = self.validequivs
-            self.compute_equivs_2(run_verification=False)
+
+            self.compute_equivs_2(run_verification=True)
+            return
+
             def putresults(x):
                 print "AND NOW GET", x
                 if len(x) == 1:
@@ -342,16 +347,17 @@ class LabelContest(wx.Panel):
         if self.proj.options.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
+                dlg = wx.MessageDialog(None, "Are you sure?\nThis will destroy all text you have entered.", style=wx.YES_NO | wx.NO_DEFAULT)
+                status = dlg.ShowModal()
+                if status == wx.ID_NO: return
                 self.save()
                 for ct,cid_lst in enumerate(self.contest_order):
                     for cid in cid_lst:
-                        if (ct,cid) not in self.text or self.text[ct,cid] == []:
-                            numt = len(self.groupedtargets[ct][cid])
-                            title = ":".join(["title", str(ct), str(cid)])
-                            contests = [":".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
-                            self.text[ct,cid] = [title]+contests
-                        if (ct,cid) not in self.voteupto: 
-                            self.voteupto[ct, cid] = 1
+                        numt = len(self.groupedtargets[ct][cid])
+                        title = "_".join(["title", str(ct), str(cid)])
+                        contests = ["_".join(["contest", str(ct), str(cid), str(targ)]) for targ in range(numt)]
+                        self.text[ct,cid] = [title]+contests
+                        self.voteupto[ct, cid] = 1
                 print "TEXT NOW", self.text
                 self.restoreText()
                 self.canMoveOn = True
