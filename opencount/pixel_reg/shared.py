@@ -121,6 +121,40 @@ def variableDiffThr(I,patch):
         print "BOOM."
     return err
 
+
+def padWithBorderHandling(M,i1exp,i2exp,j1exp,j2exp):
+    Mpad = np.zeros((M.shape[0]+i1exp+i2exp,
+                     M.shape[1]+j1exp+j2exp))
+    Mpad[i1exp:i1exp+M.shape[0],
+         j1exp:j1exp+M.shape[1]] = M
+
+    # fill corners if needed
+    upleft_pixel = M[0,0]
+    Mpad[0:i1exp,0:j1exp]=upleft_pixel
+    upright_pixel = M[0,M.shape[1]-1]
+    Mpad[0:i1exp,Mpad.shape[0]-1-j2exp:Mpad.shape[0]-1]=upright_pixel;
+    botleft_pixel = M[M.shape[0]-1,0]
+    Mpad[Mpad.shape[0]-1-i2exp:Mpad.shape[0]-1,0:j1exp]=botleft_pixel;
+    botright_pixel = M[M.shape[0]-1,M.shape[1]-1]
+    Mpad[Mpad.shape[0]-1-i2exp:Mpad.shape[0]-1,
+         Mpad.shape[0]-1-j2exp:Mpad.shape[1]-1]=botright_pixel;
+
+    # fill edges if needed
+    leftedge = M[0:M.shape[0]-1,0]
+    Mpad[i1exp:i1exp+leftedge.shape[0],0:j1exp]=np.tile(leftedge,(j1exp,1)).T
+
+    rightedge = M[0:M.shape[0]-1,M.shape[1]-1]
+    Mpad[i1exp:i1exp+rightedge.shape[0],
+         Mpad.shape[1]-1-j2exp:Mpad.shape[1]-1]=np.tile(rightedge,(j2exp,1)).T
+
+    topedge = M[0,0:M.shape[1]-1]
+    Mpad[0:i1exp,j1exp:j1exp+topedge.shape[0]]=np.tile(topedge,(i1exp,1))
+
+    botedge = M[M.shape[0]-1,0:M.shape[1]-1]
+    Mpad[Mpad.shape[0]-1-i2exp:Mpad.shape[0]-1,
+         j1exp:j1exp+botedge.shape[0]]=np.tile(botedge,(i2exp,1))
+
+    return Mpad
 '''
 expand patch by pixPad with nans
 '''
@@ -359,7 +393,8 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
     return results
 
 def numProcs():
-    nProc=mp.cpu_count() 
+    #nProc=mp.cpu_count() 
+    nProc=1
     return nProc
 
 def cropBb(I,bb):

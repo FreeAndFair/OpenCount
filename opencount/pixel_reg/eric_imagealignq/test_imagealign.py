@@ -1,6 +1,6 @@
 import sys, os, pdb, traceback, time
 import cv, numpy as np, scipy.misc
-
+from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 sys.path.append('..')
 
 import shared

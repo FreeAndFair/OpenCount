@@ -161,6 +161,86 @@ def evalPatchSimilarity(I,patch, debug=False):
 
     return (-err,YX,diff)
     
+def evalPatchSimilarity2(I,patch, debug=False):
+    # perform template matching and return the best match in expanded region
+    I_in = np.copy(I)
+    patch_in = np.copy(patch)
+
+    I=sh.prepOpenCV(I)
+    patch=sh.prepOpenCV(patch)
+    # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when 
+    # converting NP -> OpenCV.
+    patchCv=cv.fromarray(np.copy(patch) * 255.0)
+    ICv=cv.fromarray(np.copy(I) * 255.0)
+    # call template match
+    outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,
+                       I.shape[1]-patch.shape[1]+1,patchCv.type)
+    cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
+    Iout=np.asarray(outCv) / 255.0
+    YX=np.unravel_index(Iout.argmax(),Iout.shape)
+
+    # take result and expand in each dimension by pixPad
+    i1=YX[0]; i2=YX[0]+patch.shape[0]
+    j1=YX[1]; j2=YX[1]+patch.shape[1]
+
+    # [new] patch pad 25%
+    # if the result has any nans then we'll call that bad, 
+    # undo the transformation and compute error wrt original 
+    # inputs.
+
+    pixPad = round(.25 * min(patch.shape));
+    patchPad = np.empty((patch.shape[0]+2*pixPad,
+                         patch.shape[1]+2*pixPad))
+    patchPad[:] = np.nan
+    patchPad[pixPad:patch.shape[0]+pixPad,
+             pixPad:patch.shape[1]+pixPad] = patch
+
+    # check how much we need to pad in each dimension
+    # if any values are positive, that means we need to pad
+    # the difference
+    i1pad = i1 - pixPad;
+    i1exp = max(0,-i1pad);
+    i1pad = (i1 - pixPad) + i1exp;
+
+    i2pad = i2 + pixPad;
+    i2exp = max(0,i2pad-I.shape[0]);
+    i2pad = (i2 + pixPad) - i2exp;
+
+    j1pad = j1 - pixPad;
+    j1exp = max(0,-j1pad);
+    j1pad = (j1 - pixPad) + j1exp;
+
+    j2pad = j2 + pixPad;
+    j2exp = max(0,j2pad-I.shape[1]);
+    j2pad = (j2 + pixPad) - j2exp;
+
+    # crop out padded patch
+    I1c=I[i1pad:i2pad,j1pad:j2pad]
+
+    # check for padding
+    if (i1exp+i2exp+j1exp+j2exp) > 0:
+        I1c = sh.padWithBorderHandling(I1c,i1exp,i2exp,j1exp,j2exp)
+
+    # expand if necessary
+    hCells = int(round(I1c.shape[1] / 200))
+    vCells = int(round(I1c.shape[0] / 200))
+    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells)
+
+    Ireg=IO[1]
+    Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
+                pixPad:patch.shape[1]+pixPad]
+
+    if np.sum(np.isnan(Ireg)) > 0:
+        # if there are nan values [brought in from the border]
+        # then that means the alignment result was pretty extreme
+        err = np.inf
+        diff = patch
+    else:
+        err = sh.variableDiffThr(Ireg,patch)
+        diff = np.abs(Ireg-patch);
+
+    return (-err,YX,diff)
+
 def dist2patches(patchTuples,scale,debug=False):
     """
     Input:
@@ -207,7 +287,7 @@ def dist2patches(patchTuples,scale,debug=False):
             patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
             #patch[patch==1.0]=.999; patch[patch==0.0]=.001
             try:
-                res=evalPatchSimilarity(I,patch, debug=flag)
+                res=evalPatchSimilarity2(I,patch, debug=flag)
             except Exception as e:
                 traceback.print_exc()
                 print "CRASHED AT IDX:", idx
@@ -365,7 +445,6 @@ def groupImagesWorkerMAP(job):
     # patchtuples also includes 'flip' possibilities.
     # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
     patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
-    
     # Remember, attr2pat contains multiple exemplars
     firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
     rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
