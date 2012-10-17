@@ -1,4 +1,4 @@
-import os, sys, pdb, traceback, time, shutil
+import os, sys, pdb, traceback, time, shutil, cProfile
 import cPickle as pickle    
 import cv
 
@@ -10,6 +10,30 @@ import grouping.make_overlays as make_overlays
 import pixel_reg.imagesAlign as imagesAlign
 
 decode_fns = {'hart': hart.decode}
+
+# 5000 imgs (/media/data1/audits_2012/orange/votedballots): 
+#     Single Image Read at a time (12 procs):
+#         251.42 s    (0.05 s per ballot)
+#     
+# 500 imgs
+#     Single Image Read at a time (12 procs):
+#         5.647 s     (0.011 s per ballot)
+#     Single Img (single proc):
+#         39.34 s     (0.078 s per ballot)
+#     50-imgs (12 proc):
+#         5.845 s
+#     50-imgs (1 proc):
+#         39.162 s    (0.078 s per ballot)
+#
+# 100 imgs
+#     Single img (12 proc):
+#         1.243 s     (0.0124 s per ballot)
+#     Single img (1 proc):
+#         7.899 s     (0.078 s per ballot)
+#     50-imgs (12 proc):
+#         1.334 s     (0.0133 s per ballot)
+#     50-imgs (1 proc):
+#         8.007 s     (0.08 s per ballot)
 
 def partition_imgs(imgpaths, vendor="hart"):
     """ Partition the images in IMGPATHS, assuming that the images
@@ -26,9 +50,13 @@ def partition_imgs(imgpaths, vendor="hart"):
     if not decode:
         print "Unrecognized vendor:", vendor
         return None
+    kwargs = {}
+    if vendor == 'hart':
+        kwargs['TOP_GUARD'] = cv.LoadImage('hart_topguard.png', cv.CV_LOAD_IMAGE_GRAYSCALE)
+        kwargs['BOT_GUARD'] = cv.LoadImage('hart_botguard.png', cv.CV_LOAD_IMAGE_GRAYSCALE)
     
     for imgpath in imgpaths:
-        barcodes, isflip, bbs = decode(imgpath)
+        barcodes, isflip, bbs = decode(imgpath, **kwargs)
         grouping.setdefault(barcodes, []).append((imgpath, isflip, bbs))
         #grouping.setdefault((barcodes[0],), []).append((imgpath, isflip, [bbs[0]]))
         
@@ -53,14 +81,17 @@ def main():
     except:
         N = -1
     if 'align' in args:
+        # Align the barcodes when computing Min/Max overlays
         do_align = True
     else:
         do_align = False
     if 'do_cpyimg' in args:
+        # Copy the entire images to OUTDIR (don't do this for large N!)
         do_cpyimg = True
     else:
         do_cpyimg = False
     if 'just_grouping' in args:
+        # Just compute the barcodes + group, don't compute overlays
         just_grouping = True
     else:
         just_grouping = False
@@ -68,6 +99,7 @@ def main():
         grouping = pickle.load(open(args[-1], 'rb'))
     else:
         grouping = None
+    do_profile = True if 'profile' in args else False
 
     imgpaths = []
     cnt = 0
@@ -82,12 +114,17 @@ def main():
             break
     print "Starting partition_imgs..."
     t = time.time()
-    #grouping = partition_imgs(imgpaths, vendor=vendor)
+    if do_profile:
+        cProfile.runctx('partition_imgs(imgpaths, vendor=vendor)',
+                        {}, {'imgpaths': imgpaths, 'vendor': vendor,
+                             'partition_imgs': partition_imgs})
+        return
     if grouping == None:
         grouping = partask.do_partask(_do_partition_imgs, 
                                       imgpaths,
                                       _args=(vendor,),
-                                      combfn="dict")
+                                      combfn="dict", 
+                                      N=None)
         try:
             os.makedirs(outdir)
         except:
@@ -97,15 +134,18 @@ def main():
     dur = time.time() - t
     print "...Finished partition_imgs ({0} s).".format(dur)
 
-    if just_grouping:
-        return
-
     print "Copying groups to outdir {0}...".format(outdir)
     t = time.time()
+    errcount = 0
     for barcodes, group in grouping.iteritems():
         if len(group) == 1:
+            errcount += 1 if ("ERR0" in barcodes or "ERR1" in barcodes) else 0
             continue
         elif "ERR0" in barcodes or "ERR1" in barcodes:
+            #continue
+            errcount += len(group)
+            pass
+        if just_grouping:
             continue
         bcs = '_'.join([thing for thing in barcodes if type(thing) == str])
         rootdir = os.path.join(outdir, bcs)
@@ -160,6 +200,7 @@ def main():
             
     dur = time.time() - t
     print "...Finished Copying groups to outdir {0} ({1} s).".format(outdir, dur)
+    print "Number of error ballots:", errcount
     print "Done."
 
 if __name__ == '__main__':

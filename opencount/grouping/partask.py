@@ -10,7 +10,8 @@ might as well abstract the pattern.
 def do_partask(fn, jobs, _args=None, blocking=True,
                combfn=None, init=None,
                pass_idx=False,
-               singleproc=False):
+               singleproc=False,
+               N=None):
     """ The developer-facing main function. do_partask will split up
     'jobs' into N equally-sized chunks C_i, and apply 'fn' to each
     C_i in parallel, in addition to (optionally) providing additional
@@ -28,12 +29,14 @@ def do_partask(fn, jobs, _args=None, blocking=True,
                 value.
         bool pass_idx: If True, then the starting index w.r.t jobs will
                        be passed to 'fn' as the last argument.
+        int N: Number of processors to use. If None, it will use the
+            number of system cores.
     Output:
         The return value of calling 'fn' on all things in 'jobs', in a
         flat-list.
     TODO: non-blocking functionality is not implemented.
     """
-    if singleproc:
+    if singleproc or N == 1:
         if pass_idx:
             return fn(jobs, _args, 0)
         else:
@@ -41,7 +44,7 @@ def do_partask(fn, jobs, _args=None, blocking=True,
     manager = multiprocessing.Manager()
     queue = manager.Queue()
 
-    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx))
+    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx, N))
     p.start()
 
     num_jobs = len(jobs)
@@ -80,11 +83,14 @@ class POOL_CLOSED:
 
 _POOL_CLOSED = POOL_CLOSED()
 
-def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False):
+def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, N=None):
     def handle_result(result):
         queue.put(result)
     pool = multiprocessing.Pool()
-    n_procs = multiprocessing.cpu_count()
+    if N == None:
+        n_procs = multiprocessing.cpu_count()
+    else:
+        n_procs = N
     cnt = 0
     for i, job in enumerate(divy_list(jobs, n_procs)):
         num_tasks = len(job)
