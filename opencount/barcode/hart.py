@@ -17,7 +17,7 @@ def decode_patch(img, n, debug=False, TOP_GUARD=None, BOT_GUARD=None):
         I = img
     return i2of5.decode_i2of5(I, n, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
 
-def decode(imgpath, only_ul=True, TOP_GUARD=None, BOT_GUARD=None):
+def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
     """ Given a Hart-style ballot, returns the barcodes in the order
     UPPERLEFT, LOWERLEFT, LOWERRIGHT. Will try to detect flipped
     ballots and correct, if need be.
@@ -66,7 +66,7 @@ def decode(imgpath, only_ul=True, TOP_GUARD=None, BOT_GUARD=None):
     if only_ul:
         dec_ll, outbb_ll, check_ll = None, [0,0,0,0], None
     else:
-        dec_ll, outbb_ll = decode_patch(I, 12, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        dec_ll, outbb_ll = decode_patch(I, 12, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
         check_ll = check_result(dec_ll, type='LL')
     if not only_ul and "ERR" in check_ll:
         # 1.a.) Flip it
@@ -79,7 +79,7 @@ def decode(imgpath, only_ul=True, TOP_GUARD=None, BOT_GUARD=None):
         bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
         #LL = cv.GetSubRect(I, bb_ll)
         cv.SetImageROI(I, bb_ll)
-        dec_ll, outbb_ll = decode_patch(I, 12, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        dec_ll, outbb_ll = decode_patch(I, 12, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
     # offset outbb_ll by the cropping we did (bb_ll).
     bbs[1] = [outbb_ll[0] + bb_ll[0],
               outbb_ll[1] + bb_ll[1],
@@ -89,7 +89,7 @@ def decode(imgpath, only_ul=True, TOP_GUARD=None, BOT_GUARD=None):
     bb_ul = (int(round(w*0.02)), int(round(h*0.03)), int(round(w * 0.13)), int(round(h * 0.23)))
     #bb_ul = (0, 0, int(round(w * 0.15)), int(round(h*0.3)))
     cv.SetImageROI(I, bb_ul)
-    dec_ul, outbb_ul = decode_patch(I, 14, debug=False, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+    dec_ul, outbb_ul = decode_patch(I, 14, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
     check_ul = check_result(dec_ul, type="UL")
     if only_ul and "ERR" in check_ul:
         isflipped = True
@@ -98,7 +98,7 @@ def decode(imgpath, only_ul=True, TOP_GUARD=None, BOT_GUARD=None):
         cv.Flip(I, tmp, flipMode=-1)
         I = tmp
         cv.SetImageROI(I, bb_ul)
-        dec_ul, outbb_ul = decode_patch(I, 14, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        dec_ul, outbb_ul = decode_patch(I, 14, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
     bbs[0] = [outbb_ul[0] + bb_ul[0],
               outbb_ul[1] + bb_ul[1],
               outbb_ul[2],
@@ -119,7 +119,7 @@ def main():
         only_ul=False
     t = time.time()
     if mode == 'full':
-        decoded = decode(imgpath, only_ul=only_ul)
+        decoded = decode(imgpath, debug=True, only_ul=only_ul)
     elif mode == 'patch':
         n = args[2]
         decoded = decode_patch(imgpath, n)

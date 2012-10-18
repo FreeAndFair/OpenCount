@@ -42,17 +42,20 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     w,h = cv.GetSize(img)
     _ROI = cv.GetImageROI(img)
     cv.SetImageROI(img, (_ROI[0], _ROI[1], w, h/2))
-    top_mats = get_tempmatches(TOP_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3)
+    #cv.SaveImage("_imgtop.png", img)
+    top_mats = get_tempmatches(TOP_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
     cv.SetImageROI(img, _ROI)
     _ROI = cv.GetImageROI(img)
     cv.SetImageROI(img, (_ROI[0], _ROI[1]+h / 2, w, h / 2))
-    bot_mats = get_tempmatches(BOT_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3)
+    #cv.SaveImage("_imgbot.png", img)
+    bot_mats = get_tempmatches(BOT_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
     cv.SetImageROI(img, _ROI)
     # 1.a.) Get top-most/bottom-most match.
     top_sorted = sorted(top_mats, key=lambda t: t[1])
     bot_sorted = sorted(bot_mats, key=lambda t: -t[1])
     if not top_sorted and not bot_sorted:
-        #print "...couldn't find either TOP/BOT guard..."
+        if debug:
+            print "...couldn't find either TOP/BOT guard..."
         return None, [0,0,1,1]
     elif top_sorted and not bot_sorted:
         (xtop, ytop, sctop) = top_sorted[0]
@@ -90,7 +93,8 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
                                  (xtop, ytop, max(TOP_GUARD.width, BOT_GUARD.width),
                                   ybot - ytop + BOT_GUARD.height)))
     img_post = dothreshold(img)
-
+    if debug:
+        cv.SaveImage("_imgpost.png", img_post)
     w_imgpost, h_imgpost = cv.GetSize(img_post)
     # TODO: Implement Me.
 
@@ -143,7 +147,7 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     curlen = 0
     isblack = True
     for idx, val in enumerate(flat_np[start_idx:]):
-        if abs(val - pix_on) <= (0.4 * pix_on):
+        if abs(val - pix_on) <= (0.8 * pix_on):
             if not isblack:
                 # Entering Black
                 whts.append(curlen)
@@ -151,7 +155,7 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
             else:
                 curlen += 1
             isblack = True
-        elif abs(val - pix_off) <= (0.4 * pix_off):
+        elif abs(val - pix_off) <= (0.8 * pix_off):
             if isblack:
                 # Entering White
                 blks.append(curlen)
@@ -170,19 +174,44 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     # so, first separate by (16, 8), (5, 4, 3, 2), and then get the 
     # most-populated bucket, and set the parameter to be the coresponding
     # bin value. 
+    def get_median_bucket(hist):
+        K = int(sum(hist) / 2)
+        for i, bucket in enumerate(tuple(hist)):
+            if (K-bucket) <= 0:
+                return i
+            K -= bucket
+        print "UH OH, this is weird."
+        return 1
     _idxs0 = np.where(bins_whts == 0)[0]
-    _idx0 = _idxs0[int(len(_idxs0)/2)]
+    if len(_idxs0) == 0:
+        _idx0 = int(len(bins_whts) / 2)
+    else:
+        _idx0 = _idxs0[int(len(_idxs0)/2)]
     _idxs1 = np.where(bins_blks == 0)[0]
-    _idx1 = _idxs1[int(len(_idxs1)/2)]
+    if len(_idxs1) == 0:
+        _idx1 = int(len(bins_blks) / 2)
+    else:
+        _idx1 = _idxs1[int(len(_idxs1)/2)]
     _bins0_wht = bins_whts[:_idx0]
     _bins1_wht = bins_whts[_idx0:]
+    b0_w = get_median_bucket(_bins0_wht)
+    b1_w = get_median_bucket(_bins1_wht)
+    w_narrow = binedges_whts[:_idx0][b0_w]
+    w_wide = binedges_whts[_idx0:][b1_w]
+    '''
     w_narrow = binedges_whts[np.argmax(_bins0_wht)]
     w_wide = binedges_whts[np.argmax(_bins1_wht)+_idx0]
+    '''
     _bins0_blk = bins_blks[:_idx1]
     _bins1_blk = bins_blks[_idx1:]
+    b0_b = get_median_bucket(_bins0_blk)
+    b1_b = get_median_bucket(_bins1_blk)
+    b_narrow = binedges_blks[:_idx1][b0_b]
+    b_wide = binedges_blks[_idx1:][b1_b]
+    '''
     b_narrow = binedges_blks[np.argmax(_bins0_blk)]
     b_wide = binedges_blks[np.argmax(_bins1_blk)+_idx1]
-
+    '''
     #print 'wht_narrow, wht_wide:', int(round(w_narrow)), int(round(w_wide))
     #print 'blk_narrow, blk_wide:', int(round(b_narrow)), int(round(b_wide))
     #cv.SaveImage("_img_post.png", img_post)
@@ -205,20 +234,15 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
     test1 = bars[:4] == [NARROW, NARROW, NARROW, NARROW]
     if not test1:
-        '''
-        print "Warning: Begin-guard not found. Continuing \
-to try decoding anyways."
-        '''
         if debug:
+            print "Warning: Begin-guard not found. Continuing \
+to try decoding anyways."
             pdb.set_trace()
     test2 = bars[-3:] == [WIDE, NARROW, NARROW]
     if not test2:
-        '''
-        print "Warning: End-guard not found. Continuing to try \
-decoding anyways."
-        '''
         if debug:
-            pdb.set_trace()
+            print "Warning: End-guard not found. Continuing to try \
+decoding anyways."
     bars = bars[4:]
     bars = bars[:-3]
     # 6.) Interpret BARS.
@@ -364,7 +388,7 @@ def dothreshold(I):
     cv.Threshold(I, newI, 75, 255.0, cv.CV_THRESH_BINARY)
     return newI
 
-def get_tempmatches(A, B, T=0.8, do_smooth=True, xwin=13, ywin=13, MAX_MATS=50):
+def get_tempmatches(A, B, T=0.8, do_smooth=True, xwin=13, ywin=13, MAX_MATS=50, atleastone=False):
     """ Runs template matching, trying to find image A within image
     B. Returns location (and responses) of all matches greater than
     some threshold T.
@@ -400,6 +424,12 @@ def get_tempmatches(A, B, T=0.8, do_smooth=True, xwin=13, ywin=13, MAX_MATS=50):
         M_np[i-(hA/3):i+(hA/3),
              j-(wA/3):j+(wA/3)] = -1.0
         num_mats += 1
+    if not matches and atleastone:
+        M_idx = np.argmax(M_np)
+        i = int(M_idx / M.cols)
+        j = M_idx % M.cols
+        score = M_np[i,j]
+        matches.append((j, i, score))
     return matches
 
 def smooth_constborder(A, xwin=5, ywin=5, val=0):

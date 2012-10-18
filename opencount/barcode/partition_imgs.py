@@ -56,9 +56,13 @@ def partition_imgs(imgpaths, vendor="hart"):
         kwargs['BOT_GUARD'] = cv.LoadImage('hart_botguard.png', cv.CV_LOAD_IMAGE_GRAYSCALE)
     
     for imgpath in imgpaths:
-        barcodes, isflip, bbs = decode(imgpath, **kwargs)
+        try:
+            barcodes, isflip, bbs = decode(imgpath, **kwargs)
+        except:
+            print "Errored on:", imgpath
+            grouping.setdefault((None,), []).append((imgpath, None, None))
+            continue
         grouping.setdefault(barcodes, []).append((imgpath, isflip, bbs))
-        #grouping.setdefault((barcodes[0],), []).append((imgpath, isflip, [bbs[0]]))
         
     return grouping
 
