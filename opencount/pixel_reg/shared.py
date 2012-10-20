@@ -106,7 +106,6 @@ def variableDiffThr(I,patch):
         Ithr = (Ibg - I.min()) / 2
         Pthr = (Pbg - patch.min()) / 2
         thr = min(Ithr,Pthr)
-        print 'thr is:', thr
         diff=np.abs(I-patch);
         # sum values of diffs above  threshold
         err = np.sum(diff[np.nonzero(diff>thr)])

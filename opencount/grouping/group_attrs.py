@@ -62,6 +62,8 @@ def cluster_imgpatchesV2(imgpaths, bb_map, init_clusters=None, THRESHOLD=0.95):
             print "...found {0} matches".format(len(bestmatches))
             # 1.) Handle the best matches
             for _, (filename,sc1,sc2,y1,y2,x1,x2,rszFac) in bestmatches.iteritems():
+                if filename in unlabeled_imgpaths:
+                    unlabeled_imgpaths.remove(filename)
                 clusters.setdefault(curimgpath, []).append((filename, (y1,y2,x1,x2), sc2))
         else:
             print "...Uh oh, no matches found. This shouldnt' have \
