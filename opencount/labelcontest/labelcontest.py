@@ -841,6 +841,7 @@ class LabelContest(wx.Panel):
             return [item]
 
 
+    @util.pdb_on_crash
     def saveText(self, removeit=True):
         """
         Save the text associated with the current contest.

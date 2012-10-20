@@ -13,6 +13,67 @@ import numpy as np
 import scipy.misc
 import multiprocessing as mp
 
+def merge_and_align(dat):
+    i, group = dat
+    print i
+    return merge(align(i, group))
+
+def translate(name):
+    return "tmp/"+os.path.abspath(name).replace("/","~")
+
+
+def merge(args):
+    all_files, all_images = args
+    res = []
+    for contest_paths,contest_images in zip(zip(*all_files),zip(*all_images)):
+        name = os.path.commonprefix(contest_paths)+".png"
+        M = np.zeros((sum(x.shape[0] for x in contest_images),
+                      max(x.shape[1] for x in contest_images)))
+        pos = 0
+        for img in contest_images:
+            M[pos:pos+img.shape[0],:] = img
+            pos += img.shape[0]
+        scipy.misc.imsave(name, M)
+        res.append(name)
+    return [res]
+
+def align(groupid, dat):
+    res = []
+    res_img = []
+    for group in zip(*dat):
+        
+        Iref=sh.standardImread(group[0],flatten=True)
+        r = []
+        r_img = []
+    
+        for i in range(len(group)):
+            I=sh.standardImread(group[i],flatten=True)
+            Inorm = np.zeros(Iref.shape)
+            # make patch the same size as Iref
+        
+            min0 = min(I.shape[0],Iref.shape[0])
+            min1 = min(I.shape[1],Iref.shape[1])
+            Inorm[0:min0,0:min1] = I[0:min0,0:min1]
+        
+            diff0 = Iref.shape[0] - I.shape[0]
+            diff1 = Iref.shape[1] - I.shape[1]
+        
+            if diff0 > 0:
+                Inorm[I.shape[0]:I.shape[0]+diff0,:] = 1
+            if diff1 > 0:
+                Inorm[:,I.shape[1]:I.shape[1]+diff1] = 1
+        
+            align_res=imagesAlign(Inorm,Iref,type='translation')
+            align_res = np.nan_to_num(align_res[1])
+            #scipy.misc.imsave(translate(group[i]), align_res)
+            r_img.append(align_res)
+            r.append(translate(group[i]))
+
+        res_img.append(r_img)
+        res.append(r)
+
+    return res, res_img
+
 
 class VerifyContestGrouping:
     def __init__(self, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
@@ -32,9 +93,11 @@ class VerifyContestGrouping:
         print self.equivs
         print self.processgroups
         res = []
-        #pool = mp.Pool(mp.cpu_count())
-        def do_align(i): return self.align(i, self.generate_one(i))
-        res = map(do_align, range(len(self.processgroups)))
+        pool = mp.Pool(mp.cpu_count())
+
+        print "Go up to", len(self.processgroups)
+
+        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups[:])))))
         res = [x for y in res for x in y]
         
         print len(res), map(len,res)
@@ -43,6 +106,7 @@ class VerifyContestGrouping:
         frame.Maximize()
         frame.Show()
 
+    @pdb_on_crash
     def on_verify_done(self, results):
         """ Called when user finishes verifying the grouping.
         Input:
@@ -61,8 +125,8 @@ class VerifyContestGrouping:
             for ballot, contest in group:
                 print "NEW", ballot, contest
                 print self.get_files(ballot, contest)
-                print self.translate(os.path.commonprefix(self.get_files(ballot, contest)))+".png"
-                ids = mapping[self.translate(os.path.commonprefix(map(os.path.abspath,self.get_files(ballot, contest))))+".png"]
+                print self.translate(os.path.commonprefix(self.get_files(ballot, contest)))+"~.png"
+                ids = mapping[self.translate(os.path.commonprefix(map(os.path.abspath,self.get_files(ballot, contest))))+"~.png"]
                 print ids
                 
                 if ids not in sets: sets[ids] = []
@@ -100,75 +164,14 @@ class VerifyContestGrouping:
         return paths
 
     def generate_one(self, which):
-        def combine(files):
-            imgs = map(Image.open, files)
-            height = sum(x.size[1] for x in imgs)
-            width = max(x.size[0] for x in imgs)
-            showimg = Image.new("RGB", (width, height))
-            pos = 0
-            for img in imgs:
-                showimg.paste(img, (0, pos))
-                pos += img.size[1]
-            showimg.save(self.translate(os.path.commonprefix(map(os.path.abspath,files)))+".png")
-            return [self.translate(os.path.commonprefix(map(os.path.abspath,files)))+".png"]
-            
         orderedpaths = []
-        print "STARTING", self.equivs[self.processgroups[which]]
+        #print "STARTING", self.equivs[self.processgroups[which]]
         for ballot,contest in self.equivs[self.processgroups[which]]:
-            orderedpaths.append(combine(self.get_files(ballot, contest)))
+            orderedpaths.append((self.get_files(ballot, contest)))
         return orderedpaths
 
     def translate(self, name):
-        return "tmp/"+name.replace("/","~")
-
-    def align(self, groupid, dat):
-        #         res = []
-        # for group in zip(*dat):
-        #     a = scipy.misc.imread(group[0], flatten=1)
-        #     a = np.nan_to_num(a)
-        #     r = []
-        #     for each in group:
-        #         b = scipy.misc.imread(each, flatten=1)
-        #         b = np.nan_to_num(b)
-        #         b = grouping.common.resize_img_norescale(b, (a.shape[1], a.shape[0]))
-        #         #(H, align, err) = imagesAlign(a, b)
-        #         #align = np.nan_to_num(align)
-        #         align = b
-        #         #name = self.translate(each)
-        #         scipy.misc.imsave(each, align)
-        #         r.append(each)
-        #     res.append(r)
-        # #return res
-
-        res = []
-        for group in zip(*dat):
-            
-            Iref=sh.standardImread(group[0],flatten=True)
-            M = np.zeros((Iref.shape[0],Iref.shape[1], len(group)))
-            r = []
-        
-            for i in range(len(group)):
-                I=sh.standardImread(group[i],flatten=True)
-                Inorm = np.zeros(Iref.shape)
-                # make patch the same size as Iref
-            
-                min0 = min(I.shape[0],Iref.shape[0])
-                min1 = min(I.shape[1],Iref.shape[1])
-                Inorm[0:min0,0:min1] = I[0:min0,0:min1]
-            
-                diff0 = Iref.shape[0] - I.shape[0]
-                diff1 = Iref.shape[1] - I.shape[1]
-            
-                if diff0 > 0:
-                    Inorm[I.shape[0]:I.shape[0]+diff0,:] = 1
-                if diff1 > 0:
-                    Inorm[:,I.shape[1]:I.shape[1]+diff1] = 1
-            
-                align_res=imagesAlign(Inorm,Iref)
-                scipy.misc.imsave(self.translate(group[i]), align_res[1])
-                r.append(self.translate(group[i]))
-            res.append(r)
-        return res
+        return "tmp/"+os.path.abspath(name).replace("/","~")
             
             
 

@@ -11,6 +11,7 @@ import multiprocessing as mp
 import pickle
 import itertools
 import time
+import util
 
 def pdb_on_crash(f):
     """
@@ -813,12 +814,26 @@ def compare(otexts1, otexts2, debug=False):
         print "Possible error: tried to compare distance of two contests with different number of targets."
         return 1<<30
 
-    texts1 = [x for t,x in otexts1 if t]
-    texts2 = [x for t,x in otexts2 if t]
+    @util.pdb_on_crash
+    def fixup(s):
+        words = s.split()
+        found = 0
+        for item,sep in [('Party Preference: Republican', 3), ('Party Preference: Democratic', 3),
+                         ('MEMBER OF THE STATE ASSEMBLY', 5)]:
+            for i in range(len(words)-(sep-1)):
+                combined = " ".join(words[i:i+sep])
+                if abs(len(combined)-len(item)) < len(item)/10:
+                    if row_dist(combined, item) < len(item)/5:
+                        words[i:i+sep] = item.split(" ")
+                        found += len(item)
+        return " ".join(words), found
+
+    texts1, founds1 = zip(*[fixup(x) for t,x in otexts1 if t])
+    texts2, founds2 = zip(*[fixup(x) for t,x in otexts2 if t])
     # Text associated with targets only
     ordering1 = range(len(texts1))
     ordering2 = range(len(texts2))
-    size = sum(map(len,[x for _,x in otexts1]))+sum(map(len,[x for _,x in otexts2]))
+    size = sum(map(len,[x for _,x in otexts1]))+sum(map(len,[x for _,x in otexts2]))-sum(founds1)-sum(founds2)
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
