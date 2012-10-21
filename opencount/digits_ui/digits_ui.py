@@ -514,7 +514,6 @@ digit.")
             util_gui.create_dirs(rootdir)
             patchpath = os.path.join(rootdir, '{0}_match.png'.format(matchID))
             bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
-
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
             if Ireg.shape != (h, w):
@@ -948,7 +947,8 @@ class ThreadDoTempMatch(threading.Thread):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 regions.append(pathjoin(dirpath, imgname))
         try:
-            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.8)
+            matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.8,
+                                                  output_Ireg=True)
         except Exception as e:
             scipy.misc.imsave('_err_img1.png', self.img1)
             errf = open('_err_findpatchmatches.log', 'w')
