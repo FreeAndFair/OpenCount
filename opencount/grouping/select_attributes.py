@@ -360,6 +360,8 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
         self.imagemosaic.TM_THRESHOLD = dlg.thresh_out
 
 class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
+    TEMPMATCH_JOB_ID = util.GaugeID("SelectAttrsTempMatchJobId")
+
     def __init__(self, parent, *args, **kwargs):
         util_widgets.ImageMosaicPanel.__init__(self, parent, cellheight=100, *args, **kwargs)
 
@@ -397,9 +399,14 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             if imgpath not in self.GetParent().GetParent().boxes:
                 unlabeled_imgpaths.append(imgpath)
                 
-        t = TM_Thread(patch, unlabeled_imgpaths, attrval, callback=self.on_tempmatchdone)
+        t = TM_Thread(patch, unlabeled_imgpaths, attrval, self.TEMPMATCH_JOB_ID,
+                      callback=self.on_tempmatchdone)
         print "...starting TM Thread..."
+        numtasks = len(unlabeled_imgpaths)
+        gauge = util.MyGauge(self, numtasks, thread=t, msg="Running template matching...",
+                             job_id=self.TEMPMATCH_JOB_ID)
         t.start()
+        gauge.Show()
 
     def on_tempmatchdone(self, results, w, h, attrval):
         """
@@ -462,17 +469,18 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         self.Refresh()
 
 class TM_Thread(threading.Thread):
-    def __init__(self, patch, imgpaths, attrval, callback=None, *args, **kwargs):
+    def __init__(self, patch, imgpaths, attrval, jobid, callback=None, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.patch = patch
         self.imgpaths = imgpaths
         self.callback = callback
         self.attrval = attrval
+        self.jobid = jobid
     def run(self):
         print "...calling template matching..."
         t = time.time()
         results = tempmatch.bestmatch_par(self.patch, self.imgpaths, do_smooth=tempmatch.SMOOTH_BOTH,
-                                          xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=12)
+                                          xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=12, jobid=self.jobid)
         dur = time.time() - t
         print "...finished template matching ({0} s)".format(dur)
         if self.callback:

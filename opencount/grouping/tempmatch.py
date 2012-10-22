@@ -1,6 +1,9 @@
 import sys, os, time, pdb, traceback
 import cv
 
+from wx.lib.pubsub import Publisher
+import wx
+
 import partask
 
 SMOOTH_NONE = 0
@@ -13,7 +16,7 @@ SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
 def bestmatch(A, imgpaths, do_smooth=0, xwinA=3, ywinA=3, 
-              xwinI=3, ywinI=3, prevmatches=None):
+              xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """ Runs template matching on IMGPATHS, searching for best match
     for A. 
     Input:
@@ -54,21 +57,26 @@ def bestmatch(A, imgpaths, do_smooth=0, xwinA=3, ywinA=3,
             matchmat[_y1:_y2, _x1:_x2] = -1.0
         minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(matchmat)
         results[imgpath] = (maxLoc[0], maxLoc[1], maxResp)
+        if jobid and wx.App.IsMainLoopRunning():    
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+
     print 'results:', results
     return results
 
-def _do_bestmatch(imgpaths, (A_str, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches)):
+def _do_bestmatch(imgpaths, (A_str, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
     A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
-        return bestmatch(A_cv, imgpaths, do_smooth=do_smooth, xwinA=xwinA,
-                         ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches)
+        result = bestmatch(A_cv, imgpaths, do_smooth=do_smooth, xwinA=xwinA,
+                           ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches,
+                           jobid=jobid)
+        return result
     except:
         traceback.print_exc()
         return {}
 
 def bestmatch_par(A, imgpaths, NP=None, do_smooth=0, xwinA=3, ywinA=3,
-                  xwinI=3, ywinI=3, prevmatches=None):
+                  xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """
     Input:
         IplImage A:
@@ -82,10 +90,13 @@ def bestmatch_par(A, imgpaths, NP=None, do_smooth=0, xwinA=3, ywinA=3,
     """
     A_str = A.tostring()
     w, h = cv.GetSize(A)
-    return partask.do_partask(_do_bestmatch, imgpaths,
-                              _args=(A_str, do_smooth, xwinA, ywinA,
-                                     xwinI, ywinI, w, h, prevmatches),
-                              combfn='dict', singleproc=True)
+    result = partask.do_partask(_do_bestmatch, imgpaths,
+                                _args=(A_str, do_smooth, xwinA, ywinA,
+                                       xwinI, ywinI, w, h, prevmatches, jobid),
+                                combfn='dict', singleproc=True)
+    if jobid and wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+    return result
 
 def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to I, with window size [XWIN,YWIN].

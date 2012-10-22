@@ -1,4 +1,4 @@
-import time, threading, sys, os, math, pdb
+import time, threading, sys, os, math, pdb, traceback
 sys.path.append('..')
 import grouping.common as common
 import wx
@@ -330,6 +330,7 @@ class ImageMosaicPanel(ScrolledPanel):
                     img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
                 else:
                     c = 1.0
+                    self.cell_width = img.GetWidth()
                 cellpanel = self.cells[i][j]
                 cellpanel.is_dummy = False
                 cellpanel.set_bitmap(wx.BitmapFromImage(img), c)
