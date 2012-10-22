@@ -84,13 +84,14 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
                                                   project.extracted_digitpatch_dir)
         digit_ex_fulldir = pathjoin(project.projdir_path, project.digit_exemplars_outdir)
         precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
-        _t = time.time()
-        print "Extracting Digit Patches..."
-        patch2temp = do_extract_digitbased_patches(self.project)
-        print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
-        pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
-                                              project.digitpatch2temp),
-                                     'wb'))
+        if not os.path.exists(extracted_digitpatches_fulldir):
+            print "Extracting Digit Patches..."
+            _t = time.time()
+            patch2temp = do_extract_digitbased_patches(self.project)
+            print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
+            pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
+                                                  project.digitpatch2temp),
+                                         'wb'))
         self.mainpanel = DigitMainPanel(self, extracted_digitpatches_fulldir,
                                         digit_ex_fulldir,
                                         precinctnums_fullpath,
@@ -306,7 +307,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         for regionpath, digits_str in digits.iteritems():
             i, j = self.imgID2cell[regionpath]
             k = (self.NUM_COLS * i) + j
-            self.precinct_txts[regionpath].SetLabel("{0}: Precinct Number: {1}".format(str(k),
+            self.precinct_txts[regionpath].SetLabel("{0} Precinct Number: {1}".format(str(k),
                                                                                        digits_str))
         #for regionpath, boxes in cell_boxes.iteritems():
         #    self.cells[regionpath].boxes = boxes
@@ -673,7 +674,7 @@ digit.")
         for regionpath, digits_str in digits.iteritems():
             i, j = self.imgID2cell[regionpath]
             k = (self.NUM_COLS * i) + j
-            self.precinct_txts[regionpath].SetLabel("{0}: Precinct Number: {1}".format(str(k),
+            self.precinct_txts[regionpath].SetLabel("{0} Precinct Number: {1}".format(str(k),
                                                                                        digits_str))
         
         self.gridsizer.Layout()
@@ -760,7 +761,8 @@ are not of proper length.'
             assert patchpath not in result
             # txt.GetLabel() returns something like 'Precinct Number:0013038',
             # so get rid of this.
-            result[patchpath] = txt.GetLabel().split(":")[1].strip()
+            digitstr = txt.GetLabel().split(":")[1].strip()
+            result[patchpath] = digitstr
         return result
 
     def export_precinct_nums(self, result):

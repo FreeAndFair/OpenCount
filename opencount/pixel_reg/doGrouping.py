@@ -222,8 +222,8 @@ def evalPatchSimilarity2(I,patch, debug=False):
         I1c = sh.padWithBorderHandling(I1c,i1exp,i2exp,j1exp,j2exp)
 
     # expand if necessary
-    hCells = int(round(I1c.shape[1] / 200))
-    vCells = int(round(I1c.shape[0] / 200))
+    hCells = max(int(round(I1c.shape[1] / 200)), 1)
+    vCells = max(int(round(I1c.shape[0] / 200)), 1)
     IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells)
 
     Ireg=IO[1]
@@ -440,66 +440,70 @@ def groupImagesWorkerMAP(job):
     # str destDir:
     # str metaDir:
     # str attrName: Current attribute type we're grouping on.
-    (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
+    try:
+        (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
-    # patchtuples also includes 'flip' possibilities.
-    # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
-    patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
-    # Remember, attr2pat contains multiple exemplars
-    firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
-    rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
-    sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
+        # patchtuples also includes 'flip' possibilities.
+        # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
+        patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
+        # Remember, attr2pat contains multiple exemplars
+        firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
+        rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
+        sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
 
-    finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
+        finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
 
-    # 2. process
-    #    Workers:
-    #      - align with pyramid + prune
-    #      - fine-alignment on best result
-    #      - store precinct patch in grouping result folder
-    #      - store list in grouping meta result file
-    for sc in sweep:
-        if len(patchTuples)<2:
-            break
-        # TODO: handle flipped and unflipped versions differently to save computation
-        (scores,locs)=dist2patches(patchTuples,sc)
-        sidx=np.argsort(scores)
-        # reverse for descend
-        sidx=sidx[::-1]
-        mid=np.ceil(len(sidx)/2.0)
-        bestScore=scores[sidx[0]];
-        bestLoc=locs[sidx[0]];
-        keepIdx=sidx[0:mid]
-        dumpIdx=sidx[mid:len(sidx)]
-        dumped=sh.arraySlice(patchTuples,dumpIdx)        
-        finalOrder.extend(dumped)
-        patchTuples=sh.arraySlice(patchTuples,keepIdx)
+        # 2. process
+        #    Workers:
+        #      - align with pyramid + prune
+        #      - fine-alignment on best result
+        #      - store precinct patch in grouping result folder
+        #      - store list in grouping meta result file
+        for sc in sweep:
+            if len(patchTuples)<2:
+                break
+            # TODO: handle flipped and unflipped versions differently to save computation
+            (scores,locs)=dist2patches(patchTuples,sc)
+            sidx=np.argsort(scores)
+            # reverse for descend
+            sidx=sidx[::-1]
+            mid=np.ceil(len(sidx)/2.0)
+            bestScore=scores[sidx[0]];
+            bestLoc=locs[sidx[0]];
+            keepIdx=sidx[0:mid]
+            dumpIdx=sidx[mid:len(sidx)]
+            dumped=sh.arraySlice(patchTuples,dumpIdx)        
+            finalOrder.extend(dumped)
+            patchTuples=sh.arraySlice(patchTuples,keepIdx)
 
-    # align patch to top patch
-    # patchTuples[0]: Best patch
-    # I1: region around the attribute patch
-    # P1: an exemplar attribute patch to compare against
-    I1=patchTuples[0][0]
-    P1=patchTuples[0][1][0] # TODO: Arbitrary choice, is this ok?
-    # finalOrder is of the form:
-    #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
-    finalOrder.extend(patchTuples)
-    finalOrder.reverse()
+        # align patch to top patch
+        # patchTuples[0]: Best patch
+        # I1: region around the attribute patch
+        # P1: an exemplar attribute patch to compare against
+        I1=patchTuples[0][0]
+        P1=patchTuples[0][1][0] # TODO: Arbitrary choice, is this ok?
+        # finalOrder is of the form:
+        #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
+        finalOrder.extend(patchTuples)
+        finalOrder.reverse()
 
-    bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
-    # I1c is the purported attrpatch on I1 (voted ballot)
-    I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
-    rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
-    # IO := [transmatrix (?), img, err]
-    IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
-    Ireg = np.nan_to_num(IO[1])
+        bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
+        # I1c is the purported attrpatch on I1 (voted ballot)
+        I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
+        rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
+        # IO := [transmatrix (?), img, err]
+        IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
+        Ireg = np.nan_to_num(IO[1])
 
-    # saving I1, P1, I1c, IO[1] fixes things
-    # saving I1, P1 fixes things
-    # saving I1 fixes things
-    # saving P1 does NOT fix things.
-    # saving IO[1] does NOT fix things.
-    doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
+        # saving I1, P1, I1c, IO[1] fixes things
+        # saving I1, P1 fixes things
+        # saving I1 fixes things
+        # saving P1 does NOT fix things.
+        # saving IO[1] does NOT fix things.
+        doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
 
 def listAttributes(patchesH):
     # tuple ((key=attrType, patchesH tuple))

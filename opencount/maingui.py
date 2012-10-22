@@ -22,6 +22,7 @@ from labelcontest.labelcontest import LabelContest
 from runtargets.runtargets import RunTargets
 from grouping.define_attributes import DefineAttributesPanel, AttributeBox
 from grouping.label_attributes import LabelAttributesPanel, GroupAttrsFrame
+from grouping.select_attributes import SelectAttributesMasterPanel
 from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.verify_grouping import GroupingMasterPanel
 from post_processing.postprocess import ResultsPanel
@@ -641,9 +642,12 @@ class MainFrame(wx.Frame):
         self._pageidx = 0
         self.Bind(wx.EVT_TIMER, self.on_timer, self.timer)
         
-        sizer.Add(notebook, 1, wx.ALL|wx.EXPAND, 5)
+        sizer.Add(notebook, proportion=1, flag=wx.ALL|wx.EXPAND, border=5)
 
         mainpanel.SetSizer(sizer)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(mainpanel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(self.sizer)
 
         self.Layout()
         self.Maximize()
@@ -676,7 +680,8 @@ class MainFrame(wx.Frame):
         self.panel_label_contests = tab_wrap(LabelContest)(notebook)
         self.panel_define_attrs = DefineAttributesPanel(notebook)
         self.panel_define_attrs.unsubscribe_pubsubs()
-        self.panel_label_attrs = tab_wrap(LabelAttributesPanel)(notebook)
+        #self.panel_label_attrs = tab_wrap(LabelAttributesPanel)(notebook)
+        self.panel_label_attrs = SelectAttributesMasterPanel(notebook)
         self.panel_label_digitattrs = tab_wrap(LabelDigitsPanel)(notebook)
         self.panel_correct_grouping = GroupingMasterPanel(notebook)
         self.panel_run = RunTargets(notebook)
@@ -1245,6 +1250,9 @@ ahead to 'Label Digit Attributes'."
                 dlg.ShowModal()
                 self.notebook.ChangeSelection(self.LABEL_DIGIT_ATTRS)
                 self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGIT_ATTRS)
+            else:
+                self.panel_label_attrs.start(self.project)
+            '''
             elif not groupattrs_already_done(self.project):
                 f = GroupAttrsFrame(self, self.project, start_labelattrs)
                 f.SetSize((400, 500))
@@ -1272,6 +1280,7 @@ attribute grouping? ", style=wx.YES | wx.NO)
                              , 'rb')
                     groupresults, grouplabel_record = pickle.load(f)
                     start_labelattrs(groupresults, grouplabel_record)
+            '''
 
         elif new == self.LABEL_DIGIT_ATTRS:
             def is_any_digitspatches(project):

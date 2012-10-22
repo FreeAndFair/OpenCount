@@ -52,21 +52,27 @@ class ProgressGauge(wx.Frame):
         print "Abort not implemented yet. Maybe never."
         #self.Destroy()
 
-class MosaicPanel(ScrolledPanel):
+class MosaicPanel(wx.Panel):
     """ A widget that contains both an ImageMosaicPanel, and a simple
     button toolbar that allows pageup/pagedown.
-    """
+    """            
     def __init__(self, parent, imgmosaicpanel=None, 
+                 CellClass=None, CellBitmapClass=None,
                  _init_args=None,
                  *args, **kwargs):
-        ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         if imgmosaicpanel == None:
-            self.imagemosaic = ImageMosaicPanel(self)
+            self.imagemosaic = ImageMosaicPanel(self, CellClass=CellClass, CellBitmapClass=CellBitmapClass)
         else:
             _init_args = () if _init_args == None else _init_args
-            self.imagemosaic = imgmosaicpanel(self, *_init_args)
-        
+            self.imagemosaic = imgmosaicpanel(self, CellClass=CellClass, CellBitmapClass=CellBitmapClass, *_init_args)
+
+        self.init_ui()
+
+        #self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+    def init_ui(self):
         btn_pageup = wx.Button(self, label="Page Up")
         btn_pagedown = wx.Button(self, label="Page Down")
         self.btn_pageup = btn_pageup
@@ -85,16 +91,17 @@ class MosaicPanel(ScrolledPanel):
         btn_sizer.Add(self.page_txt)
         btn_sizer.Add((20, 20))
         btn_sizer.Add(btn_jumppage)
+        self.btn_sizer = btn_sizer
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.imagemosaic, proportion=1, flag=wx.EXPAND)
         sizer.Add((20, 20))
         sizer.Add(btn_sizer)
+        self.sizer = sizer
         
         self.SetSizer(sizer)
-        self.Layout()
-
-        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+        self.Fit()
+        
 
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
@@ -155,11 +162,8 @@ invalid.".format(pagenum), style=wx.OK)
         min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
         total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
         self.page_txt.SetLabel("Page: 1 / {0}".format(total_pages))
-        self.btn_pageup.Disable()
-        self.SetMinSize((min_w, -1))
-
-        self.SetupScrolling()
-        self.Fit()
+        self.maybe_btn_toggle()
+        self.Layout()
 
     def set_transfn(self, fn):
         self.imagemosaic.set_transfn(fn)
@@ -195,18 +199,21 @@ class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
     in pages. Assumes that the images are the same size.
     """
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, CellClass=None, CellBitmapClass=None,
+                 rows=12, cols=2, cellheight=400, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
-        self.num_rows = 12
-        self.num_cols = 2
+        self.num_rows = rows
+        self.num_cols = cols
 
         self.cell_width = None    # set by display_page
-        self.cell_height = 400
+        self.cell_height = cellheight
 
         self.imgpaths = []
         self.cur_page = 0
+
+        self.CellClass = CellClass if CellClass != None else CellPanel
 
         # A 2-D array containing all CellPanels. self.cells[i][j]
         # is the CellPanel at row i, col j.
@@ -219,7 +226,7 @@ class ImageMosaicPanel(ScrolledPanel):
         # Pre-populate the gridsizer with StaticBitmaps
         for i in range(self.num_rows):
             for j in range(self.num_cols):
-                cellpanel = CellPanel(self, i, j)
+                cellpanel = self.CellClass(self, i, j, CellBitmapClass=CellBitmapClass)
                 self.cells[i][j] = cellpanel
                 self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -227,6 +234,15 @@ class ImageMosaicPanel(ScrolledPanel):
         self.sizer.Add(self.gridsizer)
 
         self.SetSizer(self.sizer)
+
+        #self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+    def OnChildFocus(self, evt):
+        # If I don't override this child focus event, then wx will
+        # reset the scrollbars at extremely annoying times. Weird.
+        # For inspiration, see:
+        #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
+        pass
 
     def get_boxes(self, imgpath):
         """ Given an imgpath that I contain, return the list of 
@@ -289,9 +305,9 @@ class ImageMosaicPanel(ScrolledPanel):
     def display_page(self, pagenum):
         """Sets up UI so that all images on the pagenum are displayed.
         """
-        assert self.imgpaths
+        #assert self.imgpaths
         start_idx = (self.num_rows * self.num_cols) * pagenum
-        assert start_idx < len(self.imgpaths)
+        assert start_idx <= len(self.imgpaths)
         i, j = 0, 0
         for idx in range(start_idx, start_idx + (self.num_rows*self.num_cols)):
             if idx >= len(self.imgpaths):
@@ -300,7 +316,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 cellpanel.is_dummy = True
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
-                cellpanel.set_bitmap(dummybitmap)
+                cellpanel.set_bitmap(dummybitmap, 1.0)
                 cellpanel.set_txtlabel('No image.')
                 cellpanel.imgpath = None
             else:
@@ -316,17 +332,19 @@ class ImageMosaicPanel(ScrolledPanel):
                     c = 1.0
                 cellpanel = self.cells[i][j]
                 cellpanel.is_dummy = False
-                cellpanel.set_bitmap(wx.BitmapFromImage(img))
+                cellpanel.set_bitmap(wx.BitmapFromImage(img), c)
                 imgname = os.path.split(imgpath)[1]
                 parentdir = os.path.split(os.path.split(imgpath)[0])[1]
                 cellpanel.set_txtlabel(os.path.join(parentdir, imgname))
                 cellpanel.imgpath = imgpath
-                cellpanel.cellbitmap.rszFac = c
             j += 1
             if j >= self.num_cols:
                 j = 0
                 i += 1
+        self.gridsizer.Layout()
+        self.Layout()
         self.SetupScrolling()
+
         self.Refresh()
 
     def select_img(self, imgpath):
@@ -369,26 +387,32 @@ class CellPanel(wx.Panel):
     the imagepath of the blank ballot) and a CellBitmap (which
     displays the actual blank ballot image).
     """
-    def __init__(self, parent, i, j, imgpath=None, bitmap=None, is_dummy=False, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath=None, bitmap=None, 
+                 is_dummy=False, CellBitmapClass=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.i, self.j = i, j
         self.imgpath = imgpath
         self.bitmap = bitmap
         self.is_dummy = is_dummy
+        self.scale = 1.0
+
+        self.CellBitmapClass = CellBitmapClass if CellBitmapClass != None else CellBitmap
 
         # self.is_selected is True/False if this panel is selected.
         # A selected CellPanel will have a yellow border drawn.
         self.is_selected = False
 
-        self.cellbitmap = CellBitmap(self, i, j, imgpath, bitmap)
+        self.cellbitmap = self.CellBitmapClass(self, i, j, imgpath, bitmap)
         
         self.txtlabel = wx.StaticText(self, label="Label here.")
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.txtlabel)
         sizer.Add(self.cellbitmap, proportion=1, flag=wx.EXPAND)
+
         self.SetSizer(sizer)
+        self.sizer = sizer
         self.Fit()
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
@@ -399,8 +423,10 @@ class CellPanel(wx.Panel):
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
         
-    def set_bitmap(self, bitmap):
-        self.cellbitmap.set_bitmap(bitmap)
+    def set_bitmap(self, bitmap, scale):
+        self.cellbitmap.set_bitmap(bitmap, scale)
+        self.scale = scale
+        self.sizer.Layout()
 
     def select(self):
         self.is_selected = True
@@ -416,30 +442,40 @@ class CellBitmap(wx.Panel):
     To be used by MosaicPanel.
     """
 
-    def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, rszFac=1.0, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, scale=1.0, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        self.rszFac = rszFac
+        self.scale = scale
         if not bitmap:
             bitmap = wx.EmptyBitmap(50, 50, -1)
         self.bitmap = bitmap
         self.pil_img = pil_img
         self.i, self.j = i, j
 
-        self.SetMinSize(bitmap.GetSize())
+        #self.SetMinSize(bitmap.GetSize())
 
-        self.Bind(wx.EVT_LEFT_DOWN, self.parent.onLeftDown)
+        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
         self.Bind(wx.EVT_PAINT, self.onPaint)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(bitmap.GetSize())
+        self.SetSizer(self.sizer)
+        self.Fit()
 
-    def set_bitmap(self, bitmap):
+    def set_bitmap(self, bitmap, scale):
         """ Given a wx.Bitmap, update me to display bitmap. """
         self.bitmap = bitmap
-        self.SetMinSize(bitmap.GetSize())
+        self.scale = scale
+        self.sizer.Detach(0)
+        self.sizer.Add(bitmap.GetSize())
+        self.Layout()
         self.Refresh()
 
     def add_box(self, box):
         assert box not in self.parent.boxes_dict[self.parent.imgpath]
         self.parent.boxes_dict[self.parent.imgpath].append(box)
+
+    def onLeftDown(self, evt):
+        self.parent.onLeftDown(evt)
 
     def onPaint(self, evt):
         """ Refresh screen. """
@@ -457,6 +493,7 @@ class CellBitmap(wx.Panel):
             dc.SetPen(wx.Pen("Yellow", 8))
             dc.DrawRectangle(0,0,self.bitmap.GetWidth()-1,self.bitmap.GetHeight()-15)
         evt.Skip()
+        return dc
         
     def _draw_boxes(self, dc, boxes):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
@@ -467,7 +504,7 @@ class CellBitmap(wx.Panel):
             if self.parent.parent.transfn != None:
                 # Oh man, what a hack.
                 x1, y1, x2, y2 = self.parent.parent.transfn(x1, y1, x2, y2)
-            x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.rszFac))), (x1,y1,x2,y2))
+            x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.scale))), (x1,y1,x2,y2))
             w, h = int(abs(x1-x2)), int(abs(y1-y2))
             dc.DrawRectangle(x1, y1, w, h)
 

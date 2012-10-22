@@ -515,7 +515,6 @@ in queue: 0")
         if exemplar_paths:
             self.load_exemplar_attrpatches(exemplar_paths)
         else:
-            self.exemplar_paths = None
             self.templates = {}
         self.outfilepath = outfilepath
         self.ondone = ondone

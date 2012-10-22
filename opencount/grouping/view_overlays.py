@@ -16,8 +16,7 @@ where each IMGSDIR_i is a separate 'group'.
 """
 
 class ViewOverlays(wxScrolledPanel):
-    def __init__(self, parent, *args, **kwargs):
-        print parent
+    def __init__(self, parent, verifymode=None, *args, **kwargs):
         wxScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         
@@ -27,13 +26,15 @@ class ViewOverlays(wxScrolledPanel):
         # is set after the user finishes verifying the groups.
         self.out = None
 
+        self.verifymode = verifymode if verifymode != None else VerifyPanel.MODE_YESNO2
+
         sizer = wx.BoxSizer(wx.VERTICAL)
-        self.verifypanel = VerifyPanel(self, verifymode=VerifyPanel.MODE_YESNO2)
+        self.verifypanel = VerifyPanel(self, verifymode=self.verifymode)
         sizer.Add(self.verifypanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(sizer)
         self.Fit()
         
-    def start(self, imggroups, ondone=None):
+    def start(self, imggroups, ondone=None, exemplarpaths=None):
         """ Displays the images in IMGGROUPS. 
         Input:
             list IMGGROUPS: A list of lists of imagepaths, where each 
@@ -47,10 +48,17 @@ class ViewOverlays(wxScrolledPanel):
         gl_record = []
         groups = []
         elements_map = {} # maps {int gl_idx: elements}
-        for i, imgpaths in enumerate(imggroups):
-            elements = [[imgpath, None, imgpath] for imgpath in imgpaths]
-            elements_map[i] = elements
-            gl_record.append(common.make_grouplabel(('group', i)))
+        if self.verifymode == VerifyPanel.MODE_YESNO2:
+            for i, imgpaths in enumerate(imggroups):
+                elements = [[imgpath, None, imgpath] for imgpath in imgpaths]
+                elements_map[i] = elements
+                gl_record.append(common.make_grouplabel(('group', i)))
+            exemplar_dict = None
+        elif self.verifymode == VerifyPanel.MODE_YESNO:
+            for imgpaths in imggroups:
+                elements_map.setdefault(0, []).extend([[imgpath, None, imgpath] for imgpath in imgpaths])
+            gl_record.append(common.make_grouplabel(('group', 0)))
+            exemplar_dict = {gl_record[0]: exemplarpaths[0]}
         groups = []
         for gl_idx, elements in elements_map.iteritems():
             other_gl_idxs = list(set(elements_map.keys()))
@@ -61,7 +69,8 @@ class ViewOverlays(wxScrolledPanel):
                 element[1] = rlist
             groups.append(common.GroupClass(elements))
 
-        self.verifypanel.start(groups, None, None, grouplabel_record=gl_record, ondone=self.verify_done)
+        self.verifypanel.start(groups, exemplar_dict, None, grouplabel_record=gl_record,
+                               ondone=self.verify_done)
 
     def verify_done(self, results, gl_record):
         """ Called when user is finished verifying the overlays.
@@ -72,20 +81,32 @@ class ViewOverlays(wxScrolledPanel):
         out = [] # list of lists, [[imgpath_0i, ...], [imgpath_1i, ...], ...]
         for gl_idx, groups in results.iteritems():
             imgpaths = []
-            for group in groups:
-                imgpaths.extend([imgpath for (imgpath, _, _) in group.elements])
-            out.append(imgpaths)
+            if self.verifymode == VerifyPanel.MODE_YESNO2 or (self.verifymode == VerifyPanel.MODE_YESNO and gl_idx == 0):
+                for group in groups:
+                    imgpaths.extend([imgpath for (imgpath, _, _) in group.elements])
+                out.append(imgpaths)
 
         if self.ondone:
             self.ondone(out)
         self.out = out
 
 class ViewOverlaysFrame(wx.Frame):
-    def __init__(self, parent, imgpaths, ondone=None, *args, **kwargs):
+    def __init__(self, parent, imgpaths, ondone=None,
+                 exemplarpaths=None,
+                 verifymode=VerifyPanel.MODE_YESNO2,
+                 *args, **kwargs):
+        """
+        Input:
+            list IMGPATHS:
+            fn ONDONE:
+            dict EXEMPLARPATHS: {grouplabel label: str exemplar_path}
+            int VERIFYMODE:
+        """
         wx.Frame.__init__(self, parent, *args, **kwargs)
-        self.viewoverlays = ViewOverlays(self)
+        self.viewoverlays = ViewOverlays(self, verifymode=verifymode)
         self.imgpaths = imgpaths
-        self.viewoverlays.start(imgpaths, ondone=ondone)
+        self.exemplarpaths = exemplarpaths
+        self.viewoverlays.start(imgpaths, ondone=ondone, exemplarpaths=exemplarpaths)
 
 def is_img_ext(p):
     return os.path.splitext(p)[1].lower() in ('.png', '.jpg', '.jpeg', '.bmp', '.tif')

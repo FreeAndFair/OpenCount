@@ -394,8 +394,8 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
     return results
 
 def numProcs():
-    #nProc=mp.cpu_count() 
-    nProc=1
+    nProc=mp.cpu_count() 
+    #nProc=1
     return nProc
 
 def cropBb(I,bb):
