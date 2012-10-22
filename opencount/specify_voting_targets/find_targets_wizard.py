@@ -21,37 +21,6 @@ UI intended for a user to denote all locations of voting targets, on
 all template images, using auto-detection.
 """
 
-"""
-Bugs:
-- When zooming into a ballot image in Mosaic during Mosaic-Verification,
-  the scrollbars don't activate on the right panel until you do a resize.
-- During MosaicVerification, Deleting a target (with backspace)
-  doesn't update the mosaicpanel
-- If the UL corner of box A and the LR corner of box B are too close,
-  then trying to move A will also resize box B at the same time.
-
-Annoyances:
-- 'Modify' mode
-- Cursor while creating new targets is too big and obtrusive
-- mouse scrolling (with wheelmouse) doesn't get intuitively captured
-  between mosaic-panel and ballotviewer. Ideally, the RightThing(tm)
-  should happen when the mouse has entered either panel. Should be
-  easy to implement with the OnMouseEnter event.
-- Target Autodetection doesn't work so well on other template images,
-  where differences in rotation/whatnot make it 'harder' to do a 
-  simple naive template match. It does 'reasonably' well, but not
-  as well as I'd like.
-
-Todo:
-- If a round of template-matching doesn't change anything in a
-  contest, don't re-compute those contest bounding boxes - it's
-  frustrating when adding a new target means losing all manual
-  bounding box adjustments
-- Add undo feature
-- Add 'Add contest' feature
-  
-"""
-
 ####
 ## Import 3rd party libraries
 ####
@@ -152,7 +121,6 @@ class SpecifyTargetsPanel(wx.Panel):
     def setup_widgets(self):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.world = WorldState()
-        #self.panel_mosaic = util_widgets.MosaicPanel(self, style=wx.SIMPLE_BORDER)
         self.panel_mosaic = MosaicPanel2(self, self.world, style=wx.SIMPLE_BORDER)
         self.panel_mosaic.Hide()
         self.ballotviewer = BallotViewer(self, self.world, ballotscreen=MyBallotScreen, style=wx.SIMPLE_BORDER)
@@ -162,10 +130,8 @@ class SpecifyTargetsPanel(wx.Panel):
         vertsizer = wx.BoxSizer(wx.VERTICAL)
         vertsizer.Add(self.ballotviewer, border=10, proportion=2, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
         vertsizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL | wx.ALIGN_LEFT)
-        self.sizer.Add(self.panel_mosaic, border=10, proportion=0, flag=wx.EXPAND |wx.ALL | wx.ALIGN_LEFT)
-        self.sizer.Add(vertsizer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
-        #self.sizer.Add(self.ballotviewer, border=10, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
-        #self.sizer.Add(self.frontbackpanel, border=10, proportion=0, flag=wx.ALL)
+        self.sizer.Add(self.panel_mosaic, border=10, proportion=1, flag=wx.EXPAND |wx.ALL | wx.ALIGN_LEFT)
+        self.sizer.Add(vertsizer, border=10, proportion=2, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
         self.SetSizer(self.sizer)
         self.Fit()
         
