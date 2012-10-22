@@ -592,6 +592,8 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
     pool = mp.Pool(processes=num)
     print 'start map to generate jobs'
     jobs = pool.map(convertImagesMultiMAP_makejobs, jobs)
+    pool.close()
+    pool.join()
     jobs = [x for y in jobs for x in y]
     print 'start real convert map'
 

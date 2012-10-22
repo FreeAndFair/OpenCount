@@ -2025,6 +2025,7 @@ def template_match(boxes, ref_img, add_padding=False, confidence=0.8):
         print 'Number of new voting targets detected:', _count
 
     pool.close()
+    pool.join()
     return new_boxes
 
 def tempmatch_process(boxes, cur_ref_img, queue, confidence=0.8):
