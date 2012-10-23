@@ -157,7 +157,7 @@ def padWithBorderHandling(M,i1exp,i2exp,j1exp,j2exp):
 '''
 expand patch by pixPad with nans
 '''
-def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
+def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=None):
     patchPad = np.empty((patch.shape[0]+2*pixPad,
                          patch.shape[1]+2*pixPad))
 
@@ -174,7 +174,7 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
     
     Ic = IPad[i1:i2+2*pixPad,j1:j2+2*pixPad]
 
-    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg)
+    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg, minArea=minArea)
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]

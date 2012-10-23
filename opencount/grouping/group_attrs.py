@@ -311,7 +311,7 @@ def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
         YX=np.unravel_index(Iout.argmax(),Iout.shape)
         i1=YX[0]; i2=YX[0]+patch.shape[0]
         j1=YX[1]; j2=YX[1]+patch.shape[1]
-        (err,diff,Ireg)=shared.lkSmallLarge(patch,I1,i1,i2,j1,j2)
+        (err,diff,Ireg)=shared.lkSmallLarge(patch,I1,i1,i2,j1,j2, minArea=np.power(2, 17))
         score2 = err / diff.size # pixel reg score
         if bbSearch != None:
             matchList.append((imP,score1,score2,Ireg,
