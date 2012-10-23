@@ -235,6 +235,8 @@ case if, for instance, a blank ballot has a totally-empty back-page.""".format(l
                 if not contest:
                     lonely_tmpls.add(temppath)
         if lonely_tmpls:
+            print 'Lonely tmpls are:'
+            print lonely_tmpls
             msg = """Warning: {0} blank ballots have voting targets \
 that are not enclosed by a contest. Please go back and fix them. \
 OpenCount must know the target-contest associations in order to \
@@ -319,6 +321,7 @@ function correctly.""".format(len(lonely_tmpls))
         
         self.panel_mosaic.Show()
         self.ballotviewer.Show()
+        self.ballotviewer.ballotscreen.push_state(self.ballotviewer.ballotscreen.world)
 
         if util.is_multipage(self.project):
             self.frontbackpanel.Show()
