@@ -9,6 +9,7 @@ except ImportError as e:
 import multiprocessing as mp
 import pickle
 import itertools
+import time
 
 black = 200
 
@@ -567,18 +568,35 @@ def compare_preprocess(lang, path, image, contest, targets):
         if upper == lower:
             blocks.append((istarget, ""))
             continue
+        name = os.path.join(path, str(count)+".tif")
+        if os.path.exists(name+".txt"):
+            txt = open(name+".txt").read().decode('utf8')
+            if txt != '':
+                print 'Found'
+                blocks.append((istarget, txt))
+                continue
+            else:
+                print 'Empty'
         #print "POS", upper, lower
         #print len(cont_area[upper:lower])
-        name = os.path.join(path, str(count)+".tif")
         if not os.path.exists(name):
             if cont_area == None: cont_area = load_num(pilimg=num2pil(image).crop((l+10,u+10,r-10,d-10)))
             img = num2pil(cont_area[upper:lower])
             img.save(name)
+        
+        txt = ""
+        for iternum in range(3): # try 3 times
+            if txt != "": continue
             os.popen("tesseract %s %s -l %s"%(name, name, lang))
+            print 'Invoke tesseract'
+            time.sleep(max((iternum-1)*.1,0))
+            if os.path.exists(name+".txt"):
+                print 'DONE'
+                txt = open(name+".txt").read().decode('utf8')
+                break
 
         if os.path.exists(name+".txt"):
-            #print "THIS BLOCK GOT", open(name+".txt").read().decode('utf8')
-            blocks.append((istarget, open(name+".txt").read().decode('utf8')))
+            blocks.append((istarget, txt))
         else:
             print "-"*40
             print "OCR FAILED"
@@ -1074,7 +1092,7 @@ def final_grouping(ballots, giventargets, paths, languages):
     return equ_class(ballots, languages)
 
 if __name__ == "__main__":
-    equ_class(merge_contests(*pickle.load(open("../orangedata"))))
+    equ_class(merge_contests(*pickle.load(open("../orangedata"))), eval(open("../orangedata_lang").read()))
 
     from labelcontest import LabelContest
     p = "../projects/label_grouping/"

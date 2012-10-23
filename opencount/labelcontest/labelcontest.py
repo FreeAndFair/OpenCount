@@ -370,14 +370,14 @@ class LabelContest(wx.Panel):
 
     def load_languages(self):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
-        mapping = {'english': 'eng', 'spanish': 'esp', 'korean': 'kor', 'chi': 'chi_sim', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
+        mapping = {'english': 'eng', 'spanish': 'spa', 'esp': 'spa', 'korean': 'kor', 'chi': 'chi_sim', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
         result = {}
         blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
         util.sort_nicely(blankballot_attrlocs)
         for f in blankballot_attrlocs:
-            print "AND I GET", f, f[-4:]
+            #print "AND I GET", f, f[-4:]
             if f[-4:] == '.csv':
-                print 'test', f
+                #print 'test', f
                 take = 0
                 for i,row in enumerate(csv.reader(open(os.path.join(self.proj.patch_loc_dir, f)))):
                     if i == 0:
@@ -388,7 +388,7 @@ class LabelContest(wx.Panel):
                     else:
                         if row[take].lower() == 'language' or row[take].lower() == 'lang':
                             language = row[take+1].lower()
-                            print 'found with lang', language
+                            #print 'found with lang', language
                             if language in mapping:
                                 language = mapping[language] 
                             result[row[0]] = language
@@ -595,7 +595,7 @@ class LabelContest(wx.Panel):
                                            int(row[2])+int(row[4]), 
                                            int(row[3])+int(row[5])))
                     res.append(ballot)
-            print "LOADING", res
+            #print "LOADING", res
             # When we load from select-and-group-targets, the order we
             # get isn't the adjusted ordering. We need to correct the
             # order so that we can work with it.
