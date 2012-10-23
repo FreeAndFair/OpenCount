@@ -157,7 +157,7 @@ def padWithBorderHandling(M,i1exp,i2exp,j1exp,j2exp):
 '''
 expand patch by pixPad with nans
 '''
-def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
+def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=None):
     patchPad = np.empty((patch.shape[0]+2*pixPad,
                          patch.shape[1]+2*pixPad))
 
@@ -174,7 +174,7 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5):
     
     Ic = IPad[i1:i2+2*pixPad,j1:j2+2*pixPad]
 
-    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg)
+    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg, minArea=minArea)
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]
@@ -192,8 +192,8 @@ Input:
   threshold: only return matches above this value
   rszFac: downsampling factor for speed
   region: bounding box to limit search for speed (TODO) (y1,y2,x1,x2)
-  bool forceFind: If True, then if it can't find a match greater than
-      the threshold, return the highest-scoring one.
+  bool output_Ireg: If True, then find_patch_matchesV1 will output the
+      aligned image Ireg (this will consume more memory, caution).
 
 Output:
   list of tuples, one for every match
@@ -214,7 +214,8 @@ Output:
 
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
-                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True):
+                         bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True,
+                         output_Ireg=False):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
@@ -275,12 +276,13 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
 
             (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             score2 = err / diff.size # pixel reg score
+            Ireg_out = Ireg if output_Ireg else None
             if bbSearch != None:
-                m = (imP,score1,score2,None,
+                m = (imP,score1,score2,Ireg_out,
                      i1+bbOut1[0],i2+bbOut1[0],
                      j1+bbOut1[2],j2+bbOut1[2],rszFac)
             else:
-                m = (imP,score1,score2,None,
+                m = (imP,score1,score2,Ireg_out,
                      i1,i2,j1,j2,rszFac)
             matchList.append(m)
             if bestScore == None or score2 < bestScore:
@@ -392,8 +394,8 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False):
     return results
 
 def numProcs():
-    #nProc=mp.cpu_count() 
-    nProc=1
+    nProc=mp.cpu_count() 
+    #nProc=1
     return nProc
 
 def cropBb(I,bb):

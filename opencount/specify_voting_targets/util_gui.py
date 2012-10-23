@@ -769,7 +769,7 @@ def associated_targets(contest, boxes):
     return result
 
     
-def find_assoc_contest(target, contest_boxes):
+def find_assoc_contest(target, contest_boxes, debug=False):
     """
     Given a voting target and a list of all contest bounding boxes,
     return the contest bounding box that the target belongs to.
@@ -793,13 +793,13 @@ def find_assoc_contest(target, contest_boxes):
 
 def fuzzy_op(x,y,fn,e=1.0e-3):
     return fn(x,y+e) or fn(x,y-e)
-def fuzzy_gt(x,y):
+def fuzzy_gt(x,y, e=2.0e-3):
     """
     Is x >= y +- e?
     """
-    return fuzzy_op(x,y,lambda x,y: x >= y)
-def fuzzy_lt(x,y):
-    return fuzzy_op(x,y,lambda x,y: x <= y)
+    return fuzzy_op(x,y,lambda x,y: x >= y, e=e)
+def fuzzy_lt(x,y, e=2.0e-3):
+    return fuzzy_op(x,y,lambda x,y: x <= y, e=e)
 
 
 def get_boxes_inside(boxes, enclosing_region):

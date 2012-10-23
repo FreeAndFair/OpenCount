@@ -12,7 +12,7 @@ import shared as sh
 from scipy.ndimage import gaussian_filter
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
-def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False):
+def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False, minArea=None):
     """ Aligns I to IREF.
     Input:
         np.array I: Image you want to align.
@@ -44,7 +44,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
 
     # check if more than one vertical or horizontal cell
     if (vCells>1) or (hCells>1):
-        I2=imagesAlign(I1,Iref1,type=type)[1];
+        I2=imagesAlign(I1,Iref1,type=type, minArea=minArea)[1];
         Iout=np.copy(Iref1);
         pFac=.25;
         vStep=math.ceil(I1.shape[0]/vCells); vPad=pFac*vStep;
@@ -65,7 +65,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
                 
                 Ic=I2[i1p:i2p,j1p:j2p]
                 Irefc=Iref1[i1p:i2p,j1p:j2p]
-                (H,err)=imagesAlign1(Ic,Irefc,type=type,verbose=verbose)
+                (H,err)=imagesAlign1(Ic,Irefc,type=type,verbose=verbose, minArea=minArea)
                 IcT=imtransform(np.copy(Ic),H)
                 Iout[i1:i2,j1:j2]=IcT[i1-i1p:(i1-i1p)+(i2-i1),j1-j1p:(j1-j1p)+(j2-j1)]
 
@@ -73,7 +73,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
 
     if rszFac==1:
         t0=time.clock()
-        (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose)
+        (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
     else:
@@ -83,17 +83,31 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         H0=np.eye(3)
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
         t0=time.clock()
-        (H,err)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose)
+        (H,err)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
         H=np.dot(S,np.dot(H,np.linalg.inv(S)))
     
     return (H,imtransform(np.copy(I),H,fillval=fillval),err);
 
-def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
-
-    #minArea=np.power(2,15)
-    minArea=np.power(2,11)
+def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=None):
+    """
+    Input:
+        nparray I:
+        nparray Iref:
+        nparray H0: Trans. mat.
+        str type: Transformation type.
+        int minArea: The minimum area that IREF is allowed to be - if 
+            IREF.width*IREF.height is greater than this, then imagesAlign1
+            will shrink both I and IREF by 50% until the area < MINAREA.
+            Smaller values of MINAREA allow higher tolerance for wider
+            translations, yet can lead to less-predictable results.
+            Suggestion: For coarse global alignment, try smaller values
+            of MINAREA. For finer local alignment, use larger MINAREA.
+    """
+    if minArea == None:
+        #minArea = np.power(2, 15)
+        minArea = np.power(2, 11)
     lbda=1e-6
     wh=Iref.shape
     eps=1e-3
@@ -107,7 +121,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False):
         Iref1=sh.fastResize(Iref,.5)
         S=np.eye(3); S[0,0]=2; S[1,1]=2;
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
-        (H,errx)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose)
+        (H,errx)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose, minArea=minArea)
         H=np.dot(S,np.dot(H,np.linalg.inv(S)))
 
 

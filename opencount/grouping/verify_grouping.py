@@ -444,6 +444,7 @@ class RunGroupingPanel(wx.Panel):
         self.run_button.Disable()
         # Remember to remove state files
         projdir = self.project.projdir_path
+        print '..removing previous grouping files...'
         util_gui.remove_files(self.project.grouping_results,
                               pathjoin(projdir,
                                        self.project.ballot_to_page),
@@ -461,6 +462,7 @@ class RunGroupingPanel(wx.Panel):
         if os.path.exists(voteddigits_dir):
             shutil.rmtree(pathjoin(projdir,
                                    'voteddigits_dir'))
+        print '...finished removing previous grouping files...'
         self.start_grouping()
 
     def groupBallotsProcess(self, stopped, deleteall):
@@ -468,11 +470,13 @@ class RunGroupingPanel(wx.Panel):
         attributes.
         """
         num = 0
+        print '...counting number of voted ballots...'
         for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
             for f in filenames:
                 if not is_image_ext(f):
                     continue
                 num += 1
+        print '...done counting number of voted ballots ({0})...'.format(num)
         # QUESTION: What is kind? The number of img-based attributes?
         #           Is this change correct?
         if not common.exists_imgattrs(self.project):
@@ -923,8 +927,8 @@ def munge_patches_grouping(patches, attrtypes, project):
                 pdb.set_trace()
             assert grouplabel == gl_record[gl_idx]
             for attrtype in attrtypes:
-                if common.get_propval(gl_idx, attrtype, project):
-                    attrval = common.get_propval(gl_idx, attrtype, project)
+                attrval = common.get_propval(gl_idx, attrtype, project, gl_record=gl_record)
+                if attrval:
                     result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
     # Handle digit-based attributes
     for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
@@ -943,7 +947,6 @@ def munge_patches_grouping(patches, attrtypes, project):
                               int(round(attrdict['x2']*w_img))]
                         digitsresult[attrtype] = (bb, attrdict['side'])
     return result, digitsresult
-
 
 def determine_template(sample_attrs, template_attrs, samplepath, project):
     """
@@ -979,17 +982,8 @@ def determine_template(sample_attrs, template_attrs, samplepath, project):
             #return temppath
             possibles[temppath] = temp_attrdict
     if len(possibles) > 1:
-        # TODO: Instead of unconditionally-quarantining the voted
-        # ballot, instead, do this:
-        #    If every template T in possibles contains the same contests,
-        #    then arbitrarily return a template in T - this will be fine,
-        #    assuming:
-        #          a.) The ballot attributes uniquely determine ballot style
-        #          b.) Contest ordering doesn't change
-        #    Otherwise, we have a problem - quarantine the ballot, and alos
-        #    warn the user that the current set of attributes is probably not
-        #    'good enough'.
-        #    
+        # The blank ballots were sanity checked before grouping began
+        '''
         if common.is_blankballot_contests_eq(*possibles.keys()):
             print "There were {0} possible blank ballots, but *phew*, \
 they're all equivalent.".format(len(possibles))
@@ -1005,6 +999,8 @@ they're all equivalent.".format(len(possibles))
             print "   Choosing the first blank ballot..."
             return possibles.keys()[0]
             #return (len(possibles), [(bpath, attrs) for bpath,attrs in possibles.items()])
+        '''
+        return possibles.keys()[0]
     if len(possibles) == 0:
         print "== Error, determine_template couldn't find a blank ballot with a matching set"
         print "   of attributes. We're hosed.  Quarantining this voted ballot."
@@ -1201,6 +1197,7 @@ def to_groupclasses(proj, grouplabel_record=None):
         List of GroupClass instances for non-digit attributes.
     """
     bal2imgs=pickle.load(open(proj.ballot_to_images,'rb'))
+    
     if grouplabel_record == None:
         grouplabel_record = common.load_grouplabel_record(proj)
     attr_types = common.get_attrtypes(proj)

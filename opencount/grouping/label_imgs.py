@@ -203,7 +203,7 @@ values for this caption...")
         curimgpath = self.imagepaths[self.cur_imgidx]
         curval = self.inputctrl.GetValue()
         if not self.add_label(curimgpath, curval):
-            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(cur_val),
+            dlg = wx.MessageDialog(self, message="Invalid value entered: {0}".format(curval),
                                    style=wx.OK)
             self.Disable()
             dlg.ShowModal()

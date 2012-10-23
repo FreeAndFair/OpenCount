@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb, wx, time, shutil, copy, random
+import sys, os, pickle, pdb, wx, time, shutil, copy, random, traceback
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
@@ -291,10 +291,16 @@ def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
                                    bbSearch[2],bbSearch[3],
                                    I1.shape[0],I1.shape[1],padSearch)
             I1=I1[bbOut1[0]:bbOut1[1],bbOut1[2]:bbOut1[3]]
+        if I1.shape[0] < patch.shape[0] or I1.shape[1] < patch.shape[1]:
+            w_big = max(I1.shape[0], patch.shape[0])
+            h_big = max(I1.shape[1], patch.shape[1])
+            I1_big = np.zeros((w_big, h_big)).astype('float32')
+            I1_big[0:I1.shape[0], 0:I1.shape[1]] = I1
+            I1 = I1_big
 
         patchCv=cv.fromarray(np.copy(patch))
         ICv=cv.fromarray(np.copy(I1))
-        outCv=cv.CreateMat(I1.shape[0]-patch.shape[0]+1,I1.shape[1]-patch.shape[1]+1, cv.CV_32F)
+        outCv=cv.CreateMat(abs(I1.shape[0]-patch.shape[0])+1,abs(I1.shape[1]-patch.shape[1])+1, cv.CV_32F)
         
         cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
         Iout=np.asarray(outCv)
@@ -305,8 +311,7 @@ def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
         YX=np.unravel_index(Iout.argmax(),Iout.shape)
         i1=YX[0]; i2=YX[0]+patch.shape[0]
         j1=YX[1]; j2=YX[1]+patch.shape[1]
-
-        (err,diff,Ireg)=shared.lkSmallLarge(patch,I1,i1,i2,j1,j2)
+        (err,diff,Ireg)=shared.lkSmallLarge(patch,I1,i1,i2,j1,j2, minArea=np.power(2, 17))
         score2 = err / diff.size # pixel reg score
         if bbSearch != None:
             matchList.append((imP,score1,score2,Ireg,

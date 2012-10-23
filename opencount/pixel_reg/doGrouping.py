@@ -95,7 +95,7 @@ def evalPatchSimilarity(I,patch, debug=False):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
-    IO=imagesAlign(I1c,patch,type='rigid')
+    IO=imagesAlign(I1c,patch,type='rigid', minArea=np.power(2, 20))
 
     Ireg=IO[1]
     #Ireg = np.nan_to_num(Ireg)
@@ -222,10 +222,13 @@ def evalPatchSimilarity2(I,patch, debug=False):
         I1c = sh.padWithBorderHandling(I1c,i1exp,i2exp,j1exp,j2exp)
 
     # expand if necessary
-    hCells = int(round(I1c.shape[1] / 200))
-    vCells = int(round(I1c.shape[0] / 200))
-    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells)
-
+    #hCells = max(int(round(I1c.shape[1] / 200)), 1)
+    #vCells = max(int(round(I1c.shape[0] / 200)), 1)
+    hCells, vCells = 1, 1
+    
+    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells, minArea=np.power(2, 16))
+    if debug:
+        pdb.set_trace()
     Ireg=IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]
@@ -251,17 +254,20 @@ def dist2patches(patchTuples,scale,debug=False):
             I'm not entirely sure when it's a 4-tuple or a 5-tuple...but beware.
         float scale: Current scale factor.
     Output:
-        (scores, locs)
+        (scores, locs, exemplar_idxs)
     """
     # patchTuples ((K img super regions),(K template patches))
     # for each pair, compute avg distance at scale sc
     scores=np.zeros(len(patchTuples))
     idx=0;
     locs=[]
+    exemplar_idxs = []  # Keeps track of which exemplar patch was the best for a given voted ballot
 
+    '''
     if debug:
         print "....dist 2 patches ...."
         pdb.set_trace()
+    '''
 
     for idx in range(len(patchTuples)):
         # pt is either 4-tuple:
@@ -273,7 +279,8 @@ def dist2patches(patchTuples,scale,debug=False):
         attrpatches = pt[1]
         attrval = pt[2]
         flag = False
-                            
+        if attrval == 'mail-pct' and debug==True:
+            flag = True
         # A fix for a very bizarre openCv bug follows..... [check pixel_reg/opencv_bug_repo.py]
         I=np.round(sh.fastResize(imgpatch,scale)*255.)/255.
         # opencv appears to not like pure 1.0 and 0.0 values.
@@ -281,9 +288,10 @@ def dist2patches(patchTuples,scale,debug=False):
         #patchScale = sh.resizeOrNot(attrpatch.shape, int(round(max(attrpatch.shape)*scale)))
         bestscore = None
         bestloc = None
+        best_idx_ex = None # Index of the best exemplar
         # Get the best score, over all possible exemplars (this is to
         # account for background variation). 
-        for attrpatch in attrpatches:
+        for idx_ex, attrpatch in enumerate(attrpatches):
             patch=np.round(sh.fastResize(attrpatch,scale)*255.)/255.
             #patch[patch==1.0]=.999; patch[patch==0.0]=.001
             try:
@@ -299,12 +307,14 @@ def dist2patches(patchTuples,scale,debug=False):
             score = res[0] # I'm pretty sure we want to maximize.
             if bestscore == None or score > bestscore:
                 bestscore = score
+                best_idx_ex = idx_ex
                 bestloc = (res[1][0]/scale,res[1][1]/scale)
             #scores[idx]=res[0]
             #locs.append((res[1][0]/scale,res[1][1]/scale))
         scores[idx] = bestscore
         locs.append(bestloc)
-    return (scores,locs)
+        exemplar_idxs.append(best_idx_ex)
+    return (scores,locs, exemplar_idxs)
 
 # input: image, patch images, super-region
 # output: tuples of cropped image, patch image, template index, and flipped bit
@@ -388,9 +398,9 @@ def templateSSWorker(job):
     minSc=sh.resizeOrNot(firstPat.shape,sh.MIN_PRECINCT_PATCH_DIM)
 
     if (key=='006--poll-38.png') or (key == '008--mail-50.png'):
-        (scores0,locs)=dist2patches(patchTuples,sc0,debug=False)
+        (scores0,locs, exemplar_idxs)=dist2patches(patchTuples,sc0,debug=False)
     else:
-        (scores0,locs)=dist2patches(patchTuples,sc0)
+        (scores0,locs, exemplar_idxs)=dist2patches(patchTuples,sc0)
 
     sidx=np.argsort(scores0)
     sidx=sidx[::-1]
@@ -401,7 +411,7 @@ def templateSSWorker(job):
 
     while sc1>minSc:
         try:
-            (scores,locs)=dist2patches(patchTuples,sc1)
+            (scores,locs, exemplar_idxs)=dist2patches(patchTuples,sc1)
         except Exception as e:
             d = {'patchTuples': patchTuples, 'sc1': sc1}
             path = '_errdict_0'
@@ -440,66 +450,85 @@ def groupImagesWorkerMAP(job):
     # str destDir:
     # str metaDir:
     # str attrName: Current attribute type we're grouping on.
-    (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
+    try:
+        (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
-    # patchtuples also includes 'flip' possibilities.
-    # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
-    patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
-    # Remember, attr2pat contains multiple exemplars
-    firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
-    rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
-    sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
+        # patchtuples also includes 'flip' possibilities.
+        # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
+        patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
+        # Remember, attr2pat contains multiple exemplars
+        firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
+        rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
+        sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
 
-    finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
+        finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
 
-    # 2. process
-    #    Workers:
-    #      - align with pyramid + prune
-    #      - fine-alignment on best result
-    #      - store precinct patch in grouping result folder
-    #      - store list in grouping meta result file
-    for sc in sweep:
-        if len(patchTuples)<2:
-            break
-        # TODO: handle flipped and unflipped versions differently to save computation
-        (scores,locs)=dist2patches(patchTuples,sc)
-        sidx=np.argsort(scores)
-        # reverse for descend
-        sidx=sidx[::-1]
-        mid=np.ceil(len(sidx)/2.0)
-        bestScore=scores[sidx[0]];
-        bestLoc=locs[sidx[0]];
-        keepIdx=sidx[0:mid]
-        dumpIdx=sidx[mid:len(sidx)]
-        dumped=sh.arraySlice(patchTuples,dumpIdx)        
-        finalOrder.extend(dumped)
-        patchTuples=sh.arraySlice(patchTuples,keepIdx)
+        debug = False
+        #if attrName == 'realmode':
+        #    debug = True
 
-    # align patch to top patch
-    # patchTuples[0]: Best patch
-    # I1: region around the attribute patch
-    # P1: an exemplar attribute patch to compare against
-    I1=patchTuples[0][0]
-    P1=patchTuples[0][1][0] # TODO: Arbitrary choice, is this ok?
-    # finalOrder is of the form:
-    #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
-    finalOrder.extend(patchTuples)
-    finalOrder.reverse()
+        # 2. process
+        #    Workers:
+        #      - align with pyramid + prune
+        #      - fine-alignment on best result
+        #      - store precinct patch in grouping result folder
+        #      - store list in grouping meta result file
+        for sc in sweep:
+            if len(patchTuples)<2:
+                break
+            # TODO: handle flipped and unflipped versions differently to save computation
+            (scores,locs, exemplar_idxs)=dist2patches(patchTuples,sc,debug=debug)
+            sidx=np.argsort(scores)
+            # reverse for descend
+            sidx=sidx[::-1]
+            mid=np.ceil(len(sidx)/2.0)
+            bestScore=scores[sidx[0]];
+            bestLoc=locs[sidx[0]];
+            bestExemplarIdx = exemplar_idxs[sidx[0]]
+            keepIdx=sidx[0:mid]
+            dumpIdx=sidx[mid:len(sidx)]
+            dumped=sh.arraySlice(patchTuples,dumpIdx)        
+            finalOrder.extend(dumped)
+            patchTuples=sh.arraySlice(patchTuples,keepIdx)
 
-    bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
-    # I1c is the purported attrpatch on I1 (voted ballot)
-    I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
-    rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
-    # IO := [transmatrix (?), img, err]
-    IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac)
-    Ireg = np.nan_to_num(IO[1])
+        # align patch to top patch
+        # patchTuples[0]: Best patch
+        # I1: region around the attribute patch
+        # P1: an exemplar attribute patch to compare against
+        I1=patchTuples[0][0]
+        P1=patchTuples[0][1][bestExemplarIdx]
+        # finalOrder is of the form:
+        #   ((obj imgpatch_i, obj attrpatch_i, str attrval_i, int imgorder_i, int isflip_i), ...)
+        finalOrder.extend(patchTuples)
+        finalOrder.reverse()
 
-    # saving I1, P1, I1c, IO[1] fixes things
-    # saving I1, P1 fixes things
-    # saving I1 fixes things
-    # saving P1 does NOT fix things.
-    # saving IO[1] does NOT fix things.
-    doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
+
+        bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
+        # I1c is the purported attrpatch on I1 (voted ballot)
+        I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
+        rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
+        # IO := [transmatrix (?), img, err]
+        IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 17))
+        Ireg = np.nan_to_num(IO[1])
+
+        '''
+        if finalOrder[0][2] == 'mail-pct':
+            print finalOrder[0][2:]
+            misc.imsave("_I1.png", I1)
+            misc.imsave("_P1.png", P1)
+            misc.imsave("_Ireg.png", Ireg)
+            pdb.set_trace()
+        '''
+
+        # saving I1, P1, I1c, IO[1] fixes things
+        # saving I1, P1 fixes things
+        # saving I1 fixes things
+        # saving P1 does NOT fix things.
+        # saving IO[1] does NOT fix things.
+        doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
 
 def listAttributes(patchesH):
     # tuple ((key=attrType, patchesH tuple))
@@ -683,12 +712,14 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
+    #if attrName == 'realmode':
+    #    nProc = 1
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
         jobs.append([attr2pat, superRegion, balKey, balL, scale,
                      destDir, metaDir, attrName])
-    
+
     # 3.) Perform jobs.
     if nProc < 2:
         # default behavior for non multiproc machines

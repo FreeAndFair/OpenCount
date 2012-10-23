@@ -1,4 +1,4 @@
-import os, sys, math, csv, copy, pdb, traceback
+import os, sys, math, csv, copy, pdb, traceback, time
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -1083,7 +1083,10 @@ class WorldState(object):
         self.mutate(WorldState())
 
     def copy(self):
-        return WorldState(copy.deepcopy(self.box_locations))
+        newboxlocs = {}
+        for tmppath, boxes in self.box_locations.iteritems():
+            newboxlocs[tmppath] = [b.copy() for b  in boxes]
+        return WorldState(newboxlocs)
         
     # Pubsub callbacks
     def _pubsub_templatesdir(self, msg):
@@ -1094,7 +1097,6 @@ class WorldState(object):
                 self.box_locations.setdefault(imgpath, [])
     def _pubsub_set_boxes(self, msg):
         self.box_locations = msg.data
-
        
 class BoundingBox(object):
     """
@@ -1998,7 +2000,6 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 self.set_auxstate(BallotScreen.STATE_RESIZE_TARGET)
                 self.Refresh()
                 return
-                
         if self.curstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST):
             w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
             x_rel, y_rel = x / float(w_img), y / float(h_img)
@@ -2013,7 +2014,6 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 and self.get_closest_target((x,y),mode="interior")
                 and self.is_modify_enabled()):
             # Select the relevant box to be moved
-            Publisher().sendMessage("broadcast.push_state", self.world)
             mousepos = (x,y)
             closest_t = self.get_closest_target(mousepos, mode="interior")
             if closest_t in self.get_selected_boxes():

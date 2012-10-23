@@ -4,7 +4,7 @@ from scipy import misc,ndimage
 from scipy.stats import chi2
 import shared as sh
 from imagesAlign import *
-import cProfile
+import cProfile, traceback
 import csv
 import os
 import string
@@ -19,8 +19,9 @@ import shutil
 from random import random
 
 def extractTargets(I,Iref,bbs,verbose=False):
-
     ''' Perform local alignment around each target, then crop out target  '''
+    # Note: Currently only used in debugWorker. See extractTargetsRegions
+    #       for the function actually used.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs);
     t0=time.clock();
@@ -109,7 +110,8 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
         I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
-        H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, rszFac=rszFac, type='rigid')
+        H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
+                                        rszFac=rszFac, type='rigid', minArea=np.power(2, 16))
         targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
         # 2.) Unwind transformation to get the global location of TARG
         rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
@@ -380,45 +382,49 @@ def convertImagesWorkerMAP(job):
     #  output for targets, output for quarantine info, output for extracted
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     print "START"
-    (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
-    t0=time.clock();
+    try:
+        (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+        t0=time.clock();
 
-    # need to load the template images
-    tplImL=[]
-    for tplP in tplL:
-        tplImL.append(sh.standardImread(tplP, flatten=True));
+        # need to load the template images
+        tplImL=[]
+        for tplP in tplL:
+            tplImL.append(sh.standardImread(tplP, flatten=True));
 
-    # load images
-    balImL=[]
+        # load images
+        balImL=[]
 
-    for b in balL:
-        #if '329_672_157_3_3' in b:
-        #    pdb.set_trace()
-        balImL.append(sh.standardImread(b, flatten=True));
+        for b in balL:
+            #if '329_672_157_3_3' in b:
+            #    pdb.set_trace()
+            balImL.append(sh.standardImread(b, flatten=True));
 
-    print 'load bal: ', time.clock()-t0
-    # check if ballot is flipped
-    t0=time.clock();
+        print 'load bal: ', time.clock()-t0
+        # check if ballot is flipped
+        t0=time.clock();
 
-    # TODO: extend to more than two pages at some point
-    
-    if len(tplImL)==1:
-        balPerm=[checkBallotFlipped(balImL[0],tplImL[0])]
-        order=[0]
-    else:
-        # tplImL, balImL is already in [front, back] order
-        balPerm=associateTwoPage(tplImL,balImL)
-        order=balPerm[2]
+        # TODO: extend to more than two pages at some point
 
-    print 'assoc bal: ', time.clock()-t0
-    for idx in range(len(tplL)):
-        print "tick", idx
-        res=balPerm[idx]
-        tpl=tplImL[idx]
-        bbs=bbsL[idx]
-        bal=res[1]; flipped=res[0]
-        writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=b), targetDir, targetDiffDir, 
-                 targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
+        if len(tplImL)==1:
+            balPerm=[checkBallotFlipped(balImL[0],tplImL[0])]
+            order=[0]
+        else:
+            # tplImL, balImL is already in [front, back] order
+            balPerm=associateTwoPage(tplImL,balImL)
+            order=balPerm[2]
+
+        print 'assoc bal: ', time.clock()-t0
+        for idx in range(len(tplL)):
+            print "tick", idx
+            res=balPerm[idx]
+            tpl=tplImL[idx]
+            bbs=bbsL[idx]
+            bal=res[1]; flipped=res[0]
+            writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=b), targetDir, targetDiffDir, 
+                     targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
     print "DONE"
 
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=False):
@@ -586,6 +592,8 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
     pool = mp.Pool(processes=num)
     print 'start map to generate jobs'
     jobs = pool.map(convertImagesMultiMAP_makejobs, jobs)
+    pool.close()
+    pool.join()
     jobs = [x for y in jobs for x in y]
     print 'start real convert map'
 
