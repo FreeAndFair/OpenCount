@@ -1203,7 +1203,7 @@ def to_groupclasses(proj, grouplabel_record=None):
     attr_types = common.get_attrtypes(proj)
     ## Note: the isflip_i/side_i info from digitgroup_results gets
     ## thrown out after these blocks. Do I actually need them?
-    group_elements = {} # maps {int grouplabel_idx: [(ballotid_i, rlist_i, patchpath_i), ...]}
+    group_elements = {} # maps {(int grouplabel_idx, int exemplar_idx): [(ballotid_i, rlist_i, patchpath_i), ...]}
     if not util.is_multipage(proj):
         for attr_type in attr_types:
             if common.is_digitbased(proj, attr_type):
@@ -1222,6 +1222,7 @@ def to_groupclasses(proj, grouplabel_record=None):
                 # 0.) Construct the ranked list
                 rlist = []
                 attrvals, flips = data['attrOrder'], data['flipOrder']
+                exemplar_idx = data['exemplar_idx']
                 for i, attrval in enumerate(attrvals):
                     grouplabel = common.make_grouplabel((attr_type, attrval), ('flip', flips[i]),
                                                         ('imageorder', 0))
@@ -1229,7 +1230,7 @@ def to_groupclasses(proj, grouplabel_record=None):
                     rlist.append(gl_idx)
                 patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
                                      util.encodepath(ballotid)+'.png')
-                group_elements.setdefault(rlist[0], []).append((ballotid, rlist, patchpath))
+                group_elements.setdefault((rlist[0], exemplar_idx), []).append((ballotid, rlist, patchpath))
     else:
         # Multipage
         for attr_type in attr_types:
@@ -1251,6 +1252,7 @@ def to_groupclasses(proj, grouplabel_record=None):
                 # 0.) Construct the ranked list
                 rlist = []
                 attrvals, flips = data['attrOrder'], data['flipOrder']
+                exemplar_idx = data['exemplar_idx']
                 for i, attrval in enumerate(attrvals):
                     grouplabel = common.make_grouplabel((attr_type, attrval), ('flip', flips[i]),
                                                         ('imageorder', 0))
@@ -1258,11 +1260,11 @@ def to_groupclasses(proj, grouplabel_record=None):
                     rlist.append(gl_idx)
                 patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
                                      util.encodepath(ballotid)+'.png')
-                group_elements.setdefault(rlist[0], []).append((ballotid, rlist, patchpath))
+                group_elements.setdefault((rlist[0], exemplar_idx), []).append((ballotid, rlist, patchpath))
 
     groups = []
     # Seed initial set of groups
-    for gl_idx, elements in group_elements.iteritems():
+    for (gl_idx, exemplar_idx), elements in group_elements.iteritems():
         groups.append(common.GroupClass(elements))
     return groups
 

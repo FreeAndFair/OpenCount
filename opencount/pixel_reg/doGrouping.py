@@ -43,7 +43,12 @@ def doWrite(finalOrder, Ip, err, attrName, patchDir, metaDir, origfullpath):
     pickle.dump(toWrite, file)
     file.close()
 
-def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
+def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey, exemplar_idx):
+    """
+    Input:
+        ...
+        int exemplar_idx: Which exemplar attrpatch did this match to?
+    """
     fullpath = encodepath(balKey)
 
     # - patchDir: write out Ip into patchDir
@@ -61,7 +66,8 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey):
         flipOrder.append(pt[4])
     
     to = os.path.join(metaDir, fullpath)
-    toWrite={"attrOrder": attrOrder, "flipOrder":flipOrder,"err":err,"imageOrder":imageOrder}
+    toWrite={"attrOrder": attrOrder, "flipOrder":flipOrder,"err":err,"imageOrder":imageOrder,
+             "exemplar_idx": exemplar_idx}
     file = open(to, "wb")
     pickle.dump(toWrite, file)
     file.close()
@@ -554,7 +560,7 @@ def groupImagesWorkerMAP(job):
         # saving I1 fixes things
         # saving P1 does NOT fix things.
         # saving IO[1] does NOT fix things.
-        doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey)
+        doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey, bestExemplarIdx)
     except Exception as e:
         traceback.print_exc()
         raise e
@@ -698,7 +704,9 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
                                          'rb'))
     exemplar_dict = multexemplars_map[attrName]
     for attrval, exemplars in exemplar_dict.iteritems():
-        for (patchpath, blankpath, bb) in exemplars:
+        # Sort, in order to provide a canonical ordering
+        exemplars_sorted = sorted(exemplars, key=lambda t: t[0])
+        for (patchpath, blankpath, bb) in exemplars_sorted:
             P = sh.standardImread(patchpath, flatten=True)
 
             # TODO: I noticed that:
