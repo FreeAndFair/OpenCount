@@ -17,6 +17,7 @@ import wx
 import pickle
 import time
 import random
+import grouping.tempmatch as tempmatch
 from util import get_filename, encodepath
 
 
@@ -172,11 +173,19 @@ def evalPatchSimilarity2(I,patch, debug=False):
     # converting NP -> OpenCV.
     patchCv=cv.fromarray(np.copy(patch) * 255.0)
     ICv=cv.fromarray(np.copy(I) * 255.0)
+    #cv.SaveImage("_patchCv.png", patchCv)
+    #cv.SaveImage("_ICv.png", ICv)
+    #patchCv = tempmatch.smooth_mat(patchCv, 5, 5, bordertype='const', val=255)
+    #ICv = tempmatch.smooth_mat(ICv, 5, 5, bordertype='const', val=255)
+    #cv.SaveImage("_patchCv_smooth.png", patchCv)
+    #cv.SaveImage("_ICv_smooth.png", ICv)
+    #pdb.set_trace()
     # call template match
     outCv=cv.CreateMat(I.shape[0]-patch.shape[0]+1,
                        I.shape[1]-patch.shape[1]+1,patchCv.type)
     cv.MatchTemplate(ICv,patchCv,outCv,cv.CV_TM_CCOEFF_NORMED)
-    Iout=np.asarray(outCv) / 255.0
+    #Iout=np.asarray(outCv) / 255.0
+    Iout = np.asarray(outCv)
     YX=np.unravel_index(Iout.argmax(),Iout.shape)
 
     # take result and expand in each dimension by pixPad
@@ -226,7 +235,7 @@ def evalPatchSimilarity2(I,patch, debug=False):
     #vCells = max(int(round(I1c.shape[0] / 200)), 1)
     hCells, vCells = 1, 1
     
-    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells, minArea=np.power(2, 16))
+    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells, minArea=np.power(2, 15))
     if debug:
         pdb.set_trace()
     Ireg=IO[1]
@@ -239,7 +248,7 @@ def evalPatchSimilarity2(I,patch, debug=False):
         err = np.inf
         diff = patch
     else:
-        err = sh.variableDiffThr(Ireg,patch)
+        err = sh.variableDiffThr(Ireg, patch)
         diff = np.abs(Ireg-patch);
 
     return (-err,YX,diff)
@@ -305,6 +314,10 @@ def dist2patches(patchTuples,scale,debug=False):
                 raise e
             # TODO: Do I want to maximize, or minimize 'score'?
             score = res[0] # I'm pretty sure we want to maximize.
+            score = res[0] / (patch.shape[0]*patch.shape[1])
+            if debug and attrval in ('american independent', 'libertarian'):
+                print 'attrval: {0}  score: {1}'.format(attrval, score)
+                pdb.set_trace()
             if bestscore == None or score > bestscore:
                 bestscore = score
                 best_idx_ex = idx_ex
@@ -460,9 +473,9 @@ def groupImagesWorkerMAP(job):
         firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
         rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
         sweep=np.linspace(scale,rszFac,num=np.ceil(np.log2(len(attr2pat)))+2)
+        sweep = sweep[sweep <= 1.0]
 
         finalOrder = [] # [(imgpatch_i, attrpatch_i, str attrval_i, int side_i, int isflip_i), ...]
-
         debug = False
         #if attrName == 'realmode':
         #    debug = True
@@ -502,15 +515,31 @@ def groupImagesWorkerMAP(job):
         finalOrder.extend(patchTuples)
         finalOrder.reverse()
 
-
         bestLocG=[round(bestLoc[0]),round(bestLoc[1])]
         # I1c is the purported attrpatch on I1 (voted ballot)
         I1c=I1[bestLocG[0]:bestLocG[0]+P1.shape[0],bestLocG[1]:bestLocG[1]+P1.shape[1]]
         rszFac=sh.resizeOrNot(I1c.shape,sh.MAX_PRECINCT_PATCH_DIM)
         # IO := [transmatrix (?), img, err]
-        IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 17))
-        Ireg = np.nan_to_num(IO[1])
+        if P1.shape[0] > I1c.shape[0] or P1.shape[1] > I1c.shape[1]:
+            w1 = min(P1.shape[0], I1c.shape[0])
+            h1 = min(P1.shape[1], I1c.shape[1])
+            P1_a = np.zeros((w1,h1))
+            P1_a[0:w1, 0:h1] = P1[0:w1, 0:h1]
+            P1 = P1_a
+            print 'WEIRD CASE:', P1.shape, I1c.shape
+            misc.imsave("_weird_{0}.png".format(str(P1.shape)), P1_a)
 
+        IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 15))
+        Ireg = np.nan_to_num(IO[1])
+        '''
+        if attrName == 'party':
+            print "MEOW MEOW"
+            misc.imsave("_I1.png", I1)
+            misc.imsave("_P1.png", P1)
+            misc.imsave("_I1c.png", I1c)
+            misc.imsave("_Ireg.png", Ireg)
+            pdb.set_trace()
+        '''
         '''
         if finalOrder[0][2] == 'mail-pct':
             print finalOrder[0][2:]
@@ -688,7 +717,8 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
             # I'm doing this just to ease integration with the existing
             # code base.
             sh.imsave(pathjoin(exmDir, attrval + '.png'), P)
-        
+    for _attr, patches in attr2pat.iteritems():
+        print 'for attr {0}, there are {1} exemplars'.format(_attr, len(patches))
     '''
     for attrVal in attrValMap.keys():
         attrTuple=attrValMap[attrVal]
@@ -706,7 +736,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
         scale = estimateScale(attr2pat,attr2tem,superRegion,initDir,sh.MAX_PRECINCT_PATCH_DIM,stopped)
     else:
         scale = sh.resizeOrNot(P.shape,sh.MAX_PRECINCT_PATCH_DIM);
-
+    #scale = 1.0
     print 'ATTR: ', attrName,': using starting scale:',scale
 
     # 2.) Generate jobs for the multiprocessing
@@ -717,6 +747,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
 
     for balKey in bal2imgs.keys():
         balL=bal2imgs[balKey]
+        #if '339_122_106_128_2.png' in balL[0]:
         jobs.append([attr2pat, superRegion, balKey, balL, scale,
                      destDir, metaDir, attrName])
 

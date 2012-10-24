@@ -102,6 +102,8 @@ def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to I, with window size [XWIN,YWIN].
     If BORDERTYPE is 'const', then treat pixels that lie outside of I as
     VAL (rather than what OpenCV defaults to).
+    Input:
+        IplImage I:
     """
     w, h = cv.GetSize(I)
     if bordertype == 'const':
@@ -114,4 +116,27 @@ def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     cv.Smooth(Ibig, Iout, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     return Iout
 
-              
+def smooth_mat(Imat, xwin, ywin, bordertype=None, val=255.0):
+    """ Apply a gaussian blur to IMAT, with window size [XWIN,YWIN].
+    If BORDERTYPE is 'const', then treat pixels that lie outside of I as
+    VAL (rather than what OpenCV defaults to).
+    Input:
+        cvMat IMAT:
+    """
+    '''
+    w, h = Imat.cols, Imat.rows
+    if bordertype == 'const':
+        #Ibig = cv.CreateImage((w+2*xwin, h+2*ywin), I.depth, I.channels)
+        Ibig = cv.CreateMat(h+2*ywin, w+2*xwin, Imat.type)
+        
+        cv.CopyMakeBorder(Imat, Ibig, (xwin, ywin), 0, value=val)
+        cv.SetImageROI(Ibig, (xwin, ywin, w, h))
+    else:
+        Ibig = Imat
+    #Iout = cv.CreateImage((w,h), I.depth, I.channels)
+    Iout = cv.CreateMat(h, w, I.type)
+    cv.Smooth(Ibig, Iout, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
+    return Iout
+    '''
+    return cv.GetMat(smooth(cv.GetImage(Imat), xwin, ywin, bordertype=bordertype, val=val))
+    

@@ -32,6 +32,9 @@ class SelectAttributesMasterPanel(wx.Panel):
         # self.INV_MAPPING := {str patchpath: (imgpath, attrtype)}
         self.inv_mapping = None
 
+        # maps {str attrtype: [(attrval, i, str patchpath, str blankpath (x1,y1,x2,y2)), ...]}
+        self.usersel_exs = {} 
+
         self.attridx = None
         self.attrtypes = None
 
@@ -54,6 +57,7 @@ class SelectAttributesMasterPanel(wx.Panel):
             self.attridx = 0
         else:
             self.boxes = {}
+            self.usersel_exs = {}
             self.mapping, self.inv_mapping = label_attributes.do_extract_attr_patches(proj)
             self.attrtypes = list(common.get_attrtypes(proj, with_digits=False))
             self.attridx = 0
@@ -75,6 +79,7 @@ class SelectAttributesMasterPanel(wx.Panel):
             self.mapping = state['mapping']
             self.inv_mapping = state['inv_mapping']
             self.attrtypes = state['attrtypes']
+            self.usersel_exs = state['usersel_exs']
         except:
             return False
         return True
@@ -85,7 +90,8 @@ class SelectAttributesMasterPanel(wx.Panel):
         state = {"boxes": self.boxes,
                  "mapping": self.mapping,
                  "inv_mapping": self.inv_mapping,
-                 "attrtypes": self.attrtypes}
+                 "attrtypes": self.attrtypes,
+                 "usersel_exs": self.usersel_exs}
         pickle.dump(state, f, pickle.HIGHEST_PROTOCOL)
         print "...saved Select Attributes state..."
         return True
@@ -169,6 +175,11 @@ class SelectAttributesMasterPanel(wx.Panel):
                     cv.SaveImage(fulloutpath, I)
                     bbout = [bb[1], bb[3], bb[0], bb[2]]
                     outfile_map.setdefault(attrtype, {}).setdefault(attrval, []).append((subpatchP, blankpath, bbout))
+        # 3.) Also add in the user-selected patches in 'Label Attributes'
+        # as additional exemplars.
+        for attrtype, tups in self.usersel_exs.iteritems():
+            for (attrval, i, subpatchpath, blankpath, bb) in tups:
+                outfile_map[attrtype][attrval].append((subpatchpath, blankpath, bb))
         pickle.dump(outfile_map, open(pathjoin(self.project.projdir_path,
                                                self.project.multexemplars_map), 'wb'))
         print "...Done saving multexemplar patches..."
@@ -377,11 +388,13 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         '''
         return []
 
-    def start_tempmatch(self, patch):
+    def start_tempmatch(self, patch, bb, patchpath):
         """ Run template matching on all unlabeled self.IMGPATHS, 
         searching for PATCH.
         Input:
             IplImage PATCH:
+            tuple BB: (x1,y1,x2,y2), wrt the patch.
+            str PATCHPATH: Path of the patch where PATCH comes from.
         """
         # 1.) Ask user what attr value this is
         dlg = AttrValueDialog(self, patch)
@@ -391,7 +404,25 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         attrval = dlg.attrval
         
         # Save PATCH to temp file for VerifyPanel to use later.
+        attrtype = self.GetParent().GetParent().attr
+        outrootdir = pathjoin(self.GetParent().GetParent().outdir0, 
+                              'user_selected',
+                              attrtype)
+        try:
+            os.makedirs(outrootdir)
+        except:
+            pass
+        i = len(os.listdir(outrootdir))
+        outfilepath = pathjoin(outrootdir, "{0}_{1}.png".format(attrval, i))
+        cv.SaveImage(outfilepath, patch)
         cv.SaveImage("_selectattr_patch.png", patch)
+        w_img, h_img = self.GetParent().GetParent().GetParent().project.imgsize
+        x = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'x1')
+        y = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'y1')
+        x, y = int(round(x * w_img)), int(round(y * h_img))
+        bb_off = bb[0]+x, bb[1]+y, bb[2]+x, bb[3]+y
+        blankpath, _ = self.GetParent().GetParent().GetParent().inv_mapping[patchpath]
+        self.GetParent().GetParent().GetParent().usersel_exs.setdefault(attrtype, []).append((attrval, i, outfilepath, blankpath, bb_off))
         
         # 2.) Only run template matching on un-labeled imgpaths
         unlabeled_imgpaths = []
@@ -577,7 +608,7 @@ class PatchBitmap(util_widgets.CellBitmap):
             I = cv.LoadImage(self.GetParent().imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
             x1,y1,x2,y2 = box
             cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
-            self.GetParent().GetParent().start_tempmatch(I)
+            self.GetParent().GetParent().start_tempmatch(I, (x1,y1,x2,y2), self.GetParent().imgpath)
         self.Refresh()
 
     def onMotion(self, evt):

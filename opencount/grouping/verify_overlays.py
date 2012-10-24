@@ -132,7 +132,7 @@ Actions:
 
 THRESHOLD = 0.9
 
-class VerifyPanel(wx.Panel):
+class VerifyPanel(scrolled.ScrolledPanel):
     """
     Modes for verify behavior.
     MODE_NORMAL: The general behavior, where you have N predetermined
@@ -158,7 +158,7 @@ class VerifyPanel(wx.Panel):
     GROUPLABEL_MANUAL = common.make_grouplabel(('manualtype', 'manualval'))
 
     def __init__(self, parent, verifymode=None, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+        scrolled.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
         self.ondone = None  # An optional callback function to call
@@ -218,8 +218,7 @@ class VerifyPanel(wx.Panel):
         self.templates = None
         
         self.canMoveOn = False
-        self.mainPanel = scrolled.ScrolledPanel(self, size=self.GetSize(), pos=(0,0))
-
+        #self.mainPanel = scrolled.ScrolledPanel(self, size=self.GetSize(), pos=(0,0))
         self.initLayout()
         self.initBindings()
 
@@ -263,42 +262,22 @@ class VerifyPanel(wx.Panel):
         #w, h = self.parent.GetClientSize()
         #self.mainPanel.SetMinSize((w * 0.95, h * 0.9))
         #self.mainPanel.GetSizer().SetSizeHints(self)
-        self.mainPanel.SetupScrolling()
+        self.Layout()
+        self.SetupScrolling()
     
     def overlays_layout_vert(self):
-        self.patchsizer.Clear(False)
-        self.patchsizer.SetRows(4)
-        self.patchsizer.SetCols(2)
-        # HBOX 1 (min overlay)
-        self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
-        # HBOX 2 (max overlay)
-        self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
-        # HBOX 3 (template patch)
-        self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
-        # HBOX 6 (diff patch)
-        self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
+        self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
+        self.sizer_min.SetOrientation(wx.VERTICAL)
+        self.sizer_max.SetOrientation(wx.VERTICAL)
+        self.sizer_attrpatch.SetOrientation(wx.VERTICAL)
+        self.sizer_diff.SetOrientation(wx.VERTICAL)
 
     def overlays_layout_horiz(self):
-        self.patchsizer.Clear(False)
-        self.patchsizer.SetRows(2)
-        self.patchsizer.SetCols(4)
-        # Add texts
-        self.patchsizer.Add(self.st1, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.st2, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.st3, flag=wx.ALIGN_LEFT)
-        self.patchsizer.Add(self.st4, flag=wx.ALIGN_LEFT)
-        # HBOX 1 (min overlay)
-        self.patchsizer.Add(self.minOverlayImg, flag=wx.ALIGN_LEFT)
-        # HBOX 2 (max overlay)
-        self.patchsizer.Add(self.maxOverlayImg, flag=wx.ALIGN_LEFT)
-        # HBOX 3 (template patch)
-        self.patchsizer.Add(self.templateImg, flag=wx.ALIGN_LEFT)
-        # HBOX 6 (diff patch)
-        self.patchsizer.Add(self.diffImg, flag=wx.ALIGN_LEFT)
+        self.sizer_overlays.SetOrientation(wx.VERTICAL)
+        self.sizer_min.SetOrientation(wx.HORIZONTAL)
+        self.sizer_max.SetOrientation(wx.HORIZONTAL)
+        self.sizer_attrpatch.SetOrientation(wx.HORIZONTAL)
+        self.sizer_diff.SetOrientation(wx.HORIZONTAL)
 
     def set_patch_layout(self, orient='horizontal'):
         """
@@ -306,34 +285,47 @@ class VerifyPanel(wx.Panel):
         arrange 'horizontal', or stack 'vertical'.
         """
         if orient == 'horizontal':
-            sizer = self.overlays_layout_horiz()
-        else:
             sizer = self.overlays_layout_vert()
+        else:
+            sizer = self.overlays_layout_horiz()
         self.Layout()
         self.Refresh()
 
     def initLayout(self):
-        st1 = wx.StaticText(self.mainPanel, -1, "min:     ", style=wx.ALIGN_LEFT)
-        st2 = wx.StaticText(self.mainPanel, -1, "max:     ", style=wx.ALIGN_LEFT)
-        st3 = wx.StaticText(self.mainPanel, -1, "Attribute Patch:", style=wx.ALIGN_LEFT)
-        st4 = wx.StaticText(self.mainPanel, -1, "diff:", style=wx.ALIGN_LEFT)
+        st1 = wx.StaticText(self, -1, "min: ")
+        st2 = wx.StaticText(self, -1, "max: ")
+        st3 = wx.StaticText(self, -1, "Attribute Patch: ")
+        st4 = wx.StaticText(self, -1, "diff: ")
         self.st1, self.st2, self.st3, self.st4 = st1, st2, st3, st4
 
-        self.minOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        self.maxOverlayImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        self.templateImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
-        self.diffImg = wx.StaticBitmap(self.mainPanel, bitmap=wx.EmptyBitmap(1, 1))
+        self.minOverlayImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
+        self.maxOverlayImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
+        self.templateImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
+        self.diffImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
 
-        self.patchsizer = wx.GridSizer()
+        maxTxtW = max([txt.GetSize()[0] for txt in (st1, st2, st3, st4)]) + 20
+
+        sizer_overlays = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_overlays = sizer_overlays
+        self.sizer_min = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_min.AddMany([(st1,), ((maxTxtW-st1.GetSize()[0],0),), (self.minOverlayImg,)])
+        self.sizer_max = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_max.AddMany([(st2,), ((maxTxtW-st2.GetSize()[0],0),), (self.maxOverlayImg,)])
+        self.sizer_attrpatch = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_attrpatch.AddMany([(st3,), ((maxTxtW-st3.GetSize()[0],0),), (self.templateImg,)])
+        self.sizer_diff = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_diff.AddMany([(st4,), ((maxTxtW-st4.GetSize()[0],0),), (self.diffImg,)])
+        sizer_overlays.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,), ((50, 50),),
+                                (self.sizer_attrpatch, ), ((50,50),), (self.sizer_diff, )])
+
         self.set_patch_layout('horizontal')
-        # HBOX 5 (ComboBox and buttons)
-        hbox5 = wx.BoxSizer(wx.HORIZONTAL)
-        self.templateChoice = wx.ComboBox(self.mainPanel, choices=[], style=wx.CB_READONLY)
-        self.okayButton = wx.Button(self.mainPanel, label='OK')
 
-        self.splitButton = wx.Button(self.mainPanel, label='Split')
-        self.SetSplitModeButton = wx.Button(self.mainPanel, label='Set Split Mode')
-        self.mergeButton = wx.Button(self.mainPanel, label='Merge Groups...')
+        self.templateChoice = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        self.okayButton = wx.Button(self, label='OK')
+
+        self.splitButton = wx.Button(self, label='Split')
+        self.SetSplitModeButton = wx.Button(self, label='Set Split Mode')
+        self.mergeButton = wx.Button(self, label='Merge Groups...')
         sizer_splitmerge = wx.BoxSizer(wx.VERTICAL)
         sizer_splitmerge.Add(self.splitButton, flag=wx.LEFT | wx.CENTRE)
         sizer_splitmerge.Add(self.SetSplitModeButton, flag=wx.LEFT | wx.CENTRE)
@@ -341,11 +333,11 @@ class VerifyPanel(wx.Panel):
         sizer_splitmerge.Add(self.mergeButton, flag=wx.LEFT | wx.CENTRE)
 
         misclassify_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.misclassifyButton = wx.Button(self.mainPanel, label="Mis-classified")
+        self.misclassifyButton = wx.Button(self, label="Mis-classified")
         self.misclassifyButton.Bind(wx.EVT_BUTTON, self.OnClickMisclassify)
-        self.misclassify_txt = wx.StaticText(self.mainPanel, label="Mismatches \
+        self.misclassify_txt = wx.StaticText(self, label="Mismatches \
 in queue: 0")
-        self.manuallabelallButton =  wx.Button(self.mainPanel, label="Label All Manually...")
+        self.manuallabelallButton =  wx.Button(self, label="Label All Manually...")
         self.manuallabelallButton.Bind(wx.EVT_BUTTON, self.OnClickManualLabelAll)
         misclassify_sizer.Add(self.misclassifyButton)
         misclassify_sizer.Add((20, 20))
@@ -354,26 +346,28 @@ in queue: 0")
         misclassify_sizer.Add(self.manuallabelallButton)
 
         digitgroup_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.rundigitgroupButton = wx.Button(self.mainPanel, label="Run Digit Grouping")
+        self.rundigitgroupButton = wx.Button(self, label="Run Digit Grouping")
         self.rundigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickRunDigitGroup)
-        self.forcedigitgroupButton = wx.Button(self.mainPanel, label="Force Digit Grouping")
+        self.forcedigitgroupButton = wx.Button(self, label="Force Digit Grouping")
         self.forcedigitgroupButton.Bind(wx.EVT_BUTTON, self.OnClickForceDigitGroup)
         digitgroup_sizer.Add(self.rundigitgroupButton)
         digitgroup_sizer.Add((20, 20))
         digitgroup_sizer.Add(self.forcedigitgroupButton)
         quarantine_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.debugButton = wx.Button(self.mainPanel, label='DEBUG')
-        self.quarantineButton = wx.Button(self.mainPanel, label='Quarantine')
-        quarantine_sizer.AddMany([(self.debugButton,), (self.quarantineButton,)])
+        self.viewImgButton = wx.Button(self, label="View Image...")
+        self.debugButton = wx.Button(self, label='DEBUG')
+        self.quarantineButton = wx.Button(self, label='Quarantine')
+        quarantine_sizer.AddMany([(self.viewImgButton,), (self.debugButton,), (self.quarantineButton,)])
+        self.viewImgButton.Bind(wx.EVT_BUTTON, self.onButton_viewimg)
 
         checkpoint_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.saveCheckpointButton = wx.Button(self.mainPanel, label="Save Checkpoint")
+        self.saveCheckpointButton = wx.Button(self, label="Save Checkpoint")
         self.saveCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickSaveCheckpoint)
-        self.loadCheckpointButton = wx.Button(self.mainPanel, label="Load Checkpoint...")
+        self.loadCheckpointButton = wx.Button(self, label="Load Checkpoint...")
         self.loadCheckpointButton.Bind(wx.EVT_BUTTON, self.OnClickLoadCheckpoint)
-        self.undoButton = wx.Button(self.mainPanel, label="Undo.")
+        self.undoButton = wx.Button(self, label="Undo.")
         self.undoButton.Bind(wx.EVT_BUTTON, self.OnClickUndo)
-        self.restoreallButton = wx.Button(self.mainPanel, label="Restore All Groups...")
+        self.restoreallButton = wx.Button(self, label="Restore All Groups...")
         self.restoreallButton.Bind(wx.EVT_BUTTON, self.OnClickRestoreAll)
         checkpoint_sizer.AddMany([(self.saveCheckpointButton,), ((10,10),), 
                                   (self.loadCheckpointButton,), ((10,10),),
@@ -381,63 +375,34 @@ in queue: 0")
                                   (self.restoreallButton,)])
 
         # Buttons for MODE_YESNO
-        self.yes_button = wx.Button(self.mainPanel, label="Yes")
-        self.no_button = wx.Button(self.mainPanel, label="No")
+        self.yes_button = wx.Button(self, label="Yes")
+        self.no_button = wx.Button(self, label="No")
         # Buttons for MODE_YESNO2
-        self.manuallylabelButton = wx.Button(self.mainPanel, label='Manually Label This Group')
+        self.manuallylabelButton = wx.Button(self, label='Manually Label This Group')
         self.manuallylabelButton.Bind(wx.EVT_BUTTON, self.OnClickLabelManually)
 
-        hbox5.Add((5,-1))
-        hbox5.Add(self.templateChoice, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((25,-1))
-        hbox5.Add(self.okayButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((25,-1))
-        hbox5.Add(sizer_splitmerge, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((40,-1))
-        hbox5.Add(quarantine_sizer, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((40, -1))
-        hbox5.Add(misclassify_sizer, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((60, -1))
-        hbox5.Add(digitgroup_sizer, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add(self.yes_button, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((40,-1))
-        hbox5.Add(self.no_button, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((40,-1))
-        hbox5.Add(self.manuallylabelButton, flag=wx.LEFT | wx.CENTRE)
-        hbox5.Add((50, -1))
-        hbox5.Add(checkpoint_sizer, flag=wx.LEFT | wx.CENTRE)
+        sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_btns.AddMany([(self.templateChoice,), (self.okayButton,),
+                            (sizer_splitmerge,), (misclassify_sizer,),
+                            (digitgroup_sizer,), (quarantine_sizer,),
+                            (checkpoint_sizer,),
+                            (self.yes_button,), (self.no_button,),
+                            (self.manuallylabelButton,)])
 
-        # HBOX8 (# of ballots)
-        hbox8 = wx.BoxSizer(wx.HORIZONTAL)
-        st5 = wx.StaticText(self.mainPanel, -1, "# of ballots in the group: ", style=wx.ALIGN_LEFT)
-        self.tNumBallots = wx.TextCtrl(self.mainPanel, value='0')
+        st5 = wx.StaticText(self, -1, "# of ballots in the group: ", style=wx.ALIGN_LEFT)
+        self.tNumBallots = wx.TextCtrl(self, value='0')
         self.tNumBallots.SetEditable(False)
-        hbox8.Add(st5, flag=wx.CENTRE)
-        hbox8.Add(self.tNumBallots, flag=wx.CENTRE)
         
-        # VBOX2 (right half)
-        vbox2 = wx.BoxSizer(wx.VERTICAL)
-        self.vbox2 = vbox2
-        vbox2.Add((-1,5))
-        vbox2.Add(hbox8, flag=wx.LEFT | wx.CENTRE)
-        #vbox2.Add(hbox4, flag=wx.LEFT | wx.CENTRE)
-        #vbox2.Add(vbox1, flag=wx.LEFT | wx.CENTRE)
-        vbox2.Add(self.patchsizer, flag=wx.LEFT | wx.CENTRE)
-        vbox2.Add(hbox5, flag=wx.LEFT | wx.CENTRE)
-        
-        # HBOX7
-        hbox7 = wx.BoxSizer(wx.HORIZONTAL) 
-        self.queueList = wx.ListBox(self.mainPanel)
+        self.queueList = wx.ListBox(self)
         self.queueList.Bind(wx.EVT_LISTBOX, self.onSelect_queuelistbox)
-        self.finishedList = wx.ListBox(self.mainPanel)
+        self.finishedList = wx.ListBox(self)
         self.finishedList.Hide() # Not using this for UI simplicity
-        #self.queueList.Enable(False)
-        hbox7.Add(self.queueList, flag = wx.LEFT | wx.TOP)
-        hbox7.Add((25,-1))
-        hbox7.Add(self.finishedList, flag = wx.ALIGN_LEFT | wx.ALIGN_TOP)
-        hbox7.Add((25,-1))
-        hbox7.Add(vbox2, flag = wx.ALIGN_LEFT | wx.ALIGN_CENTRE)
         
+        sizer_queue = wx.BoxSizer(wx.VERTICAL)
+        sizer_numballots = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_numballots.AddMany([(st5,), (self.tNumBallots,)])
+        sizer_queue.AddMany([(sizer_numballots,), (self.queueList,)])
+
         if self.mode == VerifyPanel.MODE_NORMAL:
             self.yes_button.Hide()
             self.no_button.Hide()
@@ -471,10 +436,16 @@ in queue: 0")
             self.loadCheckpointButton.Hide()
             self.manuallabelallButton.Hide()
 
-        self.mainPanel.SetSizer(hbox7)
-        self.sizer.Add(self.mainPanel, proportion=1, flag=wx.EXPAND)
-        self.mainPanel.Hide()
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(sizer_queue, proportion=0, flag=wx.EXPAND)
+        self.sizer.Add((0, 50))
+        self.sizer.Add(sizer_overlays, proportion=0, flag=wx.EXPAND)
+        self.sizer.Add((0, 100))
+        self.sizer.Add(sizer_btns, proportion=0, flag=wx.EXPAND)
         self.SetSizer(self.sizer, deleteOld=False)
+        self.Layout()
+            
+        self.Hide()
 
     def onSelect_queuelistbox(self, evt):
         idx = evt.GetSelection()
@@ -689,7 +660,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         if self.queue:
             self.select_group(self.queue[0])
 
-        self.mainPanel.Show()
+        self.Show()
         self.Fit()
 
     def initBindings(self):
@@ -810,7 +781,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
         elements = self.currentGroup.elements
         
         h, w = overlayMin.shape
-        if w > h:
+        if w < h:
             self.set_patch_layout('vertical')
         else:
             self.set_patch_layout('horizontal')
@@ -1572,6 +1543,79 @@ elements num. is {1}".format(oldcount, newcount)
             elements = self.currentGroup.elements
             for element in elements:
                 print element[0]
+
+    def onButton_viewimg(self, evt):
+        """ Display a pop-up that displays all ballot images of the
+        current group.
+        """
+        class ViewImgsDialog(wx.Dialog):
+            def __init__(self, parent, imgpaths, *args, **kwargs):
+                wx.Dialog.__init__(self, parent, title="Viewing Images...", size=(600, 900), *args, **kwargs)
+                self.imgpaths = imgpaths
+
+                self.curidx = 0
+
+                self.sbitmap = wx.StaticBitmap(self)
+                txt0 = wx.StaticText(self, label="Image path: ")
+                self.txt_imP = wx.StaticText(self, label="Foo")
+                sizer_img = wx.BoxSizer(wx.VERTICAL)
+                sizer0 = wx.BoxSizer(wx.HORIZONTAL)
+                sizer0.AddMany([(txt0,),(self.txt_imP,)])
+                sizer_img.AddMany([(self.sbitmap,), ((0, 10),), (sizer0,)])
+                
+                btn_next = wx.Button(self, label="Next Image")
+                btn_next.Bind(wx.EVT_BUTTON, self.onButton_next)
+                btn_prev = wx.Button(self, label="Previous Image")
+                btn_prev.Bind(wx.EVT_BUTTON, self.onButton_prev)
+                btn_close = wx.Button(self, label="Close")
+                btn_close.Bind(wx.EVT_BUTTON, self.onButton_close)
+                btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+                btn_sizer.AddMany([(btn_next,), ((10,0),), (btn_prev,), ((10,0),), (btn_close,)])
+                
+                txt1 = wx.StaticText(self, label="Image ")
+                self.txt_n = wx.StaticText(self, label="1")
+                txt2 = wx.StaticText(self, label=" / ")
+                self.txt_k = wx.StaticText(self, label="{0}.".format(len(imgpaths)))
+                txt_sizer = wx.BoxSizer(wx.HORIZONTAL)
+                txt_sizer.AddMany([(txt1,), (self.txt_n,), (txt2,), (self.txt_k,)])
+                
+                sizer = wx.BoxSizer(wx.VERTICAL)
+                sizer.Add(sizer_img)
+                sizer.Add((0, 20))
+                sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+                sizer.Add((0, 20))
+                sizer.Add(txt_sizer, flag=wx.ALIGN_CENTER)
+                sizer.Add((0, 20))
+
+                self.SetSizer(sizer)
+                self.Layout()
+                self.display_img(self.curidx)
+            def display_img(self, idx):
+                if idx >= len(self.imgpaths) or idx < 0:
+                    return
+                self.curidx = idx
+                imgpath = self.imgpaths[self.curidx]
+                wximg = wx.Image(imgpath, wx.BITMAP_TYPE_PNG)
+                c = wximg.GetHeight() / 800.
+                new_w = wximg.GetWidth() / c
+                wximg = wximg.Rescale(new_w, 800, wx.IMAGE_QUALITY_HIGH)
+                self.sbitmap.SetBitmap(wx.BitmapFromImage(wximg))
+                self.txt_imP.SetLabel(imgpath)
+                self.txt_n.SetLabel(str(self.curidx+1))
+
+                self.Fit()
+                
+            def onButton_next(self, evt):
+                self.display_img(self.curidx+1)
+            def onButton_prev(self, evt):
+                self.display_img(self.curidx-1)
+            def onButton_close(self, evt):
+                self.Close()
+        imgpaths = []
+        for (sampleid, rlist, patchpath) in self.currentGroup.elements:
+            imgpaths.append(sampleid)
+        dlg = ViewImgsDialog(self, imgpaths)
+        dlg.ShowModal()
             
     def quarantine_group(self, group, doremove=True):
         """

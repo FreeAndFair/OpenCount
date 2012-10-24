@@ -15,7 +15,7 @@ from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, an
 def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False, minArea=None):
     """ Aligns I to IREF.
     Input:
-        np.array I: Image you want to align.
+        np.array I: Image you want to align. I must be larger than IREF.
         np.array Iref: Image you want to align against.
         int fillval: 
         str type: What image transformation to solve for. They are (in
@@ -93,7 +93,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
 def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=None):
     """
     Input:
-        nparray I:
+        nparray I: Assumes that I is larger than IREF
         nparray Iref:
         nparray H0: Trans. mat.
         str type: Transformation type.
@@ -126,13 +126,24 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
 
 
     # smooth images
-    Iref=gaussian_filter(Iref,sig); I=gaussian_filter(I,sig);
+    Iref=gaussian_filter(Iref,sig)
+    I=gaussian_filter(I,sig)
 
     # pad image with NaNs
     ws=np.concatenate(([0],[0],range(wh[0]),[wh[0]-1],[wh[0]-1]))
     hs=np.concatenate(([0],[0],range(wh[1]),[wh[1]-1],[wh[1]-1]))
 
-    Iref=Iref[np.ix_(ws,hs)]; I=I[np.ix_(ws,hs)]
+    try:
+        Iref=Iref[np.ix_(ws,hs)]
+        I=I[np.ix_(ws,hs)]
+    except Exception as e:
+        traceback.print_exc()
+        print '...Iref.shape:', Iref.shape
+        print '...I.shape:', I.shape
+        t = time.time()
+        misc.imsave("_Iref_{0}.png".format(str(t)), Iref)
+        misc.imsave("_I_{0}.png".format(str(t)), I)
+        raise e
     hs=np.array([0,1,wh[1]+2,wh[1]+3])
     ws=np.array([0,1,wh[0]+2,wh[0]+3])
 
