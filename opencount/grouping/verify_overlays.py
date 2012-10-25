@@ -266,14 +266,22 @@ class VerifyPanel(scrolled.ScrolledPanel):
         self.SetupScrolling()
     
     def overlays_layout_vert(self):
-        self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
+        """ Layout the overlay patches s.t. there is one row of N columns. 
+        Typically called when the patch height > patch width.
+        """
+        self.sizer_overlays.SetOrientation(wx.VERTICAL)
+        self.sizer_overlays_voted.SetOrientation(wx.HORIZONTAL)
         self.sizer_min.SetOrientation(wx.VERTICAL)
         self.sizer_max.SetOrientation(wx.VERTICAL)
         self.sizer_attrpatch.SetOrientation(wx.VERTICAL)
         self.sizer_diff.SetOrientation(wx.VERTICAL)
 
     def overlays_layout_horiz(self):
-        self.sizer_overlays.SetOrientation(wx.VERTICAL)
+        """ Layout the overlay patches s.t. there are N rows of 1 column.
+        Typically called when the patch width > patch height.
+        """
+        self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
+        self.sizer_overlays_voted.SetOrientation(wx.VERTICAL)
         self.sizer_min.SetOrientation(wx.HORIZONTAL)
         self.sizer_max.SetOrientation(wx.HORIZONTAL)
         self.sizer_attrpatch.SetOrientation(wx.HORIZONTAL)
@@ -285,16 +293,18 @@ class VerifyPanel(scrolled.ScrolledPanel):
         arrange 'horizontal', or stack 'vertical'.
         """
         if orient == 'horizontal':
-            sizer = self.overlays_layout_vert()
-        else:
+            print 'HORIZ'
             sizer = self.overlays_layout_horiz()
+        else:
+            print 'VERT'
+            sizer = self.overlays_layout_vert()
         self.Layout()
         self.Refresh()
 
     def initLayout(self):
         st1 = wx.StaticText(self, -1, "min: ")
         st2 = wx.StaticText(self, -1, "max: ")
-        st3 = wx.StaticText(self, -1, "Attribute Patch: ")
+        st3 = wx.StaticText(self, -1, "Looks like? ")
         st4 = wx.StaticText(self, -1, "diff: ")
         self.st1, self.st2, self.st3, self.st4 = st1, st2, st3, st4
 
@@ -305,8 +315,9 @@ class VerifyPanel(scrolled.ScrolledPanel):
 
         maxTxtW = max([txt.GetSize()[0] for txt in (st1, st2, st3, st4)]) + 20
 
-        sizer_overlays = wx.BoxSizer(wx.VERTICAL)
+        sizer_overlays = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_overlays = sizer_overlays
+        self.sizer_overlays_voted = wx.BoxSizer(wx.VERTICAL)
         self.sizer_min = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_min.AddMany([(st1,), ((maxTxtW-st1.GetSize()[0],0),), (self.minOverlayImg,)])
         self.sizer_max = wx.BoxSizer(wx.HORIZONTAL)
@@ -315,9 +326,10 @@ class VerifyPanel(scrolled.ScrolledPanel):
         self.sizer_attrpatch.AddMany([(st3,), ((maxTxtW-st3.GetSize()[0],0),), (self.templateImg,)])
         self.sizer_diff = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_diff.AddMany([(st4,), ((maxTxtW-st4.GetSize()[0],0),), (self.diffImg,)])
-        sizer_overlays.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,), ((50, 50),),
-                                (self.sizer_attrpatch, ), ((50,50),), (self.sizer_diff, )])
-
+        self.sizer_overlays_voted.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,), ((50, 50),),
+                                           (self.sizer_diff,)])
+        self.sizer_overlays.AddMany([(self.sizer_overlays_voted,), ((50, 50),),
+                                     (self.sizer_attrpatch, 0, wx.ALIGN_CENTER)])
         self.set_patch_layout('horizontal')
 
         self.templateChoice = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
@@ -393,7 +405,7 @@ in queue: 0")
         self.tNumBallots = wx.TextCtrl(self, value='0')
         self.tNumBallots.SetEditable(False)
         
-        self.queueList = wx.ListBox(self)
+        self.queueList = wx.ListBox(self, size=(-1, 140))
         self.queueList.Bind(wx.EVT_LISTBOX, self.onSelect_queuelistbox)
         self.finishedList = wx.ListBox(self)
         self.finishedList.Hide() # Not using this for UI simplicity
@@ -439,9 +451,9 @@ in queue: 0")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizer_queue, proportion=0, flag=wx.EXPAND)
         self.sizer.Add((0, 50))
-        self.sizer.Add(sizer_overlays, proportion=0, flag=wx.EXPAND)
+        self.sizer.Add(sizer_overlays, flag=wx.ALIGN_CENTER)
         self.sizer.Add((0, 100))
-        self.sizer.Add(sizer_btns, proportion=0, flag=wx.EXPAND)
+        self.sizer.Add(sizer_btns, proportion=0, flag=wx.EXPAND | wx.ALIGN_CENTER)
         self.SetSizer(self.sizer, deleteOld=False)
         self.Layout()
             
@@ -785,7 +797,7 @@ is a nullfile, please delete it, and start over.".format(pathjoin(self.project.p
             self.set_patch_layout('vertical')
         else:
             self.set_patch_layout('horizontal')
-
+            
         self.minOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMin)) #* 255.0))
         self.maxOverlayImg.SetBitmap(NumpyToWxBitmap(overlayMax)) #* 255.0))
         
