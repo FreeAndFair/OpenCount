@@ -980,7 +980,10 @@ class Contest:
             root2.children.append(root1)
             root2.writein_num = winum
     
-def do_group_pairing_map(data):
+def do_group_pairing_map(args):
+    item, contests_text = args
+    print item
+    exit(0)
     lst = []
     print "GO UP TO", len(data)
     for x,(i,a,j,b) in enumerate(data):
@@ -998,20 +1001,12 @@ def group_by_pairing(contests_text):
 
     contests = [Contest(contests_text, i) for i in range(len(contests_text))]
 
+    #args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text)]
+
     print "Prepare"
     pool = mp.Pool(mp.cpu_count())
-    sizes = [sum(len(x[1]) for x in cont[2]) for cont in contests_text]
-    print 'a'
-    args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text)]
-    print 'b'
-            
-    print "Length of arguments", len(args)
-    sets = [[] for _ in range(mp.cpu_count())]
-    for i,each in enumerate(args):
-        sets[i%len(sets)].append(each)
-    print "sets sizes", map(len, sets)
     print "Start"
-    res = pool.map(do_group_pairing_map, sets)
+    res = pool.map(do_group_pairing_map, zip(range(len(contests_text)), [contests_text]*len(contests_text)))
     pool.close()
     pool.join()
     print "Done"
