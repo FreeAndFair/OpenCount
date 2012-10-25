@@ -1,5 +1,5 @@
 import sys, os, time, pdb, traceback
-import cv
+import cv, numpy as np
 
 from wx.lib.pubsub import Publisher
 import wx
@@ -93,10 +93,125 @@ def bestmatch_par(A, imgpaths, NP=None, do_smooth=0, xwinA=3, ywinA=3,
     result = partask.do_partask(_do_bestmatch, imgpaths,
                                 _args=(A_str, do_smooth, xwinA, ywinA,
                                        xwinI, ywinI, w, h, prevmatches, jobid),
-                                combfn='dict', singleproc=True)
+                                combfn='dict', singleproc=False)
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
     return result
+
+def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
+                    xwinI=13, ywinI=13, MAX_MATS=50, prevmatches=None,
+                    atleastone=False, jobid=None):
+    """ Runs template matching, trying to find image A within each image
+    in IMGPATHS. Returns location (and responses) of all matches greater than
+    some threshold T.
+    Input:
+        IplImage A:
+        list IMGPATHS:
+        float T:
+        dict PREVMATCHES: maps {str imgpath: [(x1,y1,x2,y2), ...]}
+    Output:
+        dict MATCHES, of the form {str imgpath: [(x1, y1, x2, y2, float score), ...]}
+    """
+    if do_smooth == SMOOTH_BOTH_BRD or do_smooth == SMOOTH_A_BRD:
+        A_im = smooth(A, xwinA, ywinA, bordertype='const', val=255)
+    elif do_smooth in (SMOOTH_BOTH, SMOOTH_A):
+        A_im = smooth(A, xwinA, ywinA)
+    else:
+        A_im = A
+    wA, hA = cv.GetSize(A_im)
+    results = {} # {str imgpath: [(x1,y1,x2,y2,score),...]}
+    for imgpath in imgpaths:
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        if do_smooth in (SMOOTH_BOTH_BRD, SMOOTH_IMG_BRD):
+            I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
+        elif do_smooth in (SMOOTH_BOTH, SMOOTH_IMG):
+            I = smooth(I, xwinI, ywinI)        
+        wI, hI = cv.GetSize(I)
+        M = cv.CreateMat(hI-hA+1, wI-wA+1, cv.CV_32F)
+        cv.MatchTemplate(I, A_im, M, cv.CV_TM_CCOEFF_NORMED)
+        M_np = np.array(M)
+        # 0.) Suppress previously-found matches, if any
+        prevmats = prevmatches.get(imgpath, []) if prevmatches else []
+        for (x1,y1,x2,y2) in prevmats:
+            #print 'suppressing: {0} at {1}'.format(imgpath, (x1, y1))
+            _x1 = max(0, int(x1 - (wA / 2)))
+            _y1 = max(0, int(y1 - (hA / 2)))
+            _x2 = min(M_np.shape[1], int(x1 + (wA / 2)))
+            _y2 = min(M_np.shape[0], int(y1 + (hA / 2)))
+            M_np[_y1:_y2, _x1:_x2] = -1.0
+        score = np.inf
+        #print 'best score:', np.max(M_np)
+        num_mats = 0
+        matches = []
+        while score > T and num_mats < MAX_MATS:
+            M_idx = np.argmax(M_np)
+            i = int(M_idx / M.cols)
+            j = M_idx % M.cols
+            score = M_np[i,j]
+            if score < T:
+                break
+            matches.append((j, i, j+wA, i+hA, score))
+            # Suppression
+            _x1 = max(0, int(j - (wA / 2)))
+            _y1 = max(0, int(i - (hA / 2)))
+            _x2 = min(M_np.shape[1], int(j + (wA / 2)))
+            _y2 = min(M_np.shape[0], int(i + (hA / 2)))
+            M_np[_y1:_y2, _x1:_x2] = -1.0
+            #M_np[i-(hA/2):i+(hA/2),
+            #     j-(wA/2):j+(wA/2)] = -1.0
+            num_mats += 1
+        if not matches and atleastone:
+            print 'DOO DOO DOO'
+            M_idx = np.argmax(M_np)
+            i = int(M_idx / M.cols)
+            j = M_idx % M.cols
+            score = M_np[i,j]
+            matches.append((j, i, j + wA, i + hA, score))
+        results[imgpath] = matches
+        if jobid and wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+    return results
+
+def _do_get_tempmatches(imgpaths, (A_str, T, do_smooth, xwinA, ywinA,
+                                   xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
+                                   atleastone, jobid)):
+    result = {}
+    A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
+    cv.SetData(A, A_str)
+    try:
+        results = get_tempmatches(A, imgpaths, T=T, do_smooth=do_smooth, xwinA=xwinA, 
+                                  ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
+                                  prevmatches=prevmatches,
+                                  jobid=jobid)
+    except:
+        traceback.print_exc()
+        return {}
+    return results
+
+def get_tempmatches_par(A, imgpaths, T=0.8, do_smooth=0, 
+                        xwinA=13, ywinA=13, xwinI=13, ywinI=13,
+                        MAX_MATS=50, prevmatches=None,
+                        atleastone=False, NP=None, jobid=None):
+    """ For each img in IMGPATHS, template match for A.
+    Input:
+        IplImage A:
+    Output:
+        dict MATCHES, of the form {str imgpath: [(x1, y1, x2, y2 float resp), ...]}
+    """
+    A_str = A.tostring()
+    w, h = cv.GetSize(A)
+    try:
+        result = partask.do_partask(_do_get_tempmatches, imgpaths,
+                                    _args=(A_str, T, do_smooth, xwinA, ywinA,
+                                           xwinI, ywinI, w, h, MAX_MATS, prevmatches,
+                                           atleastone, jobid),
+                                    combfn='dict', singleproc=False)
+    except Exception as e:
+        traceback.print_exc()
+        return {}
+    if jobid and wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+    return result    
 
 def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to I, with window size [XWIN,YWIN].

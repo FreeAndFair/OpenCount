@@ -86,6 +86,8 @@ class SelectAttributesMasterPanel(wx.Panel):
 
     def save_session(self):
         """ Saves the current session to a statefile. """
+        if not self.statefileP:
+            return False
         f = open(self.statefileP, 'wb')
         state = {"boxes": self.boxes,
                  "mapping": self.mapping,

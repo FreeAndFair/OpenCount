@@ -479,10 +479,10 @@ class RunGroupingPanel(wx.Panel):
         print '...done counting number of voted ballots ({0})...'.format(num)
         # QUESTION: What is kind? The number of img-based attributes?
         #           Is this change correct?
-        if not common.exists_imgattrs(self.project):
+        if not common.get_attrtypes(self.project):
             kind = 0
         else:
-            kind = len(self.patches.items()[0])
+            kind = len(common.get_attrtypes(self.project))
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", num*kind)
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))

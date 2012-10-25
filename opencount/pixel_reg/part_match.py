@@ -11,6 +11,8 @@ import time
 import distance_transform
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+import wx
+from wx.lib.pubsub import Publisher
 
 def dt1(f):
     n = f.size
@@ -408,6 +410,10 @@ def process_one(args):
                        min(I1.shape[0]-1, bb[1]-amt_i1),
                        max(0, bb[2]-amt_j1), 
                        min(I1.shape[1]-1, bb[3]-amt_j1)))
+
+    if wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+    
 
     return (imP,res[0],res[1],newbbs,res[3])
 

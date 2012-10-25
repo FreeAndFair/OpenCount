@@ -8,6 +8,7 @@ import math
 import imagesAlign as lk
 from scipy import misc
 from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+from wx.lib.pubsub import Publisher
 
 MAX_PRECINCT_PATCH_DIM=800
 MIN_PRECINCT_PATCH_DIM=20
@@ -215,7 +216,7 @@ Output:
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
                          bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True,
-                         output_Ireg=False):
+                         output_Ireg=False, jobid=None):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
@@ -294,6 +295,10 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
             j1mask = max(0,j1-patch.shape[1]/3)
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
             Iout[i1mask:i2mask,j1mask:j2mask]=0
+
+        if jobid and wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+        
     if not matchList:
         print "Warning - couldn't find any matches."
     return matchList
