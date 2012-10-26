@@ -1028,7 +1028,7 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
-    os.popen("rm -r "+tmp+"*")
+    os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     ballots = []
     for i,f in enumerate(paths):
         print f
@@ -1046,7 +1046,7 @@ def find_contests(t, paths, giventargets):
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
-    os.popen("rm -r "+tmp+"*")
+    os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
@@ -1071,7 +1071,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
-    #os.popen("rm -r "+tmp+"*")
+    #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
     ballots = pool.map(group_given_contests_map, args)
