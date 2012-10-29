@@ -1,5 +1,6 @@
 from PIL import Image, ImageDraw
 import os, sys
+import time
 import random
 sys.path.append('..')
 try:
@@ -11,10 +12,23 @@ import pickle
 import itertools
 import time
 
+def pdb_on_crash(f):
+    """
+    Decorator to run PDB on crashing  
+    """
+    def res(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except:
+            import pdb as err_pdb
+            err_pdb.post_mortem()
+    return res
+
 black = 200
 
-do_save = False
-export = False
+do_save = True
+do_test = True
+export = True
 
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
@@ -36,25 +50,41 @@ def load_num(path="", pilimg=None):
     return data
 
 def load_threshold(image):
+
+    def dorem(dat, block, boxes, replacewith=False):
+        remove = []
+        for x,y in boxes:
+            if (x,y-block) in boxes and (x,y+block) in boxes:
+                if (x-block,y) in boxes and (x+block,y) in boxes:
+                    remove.append((x,y))
+        for x,y in remove:
+            for dy in range(block):
+                for dx in range(block):
+                    dat[y+dy][x+dx] = replacewith
+
+
     dat = load_num(image)
+    block = 40
+    boxes = {}
+    for y in range(0, len(dat)-block, block):
+        for x in range(0, len(dat[y])-block, block):
+            if sum(dat[y+dy][x+dx] < 240 for dy in range(0,block,4) for dx in range(0,block,4)) > block/4*block/4*3/10:
+                lst = [dat[y+dy][x+dx] < 240 for dy in range(0,block) for dx in range(0,block)]
+                if sum(lst) > block*block*7/10:
+                    boxes[x,y] = True
+    dorem(dat, block, boxes, replacewith=255)
+
     dat = [[x < black for x in y] for y in dat]
     block = 10
     boxes = {}
     for y in range(0,len(dat)-block, block):
         for x in range(0,len(dat[y])-block, block):
-            filled = sum(dat[y+dy][x+dx] for dy in range(block) for dx in range(block)) > block*block*9/10
-            if filled:
-                boxes[x,y] = True
-    remove = []
-    for x,y in boxes:
-        if (x,y-block) in boxes and (x,y+block) in boxes:
-            if (x-block,y) in boxes and (x+block,y) in boxes:
-                remove.append((x,y))
-    for x,y in remove:
-        for dy in range(block):
-            for dx in range(block):
-                dat[y+dy][x+dx] = False
+            if sum(dat[y+dy][x+dx] for dy in range(0,block,2) for dx in range(0,block,2)) > block/2*block/2*5/10:
+                filled = sum(dat[y+dy][x+dx] for dy in range(block) for dx in range(block)) > block*block*9/10
+                if filled:
+                    boxes[x,y] = True
 
+    dorem(dat, block, boxes, replacewith=255)
     
     dat = [[0 if x else 255 for x in y] for y in dat]
     if do_save:
@@ -255,7 +285,37 @@ def dfs(graph, start):
         s += graph[top]
     return seen.keys()
 
-def to_graph(lines, width, height):
+@pdb_on_crash
+def extend_to_line(lines, width, height):
+    table = [[False]*(width+200) for _ in range(height+200)]
+    for d,each in lines:
+        if d == 'V':
+            (l,u,r,d) = each
+            for x in range(l,r):
+                for y in range(u,d):
+                    table[y][x] = True
+
+    print "RECTANGLE FIX", len(lines)
+
+    new = []
+    for direc,each in lines:
+        if direc == 'H':
+            l,u,r,d = each
+            if any(table[u][x] for x in range((l+9*r)/10,r)):
+                new.append((direc,each))
+            else:
+                pos = [x for x in range((l+9*r)/10,min(r+(r-l)/2,width)) if table[u][x]]
+                if len(pos):
+                    new.append((direc, (l,u,pos[0]+(pos[0]-l)/10,d)))
+        else:
+            new.append((direc,each))
+
+    print len(new)
+
+    return new
+
+
+def to_graph(lines, width, height, minsize):
     """
     Convert a set of lines to graph where lines are vertexes, and
     there is an edge between two lines when they intersect. This
@@ -293,7 +353,7 @@ def to_graph(lines, width, height):
         lines = map(extend, lines)
     
         for direction in ['H', 'V']:
-            table = [[None]*(width+20) for _ in range(height+20)]
+            table = [[None]*(width+200) for _ in range(height+200)]
             equal = []
             for full in lines:
                 if full[0] != direction: continue
@@ -326,7 +386,13 @@ def to_graph(lines, width, height):
                     new.append(line)
             lines = new
     print "THERE ARE END", len(lines)
-        
+    print list(sorted([area(x[1]) for x in lines]))
+    print minsize
+    lines = [x for x in lines if x[1][2]-x[1][0] > width/10 or x[1][3]-x[1][1] > height/30]
+    print "THERE ARE END", len(lines)
+
+    lines = extend_to_line(lines, width, height)
+    
     vertexes = dict((x, []) for _,x in lines)
 
     boxes = []
@@ -336,10 +402,10 @@ def to_graph(lines, width, height):
                 if intersect(line1, line2):
                     boxes.append(intersect(line1, line2))
                     vertexes[line1].append(line2)
-    print 'finished'
+    print 'finished', len(str(vertexes)), len(boxes)
     return boxes,dict((k,v) for k,v in vertexes.items() if v != [])
 
-def find_squares(graph):
+def find_squares(graph, minarea):
     """
     Given a graph (vertexes are lines, edges when they intersect),
     return the squares that are in the graph.
@@ -351,7 +417,9 @@ def find_squares(graph):
             print ".  "*len(stack), stack[-1]
         if len(stack) == 4:
             if stack[0] in graph[stack[-1]]:
-                return [intersect(union(stack[0],stack[2]), union(stack[1],stack[3]))]
+                tores = intersect(union(stack[0],stack[2]), union(stack[1],stack[3]))
+                if area(tores) > minarea:
+                    return [tores]
             return [None]
         res = []
         for vertex in graph[stack[-1]]:
@@ -359,9 +427,20 @@ def find_squares(graph):
             res += dfs_square(stack+[vertex], debug)
         return res
 
-    result = [dfs_square([start]) for start in graph]
-    result = [x for sublist in result for x in sublist]
-    return list(set([x for x in result if x]))
+    #result = [dfs_square([start]) for start in graph]
+    #result = [x for sublist in result for x in sublist]
+    #return list(set([x for x in result if x]))
+    result = {}
+    for i,start in enumerate(graph):
+        print 'on', i, 'of', len(graph)
+        for each in dfs_square([start]):
+            if each:
+                result[each] = True
+    return result.keys()
+
+def area(x): 
+    if x == None: return 0
+    return (x[2]-x[0])*(x[3]-x[1])
 
 def do_extract(name, img, squares, giventargets):
     """
@@ -380,9 +459,6 @@ def do_extract(name, img, squares, giventargets):
     if there are, warn the operator. This means one contest
     encloses another.
     """
-    def area(x): 
-        if x == None: return 0
-        return (x[2]-x[0])*(x[3]-x[1])
 
     targets = [x for x in giventargets]
     avg_targ_area = sum(map(area,targets))/len(targets)
@@ -430,24 +506,65 @@ def do_extract(name, img, squares, giventargets):
                 break
             elif len(tomerge) < 1:
                 print "Target", target, "Not in any contest on ballot", name
+
+    def samecolumn(a, b):
+        if (abs(a[0]-b[0]) < 10 or abs(a[2]-b[2])<10):
+            if abs((a[0]+a[2])/2-(b[0]+b[2])/2) < 100:
+                return True
+        return False
+        
+    if len(contests) > 2*len(giventargets)/3:
+        equivs = list(contests)
+        prev = 0
+        print "start", contests
+        while prev != len(equivs):
+            prev = len(equivs)
+            new = []
+            skip = {}
+            for a in equivs:
+                if a in skip: continue
+                print "On ", a
+                found = None
+                for b in equivs:
+                    if a == b: continue
+                    if abs(b[3]-a[1]) < 30 and samecolumn(a, b):
+                        print 'case 2', b
+                        found = b
+                        break
+                if found != None:
+                    print 'merge'
+                    new.append(union(a, found))
+                    skip[found] = True
+                else:
+                    new.append(a)
+            equivs = []
+            while new:
+                s = [x for x in new if intersect(x,new[0]) and samecolumn(x, new[0])]
+                equivs.append(reduce(union,s))
+                new = [x for x in new if x not in s]
+                
+            print "RES", len(equivs), equivs
+
+        contests = equivs
     
     #print "C", contests
     for cont in contests:
         if export:
             im = img.crop(cont)
-            name = tmp+"/"+str(sum(im.histogram()[:100]))+".png"
+            cname = tmp+"/"+str(sum(im.histogram()[:100]))+".png"
             im = img.crop(cont)
-            im.save(name)
+            im.save(cname)
 
-    if do_save:
+    if do_save or do_test:
         new = Image.new("RGB", img.size, (255, 255, 255))
         imd = ImageDraw.Draw(new)
         for box in contests:
-            imd.rectangle(box, outline=(0,0,255))
+            c = (int(random.random()*200), int(random.random()*155+100), int(random.random()*155+100))
+            imd.rectangle(box, fill=c)
         print "GIVEN", giventargets
         for box in giventargets:
             imd.rectangle(box, fill=(255,0,0))
-        new.save(tmp+"/qqq.png")
+        new.save(tmp+"/"+name+"-fullboxed.png")
 
     return contests
 
@@ -457,6 +574,14 @@ def do_extract(name, img, squares, giventargets):
         
 
 def extract_contest(args):
+    try:
+        return extract_contest_2(args)
+    except:
+        print "Fail on", args[0]
+        print "Fail on", args[0]
+        print "Fail on", args[0]
+        print "Fail on", args[0]
+def extract_contest(args):
     if len(args) == 2:
         image_path, giventargets = args
         returnimage = True
@@ -464,12 +589,22 @@ def extract_contest(args):
         image_path, giventargets, returnimage = args
     else:
         raise Error("Wrong number of args")
+
+    now = time.time()
+
+    print len(giventargets), giventargets
+
     print "processing", image_path
-    #Image.open(image_path).save(tmp+"/"+image_path.split("/")[-1][:-4]+"-orig.png")
     data = load_threshold(image_path)
+    #data = load_num(image_path)
+    print 'loaded'
     lines = find_lines(data)
-    boxes, graph = to_graph(lines, len(data[0]), len(data))
-    squares = find_squares(graph)
+    lines += [('V', (len(data[0])-20, 0, len(data[0]), len(data)))]
+    #print "calling with args", lines, len(data[0]), len(data), max(giventargets[0][2]-giventargets[0][0],giventargets[0][3]-giventargets[0][1])
+    boxes, graph = to_graph(lines, len(data[0]), len(data), area(giventargets[0])**.5)
+    print 'tograph'
+    squares = find_squares(graph, area(giventargets[0]))
+    print 'findsquares'
     squares = sorted(squares, key=lambda x: -(x[2]-x[0])*(x[3]-x[1]))
     #print lines
     #print squares
@@ -503,13 +638,22 @@ def extract_contest(args):
             imd.rectangle((l,u,r,d), fill=c)
         new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-box.png")
 
-    if do_save or export:
+    if do_save or export or do_test:
         loadedimage = load_pil(image_path)
     else:
         loadedimage = None
+
+    print "GET ARG", image_path, image_path.split("/")[-1]
+
+    print len(giventargets), giventargets
+
     final = do_extract(image_path.split("/")[-1], 
                        loadedimage, squares, giventargets)
+    #os.popen("open tmp/*")
     #exit(0)
+    
+    print "Took", time.time()-now
+
     if returnimage:
         return data, final
     else:
@@ -613,7 +757,13 @@ def compare_preprocess(lang, path, image, contest, targets):
     return blocks
 
 #import editdist
-from Levenshtein import distance
+try:
+    from Levenshtein import distance
+except:
+    print "Error: Edit Distance module not loaded"
+    if __name__ != '__main__':
+        print "Exiting"
+        exit(1)
 
 def row_dist(a, b):
     if type(a) == unicode or type(b) == unicode:
@@ -1039,17 +1189,21 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets)
 
+@pdb_on_crash
 def find_contests(t, paths, giventargets):
     global tmp
-    print "ARGS", (t, paths, giventargets)
+    #print "ARGS", (t, paths, giventargets)
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
+    #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
+    args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = pool.map(extract_contest, args)
+    ballots = map(extract_contest, args)
+    exit(0)
     pool.close()
     pool.join()
     #ballots = map(extract_contest, args)
@@ -1091,6 +1245,87 @@ def final_grouping(ballots, giventargets, paths, languages):
     #print ballots
     return equ_class(ballots, languages)
 
+
+def sort_nicely( l ): 
+  """ Sort the given list in the way that humans expect. Does an inplace sort.
+  From:
+      http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
+  """ 
+  convert = lambda text: int(text) if text.isdigit() else text 
+  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+  l.sort( key=alphanum_key ) 
+
+import re
+import csv
+
+class ThreadDoInferContests:
+    def __init__(self, queue, job_id, proj, *args, **kwargs):
+        self.job_id = job_id
+        self.queue = queue
+        self.proj = proj
+
+    def extract_data(self):
+        """
+        Stolen from labelcontest.py.
+
+        This should be removed in favor of taking the data from
+        this panel directly, instead of loading from the file.
+        """
+        res = []
+        dirList = []
+        for root,dirs,files in os.walk(self.proj.target_locs_dir):
+            sort_nicely(files) # Fixes Marin ordering.
+            for each in files:
+                if each[-4:] != '.csv': continue
+                gr = {}
+                name = os.path.join(root, each)
+                for i, row in enumerate(csv.reader(open(name))):
+                    if i == 0:
+                        # skip the header row, to avoid adding header
+                        # information to our data structures
+                        continue
+                    # If this one is a target, not a contest
+                    if row[7] == '0':
+                        if row[8] not in gr:
+                            gr[row[8]] = []
+                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
+                        gr[row[8]].append((int(row[2]), int(row[3]), 
+                                           int(row[2])+int(row[4]), 
+                                           int(row[3])+int(row[5])))
+                    r = row[0].replace("/media/data1/audits2012_straight/santacruz/blankballots/", "santacruz/")
+                    if r not in dirList:
+                        dirList.append(r)
+                if gr.values() != []:
+                    res.append(gr.values())
+        #for a,b in zip(dirList, res):
+        #    print a,b
+        #print res
+        #print dirList
+        return res, dirList
+        
+    def run(self):
+        # Do fancy contest-inferring computation
+        data, files = self.extract_data()
+        bboxes = dict(zip(files,find_contests(self.proj.ocr_tmp_dir, files, data)))
+        # Computation done!
+        self.queue.put(bboxes)
+        self.proj.infer_bounding_boxes = True
+        print "AND I SEND THE RESUTS", bboxes
+
+if __name__ == "__main__":
+    p = "./"
+    class FakeProj:
+        target_locs_dir = p+"sc_target_locations"
+        ocr_tmp_dir = p+"tmp"
+    class FakeQueue:
+        def put(self, x):
+            return
+    thr = ThreadDoInferContests(FakeQueue(), 0, FakeProj())
+    print thr
+    thr.run()
+    
+
+exit(0)
 if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))), eval(open("../orangedata_lang").read()))
 
