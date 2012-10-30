@@ -1323,9 +1323,8 @@ if __name__ == "__main__":
     thr = ThreadDoInferContests(FakeQueue(), 0, FakeProj())
     print thr
     thr.run()
+    exit(0)
     
-
-exit(0)
 if __name__ == "__main__":
     equ_class(merge_contests(*pickle.load(open("../orangedata"))), eval(open("../orangedata_lang").read()))
 
