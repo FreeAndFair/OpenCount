@@ -50,7 +50,7 @@ def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
     # UpperLeft: 15% of width, 30% of height.
     # LowerLeft: 15% of width, 30% of height.
     # LowerRight: 15% of width, 30% of height.
-    if type(imgpath) == str:
+    if type(imgpath) == str or type(imgpath) == unicode:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         I = imgpath
