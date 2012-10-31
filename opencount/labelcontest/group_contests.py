@@ -1119,16 +1119,19 @@ def full_group(contests_text, key):
     elif key[1] == 'chi_sim':
         CONST = .35
     
+    debug=[]
 
     contests_text = sorted(contests_text, key=lambda x: sum(len(v[1]) for v in x[2]))
     joins = dict((i,[]) for i in range(len(contests_text)))
     for offset in range(1,2):
         for i,(c1,c2) in enumerate(zip(contests_text, contests_text[offset:])):
             data, (score,winum) = compare(c1[2], c2[2])
+            debug.append((score,(c1[2][0], c1[2][0])))
             if score < CONST/2:
                 #print 'merged', c1[2], c2[2]
                 joins[i].append(i+offset)
                 joins[i+offset].append(i)
+    for each in sorted(debug): print each
     seen = {}
     exclude = {}
     for i in joins:
@@ -1320,8 +1323,6 @@ def final_grouping(ballots, giventargets, paths, languages):
     print "NOW EQU CLASSES"
     #print ballots
     return equ_class(ballots, languages)
-
-<<<<<<< HEAD
 
 def sort_nicely( l ): 
   """ Sort the given list in the way that humans expect. Does an inplace sort.
