@@ -88,7 +88,7 @@ class VerifyContestGrouping:
         self.mapping = mapping
         self.mapping_inverse = mapping_inverse
         self.multiboxcontests = multiboxcontests
-        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
+        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 10]
 
         print self.equivs
         print self.processgroups
