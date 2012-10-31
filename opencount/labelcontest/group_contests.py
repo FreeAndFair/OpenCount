@@ -1270,6 +1270,12 @@ def do_grouping(t, paths, giventargets, lang_map = {}):
 
 @pdb_on_crash
 def find_contests(t, paths, giventargets):
+    """
+    Input:
+        str T:
+        list PATHS:
+        list GIVENTARGETS: G[i][j][k] := k-th target of j-th contest of i-th ballot.
+    """
     global tmp
     #print "ARGS", (t, paths, giventargets)
     if t[-1] != '/': t += '/'
