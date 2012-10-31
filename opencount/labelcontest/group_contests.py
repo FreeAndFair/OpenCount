@@ -1279,10 +1279,9 @@ def find_contests(t, paths, giventargets):
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
-    args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
+    #args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
     pool = mp.Pool(mp.cpu_count())
     ballots = map(extract_contest, args)
-    exit(0)
     pool.close()
     pool.join()
     #ballots = map(extract_contest, args)
@@ -1392,6 +1391,7 @@ class ThreadDoInferContests:
 
 tmp = "tmp"
 
+"""
 if __name__ == "__main__":
     p = "./"
     class FakeProj:
@@ -1404,6 +1404,7 @@ if __name__ == "__main__":
     print thr
     thr.run()
     exit(0)
+"""
     
 if __name__ == "__main__":
     paths = eval(open("../orangedata_paths").read())
