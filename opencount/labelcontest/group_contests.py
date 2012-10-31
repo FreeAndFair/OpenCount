@@ -1111,13 +1111,13 @@ def full_group(contests_text, key):
     if key[1] == 'eng':
         CONST = .2
     elif key[1] == 'spa':
-        CONST = .25
+        CONST = .2
+    elif key[1] == 'vie':
+        CONST = .2
     elif key[1] == 'kor':
         CONST = .3
-    elif key[1] == 'vie':
-        CONST = .3
     elif key[1] == 'chi_sim':
-        CONST = .35
+        CONST = .3
     
     debug=[]
 
@@ -1126,12 +1126,22 @@ def full_group(contests_text, key):
     for offset in range(1,2):
         for i,(c1,c2) in enumerate(zip(contests_text, contests_text[offset:])):
             data, (score,winum) = compare(c1[2], c2[2])
-            debug.append((score,(c1[2][0], c1[2][0])))
+            debug.append((score,(c1[2][0], c2[2][0])))
             if score < CONST/2:
                 #print 'merged', c1[2], c2[2]
                 joins[i].append(i+offset)
                 joins[i+offset].append(i)
-    for each in sorted(debug): print each
+    def mylen(l):
+        return sum(2 if ord(x)>512 else 1 for x in l)
+
+    #for each in sorted(debug):
+    #    print each[0]
+    #    s1 = each[1][0][1].split("\n")
+    #    s2 = each[1][1][1].split("\n")
+    #    #print s1, s2
+    #    s1 = [x+"."*(max(map(mylen,s1))-mylen(x)) for x in s1]
+    #    print "\n".join([a+"  |  "+b for a,b in zip(s1,s2)])
+
     seen = {}
     exclude = {}
     for i in joins:
@@ -1222,6 +1232,18 @@ def merge_contests(ballot_data, fulltargets):
     #print new_data
     return new_data
 
+def do_extend(args):
+    txt,c1,c2,t1,t2 = args
+    data, (score, winum) = compare(txt, t1[2]+t2[2])
+    if score < .2:
+        #print "THEY ARE EQUAL"
+        res = (c1, c2)
+        #print 'txt', t1, t2
+        newgroup = ((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), get_order(*data[winum][1]))
+        return res, newgroup
+    return None
+        
+
 def extend_multibox(ballots, box1, box2, orders):
     ballot = ballots[box1[0]]
     txt1 = [x for x in ballot if x[:2] == box1][0]
@@ -1229,6 +1251,8 @@ def extend_multibox(ballots, box1, box2, orders):
     txt = txt1[2]+txt2[2]
     res = []
     newgroup = []
+
+    tocompare = []
     for bid,order in enumerate(orders):
         #print 'BID IS', bid
         for c1,c2 in order:
@@ -1236,15 +1260,16 @@ def extend_multibox(ballots, box1, box2, orders):
             t2 = [x for x in ballots[bid] if x[:2] == c2][0]
             if len(t1[2])+len(t2[2]) != len(txt1[2])+len(txt2[2]):
                 continue
-            #print '-'*30
-            #print 'consec', c1, c2
-            data, (score, winum) = compare(txt, t1[2]+t2[2])
-            if score < .2:
-                print "THEY ARE EQUAL"
-                res.append((c1, c2))
-                print 'txt', t1, t2
-                newgroup.append(((c1[0], [c1[1], c2[1]], t1[2]+t2[2]), get_order(*data[winum][1])))
+            tocompare.append((txt,c1,c2,t1,t2))
+    pool = mp.Pool(mp.cpu_count())
+    res = pool.map(do_extend, tocompare)
+    pool.close()
+    pool.join()
     print "RESULT", res
+    res = [x for x in res if x != None]
+    res, newgroup = zip(*res)
+    print "RESULT", res
+    print "NEWGROUP", newgroup
 
     return res, newgroup
 
@@ -1305,6 +1330,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     global tmp
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
+    #print lang_map
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):

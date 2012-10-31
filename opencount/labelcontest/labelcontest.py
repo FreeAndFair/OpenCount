@@ -321,7 +321,32 @@ class LabelContest(wx.Panel):
             #newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
             self.groups_saved = fixed
 
-            self.compute_equivs_2(run_verification=True)
+            #print "BEFORE", self.equivs_processed
+            self.compute_equivs_2(run_verification=False)
+            #print "AFTER", self.equivs_processed
+
+            def putresults(get_result):
+                ids_in_new_group = get_result[0]
+                # HACK -- WE DON'T USE THE VERIFICATION STUFF AT ALL
+    
+                old = self.equivs_processed
+                print "OLD", self.equivs_processed
+                new_processed = []
+                for each in self.equivs_processed:
+                    new_each = [x for x in each if x not in ids_in_new_group]
+                    if new_each != []:
+                        new_processed.append(new_each)
+                new_processed.append(ids_in_new_group)
+                self.equivs_processed = new_processed
+                print "NEW", self.equivs_processed
+                print "DIFF"
+                for a in self.equivs_processed:
+                    if a not in old:
+                        print a
+    
+            ids_in_new_group = [self.mapping[x] for x in boxes_in_new_group]
+            VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [ids_in_new_group], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+
             return
 
         button6 = wx.Button(self, label="Mark as Multi-Box")

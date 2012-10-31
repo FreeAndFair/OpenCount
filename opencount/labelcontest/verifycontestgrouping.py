@@ -22,6 +22,7 @@ def translate(name):
     return "tmp/"+os.path.abspath(name).replace("/","~")
 
 
+@pdb_on_crash
 def merge(args):
     all_files, all_images = args
     res = []
@@ -31,7 +32,7 @@ def merge(args):
                       max(x.shape[1] for x in contest_images)))
         pos = 0
         for img in contest_images:
-            M[pos:pos+img.shape[0],:] = img
+            M[pos:pos+img.shape[0],0:img.shape[1]] = img
             pos += img.shape[0]
         scipy.misc.imsave(name, M)
         res.append(name)
@@ -88,7 +89,7 @@ class VerifyContestGrouping:
         self.mapping = mapping
         self.mapping_inverse = mapping_inverse
         self.multiboxcontests = multiboxcontests
-        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 10]
+        self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
 
         print self.equivs
         print self.processgroups

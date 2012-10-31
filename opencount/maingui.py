@@ -1661,8 +1661,11 @@ def write_projconfig(project, close=False, old=None, new=None):
     Write out the current state of the project into the xml file
     project.config
     """
+    print "Main project received close event."
     for each in Project.closehook:
+        print "Close hook:", each
         each()
+        print "Complete"
 
     #if old != None:
     #    sanitycheck.run(project, old)
