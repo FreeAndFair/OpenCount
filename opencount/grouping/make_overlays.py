@@ -9,7 +9,8 @@ import random
 sys.path.append('..')
 from pixel_reg.imagesAlign import imagesAlign
 
-def minmax_cv(imgpaths, do_align=False, rszFac=1.0):
+def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
+              minArea=np.power(2, 16)):
     """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is
     True, then this also aligns every image to the first image in
     IMGPATHS.
@@ -30,7 +31,7 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0):
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
-            H, Ireg, err = imagesAlign(tmp_np, Iref, fillval=0, rszFac=rszFac)
+            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)
@@ -39,7 +40,8 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0):
         cv.Min(Iout, Imin, Imin)
     return Imin, Imax
 
-def minmax_cv_V2(imgs, do_align=False, rszFac=1.0):
+def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, type='rigid',
+                 minArea=np.power(2, 16)):
     """ Just like minmax_cv(), but accepts a list of cvMat's instead
     of a list of imgpaths. If you're planning on generating overlays
     of tens-of-thousands of images, calling this function might result
@@ -54,7 +56,7 @@ def minmax_cv_V2(imgs, do_align=False, rszFac=1.0):
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
-            H, Ireg, err = imagesAlign(tmp_np, Iref, fillval=0, rszFac=rszFac)
+            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)
