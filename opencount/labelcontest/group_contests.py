@@ -11,7 +11,6 @@ import multiprocessing as mp
 import cPickle as pickle
 import itertools
 import time
-import util
 from grouping.partask import do_partask
 
 def pdb_on_crash(f):
@@ -152,17 +151,20 @@ def find_lines(data):
         else: y = point[0]
         point = (y,point[1])
 
+        lower = max(y-10,0)
+        upper = min(y+10,height)
+
         q = [point[0]]
         x = point[1]-1
         while q and x > 0:
-            q = list(set([dy+y for y in q for dy in [-1, 0, 1] if 0 <= dy+y < height and data[dy+y][x] < black]))
+            q = list(set([dy+y for y in q for dy in [-1, 0, 1] if lower <= dy+y < upper and data[dy+y][x] < black]))
             #LST.extend([(x,y) for y in q])
             x -= 1
         l = x
         q = [point[0]]
         x = point[1]+1
         while q and x < width:
-            q = list(set([dy+y for y in q for dy in [-1, 0, 1] if 0 <= dy+y < height and data[dy+y][x] < black]))
+            q = list(set([dy+y for y in q for dy in [-1, 0, 1] if lower <= dy+y < upper and data[dy+y][x] < black]))
             #LST.extend([(x,y) for y in q])
             x += 1
         r = x
@@ -175,17 +177,20 @@ def find_lines(data):
         else: x = point[1]
         point = (point[0],x)
 
+        lower = max(x-10,0)
+        upper = min(x+10,width)
+
         q = [point[1]]
         y = point[0]-1
         while q and y > 0:
-            q = list(set([dx+x for x in q for dx in [-1, 0, 1] if 0 <= dx+x < width and data[y][dx+x] < black]))
+            q = list(set([dx+x for x in q for dx in [-1, 0, 1] if lower <= dx+x < upper and data[y][dx+x] < black]))
             #LST.extend([(x,y) for y in q])
             y -= 1
         u = y
         q = [point[1]]
         y = point[0]+1
         while q and y < height:
-            q = list(set([dx+x for x in q for dx in [-1, 0, 1] if 0 <= dx+x < width and data[y][dx+x] < black]))
+            q = list(set([dx+x for x in q for dx in [-1, 0, 1] if lower <= dx+x < upper and data[y][dx+x] < black]))
             #LST.extend([(x,y) for y in q])
             y += 1
         d = y
@@ -574,6 +579,18 @@ def do_extract(name, img, squares, giventargets):
     #os.popen("open tmp/*")
     #exit(0)
         
+
+
+tmp="tmp"
+image_path="marin/mail-00.png"
+lines=find_lines(load_threshold(image_path))
+new = load_pil(image_path).copy().convert("RGB")#Image.new("RGB", show.size, (255, 255, 255))
+imd = ImageDraw.Draw(new)
+for line in [x[1] for x in lines]:
+    imd.rectangle(line, outline=(0,0,0))
+    
+new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-line.png")
+exit(0)
 
 def extract_contest(args):
     try:
@@ -1309,6 +1326,7 @@ def find_contests(t, paths, giventargets):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
+    args = [args[0]]
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
     #args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
     pool = mp.Pool(mp.cpu_count())
@@ -1420,6 +1438,13 @@ class ThreadDoInferContests:
         self.queue.put(bboxes)
         self.proj.infer_bounding_boxes = True
         print "AND I SEND THE RESUTS", bboxes
+
+
+_, paths, them = pickle.load(open("marin_contest_run"))
+paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
+find_contests("tmp", paths, them)
+exit(0)
+
 
 tmp = "tmp"
 
