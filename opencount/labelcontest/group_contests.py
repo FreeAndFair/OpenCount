@@ -580,18 +580,6 @@ def do_extract(name, img, squares, giventargets):
     #exit(0)
         
 
-
-tmp="tmp"
-image_path="marin/mail-00.png"
-lines=find_lines(load_threshold(image_path))
-new = load_pil(image_path).copy().convert("RGB")#Image.new("RGB", show.size, (255, 255, 255))
-imd = ImageDraw.Draw(new)
-for line in [x[1] for x in lines]:
-    imd.rectangle(line, outline=(0,0,0))
-    
-new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-line.png")
-exit(0)
-
 def extract_contest(args):
     try:
         return extract_contest_2(args)
