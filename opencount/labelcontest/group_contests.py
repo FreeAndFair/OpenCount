@@ -322,7 +322,7 @@ def extend_to_line(lines, width, height):
     return new
 
 
-def to_graph(lines, width, height, minsize):
+def to_graph(lines, width, height, minsize, giventargets):
     """
     Convert a set of lines to graph where lines are vertexes, and
     there is an edge between two lines when they intersect. This
@@ -399,6 +399,16 @@ def to_graph(lines, width, height, minsize):
     print "THERE ARE END", len(lines)
 
     lines = extend_to_line(lines, width, height)
+
+    new_lines = []
+    for k,line in lines:
+        if k == 'H':
+            if any(line[0] <= (x[0]+x[2])/2 <= line[2] for x in giventargets):
+                new_lines.append((k, line))
+        if k == 'V':
+            if any(line[1] <= (x[1]+x[3])/2 <= line[3] for x in giventargets):
+                new_lines.append((k, line))
+    lines = new_lines
     
     vertexes = dict((x, []) for _,x in lines)
 
@@ -608,7 +618,7 @@ def extract_contest(args):
     lines = find_lines(data)
     lines += [('V', (len(data[0])-20, 0, len(data[0]), len(data)))]
     #print "calling with args", lines, len(data[0]), len(data), max(giventargets[0][2]-giventargets[0][0],giventargets[0][3]-giventargets[0][1])
-    boxes, graph = to_graph(lines, len(data[0]), len(data), area(giventargets[0])**.5)
+    boxes, graph = to_graph(lines, len(data[0]), len(data), area(giventargets[0])**.5, giventargets)
     print 'tograph'
     squares = find_squares(graph, area(giventargets[0]))
     print 'findsquares'
@@ -1314,9 +1324,8 @@ def find_contests(t, paths, giventargets):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
-    args = [args[0]]
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
-    #args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
+    #args = [x for x in args if 'vbm-57' in x[0]]
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
     pool.close()
