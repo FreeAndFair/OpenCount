@@ -1318,7 +1318,7 @@ def find_contests(t, paths, giventargets):
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
     #args = [x for x in args if 'DEM_PCT_00004-0.png' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
     pool.close()
     pool.join()
     #ballots = map(extract_contest, args)
@@ -1428,10 +1428,11 @@ class ThreadDoInferContests:
         print "AND I SEND THE RESUTS", bboxes
 
 
-_, paths, them = pickle.load(open("marin_contest_run"))
-paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
-find_contests("tmp", paths, them)
-exit(0)
+if __name__ == "__main__":
+    _, paths, them = pickle.load(open("marin_contest_run"))
+    paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
+    find_contests("tmp", paths, them)
+    exit(0)
 
 
 tmp = "tmp"
