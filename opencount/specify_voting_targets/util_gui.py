@@ -784,7 +784,7 @@ def find_assoc_contest(target, contest_boxes, debug=False):
         #if (x1 >= c.x1 and y1 >= c.y1 and x2 <= c.x2 and y2 <= c.y2):
         #    return c
         if (fuzzy_gt(x1, c.x1) and fuzzy_gt(y1, c.y1) and
-            fuzzy_lt(x2, c.x2) and fuzzy_lt(y2, c.y2)):
+            fuzzy_lt(x1, c.x2) and fuzzy_lt(y1, c.y2)):
             return c
     # If we get here, then this target is not encompassed by any
     # contest bounding box, which could happen if, say, the user
