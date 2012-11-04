@@ -1,4 +1,4 @@
-import sys, os, re, pdb, traceback
+import sys, os, re, pdb, traceback, shutil
 from os.path import join as pathjoin
 try:
     import cPickle as pickle
@@ -66,6 +66,10 @@ class ProjectPanel(wx.Panel):
     def add_project(self, proj):
         self.projects.append(proj)
         self.listbox_projs.Append(proj.name)
+    def remove_project(self, proj):
+        self.projects.remove(proj)
+        idx = self.listbox_projs.FindString(proj.name)
+        self.listbox_projs.Delete(idx)
     def contains_project(self, projname):
         return projname in [proj.name for proj in self.projects]
     def create_new_project(self, name):
@@ -99,12 +103,17 @@ project name. Please only use letters, numbers, and punctuation.'.format(project
         Removes project from the ListBox, internal data structures,
         and from the projects/ directory.
         """
-        self.projects.remove(project)
-        idx = self.listbox_projs.FindString(project.name)
-        self.listbox_projs.Delete(idx)
-        projdir = project.projdir_path
-        print 'removing everything in:', projdir
-        #shutil.rmtree(projdir)
+        idx = self.listbox_projs.FindString(self.listbox_projs.GetStringSelection())
+        proj = self.projects[idx]
+        projdir = proj.projdir_path
+        dlg = wx.MessageDialog(self, message="Are you sure you want to delete \
+project {0}, as well as all of its files within {1}?".format(proj.name, projdir),
+                               style=wx.YES_NO)
+        status = dlg.ShowModal()
+        if status == wx.ID_NO:
+            return
+        self.remove_project(proj)
+        shutil.rmtree(projdir)
 
 def is_valid_projectname(name):
     """

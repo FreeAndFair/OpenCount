@@ -2,6 +2,8 @@ import sys, os, pdb, traceback
 
 sys.path.append('..')
 
+import scipy.misc
+
 import pixel_reg.shared as shared
 import pixel_reg.part_match as part_match
 

@@ -526,11 +526,6 @@ digit.")
             bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
-            if Ireg.shape != (h, w):
-                newIreg = np.zeros((h,w))
-                newIreg[0:Ireg.shape[0], 0:Ireg.shape[1]] = Ireg
-                Ireg = newIreg
-            scipy.misc.imsave(patchpath, Ireg)
             examples.append((regionpath, (gl_idx,), patchpath))
             self.matches.setdefault(regionpath, []).append((patchpath, matchID, self.current_digit, score2, y1, y2, x1, x2, rszFac))
             matchID += 1
