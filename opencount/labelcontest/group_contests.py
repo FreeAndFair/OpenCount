@@ -882,6 +882,9 @@ def compare(otexts1, otexts2, debug=False):
             best = float(weight+val)/size, num_writeins
         res[num_writeins] = (float(weight+val)/size,
                              (len(texts1), order, num_writeins))
+    #print otexts1
+    #print otexts2
+    #print "res", [x[1] for x in sorted(res.items())], best
     return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):
@@ -1049,12 +1052,16 @@ def group_by_pairing(contests_text, CONST):
     pool.close()
     pool.join()
     #"""
-    data = [[] for _ in range(mp.cpu_count())]
-    for i in range(len(contests_text)):
-        data[i%len(data)].append(i)
-    print "GO UP TO", (len(contests_text)**2)/mp.cpu_count()
-    data = [(x, contests_text) for x in data]
-    do_partask(do_group_pairing_map, data, N=mp.cpu_count())
+    if False:
+        do_group_pairing_map([(range(len(contests_text)), contests_text)])
+    else:
+        num = mp.cpu_count()
+        data = [[] for _ in range(num)]
+        for i in range(len(contests_text)):
+            data[i%len(data)].append(i)
+        print "GO UP TO", (len(contests_text)**2)/num
+        data = [(x, contests_text) for x in data]
+        do_partask(do_group_pairing_map, data, N=num)
     
 
     diff = {}
@@ -1074,6 +1081,7 @@ def group_by_pairing(contests_text, CONST):
     for (k1,k2),(dmap,best) in diff:
         contests[k1].similarity[k2] = dmap
     print "Created"
+    now = time.time()
     for (k1,k2),(dmap,best) in diff:
         if best[0] > CONST: continue
         if k1 == k2: continue
@@ -1082,6 +1090,7 @@ def group_by_pairing(contests_text, CONST):
         #print 'data', contests[k1].writein_num, contests[k2].writein_num
         #print contests_text[k1][2][1]
         #print contests_text[k2][2][1]
+    print "taken", time.time()-now
     print "Traverse"
     seen = {}
     res = []
@@ -1112,7 +1121,10 @@ def group_by_pairing(contests_text, CONST):
             this.append((contests_text[x][:2],get_order(*contest.similarity[x][write][1])))
         #print this
         res.append(this)
+    print "Workload reduction"
     print map(len,res)
+    print len([x for x in map(len,res) if x > 3])+sum([x for x in map(len,res) if x <= 3]), sum(map(len,res))
+    print "Factor", float(len([x for x in map(len,res) if x > 3])+sum([x for x in map(len,res) if x <= 3]))/sum(map(len,res))
     return res
 
 def full_group(contests_text, key):
@@ -1123,11 +1135,13 @@ def full_group(contests_text, key):
     elif key[1] == 'spa':
         CONST = .2
     elif key[1] == 'vie':
-        CONST = .2
+        CONST = .25
     elif key[1] == 'kor':
         CONST = .3
     elif key[1] == 'chi_sim':
         CONST = .3
+    else:
+        CONST = .2
     
     debug=[]
 
@@ -1174,7 +1188,7 @@ def full_group(contests_text, key):
     #    print x
     newgroups = []
     STEP = 1000
-    print "Splitting to smaller subproblems:", len(new_contests)/STEP
+    print "Splitting to smaller subproblems:", round(.5+(float(len(new_contests))/STEP))
     for iternum in range(0,len(new_contests),STEP):
         print "SUBPROB", iternum/STEP
         newgroups += group_by_pairing(new_contests[iternum:min(iternum+STEP, len(new_contests))], CONST)
@@ -1432,12 +1446,13 @@ class ThreadDoInferContests:
         print "AND I SEND THE RESUTS", bboxes
 
 
+"""
 if __name__ == "__main__":
     _, paths, them = pickle.load(open("marin_contest_run"))
     paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
     find_contests("tmp", paths, them)
     exit(0)
-
+#"""
 
 tmp = "tmp"
 
