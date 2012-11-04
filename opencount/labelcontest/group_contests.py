@@ -706,22 +706,17 @@ def compare_preprocess(lang, path, image, contest, targets):
     Split the contest in to "stripes", one for each voting target,
     and one for the title. OCR the text and record it.
     """
-    #print contest, targets
-    #print [intersect(contest, x) for x in targets]
-    #print 'all', targets
+
     targets = [x for x in targets if intersect(contest, x) == x]
     l,u,r,d = contest
     cont_area = None
-    #print "TEXT FOR", contest
-    #print "bottom of box", d
-    #print 'targets', targets
+
     tops = sorted([a[1]-u-10 for a in targets])+[d]
     if tops[0] > 0:
         tops = [0]+tops
     else:
         tops = [0,0]+tops[1:] # In case the top is negative.
-    #print contest
-    #print "USING", tops
+
     blocks = []
     for count,(upper,lower) in enumerate(zip(tops, tops[1:])):
         istarget = (count != 0)
