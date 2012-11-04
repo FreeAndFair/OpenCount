@@ -71,12 +71,25 @@ class RunGroupingMainPanel(wx.Panel):
         self.export_results()
 
     def export_results(self):
+        """ Saves the results of imgbased/digitbased grouping. Also 
+        establishes the parititon -> group relationship, by exporting
+        the PARTITION_TO_GROUP dict:
+            {int partitionID: int groupID}
+        and GROUP_TO_PARTITION:
+            {int groupID: [int partitionID_i, ...]}
+        and GROUP_INFOMAP:
+            {int groupID: {str key: val}}
+        and GROUP_EXMPLS:
+            {int groupID: [int ballotID_i, ...]}
+        """
         pickle.dump(self.extract_results, open(pathjoin(self.proj.projdir_path,
                                                         self.proj.extract_results), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(self.digitgroup_results, open(pathjoin(self.proj.projdir_path,
                                                            self.proj.digitgroup_results), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        
+
 
     def restore_session(self):
         try:

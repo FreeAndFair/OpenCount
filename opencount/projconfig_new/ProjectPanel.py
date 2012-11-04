@@ -147,6 +147,10 @@ class Project(object):
                      'partition_targets_map': 'partitions_targets_map.p',
                      'target_locs_map': 'target_locs_map.p',
                      'extract_results': 'extract_results.p',
+                     'partition_to_group': 'partition_to_group.p',
+                     'group_to_partition': 'group_to_partition.p',
+                     'group_infomap': 'group_infomap.p',
+                     'group_exmpls': 'group_exmpls.p',
                      'infer_bounding_boxes': False,
                      'ocr_tmp_dir': pathjoin(projdir_path, 'ocr_tmp_dir'),
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
@@ -228,6 +232,7 @@ class Project(object):
             setattr(self, k, v)
 
     def save(self):
+        print '...saving project: {0}...'.format(self)
         write_project(self)
 
     def __repr__(self):
@@ -241,12 +246,18 @@ def load_projects(projdir):
         list PROJECTS.
     """
     projects = []
+    dummy_proj = Project()
     for dirpath, dirnames, filenames in os.walk(projdir):
         for f in filenames:
             if f == PROJ_FNAME:
                 fullpath = pathjoin(dirpath, f)
                 try:
                     proj = pickle.load(open(fullpath, 'rb'))
+                    # Add in any new Project properties to PROJ
+                    for prop, propval_default in dummy_proj.vals.iteritems():
+                        if not hasattr(proj, prop):
+                            print '...adding property {0}->{1} to project...'.format(prop, propval_default)
+                            setattr(proj, prop, propval_default)
                     projects.append(proj)
                 except:
                     pass
