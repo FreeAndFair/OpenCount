@@ -62,6 +62,34 @@ class Vendor(object):
         """
         raise NotImplementedError("Implement your own partition_ballots.")
 
+    def split_contest_to_targets(self, ballot_image, contest, targets):
+        """
+        Given an image of a contest, extract 
+            (a) the tile and 
+            (b) each of the voting targets
+        
+        Input:
+            PIL Image: ballot_image
+            (int left, int up, int right, int down) contest
+            targets: [(int left, int up, int right, int down),...]
+        
+        Output:
+            [(int upper, int lower),...], the upper and lower coords of each thing to extract
+        """
+        
+        l,u,r,d = contest
+        tops = sorted([a[1]-u-10 for a in targets])+[d]
+        if tops[0] > 0:
+            tops = [0]+tops
+        else:
+            tops = [0,0]+tops[1:] # In case the top is negative.
+
+        blocks = []
+        for upper,lower in enumerate(zip(tops, tops[1:])):
+            blocks.append((upper, lower))
+        
+        
+
     def __repr__(self):
         return 'Vendor()'
     def __str__(self):
