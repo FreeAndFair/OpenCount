@@ -559,7 +559,7 @@ def importPatches(project):
                     y1 = int(row['y'])
                     x2 = x1 + int(row['width'])
                     y2 = y1 + int(row['height'])
-                    side = row['side']
+                    side = int(row['side'])
                     is_digitbased = row['is_digitbased']
                     is_tabulationonly = row['is_tabulationonly']
                     if not(boxes.has_key(imgpath)):

@@ -1004,8 +1004,6 @@ at a time."
             assert False
 
         attrtypestr = digitattrs[0]  # TODO: Assume only one digit-based attr
-        num_digits = common.get_numdigits(self.project, attrtypestr)
-        w_img, h_img = self.project.imgsize
             
         bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
         # a.) Reconstruct digit_attrs
@@ -1014,12 +1012,13 @@ at a time."
         for attrdict in attrs:
             attrstr = common.get_attrtype_str(attrdict['attrs'])
             if common.is_digitbased(self.project, attrstr):
-                y1 = int(round(attrdict['y1']*h_img))
-                y2 = int(round(attrdict['y2']*h_img))
-                x1 = int(round(attrdict['x1']*w_img))
-                x2 = int(round(attrdict['x2']*w_img))
+                y1 = attrdict['y1']
+                y2 = attrdict['y2']
+                x1 = attrdict['x1']
+                x2 = attrdict['x2']
                 side = attrdict['side']
-                digit_attrs[attrstr] = ((y1, y2, x1, x2), side)
+                num_digits = attrdict['num_digits']
+                digit_attrs[attrstr] = ((y1, y2, x1, x2), side, num_digits)
         if len(digit_attrs) != 1:
             print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
             pdb.set_trace()
@@ -1218,8 +1217,6 @@ at a time."
             assert False
 
         attrtypestr = digitattrs[0]  # Assume only one digit-based attr
-        num_digits = common.get_numdigits(self.project, attrtypestr)
-        w_img, h_img = self.project.imgsize
             
         bal2imgs = pickle.load(open(self.project.ballot_to_images, 'rb'))
         print "==== a.) Reconstruct digit attrs"
@@ -1229,12 +1226,13 @@ at a time."
         for attrdict in attrs:
             attrstr = common.get_attrtype_str(attrdict['attrs'])
             if common.is_digitbased(self.project, attrstr):
-                y1 = int(round(attrdict['y1']*h_img))
-                y2 = int(round(attrdict['y2']*h_img))
-                x1 = int(round(attrdict['x1']*w_img))
-                x2 = int(round(attrdict['x2']*w_img))
+                y1 = attrdict['y1']
+                y2 = attrdict['y2']
+                x1 = attrdict['x1']
+                x2 = attrdict['x2']
                 side = attrdict['side']
-                digit_attrs[attrstr] = ((y1, y2, x1, x2), side)
+                num_digits = attrdict['num_digits']
+                digit_attrs[attrstr] = ((y1, y2, x1, x2), side, num_digits)
         if len(digit_attrs) != 1:
             print "Uhoh, len(digit_attrs) should have been 1, but wasn't."
             pdb.set_trace()

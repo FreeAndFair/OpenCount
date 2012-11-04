@@ -49,7 +49,10 @@ def doWriteMAP(finalOrder, Ip, err, attrName, patchDir, metaDir, balKey, exempla
         ...
         int exemplar_idx: Which exemplar attrpatch did this match to?
     """
-    fullpath = encodepath(balKey)
+    # TODO: For now, just use the int ballotID itself, in a flat
+    # dirstruct manner.
+    #fullpath = encodepath(balKey)
+    fullpath = str(balKey)
 
     # - patchDir: write out Ip into patchDir
     Ip[np.isnan(Ip)]=1
@@ -339,14 +342,24 @@ def dist2patches(patchTuples,scale,debug=False):
 # output: tuples of cropped image, patch image, template index, and flipped bit
 #    ((I_i, attrexemplarpatch_i, str attrval, isflip_i), ...)
 def createPatchTuples(I,attr2pat,R,flip=False):
+    """
+    Only used in templateSSWorker. Note: This is quite different from 
+    createPatchTuplesMAP, despite the very similar name.
+    Input:
+        nparray I:
+        dict ATTR2PAT: maps {str attrval: [[str imgpath_i, nparray patch_i], ...]}
+        tuple R: SuperRegion.
+    Output:
+        tuple PATCHTUPLES. [[I_i, attrexemplarpatch_i, str attrval, bool isflip_i], ...]
+    """
     pFac=1;
     (rOut,rOff)=sh.expand(R[0],R[1],R[2],R[3],I.shape[0],I.shape[1],pFac)
     I1=I[rOut[0]:rOut[1],rOut[2]:rOut[3]]
  
     patchTuples=[];
-    for key in attr2pat.keys():
-        # key := (str temppath, str attrval)
-        patchTuples.append((I1,attr2pat[key],key,0))
+    for attrval, exmpl_pairs in attr2pat.keys():
+        for (imgpath, patch) in exmpl_pairs:
+            patchTuples.append((I1,patch,attrval,0))
 
     if not(flip):
         return patchTuples
@@ -397,29 +410,22 @@ def createPatchTuplesMAP(balL,attr2pat,R,flip=False):
 
 
 def templateSSWorker(job):
-    # dict attr2pat: maps {str attrval: [obj patch_i, ...]}
-    (attr2pat, attr2tem, key, superRegion, sStep, fOut) = job
+    # dict attr2pat: maps {str attrval: [[str imgpath_i, obj patch_i], ...]}
+    (attr2pat, key, superRegion, sStep, fOut) = job
     
     # 'key' is str attrval
     attr2pat1=attr2pat.copy()
-    # TODO: Due to laziness, I'm going to arbitrarily choose a patch_i
-    # to stick into attr2pat1. I'm not sure what exactly this code
-    # does, so doing so might be ok.
-    attr2pat1.pop(key)
-    I=sh.standardImread(attr2tem[key],flatten=True)
+    # TODO: Arbitrarily chooses a patch_i
+    (imgpath, patch) = attr2pat1[key]
+    I=sh.standardImread(imgpath,flatten=True)
     
     superRegionNp=np.array(superRegion)
     patchTuples=createPatchTuples(I,attr2pat1,superRegionNp,flip=True)
 
-    firstPat=attr2pat1.values()[0][0] # arbitrary choice
+    sc0=sh.resizeOrNot(patch.shape,sh.MAX_PRECINCT_PATCH_DIM)
+    minSc=sh.resizeOrNot(patch.shape,sh.MIN_PRECINCT_PATCH_DIM)
 
-    sc0=sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM)
-    minSc=sh.resizeOrNot(firstPat.shape,sh.MIN_PRECINCT_PATCH_DIM)
-
-    if (key=='006--poll-38.png') or (key == '008--mail-50.png'):
-        (scores0,locs, exemplar_idxs)=dist2patches(patchTuples,sc0,debug=False)
-    else:
-        (scores0,locs, exemplar_idxs)=dist2patches(patchTuples,sc0)
+    (scores0,locs,exemplar_idxs)=dist2patches(patchTuples,sc0)
 
     sidx=np.argsort(scores0)
     sidx=sidx[::-1]
@@ -470,7 +476,8 @@ def groupImagesWorkerMAP(job):
     # str metaDir:
     # str attrName: Current attribute type we're grouping on.
     try:
-        (attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
+        (ballotid, imgpaths, attrName, attrinfo, attr2pat, superRegion,scale) = job
+        #(attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
 
         # patchtuples also includes 'flip' possibilities.
         # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
@@ -599,11 +606,10 @@ def listAttributesNEW(patchesH):
 
     return attrMap
 
-def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
+def estimateScale(attr2pat,superRegion,initDir,rszFac,stopped):
     """
     Input:
-        dict attr2pat: maps {str attrval: (obj imgpatch_i, ...)}
-        dict attr2temp: maps
+        dict attr2pat: maps {str attrval: [(str imgpath_i, nparray imgpatch_i), ...]}
         tuple superRegion: 
         str initDir:
         float rszFac:
@@ -619,7 +625,7 @@ def estimateScale(attr2pat,attr2tem,superRegion,initDir,rszFac,stopped):
 
     for key in attr2pat.keys():
         # key := str attrval
-        jobs.append((attr2pat,attr2tem,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
+        jobs.append((attr2pat,key,superRegion,sStep,pathjoin(initDir,key+'.png')))
 
     if nProc < 2:
         # default behavior for non multiproc machines
@@ -670,7 +676,6 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
         bool deleteall: if True, this will first remove all output files
                          before computing.
     """                       
-    
     destDir=destDir+'-'+attrName
     metaDir=metaDir+'-'+attrName
 
@@ -750,6 +755,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
+
     #if attrName == 'realmode':
     #    nProc = 1
 
@@ -790,7 +796,7 @@ def groupByAttr(bal2imgs, attrName, attrMap, destDir, metaDir, stopped, proj, ve
     print 'ATTR: ', attrName, ': done'
     return True
 
-def groupImagesMAP(bal2imgs, tpl2imgs, patchesH, destDir, metaDir, stopped, proj, verbose=False, deleteall=True):
+def groupImagesMAP(bal2imgs, patchesH, destDir, metaDir, stopped, proj, verbose=False, deleteall=True):
     """
     Input:
       patchesH: A dict mapping:
@@ -834,3 +840,92 @@ def create_dirs(*dirs):
             os.makedirs(dir)
         except Exception as e:
             pass
+
+def extract_attrvals(b2imgs, attrtype, attrinfo, attr2pat, img2page):
+    """
+    Input:
+        dict B2IMGS:
+        str ATTRTYPE: 
+        dict ATTRINFO: [_,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly]
+        dict ATTR2PAT: maps {str attrval: [(str imgpath_i, nparray imgpatch_i), ...]}. Stores 
+            all exemplar images for ATTRVAL, including the original image path
+            that the patch was extracted from.
+        dict IMG2PAGE: maps {str imgpath: int page}
+    Output:
+        Dunno.
+    """
+    # 1.) Estimate smallest viable scale (for performance)
+    '''
+    if len(attr2pat)>2:
+        scale = estimateScale(attr2pat,attr2tem,superRegion,initDir,sh.MAX_PRECINCT_PATCH_DIM,stopped)
+    else:
+        scale = sh.resizeOrNot(P.shape,sh.MAX_PRECINCT_PATCH_DIM);
+    '''
+    scale = 0.85
+    print 'ATTR: ', attrName,': using starting scale:',scale
+
+    # 2.) Generate jobs for the multiprocessing
+    jobs=[]
+    nProc=sh.numProcs()
+
+    for ballotid, imgpaths in b2imgs.iteritems():
+        imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+        jobs.append([ballotid, imgpaths_ordered, attrName, attrinfo, attr2pat, superRegion, scale])
+
+    # 3.) Perform jobs.
+    if nProc < 2:
+        # default behavior for non multiproc machines
+        for job in jobs:
+            if stopped():
+                return False
+            groupImagesWorkerMAP(job)
+
+    else:
+        print 'using ', nProc, ' processes'
+        pool=mp.Pool(processes=nProc)
+
+        it = [False]
+        def imdone(x):
+            it[0] = True
+            print "I AM DONE NOW!"
+        pool.map_async(groupImagesWorkerMAP,jobs, callback=lambda x: imdone(it))
+
+        while not it[0]:
+            if stopped():
+                pool.terminate()
+                return False
+            time.sleep(.1)
+
+        pool.close()
+        pool.join()
+        
+    # TODO: quarantine on grouping errors. For now, just let alignment check handle it
+    print 'ATTR: ', attrName, ': done'
+    return True
+
+def do_extract_attrvals(partitions_map, partition_attrmap, b2imgs, img2bal,
+                        multexemplars_map, img2page, imginfo_map):
+    """ Extracts the values of image-based Attributes for each voted
+    ballot. 
+    Input:
+        dict PARTITIONS_MAP: maps {int partitionID: [int ballotID_i, ...]}
+        dict PARTITION_ATTRMAP: maps {int partitionID: [[imP,x,y,w,h,attrtype,attrval,
+                                                         page,isdigitbased,istabonly],...]}
+        dict B2IMGS: maps {int ballotID: [imP_side0, imP_side1, ...]}
+        dict IMG2BAL: maps {str imgpath: int ballotID}
+        dict MULTEXEMPLARS_MAP: maps {str attrtype: {str attrval: [(subpatchP_i, imgpath_i, (x1,y1,x2,y2)), ...]}}
+        dict IMG2PAGE: maps {str imgpath: int page}
+        dict IMGINFO_MAP: maps {str imgpath: {str key: str val}}. Used for
+            the 'isflip' mapping.
+    Output:
+        dict RESULTS. maps {int ballotID: {attrtype: {'attrOrder': attrorder, 'err': err,
+                                                      'exemplar_idx': exemplar_idx,
+                                                      'bb': (x1,y1,x2,y2)}}}
+    """
+    results = {}
+    attrmap = {} # maps {str attrtype: {str attrval: (bb, int side, blankpath)}}
+    for partitionID, attrs in partition_attrmap.iteritems():
+        for attr in attrs:
+            attrtype = attr[5]
+            #result = extract_attrvals(b2imgs, attrtype, att
+    return results

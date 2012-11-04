@@ -354,9 +354,9 @@ def stackMax1(result_hash):
     return (maxSurf,symmax)
 
 def process_one(args):
-    imP, digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes,accepted_hashes = args
+    imP, digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes, flipmap = args
     I1 = sh.standardImread(imP,flatten=True)
-    if do_flip == True:
+    if flipmap[imP]:
         I1 = sh.fastFlip(I1)
     # 0.) For Yolo (and perhaps other elections), upside-down voted
     # ballots were problematic. Recall that the ballot straightener
@@ -417,7 +417,7 @@ def process_one(args):
 
     return (imP,res[0],res[1],newbbs,res[3])
 
-def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
+def digitParse(digit_hash,imList,bbSearch,nDigits, flipmap=None, hspace=20,
                rejected_hashes=None, accepted_hashes=None):
     """Runs NCC-based OCR on the images on imList.
     Input:
@@ -425,7 +425,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
         lst imList: list of imagepaths to search over
         bbSearch: [y1,y2,x1,x2] coords to search on
         nDigits: an integer that specifies how many digits there are.
-        do_flip: If True, then flip the image.
+        dict flipmap: maps {str imgpath: bool isflip}
         dict rejected_hashes: Contains all user rejections for each image,
                               maps:
                                 {imgpath: {str digit: [((y1,y2,x1,x2),str side_i,bool isflip_i), ...]}}
@@ -445,10 +445,10 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, do_flip=False, hspace=20,
     if nProc < 2:
         results = []
         for x in imList:
-            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,do_flip,hspace,rejected_hashes,accepted_hashes)))
+            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,hspace,rejected_hashes,accepted_hashes,flipmap)))
     else:
         pool = mp.Pool(processes=nProc)
-        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, do_flip, hspace, rejected_hashes,accepted_hashes) for x in  imList])
+        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
         pool.close()
         pool.join()
 

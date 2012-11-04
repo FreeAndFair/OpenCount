@@ -431,9 +431,11 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
-        targetDir:
-        targetMetaDir:
-        imageMetaDir:
+        str targetDir: Directory to dump extracted target images to.
+        str targetMetaDir: Directory to store target metadata into.
+        str imageMetaDir: Directory to store metadata for each Ballot,
+            such as ballotpath, path to each extracted target, assoc'd
+            blank ballot, isflipped.
         list jobs: [[tmppaths_i, bbs_i, imgpaths_i, targetDir_i, targetDiffDir_i, imageMetaDir_i], ...]
         stopped:
     """
@@ -514,7 +516,7 @@ def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern,
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
 
-def fix_ballot_order(balL, proj):
+def fix_ballot_order(balL, proj=None, bal2page=None):
     """ Using ballot_to_page, correct the image ordering (i.e. 'side0',
     'side1', ...
     Input:
@@ -524,9 +526,10 @@ def fix_ballot_order(balL, proj):
         [side0_path, side1_path, ...]
     """
     assert issubclass(type(balL), list)
-    bal2page = pickle.load(open(os.path.join(proj.projdir_path,
-                                             proj.ballot_to_page),
-                           'rb'))
+    if bal2page == None:
+        bal2page = pickle.load(open(os.path.join(proj.projdir_path,
+                                                 proj.ballot_to_page),
+                               'rb'))
     out = [None]*len(balL)
     for imgpath in balL:
         if imgpath not in bal2page:
@@ -601,4 +604,71 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
     if worked:
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
+
+def extract_targets(partitions_map, b2imgs, img2b, img2page, target_locs_map,
+                    partition_exmpls,
+                    targetDir, targetMetaDir, imageMetaDir,
+                    quarantineCvr, stopped=None):
+    """ Target Extraction routine, for the new blankballot-less pipeline.
+    Input:
+        dict PARTITIONS_MAP: maps {partitionID: [int ballotID_i, ...]}
+        dict B2IMGS: maps {int ballotID: (imgpath_i, ...)}
+        dict IMG2B: maps {imgpath: int ballotID}
+        dict IMG2PAGE: maps {imgpath: int page}
+        dict TARGET_LOCS_MAP: maps {int partitionID: {int page: [[cbox_i, tbox_i, ...], ...]}},
+            where each box_i := [x1, y1, w, h, id, contest_id]
+        dict PARTITION_EXMPLS: maps {int partitionID: [int ballotID_i, ...]}
+        str TARGETDIR: Dir to store extracted target patches
+        str TARGETMETADIR: Dir to store metadata for each target
+        str IMAGEMETADIR: Dir to store metadata for each ballot
+        str QUARANTINECVR:
+        fn STOPPED: Intended to be used as a way to cancel the extraction,
+            i.e. returns True if we should.
+    Output:
+        bool WORKED. True if everything ran correctly, False o.w.
+    """
+    def get_bbs(partitionID, target_locs_map):
+        bbs_sides = []
+        boxes_sides = target_locs_map[partitionID]
+        for side, contests in sorted(boxes_sides.iteritems(), key=lambda t: t[0]):
+            bbs = np.empty((0, 5))
+            for contest in contests:
+                cbox, tboxes = contest[0], contest[1:]
+                for tbox in tboxes:
+                    x1 = tbox[0]
+                    y1 = tbox[1]
+                    x2 = tbox[0] + tbox[2]
+                    y2 = tbox[1] + tbox[3]
+                    id = tbox[4]
+                    bb = np.array([y1, y2, x1, x2, id])
+                    bbs = np.vstack((bbs, bb))
+            bbs_sides.append(bbs)
+        return bbs_sides
+
+    if stopped == None:
+        stopped = lambda : False
+    targetDiffDir = targetDir + '_diffs'
+    # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir, targetMetaDir, imgMetaDir], ...]
+    jobs = []
+    # 1.) Create jobs
+    for partitionID, ballotIDs in partitions_map.iteritems():
+        bbs = get_bbs(partitionID, target_locs_map)
+        # 1.a.) Create 'blank ballots'. This might not work so well...
+        exmpl_id = partition_exmpls[partitionID][0]
+        blankpaths = b2imgs[exmpl_id]
+        blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+        for ballotid in ballotIDs:
+            imgpaths = b2imgs[ballotid]
+            imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+            job = [blankpaths_ordered, bbs, imgpaths_ordered, targetDir, 
+                   targetDiffDir, targetMetaDir, imageMetaDir]
+            jobs.append(job)
+            
+    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped)
+    if worked:
+        # do quarantineCheckMAP?
+        pass
+    return worked
+
+            
 

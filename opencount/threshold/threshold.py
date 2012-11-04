@@ -660,18 +660,17 @@ class ThresholdPanel(wx.Panel):
         wx.Panel.__init__(self, parent, id=-1, size=size) 
         #print "AND SIZE", parent.GetSize()
         self.parent = parent
+
+        self.tabOne = None
+
         self.parent.Fit()
-
-        Publisher().subscribe(self.getproj, "broadcast.project")
     
-    def getproj(self, msg):
-        self.proj = msg.data
-
     def reset_panel(self):
         self.tabOne.reset_panel()
 
     first = True
-    def start(self, size=None):
+    def start(self, proj, size=None):
+        self.proj = proj
 
         if not self.first: return
         self.first = False
@@ -681,6 +680,7 @@ class ThresholdPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         tabOne = GridShow(self, self.proj)
+        self.tabOne = tabOne
 
         top = wx.BoxSizer(wx.HORIZONTAL)
         button1 = wx.Button(self, label="Increase Size")
@@ -705,3 +705,6 @@ class ThresholdPanel(wx.Panel):
         self.SetSizer(sizer)
         self.Fit()
         self.Refresh()
+        
+    def stop(self):
+        self.tabOne.dosave()

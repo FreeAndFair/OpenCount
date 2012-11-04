@@ -65,12 +65,12 @@ def get_last_matchID(imgsdir):
                 i = curidx
     return i
 
-class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
+class LabelDigitsPanel(wx.Panel):
     """ A wrapper-class of DigitMainPanel that is meant to be
     integrated into OpenCount itself.
     """
     def __init__(self, parent, *args, **kwargs):
-        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
 
@@ -99,17 +99,24 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.mainpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
-        #self.Fit()
 
         statefile = pathjoin(self.project.projdir_path,
                              self.project.labeldigitstate)
+        self.statefile=statefile
         self.mainpanel.start(statefile=statefile)
-        self.project.addCloseEvent(lambda: self.mainpanel.digitpanel.save_session(statefile=statefile))
-        self.Bind(wx.EVT_SIZE, self.onSize)
-        self.SetupScrolling()
+        self._hookfn = lambda: self.mainpanel.digitpanel.save_session(statefile=statefile)
+        self.project.addCloseEvent(self._hookfn)
 
-    def onSize(self, evt):
-        self.SetupScrolling()
+        self.Layout()
+
+    def stop(self):
+        if not self.project:
+            # We haven't been run before, perhaps because this election
+            # has no digit-based attributes.
+            return
+        self.mainpanel.digitpanel.save_session(statefile=self.statefile)
+        self.project.removeCloseEvent(self._hookfn)
+        self.export_results()
 
     def export_results(self):
         self.mainpanel.export_results()
@@ -123,7 +130,7 @@ class LabelDigitsPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """
         print "Done Labeling Digit-Based Attributes"
 
-class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
+class DigitMainPanel(wx.Panel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
     simple button tool bar.
     """
@@ -132,7 +139,7 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
                  precinctnums_outpath='precinct_nums.txt',
                  ondone=None,
                  *args, **kwargs):
-        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
         self.button_sort = wx.Button(self, label="Sort")
@@ -161,20 +168,15 @@ class DigitMainPanel(wx.lib.scrolledpanel.ScrolledPanel):
         sizerbtns.Add((20,20))
         sizerbtns.Add(self.reset_button)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(sizerbtns, border=10, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(sizerbtns, border=10, flag=wx.ALL)
         self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
-
-        self.SetClientSize(self.parent.GetClientSize())
-        self.SetupScrolling()
-        self.Bind(wx.EVT_SIZE, self.onSize)
-    
-    def onSize(self, evt):
-        self.SetupScrolling()
+        self.Layout()
 
     def start(self, statefile=None):
         if not self.digitpanel.restore_session(statefile=statefile):
             self.digitpanel.start()
+        self.Layout()
 
     def export_results(self):
         self.digitpanel.export_results()
@@ -247,11 +249,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.precinct_txts = {}
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.SetSizer(self.sizer)
 
         self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
         #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
-        self.sizer.Add(self.gridsizer)
+        self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
 
@@ -267,9 +268,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self._box = None # A Box that is being created
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
-        self.Bind(wx.EVT_SIZE, self.onSize)
 
-    def onSize(self, evt):
+        self.SetSizer(self.sizer)
+
+        self.Layout()
+        self.gridsizer.Layout()
         self.SetupScrolling()
 
     def onChildFocus(self, evt):
@@ -282,11 +285,14 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def start(self):
         if self.grouplabel_record == None:
             self.grouplabel_record = []
+        
         self.setup_grid()
-        self.SetupScrolling(scroll_x=True, scroll_y=True, 
-                            rate_x=self.cellw, rate_y=self.cellh,
-                            scrollToTop=True)
+        self.Layout()
+        self.gridsizer.Layout()
+        self.SetupScrolling()
         self.Refresh()
+        self.Layout()
+        self.gridsizer.Layout()
 
     def restore_session(self, statefile=None):
         """ Tries to restore the state from a previous session If it
@@ -387,8 +393,12 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Reads in the digit patches (given by self.extracted_dir),
         and displays them on a grid.
         """
-        w, h = self.GetClientSize()
-        w_suggested = int(round(w / self.NUM_COLS))
+        #w, h = self.GetClientSize()
+        #w_suggested = int(round(w / self.NUM_COLS))
+        print self.GetClientSize()
+        print self.parent.GetClientSize()
+        w_suggested = 400
+
         self.MAX_WIDTH = w_suggested
         self.cell_w = w_suggested
 
@@ -405,7 +415,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
             b = util_gui.PilImageToWxBitmap(pil_img)
             self.add_img(b, imgpath, pil_img, imgpath, c)
-
 
         if sorted == True:
             for imgname in sorted_patches:
@@ -1283,7 +1292,7 @@ def do_extract_digitbased_patches(proj):
     Input:
         obj proj:
     Output:
-        Returns a dict mapping {str patchpath: (templatepath, attrtype, bb, int side)}
+        Returns a dict mapping {str patchpath: (imgpath, attrtype, bb, int side)}
     """
 
     # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
@@ -1299,51 +1308,52 @@ def do_extract_digitbased_patches(proj):
             y2 = attrbox_dict['y2']
             side = attrbox_dict['side']
             digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
-    tmp2imgs = pickle.load(open(proj.template_to_images, 'rb'))
-    patch2temp = {}  # maps {patchpath: templatepath}
-    w_img, h_img = proj.imgsize
-    tasks = [(templateid,path) for (templateid,path) in tmp2imgs.iteritems()]
+    bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+    # PARTITIONS_MAP: maps {int partitionID: [int ballotID, ...]}
+    partitions_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                               proj.partitions_map), 'rb'))
+    img2page = pickle.load(open(pathjoin(proj.projdir_path,
+                                         proj.image_to_page), 'rb'))
+    # Arbitrarily choose 1 voted ballot from each partition
+    partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
+                                                 proj.partition_exmpls), 'rb'))
+    tasks = [] # list [(int ballotID, [imgpath_side0, ...]), ...]
+    for partitionID, ballotIDs in partition_exmpls.iteritems():
+        ballotid = ballotIDs[0]
+        imgpaths = bal2imgs[ballotid]
+        imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+        tasks.append((ballotid, imgpaths_ordered))
     return partask.do_partask(extract_digitbased_patches,
                               tasks,
-                              _args=(digit_attrtypes, (w_img,h_img), proj),
+                              _args=(digit_attrtypes, proj),
                               combfn=_my_combfn,
                               init={},
-                              pass_idx=True)
+                              pass_idx=True,
+                              N=1)
 
 def _my_combfn(results, subresults):
     return dict(results.items() + subresults.items())
 
-def extract_digitbased_patches(tasks, (digit_attrtypes, imgsize, proj), idx):
+def extract_digitbased_patches(tasks, (digit_attrtypes, proj), idx):
     i = 0
-    w_img, h_img = imgsize
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
-    patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, str side)}
+    patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, int side)}
     for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
-        x1, x2 = map(lambda x: int(round(x*w_img)), (x1,x2))
-        y1, y2 = map(lambda y: int(round(y*h_img)), (y1,y2))
-        for templateid, path in tasks:
-            # Grab the correct image...
-            if proj.is_multipage:
-                frontpath, backpath = path
-                if side == 'front':
-                    imgpath = frontpath
-                    img = shared.standardImread(frontpath, flatten=True)
-                else:
-                    imgpath = backpath
-                    img = shared.standardImread(backpath, flatten=True)
-            else:
-                imgpath = path[0]
-                img = shared.standardImread(path[0], flatten=True)
-            patch = img[y1:y2, x1:x2]
-            attrs_sorted = sorted(attrs.keys())
+        for templateid, imgpaths in tasks:
+            imgpath = imgpaths[side]
+            I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
+            attrs_sorted = sorted(attrs)
             attrs_sortedstr = '_'.join(attrs_sorted)
-            util_gui.create_dirs(pathjoin(outdir,
-                                          attrs_sortedstr))
+            try:
+                os.makedirs(pathjoin(outdir, attrs_sortedstr))
+            except:
+                pass
             outfilename = '{0}_{1}_exemplar.png'.format(idx, i)
             outfilepath = pathjoin(outdir,
                                    attrs_sortedstr,
                                    outfilename)
-            scipy.misc.imsave(outfilepath, patch)
+            cv.SaveImage(outfilepath, I)
             bb = (y1, y2, x1, x2)
             patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
             i += 1

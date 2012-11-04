@@ -81,42 +81,25 @@ class GroupingMasterPanel(wx.Panel):
         self.verify_grouping.Hide()
         self.SetSizer(self.sizer)
 
-        Publisher().subscribe(self._pubsub_project, "broadcast.project")
-
-    def _pubsub_project(self, msg):
-        project = msg.data
-        self.project = project
-        
-        self.project.addCloseEvent(self.exportResults)
-
     def set_timer(self, timer):
         self.TIMER = timer
         global TIMER
         TIMER = timer
 
-    def start(self):
-        self.grouplabel_record = common.load_grouplabel_record(self.project)
-        result = sanitycheck_blankballots(self.project)
-        if result:
-            print "Uhoh, blank ballots failed our sanity check."
-            dlg = wx.MessageDialog(self, message="OpenCount detected that \
-there exists more than one blank ballot for a given set of attribute \
-values. We recommend that the user re-consider the current attribute \
-patch selections. If you continue to run grouping, target extraction \
-will do strange things, and you will probably get poor results.", style=wx.OK)
-            self.Disable()
-            dlg.ShowModal()
-            self.Enable()
-            for attrpairs, badgroup in result.iteritems():
-                print "attrs:", attrpairs
-                for bpath in badgroup:
-                    print "    ", bpath
-                print
-        else:
-            print "...Sanity check passed! Blank ballots are OK."
+    def start(self, proj):
+        self.project = proj
+        grouplabel_record = common.load_grouplabel_record(self.project)
+        if grouplabel_record == None:
+            attrtypes = common.get_attrtypes(self.project)
+            grouplabel_record = common.create_grouplabel_record(self.project, attrtypes)
+            common.save_grouplabel_record(self.project, grouplabel_record)
+        self.grouplabel_record = grouplabel_record
             
         self.run_grouping.Show()
-        self.run_grouping.start()
+        self.run_grouping.start(self.project)
+
+    def stop(self):
+        self.exportResults()
 
     def grouping_done(self, groups, do_replacedigits=False):
         """
@@ -221,6 +204,7 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             self.Enable()
                 
             #self.verify_grouping.start(groups, patches, exemplar_paths)
+            self.verify_grouping.project = self.project
             if do_replacedigits:
                 digitgroup_results = digit_group.load_digitgroup_results(self.project)
                 digitgroups = digit_group.to_groupclasses_digits(self.project, digitgroup_results)
@@ -228,7 +212,7 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             else:
                 self.verify_grouping.load_state()
             exemplar_paths = get_exemplar_paths()
-            self.verify_grouping.project = self.project
+
             self.verify_grouping.ondone = self.verifying_done
             self.verify_grouping.load_exemplar_attrpatches(exemplar_paths)
             self.verify_grouping.start_verifygrouping()
@@ -284,13 +268,13 @@ file detected ({0}) - loading in state.".format(verifyoverlay_stateP),
             assert flip != None
             assert imgorder != None
             for group in groups:
-                for (samplepath, rankedlist, patchpath) in group.elements:
-                    if common.is_quarantined(self.project, samplepath):
+                for (ballotid, rankedlist, patchpath) in group.elements:
+                    if common.is_quarantined(self.project, ballotid):
                         continue
                     for attrtype, attrval in ad.iteritems():
-                        results_foo.setdefault(samplepath, {})[attrtype] = (attrval,
-                                                                            flip,
-                                                                            imgorder)
+                        results_foo.setdefault(ballotid, {})[attrtype] = (attrval,
+                                                                          flip,
+                                                                          imgorder)
         # Finally, add CustomAttributes to results_foo
         results_foo = add_customattrs_info_voted(self.project, results_foo)
             
@@ -421,10 +405,8 @@ class RunGroupingPanel(wx.Panel):
 
         self.SetSizer(self.sizer)
         
-        Publisher().subscribe(self._pubsub_project, "broadcast.project")
-
-    def start(self):
-        assert self.project
+    def start(self, proj):
+        self.project = proj
         if self.is_grouping_done():
             self.run_button.Hide()
         else:
@@ -446,8 +428,6 @@ class RunGroupingPanel(wx.Panel):
         projdir = self.project.projdir_path
         print '..removing previous grouping files...'
         util_gui.remove_files(self.project.grouping_results,
-                              pathjoin(projdir,
-                                       self.project.ballot_to_page),
                               pathjoin(projdir,
                                        'verifygroupstate.p'),
                               pathjoin(projdir,
@@ -471,7 +451,7 @@ class RunGroupingPanel(wx.Panel):
         """
         num = 0
         print '...counting number of voted ballots...'
-        for dirpath, dirnames, filenames in os.walk(self.project.samplesdir):
+        for dirpath, dirnames, filenames in os.walk(self.project.voteddir):
             for f in filenames:
                 if not is_image_ext(f):
                     continue
@@ -486,14 +466,12 @@ class RunGroupingPanel(wx.Panel):
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", num*kind)
         bal2imgs=pickle.load(open(self.project.ballot_to_images,'rb'))
-        tpl2imgs=pickle.load(open(self.project.template_to_images,'rb'))
 
         # munge patches into format that groupImagesMAP wants
         all_attrtypes = common.get_attrtypes(self.project)
         munged,digitmunged = munge_patches_grouping(self.patches, all_attrtypes, self.project)
         print "== calling groupImagesMAP..."
         groupImagesMAP(bal2imgs,
-                       tpl2imgs,
                        munged,
                        self.project.extracted_precinct_dir, 
                        self.project.ballot_grouping_metadata, 
@@ -612,8 +590,6 @@ Do you really want to re-run grouping?"""
             projdir = self.project.projdir_path
             util_gui.remove_files(self.project.grouping_results,
                                   pathjoin(projdir,
-                                           self.project.ballot_to_page),
-                                  pathjoin(projdir,
                                            'verifygroupstate.p'),
                                   pathjoin(projdir,
                                            self.project.digitgroup_results),
@@ -698,10 +674,6 @@ Do you really want to re-run grouping?"""
             
         return True
 
-    def _pubsub_project(self, msg):
-        proj = msg.data
-        self.project = proj
-
 class ProcessClass(threading.Thread):
     def __init__(self, fn, *args):
         self.fn = fn
@@ -766,7 +738,7 @@ def add_flipinfo(project, correctedflips, fields, csvpath):
     writefile.close()
 def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips):
     """    
-    Creates the 'ballot_to_page' dictionary, which maps voted imgpath
+    Creates the 'image_to_page' dictionary, which maps voted imgpath
     to which 'side' it is on.
     dict bal2tmp: {str ballotid: str templateid}
     dict sample_attrmap: {str ballotid: {str attrtype: int imageorder}}
@@ -781,11 +753,11 @@ def fix_ballot_to_images(project, bal2tmp, sample_attrmap, patches, sample_flips
         # In this case, it is just sample_flips, since for singepage,
         # imageorder '0' is always 'front'
         img2bal = pickle.load(open(pathjoin(project.image_to_ballot), 'rb'))
-        bal2pageP = pathjoin(project.projdir_path, project.ballot_to_page)
-        bal2page = {}
+        img2pageP = pathjoin(project.projdir_path, project.image_to_page)
+        img2page = {}
         for imgpath in img2bal:
-            bal2page[imgpath] = 0
-        pickle.dump(bal2page, open(bal2pageP, 'wb'))
+            img2page[imgpath] = 0
+        pickle.dump(img2page, open(img2pageP, 'wb'))
         return sample_flips
     else:
         b2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
@@ -849,6 +821,7 @@ def add_digitattr_info(proj, munged_patches):
                                                      proj.digitattrvals_blanks),
                                             'rb'))
     img2tmp = pickle.load(open(proj.image_to_template, 'rb'))
+
     digitattrs = common.get_digitbased_attrs(proj)
     for tmpimgpath, digitvals in digitattrvals_blanks.iteritems():
         tmpid = img2tmp[tmpimgpath]
@@ -889,7 +862,7 @@ def add_customattrs_info_voted(proj, results_foo):
     results_foo. Mutates input results_foo.
     Input:
         obj proj:
-        dict results_foo: Maps {str samplepath: {attrtype: (attrval, flip, imgorder)}}
+        dict results_foo: Maps {str ballotid: {attrtype: (attrval, flip, imgorder)}}
     Output:
         The (mutated) results_foo.
     """
@@ -916,7 +889,7 @@ def munge_patches_grouping(patches, attrtypes, project):
     to: {str templatepath: list of ((y1,y2,x1,x2), attrtype, attrval, side, is_digitbased,is_tabulationonly}
     """
     result = {}
-    digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side)}
+    digitsresult = {} # maps {str attrtype: ((y1,y2,x1,x2), side, numdigits)}
     gl_record = common.load_grouplabel_record(project)
     # patches won't have digit-based attributes
     for temppath, patchtriple in patches.iteritems():
@@ -932,7 +905,6 @@ def munge_patches_grouping(patches, attrtypes, project):
                     result.setdefault(temppath, []).append((bb, attrtype, attrval, side, is_digitbased,is_tabulationonly))
     # Handle digit-based attributes
     for attrdict in pickle.load(open(project.ballot_attributesfile, 'rb')):
-        w_img, h_img = project.imgsize
         if attrdict['is_digitbased']:
             # TODO: digitbased assumes that each attr patch has only
             # one attribute. Not sure if the non-digitbased
@@ -941,11 +913,9 @@ def munge_patches_grouping(patches, attrtypes, project):
                 if attrtype in attrdict['attrs']:
                     if attrtype not in digitsresult:
                         # Only add attrtype once into digitsresult
-                        bb = [int(round(attrdict['y1']*h_img)),
-                              int(round(attrdict['y2']*h_img)),
-                              int(round(attrdict['x1']*w_img)),
-                              int(round(attrdict['x2']*w_img))]
-                        digitsresult[attrtype] = (bb, attrdict['side'])
+                        bb = [attrdict['y1'], attrdict['y2'],
+                              attrdict['x1'], attrdict['x2']]
+                        digitsresult[attrtype] = (bb, attrdict['side'], attrdict['num_digits'])
     return result, digitsresult
 
 def determine_template(sample_attrs, template_attrs, samplepath, project):
@@ -1118,11 +1088,11 @@ patch, sorry."
         for group in groups:
             for (samplepath, rankedlist, patchpath) in group.elements:
                 patchlabels[patchpath] = curdigit
-    # a dict mapping {str samplepath: [(attrtype_i, correct_digitlabel_i), ...]
+    # a dict mapping {ballotid: [(attrtype_i, correct_digitlabel_i), ...]
     digit_labels = correct_digit_labels(project, patchlabels)
     samples_map = {} # maps {gl_idx: list of samplepaths}
     did_change_glrecord = False
-    for samplepath, lst in digit_labels.iteritems():
+    for ballotid, lst in digit_labels.iteritems():
         for (attrtype, digitlabel) in lst:
             # We fake imageorder/flip, because it's been accounted for
             # in an earlier part of the pipeline.
@@ -1133,16 +1103,15 @@ patch, sorry."
                 gl_idx = len(gl_record)
                 gl_record.append(grouplabel)
                 did_change_glrecord = True
-            samples_map.setdefault(gl_idx, []).append(samplepath)
+            samples_map.setdefault(gl_idx, []).append(ballotid)
     if did_change_glrecord:
         common.save_grouplabel_record(project, gl_record)
-    for gl_idx, samplepaths in samples_map.iteritems():
+    for gl_idx, ballotids in samples_map.iteritems():
         if type(gl_idx) == frozenset:
             print "Ah."
             pdb.set_trace()
         elements = []
-        for samplepath in samplepaths:
-            ballotid = img2bal[os.path.abspath(samplepath)]
+        for ballotid in ballotids:
             elements.append((ballotid, (gl_idx,), None))
         group = common.GroupClass(elements, no_overlays=True)
         new_results.setdefault(gl_idx, []).append(group)
@@ -1160,7 +1129,7 @@ def correct_digit_labels(project, patchlabels):
         obj project
         dict patchlabels: maps {str digitpatch: str digit}
     Output:
-        A dict mapping {str imgpath: [(attrtype_i, correct_digitlabel_i), ...]}
+        A dict mapping {ballotid: [(attrtype_i, correct_digitlabel_i), ...]}
     """
     p = pathjoin(project.projdir_path,
                  project.digitgroup_results)
@@ -1170,8 +1139,8 @@ def correct_digit_labels(project, patchlabels):
     #    (y1,y2,x1,x2,digit, digitpatchpath, score)
     digitgroup_results = pickle.load(f)
     result = {}
-    for imgpath, lst in digitgroup_results.iteritems():
-        if common.is_quarantined(project, imgpath):
+    for ballotid, lst in digitgroup_results.iteritems():
+        if common.is_quarantined(project, ballotid):
             continue
         for (attrtype, ocr_str, meta, isflip_i, side_i) in lst:
             correct_str = ''
@@ -1182,7 +1151,7 @@ def correct_digit_labels(project, patchlabels):
                     print e
                     pdb.set_trace()
                 correct_str += correct_digit
-            result.setdefault(imgpath, []).append((attrtype, correct_str))
+            result.setdefault(ballotid, []).append((attrtype, correct_str))
     return result
 
 def to_groupclasses(proj, grouplabel_record=None):
@@ -1210,7 +1179,9 @@ def to_groupclasses(proj, grouplabel_record=None):
                 continue
             for ballotid in bal2imgs:
                 metadata_dir = proj.ballot_grouping_metadata + '-' + attr_type
-                path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                # TODO: For now, just use the int ballotID itself
+                #path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                path = os.path.join(metadata_dir, str(ballotid))
                 try:
                     file = open(path, 'rb')
                 except IOError as e:
@@ -1228,8 +1199,10 @@ def to_groupclasses(proj, grouplabel_record=None):
                                                         ('imageorder', 0))
                     gl_idx = grouplabel_record.index(grouplabel)
                     rlist.append(gl_idx)
+                #patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
+                #                     util.encodepath(ballotid)+'.png')
                 patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
-                                     util.encodepath(ballotid)+'.png')
+                                     str(ballotid)+'.png')
                 group_elements.setdefault((rlist[0], exemplar_idx), []).append((ballotid, rlist, patchpath))
     else:
         # Multipage
@@ -1238,7 +1211,8 @@ def to_groupclasses(proj, grouplabel_record=None):
                 continue
             for ballotid, (frontpath, backpath) in bal2imgs.iteritems():
                 metadata_dir = proj.ballot_grouping_metadata + '-' + attr_type
-                path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                #path = os.path.join(metadata_dir, util.encodepath(ballotid))
+                path = pathjoin(metadata_dir, str(ballotid))
                 try:
                     file = open(path, 'rb')
                 except IOError as e:
@@ -1258,8 +1232,10 @@ def to_groupclasses(proj, grouplabel_record=None):
                                                         ('imageorder', 0))
                     gl_idx = grouplabel_record.index(grouplabel)
                     rlist.append(gl_idx)
-                patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
-                                     util.encodepath(ballotid)+'.png')
+                #patchpath = pathjoin(proj.extracted_precinct_dir+"-"+attr_type,
+                #                     util.encodepath(ballotid)+'.png')
+                patchpath = pathjoin(proj.extracted_precinct_dir+'-'+attr_type,
+                                     str(ballotid)+'.png')
                 group_elements.setdefault((rlist[0], exemplar_idx), []).append((ballotid, rlist, patchpath))
 
     groups = []
@@ -1338,6 +1314,7 @@ def sanitycheck_blankballots(proj):
     output = {} # maps {((attrtype_i, attrval_i), ...): [str blankid_i]}
     print "...Exists blank ballots with same attribute values, need to dig deeper."
     for attrpairs, group in inv_blanks.iteritems():
+        pdb.set_trace()
         by_layout = separate_by_layout(group, proj)
         if len(by_layout) != 1:
             # a.) Physical layout is different!
@@ -1358,12 +1335,12 @@ def separate_by_layout(blankpaths, proj):
     Output:
         list groups: [[blankpath_i0, ...], [blankpath_i1, ...], ...]
     """
-    csvpath_map = pickle.load(open(pathjoin(proj.target_locs_dir, 'csvpath_map.p'),
-                                   'rb'))
+    partition_targets_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                      proj.partition_targets_map), 'rb'))
     # 0.) Read in all targets/contests information
     layouts = {} # maps {str blankpath: [[x, y, w, h, is_contest], ...]}
     _set_blankpaths = set(blankpaths)
-    for csvpath, blankpath in csvpath_map.iteritems():
+    for partitionID, csvpaths in csvpath_map.iteritems():
         if blankpath not in _set_blankpaths: continue
         f = open(csvpath, 'rb')
         reader = csv.DictReader(f)

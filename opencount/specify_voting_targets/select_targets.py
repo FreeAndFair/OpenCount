@@ -1,8 +1,11 @@
-import sys, os, time, math, pdb, traceback, threading, Queue, copy, multiprocessing
+import sys, os, time, math, pdb, traceback, threading, Queue, copy
+import multiprocessing, csv
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+from os.path import join as pathjoin
 
 sys.path.append('..')
 
@@ -11,18 +14,145 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 import util_gui, util
 import grouping.partask as partask
+import labelcontest.group_contests as group_contests
 
-class SelectTargetsMainPanel(ScrolledPanel):
+class SelectTargetsMainPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
-        ScrolledPanel.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
+        wx.Panel.__init__(self, parent, *args, **kwargs)
 
         self.proj = None
-        self.imgpaths = None
+        self.init_ui()
 
-    def start(self, proj, imgpaths):
+    def init_ui(self):
+        self.seltargets_panel = SelectTargetsPanel(self)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.seltargets_panel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+    def start(self, proj, stateP, ocrtmpdir):
         self.proj = proj
-        self.imgpaths = imgpaths
+        # PARTITIONS: dict {int partitionID: [int ballotID_i, ...]}
+        partitions_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                   proj.partitions_map), 'rb'))
+        partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
+                                                     proj.partition_exmpls), 'rb'))
+        b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        img2page = pickle.load(open(pathjoin(proj.projdir_path,
+                                             proj.image_to_page), 'rb'))
+        # 0.) Munge PARTITIONS_MAP to list of lists of lists
+        partitions = []
+        #for partitionID, ballotids in partitions_map.iteritems():
+        for partitionID, ballotids in partition_exmpls.iteritems():
+            partition = []
+            for ballotid in ballotids:
+                imgpaths = b2imgs[ballotid]
+                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                partition.append(imgpaths_ordered)
+            partitions.append(partition)
+
+        self.proj.addCloseEvent(self.seltargets_panel.save_session)
+        self.seltargets_panel.start(partitions, stateP, ocrtmpdir)
+
+    def stop(self):
+        self.proj.removeCloseEvent(self.seltargets_panel.save_session)
+        self.seltargets_panel.save_session()
+        self.export_results()
+
+    def export_results(self):
+        """ For each partition, export the locations of the voting
+        targets to two locations:
+            1.) A proj.target_locs pickle'd data structure
+            2.) A dir of .csv files (for integration with LabelContests+
+                InferContests).
+        """
+        try:
+            os.makedirs(self.proj.target_locs_dir)
+        except:
+            pass
+        partition_targets_map = {} # maps {int partitionID: [csvpath_side0, ...]}
+        # TARGET_LOCS_MAP: maps {int partitionID: {int page: [CONTEST_i, ...]}}, where each
+        #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
+        #     box := [x1, y1, width, height, id, contest_id]
+        target_locs_map = {}
+        fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
+        for partition_idx, boxes_sides in self.seltargets_panel.boxes.iteritems():
+            csvpaths = []
+            for side, boxes in enumerate(boxes_sides):
+                outpath = pathjoin(self.proj.target_locs_dir,
+                                   "partition_{0}_side_{1}.csv".format(partition_idx, side))
+                csvpaths.append(outpath)
+                writer = csv.DictWriter(open(outpath, 'wb'), fields)
+
+                # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
+                box_assocs = self.compute_box_ids(boxes)
+                # TODO: For now, just grab one exemplar image from this partition
+                imgpath = self.seltargets_panel.partitions[partition_idx][0][side]
+                rows_contests = [] 
+                rows_targets = []
+                id_c, id_t = 0, 0
+                for contest_id, (contestbox, targetboxes) in box_assocs.iteritems():
+                    rowC = {'imgpath': imgpath, 'id': id_c,
+                            'x': contestbox.x1, 'y': contestbox.y1,
+                            'width': contestbox.x2-contestbox.x1,
+                            'height': contestbox.y2-contestbox.y1,
+                            'label': '', 'is_contest': 1, 
+                            'contest_id': contest_id}
+                    rows_contests.append(rowC)
+                    cbox = [contestbox.x1, contestbox.y1,
+                            contestbox.x2 - contestbox.x1,
+                            contestbox.y2 - contestbox.y1,
+                            id_c, contest_id]
+                    curcontest = [] # list [contestbox, targetbox_i, ...]
+                    curcontest.append(cbox)
+                    id_c += 1
+                    for box in targetboxes:
+                        rowT = {'imgpath': imgpath, 'id': id_t,
+                               'x': box.x1, 'y': box.y1,
+                               'width': box.x2-box.x1, 'height': box.y2-box.y1,
+                               'label': '', 'is_contest': 0,
+                               'contest_id': contest_id}
+                        rows_targets.append(rowT)
+                        tbox = [box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1,
+                                id_t, contest_id]
+                        curcontest.append(tbox)
+                        id_t += 1
+                    target_locs_map.setdefault(partition_idx, {}).setdefault(side, []).append(curcontest)
+                writer.writerows(rows_contests + rows_targets)
+            partition_targets_map[partition_idx] = csvpaths
+        pickle.dump(partition_targets_map, open(pathjoin(self.proj.projdir_path,
+                                                         self.proj.partition_targets_map), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
+        pickle.dump(target_locs_map, open(pathjoin(self.proj.projdir_path,
+                                                   self.proj.target_locs_map), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
+
+    def compute_box_ids(self, boxes):
+        """ Given a list of Boxes, some of which are Targets, others
+        of which are Contests, geometrically compute the correct
+        target->contest associations.
+        Input:
+            list BOXES:
+        Output:
+            dict ASSOCS. {int contest_id, [ContestBox, [TargetBox_i, ...]]}
+        """
+        def containing_box(box, boxes):
+            """ Returns the box in BOXES that contains BOX. """
+            for i, otherbox in enumerate(boxes):
+                if (box.x1 >= otherbox.x1 and box.y1 >= otherbox.y1
+                        and box.x2 <= otherbox.x2 and box.y2 <= otherbox.y2):
+                    return i, otherbox
+            return None
+        assocs = {}
+        contests = [b for b in boxes if isinstance(b, ContestBox)]
+        targets = [b for b in boxes if isinstance(b, TargetBox)]
+        for t in targets:
+            id, c = containing_box(t, contests)
+            if id in assocs:
+                assocs[id][1].append(t)
+            else:
+                assocs[id] = [c, [t]]
+        return assocs
 
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
@@ -34,7 +164,7 @@ class SelectTargetsPanel(ScrolledPanel):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
 
-        # self.partitions: [[(imgpath_i0front, ...), ...], [(imgpath_i1front, ...)], ...]
+        # self.partitions: [[[imgpath_i0front, ...], ...], [[imgpath_i1front, ...], ...], ...]
         self.partitions = None
         # self.inv_map: {str imgpath: (int i, int j, int page)}
         self.inv_map = None
@@ -48,11 +178,18 @@ class SelectTargetsPanel(ScrolledPanel):
         # self.boxes: {int i: [[Box_iFront, ...], ...]}
         self.boxes = {}
 
+        # BOXSIZE: (int w, int h), used to enforce that all voting targets
+        # are the same size.
+        self.boxsize = None
+
         # Sensitivity for Template Matching
         self.tm_param = 0.93
         # Window sizes for Smoothing
         self.win_ballot = (13, 13)
         self.win_target = (15, 15)
+
+        # STATEP: Path for state file.
+        self.stateP = None
 
         self.toolbar = Toolbar(self)
         self.imagepanel = TemplateMatchDrawPanel(self, self.do_tempmatch)
@@ -111,23 +248,51 @@ this partition.")
 
         self.SetSizer(self.sizer)
 
-    def start(self, partitions):
+    def start(self, partitions, stateP, ocrtempdir):
+        """
+        Input:
+            list PARTITIONS: A list of lists of lists, encoding partition+ballot+side(s):
+                [[[imgpath_i0_front, ...], ...], [[imgpath_i1_front, ...], ...], ...]
+            str STATEP: Path of the statefile.
+            str OCRTEMPDIR: Used for InferContestRegion.
+        """
         self.partitions = partitions
-        # 0.) Populate my self.INV_MAP
-        self.inv_map = {}
-        self.boxes = {}
-        for i, imgpaths in enumerate(self.partitions):
-            for j, ballot in enumerate(imgpaths):
-                for page, imgpath in enumerate(ballot):
-                    self.inv_map[imgpath] = i, j, page
-            # (allows for variable-num pages)
-            self.boxes[i] = [[] for _ in xrange(len(ballot))]
+        print 'partitions: ', partitions
+        self.stateP = stateP
+        self.ocrtempdir = ocrtempdir
+        if not self.restore_session():
+            # 0.) Populate my self.INV_MAP
+            self.inv_map = {}
+            self.boxes = {}
+            self.boxsize = None
+            for i, imgpaths in enumerate(self.partitions):
+                for j, ballot in enumerate(imgpaths):
+                    for page, imgpath in enumerate(ballot):
+                        self.inv_map[imgpath] = i, j, page
+                # (allows for variable-num pages)
+                self.boxes[i] = [[] for _ in xrange(len(ballot))]
         # 1.) Update any StaticTexts in the UI.
         self.txt_totalpartitions.SetLabel(str(len(self.partitions)))
         self.txt_totalballots.SetLabel(str(len(self.partitions[0])))
         self.txt_totalpages.SetLabel(str(len(self.partitions[0][0])))
         self.txt_sizer.Layout()
         self.display_image(0, 0, 0)
+
+    def restore_session(self):
+        try:
+            state = pickle.load(open(self.stateP, 'rb'))
+            self.inv_map = state['inv_map']
+            self.boxes = state['boxes']
+            self.boxsize = state['boxsize']
+        except:
+            return False
+        return True
+            
+    def save_session(self):
+        state = {'inv_map': self.inv_map,
+                 'boxes': self.boxes,
+                 'boxsize': self.boxsize}
+        pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def do_tempmatch(self, box, img):
         """ Runs template matching on all images within the current
@@ -205,6 +370,13 @@ this partition.")
                         do_add = False
                         break
                 if do_add:
+                    # 1.b.) Enforce constraint that all voting targets
+                    #       are the same size.
+                    if self.boxsize == None:
+                        self.boxsize = (w, h)
+                    else:
+                        boxB.x2 = boxB.x1 + self.boxsize[0]
+                        boxB.y2 = boxB.y1 + self.boxsize[1]
                     self.boxes.setdefault(partition_idx, [])[page].append(boxB)
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
@@ -243,7 +415,8 @@ this partition.")
         _c = wximg.GetWidth() / float(wP)
         wimg = wP
         himg = int(round(wximg.GetHeight() / _c))
-        self.imagepanel.set_image(wximg, size=(wimg, himg))
+        #self.imagepanel.set_image(wximg, size=(wimg, himg))
+        self.imagepanel.set_image(wximg)
         
         # 2.) Read in previously-created boxes for I (if exists)
         boxes = self.boxes.get(self.cur_i, [])[page]
@@ -316,6 +489,43 @@ this partition.")
     def zoomout(self, amt=0.1):
         self.imagepanel.zoomout(amt=amt)
 
+    def infercontests(self):
+        imgpaths_exs = [] # list of [imgpath_i, ...]
+        # Arbitrarily choose the first one Ballot from each partition
+        for partition_idx, imgpaths_sides in enumerate(self.partitions):
+            for imgpaths in imgpaths_sides:
+                imgpaths_exs.extend(imgpaths)
+                break
+        # Let i=target #, j=ballot style, k=contest idx:
+        targets = [] # list of [[[box_ijk, ...], [box_ijk+1, ...], ...], ...]
+        for partition_idx, boxes_sides in self.boxes.iteritems():
+            for boxes in boxes_sides:
+                style_boxes = [] # [[contest_i, ...], ...]
+                for box in boxes:
+                    # InferContests throws out the pre-determined contest
+                    # grouping, so just stick each target in its own
+                    # 'contest'
+                    style_boxes.append([(box.x1, box.y1, box.x2, box.y2)])
+                targets.append(style_boxes)
+        #bboxes = dict(zip(imgpaths, group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)))
+        # CONTEST_RESULTS: [[box_i, ...], ...], each subtuple_i is for imgpath_i.
+        contest_results = group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)
+        # 1.) Update my self.BOXES
+        for i, contests in enumerate(contest_results):
+            partition_idx, j, page = self.inv_map[imgpaths_exs[i]]
+            # Remove previous contest boxes
+            justtargets = [b for b in self.boxes[partition_idx][page] if not isinstance(b, ContestBox)]
+            contest_boxes = []
+            for (x1,y1,x2,y2) in contests:
+                contest_boxes.append(ContestBox(x1,y1,x2,y2))
+            self.boxes[partition_idx][page] = justtargets+contest_boxes
+        # 2.) Update self.IMAGEPANEL.BOXES (i.e. the UI)
+        self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
+        # 3.) Finally, update the self.proj.infer_bounding_boxes flag, 
+        #     so that LabelContests does the right thing.
+        self.GetParent().proj.infer_bounding_boxes = True
+        self.Refresh()
+
 class Toolbar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
@@ -326,25 +536,35 @@ class Toolbar(wx.Panel):
         self.Layout()
 
     def _setup_ui(self):
-        self.btn_addtarget = wx.Button(self, label="Add Target...")
-        self.btn_modify = wx.Button(self, label="Modify...")
-        self.btn_zoomin = wx.Button(self, label="Zoom In...")
-        self.btn_zoomout = wx.Button(self, label="Zoom Out...")
+        self.btn_addtarget = wx.Button(self, label="Add Target")
+        self.btn_addcontest = wx.Button(self, label="Add Contest")
+        self.btn_modify = wx.Button(self, label="Modify")
+        self.btn_zoomin = wx.Button(self, label="Zoom In")
+        self.btn_zoomout = wx.Button(self, label="Zoom Out")
+        self.btn_infercontests = wx.Button(self, label="Infer Contest Regions..")
         self.btn_opts = wx.Button(self, label="Options...")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_modify,),
+        btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_addcontest), (self.btn_modify,),
                            (self.btn_zoomin,), (self.btn_zoomout,),
-                           (self.btn_opts,)])
+                           (self.btn_infercontests,), (self.btn_opts,)])
         self.sizer.Add(btn_sizer)
         self.SetSizer(self.sizer)
 
     def _setup_evts(self):
-        self.btn_addtarget.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_CREATE))
+        self.btn_addtarget.Bind(wx.EVT_BUTTON, self.onButton_addtarget)
+        self.btn_addcontest.Bind(wx.EVT_BUTTON, self.onButton_addcontest)
         self.btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_IDLE))
         self.btn_zoomin.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomin())
         self.btn_zoomout.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomout())
+        self.btn_infercontests.Bind(wx.EVT_BUTTON, lambda evt: self.parent.infercontests())
         self.btn_opts.Bind(wx.EVT_BUTTON, self.onButton_opts)
+    def onButton_addtarget(self, evt):
+        self.setmode(BoxDrawPanel.M_CREATE)
+        self.parent.imagepanel.boxtype = TargetBox
+    def onButton_addcontest(self, evt):
+        self.setmode(BoxDrawPanel.M_CREATE)
+        self.parent.imagepanel.boxtype = ContestBox
     def setmode(self, mode_m):
         self.parent.imagepanel.set_mode_m(mode_m)
     def onButton_opts(self, evt):
@@ -462,7 +682,7 @@ class ImagePanel(ScrolledPanel):
         """
         self.img = img
 
-        c = size[0] / float(self.img.GetWidth()) if size else 1.0
+        c = size[0] / float(self.img.GetWidth()) if size else self.scale
         self.set_scale(c)
         
     def set_scale(self, scale):
@@ -564,7 +784,15 @@ class BoxDrawPanel(ImagePanel):
         self.isCreate = False
         self.box_create = None
 
+        # Vars for resizing behavior
+        self.isResize = False
+        self.box_resize = None
+        self.resize_orient = None # 'N', 'NE', etc...
+
         self.mode_m = BoxDrawPanel.M_CREATE
+
+        # BOXTYPE: Class of the Box to create
+        self.boxtype = Box
         
         # _x,_y keep track of last mouse position
         self._x, self._y = 0, 0
@@ -583,7 +811,7 @@ class BoxDrawPanel(ImagePanel):
     def startBox(self, x, y, boxtype=None):
         """ Starts creating a box at (x,y). """
         if boxtype == None:
-            boxtype = Box
+            boxtype = self.boxtype
         print "...Creating Box: {0}, {1}".format((x,y), boxtype)
         self.isCreate = True
         self.box_create = boxtype(x, y, x+1, y+1)
@@ -627,13 +855,25 @@ class BoxDrawPanel(ImagePanel):
             list MATCHES, of the form:
                 [(obj Box_i, float dist_i), ...]
         """
-        def distL2(x1,y1,x2,y2):
-            return math.sqrt((float(y1)-y2)**2.0 + (float(x1)-x2)**2.0)
 
         results = []
         for box in self.boxes:
             if mode == 'N':
                 x1, y1 = self.img2c((box.x1 + (box.width/2)), box.y1)
+            elif mode == 'NE':
+                x1, y1 = self.img2c(box.x1 + box.width, box.y1)
+            elif mode == 'E':
+                x1, y1 = self.img2c(box.x1 + box.width, box.y1 + (box.height/2))
+            elif mode == 'SE':
+                x1, y1 = self.img2c(box.x1 + box.width, box.y1 + box.height)
+            elif mode == 'S':
+                x1, y1 = self.img2c(box.x1 + (box.width/2), box.y1 + box.height)
+            elif mode == 'SW':
+                x1, y1 = self.img2c(box.x1, box.y1 + box.height)
+            elif mode == 'W':
+                x1, y1 = self.img2c(box.x1, box.y1 + (box.heigth/2))
+            elif mode == 'NW':
+                x1, y1 = self.img2c(box.x1, box.y1)
             else:
                 # Default to 'any'
                 x1, y1 = self.img2c(box.x1, box.y1)
@@ -642,29 +882,76 @@ class BoxDrawPanel(ImagePanel):
                     y > y1 and y < y2):
                     results.append((box, None))
                 continue
-            if d <= C:
-                results.append((box, d))
+            dist = distL2(x1, y1, x, y)
+            if dist <= C:
+                results.append((box, dist))
         if mode == 'any':
             return results
         results = sorted(results, key=lambda t: t[1])
         return results
 
+    def get_box_to_resize(self, x, y, C=8.0):
+        """ Returns a Box instance if the current mouse location is
+        close enough to a resize location, or None o.w.
+        Input:
+            int X, Y: Mouse location.
+        Output:
+            Box or None.
+        """
+        results = [] # [[orient, box, dist], ...]
+        for box in self.boxes:
+            locs = {'N': self.img2c(box.x1 + (box.width/2), box.y1),
+                    'NE': self.img2c(box.x1 + box.width, box.y1),
+                    'E': self.img2c(box.x1 + box.width, box.y1 + (box.height/2)),
+                    'SE': self.img2c(box.x1 + box.width, box.y1 + box.height),
+                    'S': self.img2c(box.x1 + (box.width/2),box.y1 + box.height),
+                    'SW': self.img2c(box.x1, box.y1 + box.height),
+                    'W': self.img2c(box.x1, box.y1 + (box.height/2)),
+                    'NW': self.img2c(box.x1, box.y1)}
+            for (orient, (x1,y1)) in locs.iteritems():
+                dist = distL2(x1,y1,x,y)
+                if dist <= C:
+                    results.append((orient, box, dist))
+        print results
+        if not results:
+            return None, None
+        results = sorted(results, key=lambda t: t[2])
+        return results[0][1], results[0][0]
+
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        
+        box_resize, orient = self.get_box_to_resize(x, y)
+        if self.mode_m == BoxDrawPanel.M_IDLE and box_resize:
+            self.isResize = True
+            self.box_resize = box_resize
+            self.resize_orient = orient
+            self.Refresh()
+            return
+
         if self.mode_m == BoxDrawPanel.M_CREATE:
             print "...Creating Target box."
-            self.startBox(x, y, TargetBox)
-        elif self.mode_m == BoxDrawPanel.M_IDLE and not self.sel_boxes:
+            self.clear_selected()
+            self.startBox(x, y)
+        elif self.mode_m == BoxDrawPanel.M_IDLE:
             boxes = self.get_boxes_within(x, y, mode='any')
             if boxes:
-                self.select_boxes(boxes[0][0])
+                b = boxes[0][0]
+                if b not in self.sel_boxes:
+                    self.clear_selected()
+                    self.select_boxes(boxes[0][0])
             else:
+                self.clear_selected()
                 self.startBox(x, y, SelectionBox)
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        self.clear_selected()
+        if self.isResize:
+            self.box_resize.canonicalize()
+            self.box_resize = None
+            self.isResize = False
+
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             self.boxes.append(box)
@@ -679,6 +966,20 @@ class BoxDrawPanel(ImagePanel):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         xdel, ydel = x - self._x, y - self._y
         self._x, self._y = x, y
+        
+        if self.isResize and evt.Dragging():
+            xdel_img, ydel_img = self.c2img(xdel, ydel)
+            if 'N' in self.resize_orient:
+                self.box_resize.y1 += ydel_img
+            if 'E' in self.resize_orient:
+                self.box_resize.x2 += xdel_img
+            if 'S' in self.resize_orient:
+                self.box_resize.y2 += ydel_img
+            if 'W' in self.resize_orient:
+                self.box_resize.x1 += xdel_img
+            self.Refresh()
+            return
+
         if self.isCreate:
             self.box_create.x2, self.box_create.y2 = self.c2img(x, y)
             self.Refresh()
@@ -717,15 +1018,23 @@ class BoxDrawPanel(ImagePanel):
 
     def onPaint(self, evt):
         dc = ImagePanel.onPaint(self, evt)
-        self.drawBoxes(self.boxes, dc)
+        if self.isResize:
+            dboxes = [b for b in self.boxes if b != self.box_resize]
+        else:
+            dboxes = self.boxes
+        self.drawBoxes(dboxes, dc)
         if self.isCreate:
             # Draw Box-Being-Created
             can_box = self.box_create.copy().canonicalize()
             self.drawBox(can_box, dc)
+        if self.isResize:
+            pass
+            resize_box_can = self.box_resize.copy().canonicalize()
+            self.drawBox(resize_box_can, dc)
         return dc
         
     def drawBoxes(self, boxes, dc):
-        for box in self.boxes:
+        for box in boxes:
             self.drawBox(box, dc)
 
     def drawBox(self, box, dc):
@@ -742,6 +1051,21 @@ class BoxDrawPanel(ImagePanel):
         client_x, client_y = self.img2c(box.x1, box.y1)
         dc.DrawRectangle(client_x, client_y, w, h)
 
+        if isinstance(box, TargetBox) or isinstance(box, ContestBox):
+            # Draw the 'grabber' circles
+            CIRCLE_RAD = 3
+            dc.SetPen(wx.Pen("Black", 1))
+            dc.SetBrush(wx.Brush("White"))
+            dc.DrawCircle(client_x, client_y, CIRCLE_RAD)           # Upper-Left
+            dc.DrawCircle(client_x+(w/2), client_y, CIRCLE_RAD)     # Top
+            dc.DrawCircle(client_x+w, client_y, CIRCLE_RAD)         # Upper-Right
+            dc.DrawCircle(client_x, client_y+(h/2), CIRCLE_RAD)     # Left
+            dc.DrawCircle(client_x+w, client_y+(h/2), CIRCLE_RAD)   # Right
+            dc.DrawCircle(client_x, client_y+h, CIRCLE_RAD)         # Lower-Left
+            dc.DrawCircle(client_x+(w/2), client_y+h, CIRCLE_RAD)     # Bottom
+            dc.DrawCircle(client_x+w, client_y+h, CIRCLE_RAD)           # Lower-Right
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+
 class TemplateMatchDrawPanel(BoxDrawPanel):
     """ Like a BoxDrawPanel, but when you create a Target box, it runs
     Template Matching to try to find similar instances.
@@ -755,9 +1079,12 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
         x, y = evt.GetPositionTuple()
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
-            imgpil = util_gui.imageToPil(self.img)
-            imgpil = imgpil.convert('L')
-            self.tempmatch_fn(box, imgpil)
+            if isinstance(box, TargetBox):
+                imgpil = util_gui.imageToPil(self.img)
+                imgpil = imgpil.convert('L')
+                self.tempmatch_fn(box, imgpil)
+            elif isinstance(box, ContestBox):
+                self.boxes.append(box)
             self.Refresh()
         else:
             BoxDrawPanel.onLeftUp(self, evt)
@@ -839,6 +1166,14 @@ class Box(object):
         self.y2 = int(round(self.y2*scale))
     def copy(self):
         return Box(self.x1, self.y1, self.x2, self.y2)
+    def get_draw_opts(self):
+        """ Given the state of me, return the color+line-width for the
+        DC to use.
+        """
+        return ("Green", 2)
+    def marshall(self):
+        return {'x1': self.x1, 'y1': self.y1, 'x2': self.x2, 'y2': self.y2}
+
 class TargetBox(Box):
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
@@ -857,6 +1192,25 @@ class TargetBox(Box):
             return ("Green", 3)
     def copy(self):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
+class ContestBox(Box):
+    def __init__(self, x1, y1, x2, y2, is_sel=False):
+        Box.__init__(self, x1, y1, x2, y2)
+        self.is_sel = is_sel
+    def __str__(self):
+        return "ContestBox({0},{1},{2},{3},is_sel={4})".format(self.x1, self.y1, self.x2, self.y2, self.is_sel)
+    def __repr__(self):
+        return "ContestBox({0},{1},{2},{3},is_sel={4})".format(self.x1, self.y1, self.x2, self.y2, self.is_sel)
+    def get_draw_opts(self):
+        """ Given the state of me, return the color+line-width for the
+        DC to use.
+        """
+        if self.is_sel:
+            return ("Yellow", 5)
+        else:
+            return ("Blue", 5)
+    def copy(self):
+        return ContestBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
+    
 class SelectionBox(Box):
     def __str__(self):
         return "SelectionBox({0},{1},{2},{3})".format(self.x1, self.y1, self.x2, self.y2)
@@ -1008,6 +1362,9 @@ def bestmatch(A, B):
 
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.bmp', 'jpeg', '.jpg', '.tif')
+
+def distL2(x1,y1,x2,y2):
+    return math.sqrt((float(y1)-y2)**2.0 + (float(x1)-x2)**2.0)
 
 def main():
     class TestFrame(wx.Frame):

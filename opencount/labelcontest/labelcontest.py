@@ -43,11 +43,22 @@ class LabelContest(wx.Panel):
         how the targets are grouped together.
         """
         self.dirList = []
-        # Maps {csvfilepath: str template_imgpath}
-        csvpath_map = pickle.load(open(pathjoin(self.proj.target_locs_dir,
-                                                'csvpath_map.p'),
-                                       'rb'))
-        thewidth = theheight = None
+        # Maps {partitionID: [csvpath_side0, ...]}
+        partition_targets_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                          self.proj.partition_targets_map),
+                                                 'rb'))
+        # PARTITIONS_MAP: {int partitionID: [int ballotID_i, ...]}
+        partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                   self.proj.partitions_map), 'rb'))
+        # PARTITION_EXMPLS: {int partitionID: [int ballotID_i, ...]}
+        partition_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                     self.proj.partition_exmpls), 'rb'))
+        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_page), 'rb'))
+        # TARGET_LOCS_MAP: maps {int partitionID: {int page: [CONTEST_i, ...]}}
+        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                    self.proj.target_locs_map), 'rb'))
 
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
         # where:
@@ -57,48 +68,38 @@ class LabelContest(wx.Panel):
         #   len(groupedtargets[a][b]) is the number of targets in contest B of template A
 
         self.groupedtargets = []
-        foo = []
-        for root,dirs,files in sorted(os.walk(self.proj.target_locs_dir)):
-            util.sort_nicely(files)
-            for each in files:
-        #for each in realorder:
-        #    if True:
-        #        root = self.proj.target_locs_dir
-                if each[-4:] != '.csv': continue
-                foo.append(each)
-                gr = {}
-                name = os.path.join(root, each)
-                for i, row in enumerate(csv.reader(open(name))):
-                    if i == 0:
-                        # skip the header row, to avoid adding header
-                        # information to our data structures
-                        continue
-                    # If this one is a target, not a contest
-                    if row[7] == '0':
-                        if row[8] not in gr:
-                            gr[row[8]] = []
-                        # 2,3,4,5 are left,up,width,height but need left,up,right,down
-                        gr[row[8]].append((int(row[1]), int(row[8]),
-                                           int(row[2]), int(row[3]), 
-                                           int(row[2])+int(row[4]), 
-                                           int(row[3])+int(row[5])))
-                    # Only add the row's imgpath once
-                    if row[0] not in self.dirList:
-                        self.dirList.append(row[0])
-                        if thewidth == None:
-                            thewidth, theheight = Image.open(row[0]).size
+        
+        for partitionID, contests_sides in target_locs_map.iteritems():
+            # Grab an arbitrary exemplar image from this partition
+            imgpaths = b2imgs[partition_exmpls[partitionID][0]]
+            imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+            for side, contests in contests_sides.iteritems():
+                exmpl_imP = imgpaths_ordered[side]
+                self.dirList.append(exmpl_imP)
+                gr = {} # maps {int contestID: [[id, contest_id, x1, y1, x2, y2], ...]}
+                for contest in contests:
+                    contestbox, targetboxes = contest[0], contest[1:]
+                    for tbox in targetboxes:
+                        # TBOX := [x1, y1, w, h, id, contest_id]
+                        gr.setdefault(tbox[5], []).append([tbox[4], tbox[5],
+                                                           tbox[0], tbox[1],
+                                                           tbox[0] + tbox[2],
+                                                           tbox[1] + tbox[3]])
                 lst = gr.values()
                 if not lst:
                     # Means this file had no contests, so, add dummy 
                     # values to my data structures
-                    self.dirList.append(csvpath_map[pathjoin(root, each)])
+                    # Grab an arbitrary voted ballot from this partition
+                    imgpaths = b2imgs[partition_exmpls[partitionID][0]]
+                    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    self.dirList.append(imgpaths_ordered[side])
                     self.groupedtargets.append([])
                     continue
                 # Figure out where the columns are.
                 # We want to sort each group going left->right top->down
                 #   but only go left->right if we're on a new column,
                 #   not if we're only off by a few pixels to the left.
-                errorby = thewidth/100
+                errorby = self.template_width / 100
     
                 cols = {}
                 for _,_,x,_,_,_ in sum(lst, []):
@@ -117,7 +118,7 @@ class LabelContest(wx.Panel):
                 slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
 
                 self.groupedtargets.append(slist)
-        self.template_width, self.template_height = thewidth, theheight
+
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
@@ -136,8 +137,9 @@ class LabelContest(wx.Panel):
         """
         Set everything up to display.
         """
-
         if not self.firstTime: return
+
+        self.template_width, self.template_height = self.proj.imgsize
 
         self.firstTime = False
 
@@ -353,7 +355,7 @@ class LabelContest(wx.Panel):
         button6.Bind(wx.EVT_BUTTON, addmultibox)
         template.Add(button6)
 
-        if self.proj.options.devmode:
+        if self.proj.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             def declareReady(x):
                 dlg = wx.MessageDialog(None, "Are you sure?\nThis will destroy all text you have entered.", style=wx.YES_NO | wx.NO_DEFAULT)
@@ -391,7 +393,6 @@ class LabelContest(wx.Panel):
         self.Fit()
  
         self.Show()
-
 
     def load_languages(self):
         if not os.path.exists(self.proj.patch_loc_dir): return {}
@@ -605,20 +606,17 @@ class LabelContest(wx.Panel):
     def setupBoxes(self):
         if self.proj.infer_bounding_boxes:
             res = []
-            for root,dirs,files in os.walk(self.proj.target_locs_dir):
-                util.sort_nicely(files) # Fixes Marin's ballot ordering.
-                for each in files:
-                    if each[-4:] != '.csv': continue
-                    name = os.path.join(root, each)
+            target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                        self.proj.target_locs_map), 'rb'))
+            for partitionID, contests_sides in target_locs_map.iteritems():
+                for side, contests in sorted(contests_sides.iteritems(), key=lambda t: t[0]):
                     ballot = []
-                    for i, row in enumerate(csv.reader(open(name))):
-                        if i == 0:
-                            continue
-                        if row[7] == '1':
-                            ballot.append((int(row[1]),
-                                           int(row[2]), int(row[3]), 
-                                           int(row[2])+int(row[4]), 
-                                           int(row[3])+int(row[5])))
+                    for contest in contests:
+                        # CBOX := [x1, y1, w, h, id, contest_id]
+                        cbox, tboxes = contest[0], contest[1:]
+                        entry = [cbox[4], cbox[0], cbox[1], 
+                                 cbox[0] + cbox[2], cbox[1] + cbox[3]]
+                        ballot.append(entry)
                     res.append(ballot)
             #print "LOADING", res
             # When we load from select-and-group-targets, the order we

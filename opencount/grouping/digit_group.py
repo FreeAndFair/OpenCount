@@ -23,7 +23,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
     (using our digit exemplars).
     Input:
         dict bal2imgs
-        dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side)}
+        dict digitattrs: maps {attrtype: ((y1,y2,x1,x2), side, numdigits)}
         obj project
         dict rejected_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         dict accepted_hashes: maps {imgpath: {digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
@@ -43,26 +43,6 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
             for i, (blankpath, bb, exemplarP) in enumerate(tuples):
                 digit_hash[(digit, i)] = sh.standardImread(exemplarP, flatten=True)
         return digit_hash
-
-        #digitmap = {} # maps {(str digit, str meta): obj img}
-        #digit_exemplarsdir = os.path.join(project.projdir_path,
-        #                                  project.digit_exemplars_outdir)
-        #digitdirs = os.listdir(digit_exemplarsdir)
-        #for digitdir in digitdirs:
-        #    # Assumes this has directories of the form:
-        #    #    0_examples/*.png
-        #    #    1_examples/*.png
-        #    #    ...
-        #    fullpath = os.path.join(digit_exemplarsdir, digitdir)
-        #    digit = digitdir.split('_')[0]
-        #    for dirpath, dirnames, filenames in os.walk(fullpath):
-        #        for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-        #            # This currently scans through all images, unnecessary.
-        #            # We only need just one.
-        #            imgpath = os.path.join(dirpath, imgname)
-        #            img = sh.standardImread(imgpath, flatten=True)
-        #            digitmap[digit] = img
-        #return digitmap
     def all_ballotimgs(bal2imgs, side, ignorelist=None):
         """ Generate all ballot images for either side 0 or 1. """
         # TODO: Generalize to N-sided ballots
@@ -120,9 +100,6 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
         print "...Finished Computing Digit Exemplars ({0} s)".format(dur)
 
     digit_exs = make_digithashmap(project, exemplars)
-    numdigitsmap = pickle.load(open(os.path.join(project.projdir_path, 
-                                                 project.num_digitsmap),
-                                    'rb'))
     voteddigits_dir = os.path.join(project.projdir_path,
                                      project.voteddigits_dir)
     img2bal = pickle.load(open(project.image_to_ballot, 'rb'))
@@ -143,8 +120,7 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
                                 pass
     digitmatch_info = {}  # maps {str patchpath: ((y1,y2,x1,x2), side, isflip, ballotid)}
 
-    for digitattr, ((y1,y2,x1,x2),side) in digitattrs.iteritems():
-        num_digits = numdigitsmap[digitattr]
+    for digitattr, ((y1,y2,x1,x2),side, num_digits) in digitattrs.iteritems():
         # add some border, for good measure
         w, h = abs(x1-x2), abs(y1-y2)
         c = 0.0    # On second thought, Don't add any Border...
@@ -186,10 +162,11 @@ def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,
 
         r, d = partask.do_partask(extract_voted_digitpatches,
                                   digitparse_results,
-                                  _args=(bb, digitattr, voteddigits_dir, img2bal, project.samplesdir),
+                                  _args=(bb, digitattr, voteddigits_dir, img2bal, project.voteddir),
                                   combfn=my_combfn,
                                   init=({},{}),
-                                  pass_idx=True)
+                                  pass_idx=True,
+                                  N=1)
 
         for ballotid, lsts in r.iteritems():
             result.setdefault(ballotid,[]).extend(lsts)
@@ -232,8 +209,8 @@ def extract_voted_digitpatches(stuff, (bb, digitattr, voteddigits_dir, img2bal, 
             voteddir_abs = os.path.abspath(voteddir)
             if voteddir_abs[-1] != '/':
                 voteddir_abs += '/'
-            ballotid_abs = os.path.abspath(ballotid)
-            rootdir = os.path.join(rootdir, ballotid_abs[len(voteddir_abs):])
+            imgpath_abs = os.path.abspath(imgpath)
+            rootdir = os.path.join(rootdir, imgpath_abs[len(voteddir_abs):])
             util.create_dirs(rootdir)
             outpath = os.path.join(rootdir, '{0}_{1}_votedextract.png'.format(idx, ctr))
             digitmatch_info[outpath] = ((y1,y2,x1,x2), side, isflip, ballotid)

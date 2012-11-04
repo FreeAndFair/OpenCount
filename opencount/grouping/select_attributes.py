@@ -12,11 +12,11 @@ from os.path import join as pathjoin
 sys.path.append('..')
 
 import tempmatch, util, common
-import label_attributes
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.util_gui as util_gui
 import view_overlays, verify_overlays
 import grouping.group_attrs as group_attrs
+import grouping.partask as partask
 
 class SelectAttributesMasterPanel(wx.Panel):
     """ Panel meant to be directly integrated with OpenCount. """
@@ -58,14 +58,26 @@ class SelectAttributesMasterPanel(wx.Panel):
         else:
             self.boxes = {}
             self.usersel_exs = {}
-            self.mapping, self.inv_mapping = label_attributes.do_extract_attr_patches(proj)
+            b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+            img2page = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
+            partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
+                                                         proj.partition_exmpls), 'rb'))
+            blanks = [] # list of [[path_page0, path_page1, ...], ...]
+            for partitionID, ballotids in partition_exmpls.iteritems():
+                # Choose an arbitrary voted ballot from this partition
+                imgpaths = b2imgs[ballotids[0]]
+                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                blanks.append(imgpaths_ordered)
+            self.mapping, self.inv_mapping = do_extract_attr_patches(proj, blanks)
             self.attrtypes = list(common.get_attrtypes(proj, with_digits=False))
             self.attridx = 0
         self.do_labelattribute(self.attridx)
         self.Fit()
     def stop(self):
+        self.project.removeCloseEvent(self.stop)
         self.save_boxes()
         self.save_session()
+        self.export_results()
 
     def load_session(self):
         """ Attempts to restore a previously-stored state. Returns True if
@@ -99,8 +111,9 @@ class SelectAttributesMasterPanel(wx.Panel):
         return True
 
     def export_results(self):
-        """ Saves the attribute labelling results to .csv files in:
-            proj.patch_loc_dir
+        """ Saves the attribute labelling results to .csv files to
+        proj.patch_loc_dir. Also, computes multiple exemplars. Also
+        saves the attribute labelling results to proj.partition_attrmap.
         """
         if not self.boxes:
             return
@@ -110,21 +123,31 @@ class SelectAttributesMasterPanel(wx.Panel):
             os.makedirs(self.project.patch_loc_dir)
         except:
             pass
+        img2b = pickle.load(open(self.project.image_to_ballot, 'rb'))
+        partition_attrmap = {} # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
+                               #                          attrval, page, is_digitbased, is_tabulationonly], ...]
+        partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                   self.project.partitions_map), 'rb'))
+        partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                      self.project.partitions_invmap), 'rb'))
         header = ("imgpath", "id", "x", "y", "width", "height", "attr_type",
                   "attr_val", "side", "is_digitbased", "is_tabulationonly")
         uid = 0
-        for ballotid, info in self.boxes.iteritems():
-            imgname = os.path.splitext(os.path.split(ballotid)[1])[0]
+        for imgpath, info in self.boxes.iteritems():
+            ballotid = img2b[imgpath]
+            partitionID = partitions_invmap[ballotid]
+            imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
             outpath = pathjoin(self.project.patch_loc_dir,
                                "{0}_patchlocs.csv".format(imgname))
             f = open(outpath, 'w')
             writer = csv.DictWriter(f, header)
             util_gui._dictwriter_writeheader(f, header)
+            attrs_list = [] # [[imP,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly],...]
             for ((x1, y1, x2, y2), attrtype, attrval, patchpath, subpatchP) in info:
                 attrside = common.get_attr_prop(self.project, attrtype, 'side')
                 isdigitbased = common.get_attr_prop(self.project, attrtype, "is_digitbased")
                 istabonly = common.get_attr_prop(self.project, attrtype, "is_tabulationonly")
-                row = {"imgpath": ballotid, "id": uid,
+                row = {"imgpath": imgpath, "id": uid,
                        "x": x1, "y": y1,
                        "width": int(round(x2 - x1)),
                        "height": int(round(y2 - y1)),
@@ -132,9 +155,19 @@ class SelectAttributesMasterPanel(wx.Panel):
                        "side": attrside,
                        "is_digitbased": isdigitbased,
                        "is_tabulationonly": istabonly}
+                attrs_list.append([imgpath, x1, y1, x2-x1,y2-y1, attrtype, attrval,
+                                   attrside, isdigitbased, istabonly])
                 writer.writerow(row)
                 uid += 1
             f.close()
+            partition_attrmap.setdefault(partitionID, []).extend(attrs_list)
+        print partition_attrmap
+        pickle.dump(partition_attrmap, open(pathjoin(self.project.projdir_path,
+                                                     self.project.partition_attrmap), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
+        outdir = os.path.join(self.project.projdir_path,
+                              self.project.attrexemplars_dir)
+        self.cluster_attr_patches(outdir)
 
     def cluster_attr_patches(self, outdir):
         """ Try to discover multiple exemplars within the blank ballot
@@ -194,7 +227,6 @@ class SelectAttributesMasterPanel(wx.Panel):
         
         boxes = {}
         patchpaths = []
-        w_img, h_img = self.project.imgsize
         # 1.) Populate the PATCHPATHS list
         for patchpath, (imgpath, attrtype) in self.inv_mapping.iteritems():
             if attrtype == curattrtype:
@@ -208,7 +240,6 @@ class SelectAttributesMasterPanel(wx.Panel):
                 # expects coords to be wrt patch. Do a correction.
                 x = common.get_attr_prop(self.project, attrtype, 'x1')
                 y = common.get_attr_prop(self.project, attrtype, 'y1')
-                x, y = int(round(x * w_img)), int(round(y * h_img))
                 x1_off, y1_off = x1 - x, y1 - y
                 x2_off, y2_off = x2 - x, y2 - y
                 boxes.setdefault(patchpath, []).append(((x1_off,y1_off,x2_off,y2_off), attrval, subpatchP))
@@ -224,12 +255,10 @@ class SelectAttributesMasterPanel(wx.Panel):
         """
         if not self.selectattrs.boxes:
             return
-        w_img, h_img = self.project.imgsize
         for patchpath, boxes in self.selectattrs.boxes.iteritems():
             imgpath, attrtype = self.inv_mapping[patchpath]
             x = common.get_attr_prop(self.project, attrtype, 'x1')
             y = common.get_attr_prop(self.project, attrtype, 'y1')
-            x, y = int(round(x * w_img)), int(round(y * h_img))
             # Replace all entries in self.BOXES for ATTRTYPE with 
             # entries in self.SELECTATTRS.BOXES
             self.boxes.setdefault(imgpath, [])
@@ -418,10 +447,8 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         outfilepath = pathjoin(outrootdir, "{0}_{1}.png".format(attrval, i))
         cv.SaveImage(outfilepath, patch)
         cv.SaveImage("_selectattr_patch.png", patch)
-        w_img, h_img = self.GetParent().GetParent().GetParent().project.imgsize
         x = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'x1')
         y = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'y1')
-        x, y = int(round(x * w_img)), int(round(y * h_img))
         bb_off = bb[0]+x, bb[1]+y, bb[2]+x, bb[3]+y
         blankpath, _ = self.GetParent().GetParent().GetParent().inv_mapping[patchpath]
         self.GetParent().GetParent().GetParent().usersel_exs.setdefault(attrtype, []).append((attrval, i, outfilepath, blankpath, bb_off))
@@ -656,7 +683,119 @@ class PatchBitmap(util_widgets.CellBitmap):
             x2, y2 = self.img2c(x2, y2)
             dc.SetPen(wx.Pen("Red", 2))
             dc.DrawRectangle(x1, y1, x2-x1, y2-y1)
-            
+
+def do_extract_attr_patches(proj, blanks):
+    """Extract all attribute patches from all blank ballots into
+    the specified outdir. Saves them to:
+        <projdir>/extract_attrs_templates/ATTRTYPE/*.png
+    Input:
+        list BLANKS: List of [[imgP_side0, imgP_side1, ...], ...]
+    Output:
+        (dict mapping, dict inv_mapping, where:
+          mapping is {imgpath: {str attrtype: str patchpath}}
+          inv_mapping is {str patchpath: (imgpath, attrtype)}
+    """
+    mapping, invmapping, blank2attrpatch, invb2ap = partask.do_partask(extract_attr_patches,
+                                                                       blanks,
+                                                                       _args=(proj,),
+                                                                       combfn=_extract_combfn,
+                                                                       init=({}, {}, {}, {}),
+                                                                       N=1)
+    blank2attrpatchP = pathjoin(proj.projdir_path,
+                                proj.blank2attrpatch)
+    pickle.dump(blank2attrpatch, open(blank2attrpatchP, 'wb'))
+    invblank2attrpatchP = pathjoin(proj.projdir_path,
+                                   proj.invblank2attrpatch)
+    pickle.dump(invb2ap, open(invblank2attrpatchP, 'wb'))
+    return mapping, invmapping
+    
+def _extract_combfn(result, subresult):
+    """ Aux. function used for the partask.do_partask interface.
+    Input:
+        result: (dict mapping_0, dict invmapping_0, dict blank2attrpatch_0, dict invb2ap_0)
+        subresult: (dict mapping_1, dict invmapping_1, dict blank2attrpach_1, dict invb2ap_1)
+    Output:
+        The result of 'combining' result and subresult:
+            (dict mapping*, dict invmapping*, dict blank2attrpatch*, dict invb2ap*)
+    """
+    mapping, invmapping, blank2attrpatch, invblank2attrpatch = result
+    mapping_sub, invmapping_sub, blank2attrpatch_sub, invblank2attrpatch_sub = subresult
+    new_mapping = dict(mapping.items() + mapping_sub.items())
+    new_invmapping = dict(invmapping.items() + invmapping_sub.items())
+    new_blank2attrpatch = dict(blank2attrpatch) # maps {str imgpath: {str attrtype: str patchpath}}
+    for imgpath, subdict in blank2attrpatch_sub.iteritems():
+        for attrtype, patchpath in subdict.iteritems():
+            new_blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchpath
+    # invblank2attrpatch maps {patchpath: (imgpath, attrtype)}
+    new_invblank2attrpatch = dict(invblank2attrpatch.items() + invblank2attrpatch_sub.items())
+    return (new_mapping, new_invmapping, new_blank2attrpatch, new_invblank2attrpatch)
+
+def extract_attr_patches(blanks, (proj,)):
+    """
+    Extracts all image-based attributes from blank ballots, and saves
+    the patches to the outdir proj.labelattrs_patchesdir.
+    Input:
+        list blanks: Of the form ((frontpath_i, backpath_i), ...)
+        obj proj:
+    Output:
+        (dict mapping, dict inv_mapping, dict blank2attrpatch)
+    """
+    outdir = os.path.join(proj.projdir_path,
+                          proj.extract_attrs_templates)
+    # list of marshall'd attrboxes (i.e. dicts)
+    ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
+    inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
+    blank2attrpatch = {} # maps {str imgpath: {str attrtype: str patchpath}}
+    invblank2attrpatch = {} # maps {str patchpath: (imgpath, attrtype)}
+    for blankpaths in blanks:
+        for blankside, imgpath in enumerate(blankpaths):
+            for attr in ballot_attributes:
+                if attr['is_digitbased']:
+                    continue
+                imgname =  os.path.split(imgpath)[1]
+                attrside = attr['side']
+                x1 = attr['x1']
+                y1 = attr['y1']
+                x2 = attr['x2']
+                y2 = attr['y2']
+                attrtype = common.get_attrtype_str(attr['attrs'])
+                if blankside == attrside:
+                    # patchP: if outdir is: 'labelattrs_patchesdir',
+                    # imgpath is: '/media/data1/election/blanks/foo/1.png',
+                    # proj.templatesdir is: '/media/data1/election/blanks/
+                    tmp = proj.voteddir
+                    if not tmp.endswith('/'):
+                        tmp += '/'
+                    partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
+                    patchrootDir = pathjoin(outdir,
+                                            partdir,
+                                            os.path.splitext(imgname)[0])
+                    # patchrootDir: labelattrs_patchesdir/foo/1/
+                    util_gui.create_dirs(patchrootDir)
+                    patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
+                                                                            attrtype))
+                    blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchoutP
+                    invblank2attrpatch[patchoutP] = (imgpath, attrtype)
+                    if not os.path.exists(patchoutP):
+                    #if True:
+                        # TODO: Only extract+save the imge patches
+                        # when you /have/ to.
+                        # shared.standardImread: ~0.40s
+                        # scipy.misc.imread: ~0.192s
+                        # PIL: ~0.168s
+                        # OpenCV: ~0.06s
+                        if abs(y1-y2) == 0 or abs(x1-x2) == 0:
+                            print "Uh oh, about to crash. Why is this happening?"
+                            print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
+                            pdb.set_trace()
+                        img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                        cv.SetImageROI(img, (int(x1), int(y1), int(x2-x1), int(y2-y1)))
+                        cv.SaveImage(patchoutP, img)
+                        
+                    mapping.setdefault(imgpath, {})[attrtype] = patchoutP
+                    inv_mapping[patchoutP] = (imgpath, attrtype)
+    return mapping, inv_mapping, blank2attrpatch, invblank2attrpatch
 
 def normbox((x1,y1,x2,y2)):
     return (min(x1,x2), min(y1,y2), max(x1, x2), max(y1,y2))

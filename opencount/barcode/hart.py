@@ -109,6 +109,56 @@ def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
     dec_ll_res = check_result(dec_ll, type='LL')
     return ((dec_ul_res, dec_ll_res), isflipped, bbs)
 
+def get_sheet(bc):
+    return bc[0]
+def get_precinct(bc):
+    return bc[1:7]
+def get_page(bc):
+    return int(bc[8])
+def get_language(bc):
+    '''
+    MAP = {'0': 'en',
+           '1': 'span',
+           '2': 'viet',
+           '3': 'cn',
+           '4': 'kor'}
+    k = bc[9]
+    return MAP.get(k, 'lang{0}'.format(k))
+    '''
+    return bc[9]
+def get_party(bc):
+    '''
+    MAP = {'0': 'nonpartisan',
+           '1': 'dem',
+           '2': 'lib',
+           '3': 'american_indep',
+           '4': 'green',
+           '5': 'peace',
+           '6': 'rep',
+           '7': 'americans_elect',
+           '8': 'demV2',
+           '9': 'american_indepV2'}
+    return MAP[bc[11]]
+    '''
+    return bc[10:12]
+def get_checksum(bc):
+    return bc[-2:]
+
+def get_info(barcodes):
+    """ Extracts various semantic meaning(s) from the decoded
+    barcodes.
+    Input:
+        list BARCODES. [bc_i, ...].
+    Output:
+        dict INFO. Maps {'page': int page, 'party': party_idx, 'sheet': sheet,
+                         'language': lang_idx, 'precinct': precinct_idx}
+    """
+    ul = barcodes[0]
+    info = {'sheet': get_sheet(ul), 'precinct': get_precinct(ul),
+            'page': get_page(ul), 'language': get_language(ul),
+            'party': get_party(ul)}
+    return info
+
 def main():
     args = sys.argv[1:]
     imgpath = args[0]

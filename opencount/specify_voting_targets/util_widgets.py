@@ -314,6 +314,10 @@ class ImageMosaicPanel(ScrolledPanel):
                 # No more images to display, just display empty panels.
                 cellpanel = self.cells[i][j]
                 cellpanel.is_dummy = True
+                if self.cell_width == None:
+                    # Means only empty pages. Default cell_width to, say, 100.
+                    self.cell_width = 100
+                    
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
                 cellpanel.set_bitmap(dummybitmap, 1.0)

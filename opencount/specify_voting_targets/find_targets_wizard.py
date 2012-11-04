@@ -941,6 +941,8 @@ class ThreadDoInferContests(threading.Thread):
         
     def run(self):
         # Do fancy contest-inferring computation
+        # DATA: [[group_targets0], [group_targets1], ...]
+        # FILES: [imgpath_i, ...]
         data, files = self.extract_data()
         bboxes = dict(zip(files,find_contests(self.proj.ocr_tmp_dir, files, data)))
         # Computation done!
