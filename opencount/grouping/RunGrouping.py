@@ -61,11 +61,13 @@ class RunGroupingMainPanel(wx.Panel):
     def start(self, proj, stateP):
         self.proj = proj
         self.stateP = stateP
-        if not self.restore_session(stateP):
+        self.proj.addCloseEvent(self.save_session)
+        if not self.restore_session():
             pass
 
     def stop(self):
-        self.save_session(self.stateP)
+        self.save_session()
+        self.proj.removeCloseEvent(self.save_session)
         self.export_results()
 
     def export_results(self):
@@ -76,9 +78,9 @@ class RunGroupingMainPanel(wx.Panel):
                                                            self.proj.digitgroup_results), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
 
-    def restore_session(self, stateP=None):
+    def restore_session(self):
         try:
-            state = pickle.load(open(stateP, 'rb'))
+            state = pickle.load(open(self.stateP, 'rb'))
             self.digitdist = state['digitdist']
             self.extract_results = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                              self.proj.extract_results), 'rb'))
@@ -93,10 +95,10 @@ class RunGroupingMainPanel(wx.Panel):
             self.btn_rerun_grouping.Enable()
         return True
 
-    def save_session(self, stateP=None):
+    def save_session(self):
         state = {}
         state['digitdist'] = self.digitdist
-        pickle.dump(state, open(stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
+        pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def run_imgbased_grouping(self):
         '''
@@ -155,6 +157,7 @@ class RunGroupingMainPanel(wx.Panel):
                                                          mode=MODE)
                 all_results[attrtypestr] = results
         self.digitgroup_results = all_results
+        print all_results
         print '...DigitGrouping Done.'
 
     def onButton_rungrouping(self, evt):

@@ -31,19 +31,19 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
     x1, y1, x2, y2, attrtype, page, numdigits, digitdist = attrinfo
     
     # 0.) Depending on MODE, grab the image paths to work with.
-    imgpaths = []
+    d_imgpaths = [] # imgpaths with the digit attribute present
     flip_map = {} # maps {str imgpath: bool isflip}
     if mode == DG_PER_PARTITION:
         for partitionID, ballotIDs in partition_exmpls.iteritems():
             imgpaths = b2imgs[ballotIDs[0]]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-            imgpaths.append(imgpaths_ordered[page])
+            d_imgpaths.append(imgpaths_ordered[page])
             for imgpath in imgpaths_ordered:
                 flip_map[imgpath] = img2flip[imgpath]
     else:
         for ballotID, imgpaths in b2imgs.iteritems():
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-            imgpaths.append(imgpaths_ordered[page])
+            d_imgpaths.append(imgpaths_ordered[page])
             for imgpath in imgpaths_ordered:
                 flip_map[imgpath] = img2flip[imgpath]
 
@@ -59,7 +59,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
     rejected_hashes = {}
     accepted_hashes = {}
     # RESULTS: [(imgpath_i, ocrstr_i, imgpatches_i, patchcoords_i, scores_i), ...]
-    pm_results = part_match.digitParse(digit_ex_imgs, imgpaths, bb, numdigits,
+    pm_results = part_match.digitParse(digit_ex_imgs, d_imgpaths, bb, numdigits,
                                        flipmap=flip_map, rejected_hashes=rejected_hashes,
                                        accepted_hashes=accepted_hashes,
                                        hspace=digitdist)
