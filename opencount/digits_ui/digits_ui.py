@@ -17,7 +17,7 @@ sys.path.append('..')
 import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
-from grouping import common, verify_overlays, partask
+from grouping import common, verify_overlays_new, partask
 
 """
 Assumes extracted_dir looks like:
@@ -236,12 +236,13 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.ondone = ondone
 
-        self.grouplabel_record = None
-
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
         # maps {str regionpath: list of (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
-        self.matches = {}   
+        self.matches = {}
+
+        # self.PATCH2REGION: maps {str patchpath: str regionpath}
+        self.patch2region = {}
 
         # maps {str regionpath: MyStaticBitmap obj}
         self.cells = {}
@@ -283,9 +284,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         pass
 
     def start(self):
-        if self.grouplabel_record == None:
-            self.grouplabel_record = []
-        
         self.setup_grid()
         self.Layout()
         self.gridsizer.Layout()
@@ -306,9 +304,9 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         state = pickle.load(open(statefile, 'rb'))
         self.matches = state['matches']
+        self.patch2region = state['patch2region']
         cell_boxes = state['cell_boxes']
         digits = state['digits']
-        self.grouplabel_record = state['grouplabel_record']
         self.start()
         for regionpath, digits_str in digits.iteritems():
             i, j = self.imgID2cell[regionpath]
@@ -344,6 +342,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         f = open(statefile, 'wb')
         state = {}
         state['matches'] = self.matches
+        state['patch2region'] = self.patch2region
         cell_boxes = {}
         digits = {} # maps regionpath to digits
         for regionpath, cell in self.cells.iteritems():
@@ -351,7 +350,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             digits[regionpath] = cell.get_digits()
         state['cell_boxes'] = cell_boxes
         state['digits'] = digits
-        state['grouplabel_record'] = self.grouplabel_record
         pickle.dump(state, f)
         f.close()
 
@@ -495,29 +493,13 @@ digit.")
         proj = self.parent.parent.project  # TODO: breach of abstraction
 
         self.overlaymaps = {} # maps {int matchID: (i,j)}
-        grouplabel = common.make_grouplabel(('digit', self.current_digit))
-        # 0.) If we are seeing this digit for the first time, this will
-        # not be present in grouplabel_record, so add it in.
-        try:
-            gl_idx = self.grouplabel_record.index(grouplabel)
-        except:
-            print "Discovering digit {0} for the first time:".format(grouplabel)
-            gl_idx = len(self.grouplabel_record)
-            self.grouplabel_record.append(grouplabel)
-        examples = []
+
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
-        # patchpath_scores will be used to improve 'Split' behavior
-        # for digit-based attributes. TODO: NOT IN USE, replaced by kmeans
 
-        patchpath_scoresP = pathjoin(proj.projdir_path, proj.digitpatchpath_scoresBlank)
-        # patchpath_scores maps {str patchpath: float score}
-        if os.path.exists(patchpath_scoresP):
-            patchpath_scores = pickle.load(open(patchpath_scoresP, 'rb'))
-        else:
-            patchpath_scores = {}
         global matchID
         matchID = get_last_matchID(self.digit_exemplars_outdir)
+        imgpaths = []
         # regionpath is an attrpatch, not the blank ballot itself
         for (regionpath,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
             rootdir = os.path.join(self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
@@ -526,55 +508,45 @@ digit.")
             bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
-            examples.append((regionpath, (gl_idx,), patchpath))
+            scipy.misc.imsave(patchpath, Ireg)
+            imgpaths.append(patchpath)
             self.matches.setdefault(regionpath, []).append((patchpath, matchID, self.current_digit, score2, y1, y2, x1, x2, rszFac))
+            self.patch2region[patchpath] = regionpath
             matchID += 1
-            patchpath_scores[patchpath] = score2
-        pickle.dump(patchpath_scores, open(patchpath_scoresP, 'wb'))
 
-        group = common.DigitGroupClass(examples, user_data=patchpath_scores)
-        exemplar_paths = {grouplabel: self.PATCH_TMP}
+        exemplar_imgpath = self.PATCH_TMP
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = VerifyOverlayFrame(self, group, exemplar_paths, self.parent.parent.project,
-                                    self.on_verifydone, self.grouplabel_record)
+        self.f = VerifyOverlayFrame(self, imgpaths, exemplar_imgpath, self.on_verifydone)
         self.f.Maximize()
         self.Disable()
         self.disable_cells()
         self.f.Show()
 
-    def on_verifydone(self, results, grouplabel_record):
+    def on_verifydone(self, verify_results):
         """Invoked once the user has finished verifying the template
         matching on the current digit. Add all 'correct' matches to
         the relevant cell's boxes.
         Input:
-            dict results: Maps {int gl_idx: [GroupClass_i, ...]}
-            list grouplabel_record: [grouplabel_i, ...]
+            dict VERIFY_RESULTS: maps {tag: [patchpath_i, ...]}
         """
         self.f.Close()
         self.Enable()
         self.enable_cells()
         # 1.) Remove all matches from self.matches that the user said
         # was not relevant, during overlay verification
-        try:
-            OTHER_gl_idx = self.grouplabel_record.index(verify_overlays.VerifyPanel.GROUPLABEL_OTHER)
-        except:
-            OTHER_gl_idx = len(self.grouplabel_record)
-            self.grouplabel_record.append(verify_overlays.VerifyPanel.GROUPLABEL_OTHER)
-        for gl_idx, groups in results.iteritems():
-            # groups is a list of GroupClasses
-            # group[i].elements[j] = (regionpath, rankedlist, patchpath)
-            if gl_idx == OTHER_gl_idx:
+        YES = verify_overlays_new.CheckImageEquals.TAG_YES
+        NO = verify_overlays_new.CheckImageEquals.TAG_NO
+        for tag, patchpaths in verify_results.iteritems():
+            if tag == NO:
                 # The user said that these elements are not relevant
-                for groupclass in groups:
-                    assert groupclass.getcurrentgrouplabel() == OTHER_gl_idx
-                    for element in groupclass.elements:
-                        regionpath, rankedlist, patchpath = element
-                        os.remove(patchpath)
-                        stuff = self.matches[regionpath]
-                        # stuff[i] := (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
-                        stuff = [t for t in stuff if t[0] != patchpath]
-                        self.matches[regionpath] = stuff
+                for patchpath in patchpaths:
+                    regionpath = self.patch2region.pop(patchpath)
+                    os.remove(patchpath)
+                    # stuff[i] := (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
+                    stuff = self.matches[regionpath]
+                    stuff = [t for t in stuff if t[0] != patchpath]
+                    self.matches[regionpath] = stuff
 
         # 2.) Add all matches that the user said was 'Good' to the UI
         added_matches = 0
@@ -1062,18 +1034,22 @@ class Box(object):
                 Box.is_overlap(box_b, box_a))
 
 class VerifyOverlayFrame(wx.Frame):
-    def __init__(self, parent, group, exemplar_paths, project, ondone, gl_record):
+    def __init__(self, parent, imgpaths, exemplar_imgpath, ondone):
+        """
+        Input:
+            list IMGPATHS: List of image paths
+            str EXEMPLAR_IMGPATH:
+            fn ONDONE:
+        """
         wx.Frame.__init__(self, parent)
-        self.parent = parent
-        self.group = group
-        self.exemplar_paths = exemplar_paths
-        self.ondone = ondone
-        self.project = project # TODO: Breach of Abstraction
-        self.gl_record = gl_record
 
-        verifypanel = verify_overlays.VerifyPanel(self, verify_overlays.VerifyPanel.MODE_YESNO)
-        verifypanel.start((group,), exemplar_paths, self.project, ondone=ondone,
-                          grouplabel_record=gl_record)
+        verifypanel = verify_overlays_new.CheckImageEquals(self)
+        verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=True)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(verifypanel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(sizer)
+        self.Layout()
 
 class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple

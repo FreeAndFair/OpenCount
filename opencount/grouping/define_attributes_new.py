@@ -347,6 +347,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             box.num_digits = dlg.num_digits
             box.is_tabulationonly = dlg.is_tabulationonly
             box.side = self.GetParent().cur_side
+            box.grp_per_partition = dlg.grp_per_partition
             label = ', '.join(box.attrtypes)
             if box.is_digitbased:
                 label += ' (DigitBased)'
@@ -378,7 +379,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
 class AttrBox(select_targets.Box):
     def __init__(self, x1, y1, x2, y2, is_sel=False, label='', attrtypes=None,
                  is_digitbased=None, num_digits=None, is_tabulationonly=None,
-                 side=None):
+                 side=None, grp_per_partition=None):
         select_targets.Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
         self.label = label
@@ -387,6 +388,7 @@ class AttrBox(select_targets.Box):
         self.num_digits = num_digits
         self.is_tabulationonly = is_tabulationonly
         self.side = side
+        self.grp_per_partition = grp_per_partition
     def __str__(self):
         return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
     def __repr__(self):
@@ -399,7 +401,7 @@ class AttrBox(select_targets.Box):
         return AttrBox(self.x1, self.y1, self.x2, self.y2, label=self.label,
                        attrtypes=self.attrtypes, is_digitbased=self.is_digitbased,
                        num_digits=self.num_digits, is_tabulationonly=self.is_tabulationonly,
-                       side=self.side)
+                       side=self.side, grp_per_partition=self.grp_per_partition)
     def get_draw_opts(self):
         if self.is_sel:
             return ("Yellow", 3)
@@ -413,6 +415,7 @@ class AttrBox(select_targets.Box):
         data['is_digitbased'] = self.is_digitbased
         data['num_digits'] = self.num_digits
         data['is_tabulationonly'] = self.is_tabulationonly
+        data['grp_per_partition'] = self.grp_per_partition
         return data
 
 class DefineAttributeDialog(wx.Dialog):
@@ -437,6 +440,7 @@ class DefineAttributeDialog(wx.Dialog):
         self.is_digitbased = False
         self.num_digits = None
         self.is_tabulationonly = False
+        self.grp_per_partition = True
 
         self.input_pairs = []
         for idx, val in enumerate(vals):
@@ -478,6 +482,9 @@ class DefineAttributeDialog(wx.Dialog):
         self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
 this patch be only used for tabulation (and not for grouping)?")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
+        self.chkbox_grp_per_partition = wx.CheckBox(self, label="Is this \
+attribute consistent within each partition (where partitions are \
+dictated by the barcodes)?")
         self.numdigits_label = numdigits_label
         self.num_digits_ctrl = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -487,6 +494,7 @@ this patch be only used for tabulation (and not for grouping)?")
         self.digit_sizer = digit_sizer
         self.sizer.Add(digit_sizer, proportion=0)
         self.sizer.Add(self.chkbox_is_tabulationonly, proportion=0)
+        self.sizer.Add(self.chkbox_grp_per_partition)
 
         self._add_btn_panel(self.sizer)
         self.SetSizer(self.sizer)
@@ -536,6 +544,7 @@ this patch be only used for tabulation (and not for grouping)?")
             self.num_digits = int(self.num_digits_ctrl.GetValue())
         if self.chkbox_is_tabulationonly.GetValue() == True:
             self.is_tabulationonly = True
+        self.grp_per_parition = self.chkbox_grp_per_partition.GetValue()
         for txt, input_ctrl in self.input_pairs:
             val = input_ctrl.GetValue()
             if val in history:

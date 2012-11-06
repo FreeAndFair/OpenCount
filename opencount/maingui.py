@@ -20,7 +20,7 @@ from grouping.define_attributes_new import DefineAttributesMainPanel
 from grouping.select_attributes import SelectAttributesMasterPanel
 from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.RunGrouping import RunGroupingMainPanel
-from grouping.GroupingPanel import GroupingMainPanel
+from grouping.VerifyGroupingPanel import VerifyGroupingMainPanel
 from runtargets.extract_targets_new import TargetExtractPanel
 from threshold.threshold import ThresholdPanel
 from quarantine.quarantinepanel import QuarantinePanel
@@ -70,7 +70,7 @@ class MainFrame(wx.Frame):
         self.panel_label_attrs = SelectAttributesMasterPanel(self.notebook)
         self.panel_label_digitattrs = LabelDigitsPanel(self.notebook)
         self.panel_run_grouping = RunGroupingMainPanel(self.notebook)
-        self.panel_correct_grouping = GroupingMainPanel(self.notebook)
+        self.panel_correct_grouping = VerifyGroupingMainPanel(self.notebook)
         self.panel_seltargets = SelectTargetsMainPanel(self.notebook)
         self.panel_label_contests = LabelContest(self.notebook, self.GetSize())
         self.panel_target_extract = TargetExtractPanel(self.notebook)
@@ -163,7 +163,8 @@ Attributes in this election -- skipping to the next page.", style=wx.OK)
             self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
                                                                  '_state_run_grouping.p'))
         elif new == MainFrame.CORRECT_GROUPING:
-            self.panel_correct_grouping.start(self.project)
+            self.panel_correct_grouping.start(self.project, pathjoin(self.project.projdir_path,
+                                                                     '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
             self.panel_seltargets.start(self.project, pathjoin(self.project.projdir_path,
                                                                '_state_seltargets.p'),

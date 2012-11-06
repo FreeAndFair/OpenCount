@@ -385,12 +385,12 @@ def process_one(args):
         amt_j1 = bbSearch[2]
     if (bbSearch[3] + amt_j2) > (I1.shape[1]-1):
         amt_j2 = (I1.shape[1]-1 - bbSearch[3])
-    bb = [max(0, bbSearch[0]-amt_i1),
-          min(I1.shape[0]-1, bbSearch[1]+amt_i2),
-          max(0, bbSearch[2]-amt_j1),
-          min(I1.shape[1]-1, bbSearch[3]+amt_j2)]
+    bb_patch = [max(0, bbSearch[0]-amt_i1),
+                min(I1.shape[0]-1, bbSearch[1]+amt_i2),
+                max(0, bbSearch[2]-amt_j1),
+                min(I1.shape[1]-1, bbSearch[3]+amt_j2)]
     #I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
-    I1_patch = I1[bb[0]:bb[1], bb[2]:bb[3]]
+    I1_patch = I1[bb_patch[0]:bb_patch[1], bb_patch[2]:bb_patch[3]]
 
     #if do_flip == False:
     #    misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
@@ -404,13 +404,15 @@ def process_one(args):
     # res := (str ocr_str, list patches, list bbs, list scores, list matched_keys)
     res = pm2(digit_hash,I1_patch,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
     #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
-    # 1.) Remember to correct for E_i,E_j expansion factor from earlier
+    # 1.) Remember to correct for E_i,E_j expansion factor from earlier,
+    #     and also to account for bbSearch offset.
     newbbs = []
     for bb in res[2]:
-        newbbs.append((max(0, bb[0]-amt_i1), 
-                       min(I1_patch.shape[0]-1, bb[1]-amt_i1),
-                       max(0, bb[2]-amt_j1), 
-                       min(I1_patch.shape[1]-1, bb[3]-amt_j1)))
+        newbb0 = (max(0, bb[0]+bb_patch[0]),
+                  min(I1.shape[0]-1, bb[1]+bb_patch[0]),
+                  max(0, bb[2]+bb_patch[2]),
+                  min(I1.shape[1]-1, bb[3]+bb_patch[2]))
+        newbbs.append(newbb0)
 
     if wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")

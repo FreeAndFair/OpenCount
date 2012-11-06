@@ -32,27 +32,26 @@ class SelectTargetsMainPanel(wx.Panel):
 
     def start(self, proj, stateP, ocrtmpdir):
         self.proj = proj
-        # PARTITIONS: dict {int partitionID: [int ballotID_i, ...]}
-        partitions_map = pickle.load(open(pathjoin(proj.projdir_path,
-                                                   proj.partitions_map), 'rb'))
-        partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
-                                                     proj.partition_exmpls), 'rb'))
+        # GROUP2BALLOT: dict {int groupID: [int ballotID_i, ...]}
+        group2ballot = pickle.load(open(pathjoin(proj.projdir_path,
+                                                 proj.group_to_ballots), 'rb'))
+        group_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
+                                                 proj.group_exmpls), 'rb'))
         b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
         img2page = pickle.load(open(pathjoin(proj.projdir_path,
                                              proj.image_to_page), 'rb'))
-        # 0.) Munge PARTITIONS_MAP to list of lists of lists
-        partitions = []
-        #for partitionID, ballotids in partitions_map.iteritems():
-        for partitionID, ballotids in partition_exmpls.iteritems():
-            partition = []
+        # 0.) Munge GROUP2BALLOT to list of lists of lists
+        groups = []
+        for groupID, ballotids in group_exmpls.iteritems():
+            group = []
             for ballotid in ballotids:
                 imgpaths = b2imgs[ballotid]
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-                partition.append(imgpaths_ordered)
-            partitions.append(partition)
+                group.append(imgpaths_ordered)
+            groups.append(group)
 
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
-        self.seltargets_panel.start(partitions, stateP, ocrtmpdir)
+        self.seltargets_panel.start(groups, stateP, ocrtmpdir)
 
     def stop(self):
         self.proj.removeCloseEvent(self.seltargets_panel.save_session)
@@ -60,7 +59,7 @@ class SelectTargetsMainPanel(wx.Panel):
         self.export_results()
 
     def export_results(self):
-        """ For each partition, export the locations of the voting
+        """ For each group, export the locations of the voting
         targets to two locations:
             1.) A proj.target_locs pickle'd data structure
             2.) A dir of .csv files (for integration with LabelContests+
@@ -70,24 +69,24 @@ class SelectTargetsMainPanel(wx.Panel):
             os.makedirs(self.proj.target_locs_dir)
         except:
             pass
-        partition_targets_map = {} # maps {int partitionID: [csvpath_side0, ...]}
-        # TARGET_LOCS_MAP: maps {int partitionID: {int page: [CONTEST_i, ...]}}, where each
+        group_targets_map = {} # maps {int groupID: [csvpath_side0, ...]}
+        # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
         #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
         #     box := [x1, y1, width, height, id, contest_id]
         target_locs_map = {}
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
-        for partition_idx, boxes_sides in self.seltargets_panel.boxes.iteritems():
+        for group_idx, boxes_sides in self.seltargets_panel.boxes.iteritems():
             csvpaths = []
             for side, boxes in enumerate(boxes_sides):
                 outpath = pathjoin(self.proj.target_locs_dir,
-                                   "partition_{0}_side_{1}.csv".format(partition_idx, side))
+                                   "group_{0}_side_{1}.csv".format(group_idx, side))
                 csvpaths.append(outpath)
                 writer = csv.DictWriter(open(outpath, 'wb'), fields)
 
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
                 box_assocs = self.compute_box_ids(boxes)
-                # TODO: For now, just grab one exemplar image from this partition
-                imgpath = self.seltargets_panel.partitions[partition_idx][0][side]
+                # TODO: For now, just grab one exemplar image from this group
+                imgpath = self.seltargets_panel.partitions[group_idx][0][side]
                 rows_contests = [] 
                 rows_targets = []
                 id_c, id_t = 0, 0
@@ -117,11 +116,11 @@ class SelectTargetsMainPanel(wx.Panel):
                                 id_t, contest_id]
                         curcontest.append(tbox)
                         id_t += 1
-                    target_locs_map.setdefault(partition_idx, {}).setdefault(side, []).append(curcontest)
+                    target_locs_map.setdefault(group_idx, {}).setdefault(side, []).append(curcontest)
                 writer.writerows(rows_contests + rows_targets)
-            partition_targets_map[partition_idx] = csvpaths
-        pickle.dump(partition_targets_map, open(pathjoin(self.proj.projdir_path,
-                                                         self.proj.partition_targets_map), 'wb'),
+            group_targets_map[group_idx] = csvpaths
+        pickle.dump(group_targets_map, open(pathjoin(self.proj.projdir_path,
+                                                     self.proj.group_targets_map), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(target_locs_map, open(pathjoin(self.proj.projdir_path,
                                                    self.proj.target_locs_map), 'wb'),
@@ -277,6 +276,10 @@ this partition.")
         self.txt_totalpages.SetLabel(str(len(self.partitions[0][0])))
         self.txt_sizer.Layout()
         self.display_image(0, 0, 0)
+
+        # 2.) Start in Target-Create mode.
+        self.imagepanel.set_mode_m(BoxDrawPanel.M_CREATE)
+        self.imagepanel.boxtype = TargetBox
 
     def restore_session(self):
         try:

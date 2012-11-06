@@ -14,6 +14,9 @@ sys.path.append('..')
 import pixel_reg.doGrouping as doGrouping
 import grouping.digit_group_new as digit_group_new
 
+GRP_PER_BALLOT = 0
+GRP_PER_PARTITION = 1 
+
 class RunGroupingMainPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
@@ -71,16 +74,7 @@ class RunGroupingMainPanel(wx.Panel):
         self.export_results()
 
     def export_results(self):
-        """ Saves the results of imgbased/digitbased grouping. Also 
-        establishes the parititon -> group relationship, by exporting
-        the PARTITION_TO_GROUP dict:
-            {int partitionID: int groupID}
-        and GROUP_TO_PARTITION:
-            {int groupID: [int partitionID_i, ...]}
-        and GROUP_INFOMAP:
-            {int groupID: {str key: val}}
-        and GROUP_EXMPLS:
-            {int groupID: [int ballotID_i, ...]}
+        """ Saves the results of imgbased/digitbased grouping.
         """
         pickle.dump(self.extract_results, open(pathjoin(self.proj.projdir_path,
                                                         self.proj.extract_results), 'wb'),
@@ -88,8 +82,6 @@ class RunGroupingMainPanel(wx.Panel):
         pickle.dump(self.digitgroup_results, open(pathjoin(self.proj.projdir_path,
                                                            self.proj.digitgroup_results), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        
-
 
     def restore_session(self):
         try:
@@ -154,8 +146,13 @@ class RunGroupingMainPanel(wx.Panel):
         digitexemplars_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                        self.proj.digit_exemplars_map), 'rb'))
         all_results = {} # maps {str attrtype: dict results}
-        # TODO: Have user specify DigitGroup MODE.
-        MODE = digit_group_new.DG_PER_PARTITION
+        MODE = get_digitgroup_mode(self.proj)
+        digitpatch_dir = pathjoin(self.proj.projdir_path, self.proj.digitpatch_dir)
+        digpatch2imgpath_outP = pathjoin(self.proj.projdir_path, self.proj.digpatch2imgpath)
+        print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
+                                                   GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
+        voteddir_root = self.proj.voteddir
+        print '...voteddir_root is:', voteddir_root
         if self.digitdist == None:
             self.digitdist = compute_median_dist(self.proj)
         for attr in attrs:
@@ -166,18 +163,22 @@ class RunGroupingMainPanel(wx.Panel):
                 results = digit_group_new.do_digit_group(b2imgs, img2b, partitions_map,
                                                          partitions_invmap, partition_exmpls,
                                                          img2page, img2flip, attrinfo,
-                                                         digitexemplars_map,
+                                                         digitexemplars_map, digitpatch_dir,
+                                                         voteddir_root,
+                                                         digpatch2imgpath_outP,
                                                          mode=MODE)
                 all_results[attrtypestr] = results
         self.digitgroup_results = all_results
-        print all_results
+
         print '...DigitGrouping Done.'
 
     def onButton_rungrouping(self, evt):
         """ Runs both Image-based and Digit-based Attrval extraction. """
         self.Disable()
-        self.run_imgbased_grouping()
-        self.run_digitbased_grouping()
+        if exists_imgattr(self.proj):
+            self.run_imgbased_grouping()
+        if exists_digattr(self.proj):
+            self.run_digitbased_grouping()
         self.btn_rungrouping.Disable()
         self.Enable()
         
@@ -216,3 +217,41 @@ def compute_median_dist(proj):
         median_dist = dists[int(len(dists) / 2)]
     print '=== median_dist is:', median_dist
     return median_dist
+
+def exists_digattr(proj):
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if attr['is_digitbased']:
+            return True
+    return False
+def exists_imgattr(proj):
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if not attr['is_digitbased']:
+            return True
+    return False
+
+def get_digitgroup_mode(proj):
+    """ Determines the digitgroup mode, either DG_PER_BALLOT or DG_PER_PARTITION.
+    Input:
+        obj PROJ:
+    Output:
+        int MODE.
+    """
+    # If the 'partition' key exists in the IMGINFO_MAP, then this implies
+    # that the partitions are separated by precinct number.
+    # IMGINFO_MAP: maps {str imgpath: {str key: val}}
+    '''
+    imginfo_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                            proj.imginfo_map), 'rb'))
+    if 'precinct' in imginfo_map[imginfo_map.keys()[0]]:
+        return digit_group_new.DG_PER_PARTITION
+    else:
+        return digit_group_new.DG_PER_BALLOT
+    '''
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if attr['is_digitbased']:
+            return GRP_PER_PARTITION if attr['grp_per_partition'] else GRP_PER_BALLOT
+    print "uhoh, shouldn't get here."
+    raise Exception

@@ -5,12 +5,13 @@ import scipy.misc as misc
 import cv
 import sys
 import random
+import pdb, traceback
 
 sys.path.append('..')
 from pixel_reg.imagesAlign import imagesAlign
 
 def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
-              minArea=np.power(2, 16)):
+              minArea=np.power(2, 16), bbs_map=None):
     """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is
     True, then this also aligns every image to the first image in
     IMGPATHS.
@@ -18,16 +19,29 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
         list IMGPATHS: [str imgpath_i, ...]
         bool DO_ALIGN:
         float RSZFAC: Resizing factor for alignment.
+        dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2)}
     Output:
         cvMat minimg, cvMat maximg.
     """
+    if bbs_map == None:
+        bbs_map = {}
     imgpath = imgpaths[0]
+    bb0 = bbs_map.get(imgpath, None)
     Imin = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    if bb0:
+        coords = (bb0[0], bb0[1], bb0[2]-bb0[0], bb0[3]-bb0[1])
+        coords = tuple(map(int, coords))
+        cv.SetImageROI(Imin, coords)
     Imax = cv.CloneImage(Imin)
+    
     #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
     Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
     for imgpath in imgpaths[1:]:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        bb = bbs_map.get(imgpath, None)
+        if bb:
+            bb = tuple(map(int, bb))
+            cv.SetImageROI(I, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1]))
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
@@ -35,7 +49,6 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)
-
         cv.Max(Iout, Imax, Imax)
         cv.Min(Iout, Imin, Imin)
     return Imin, Imax
@@ -65,17 +78,17 @@ def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, type='rigid',
         cv.Min(Iout, Imin, Imin)
     return Imin, Imax
 
-
 def matchsize(A, B):
     """ Given two cvMats A, B, returns a cropped/padded version of
     A that has the same dimensions as B.
     """
-    if A.width == B.width and A.height == B.height:
+    wA, hA = cv.GetSize(A)
+    wB, hB = cv.GetSize(B)
+    if wA == wB and hA == hB:
         return A
-    wA, hA = A.width, A.height
     SetImageROI = cv.SetImageROI
-    out = cv.CreateImage((B.width, B.height), A.depth, A.channels)
-    wOut, hOut = out.width, out.height
+    out = cv.CreateImage((wB, hB), A.depth, A.channels)
+    wOut, hOut = cv.GetSize(out)
     if wA < wOut and hA < hOut:
         SetImageROI(out, (0, 0, wA, hA))
     elif wA >= wOut and hA < hOut:
@@ -91,8 +104,11 @@ def matchsize(A, B):
     cv.ResetImageROI(A)
     return out
 def iplimage2np(img):
-    a = np.frombuffer(img.tostring(), dtype=np.uint8)
-    a.shape = img.height, img.width
+    #a = np.frombuffer(img.tostring(), dtype=np.uint8)
+    #a.shape = img.height, img.width
+    a = np.fromstring(img.tostring(), dtype=np.uint8)
+    w, h = cv.GetSize(img)
+    a = a.reshape(h,w)
     return a
 
 def np2iplimage(array):

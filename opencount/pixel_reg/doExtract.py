@@ -97,6 +97,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     t0=time.clock()
     H1, I1, err =imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=rszFac)
+
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
@@ -420,7 +421,8 @@ def convertImagesWorkerMAP(job):
             tpl=tplImL[idx]
             bbs=bbsL[idx]
             bal=res[1]; flipped=res[0]
-            writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=b), targetDir, targetDiffDir, 
+            balP = balL[idx]
+            writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=balP), targetDir, targetDiffDir, 
                      targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
     except Exception as e:
         traceback.print_exc()
@@ -605,19 +607,19 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
 
-def extract_targets(partitions_map, b2imgs, img2b, img2page, target_locs_map,
-                    partition_exmpls,
+def extract_targets(group_to_ballots, b2imgs, img2b, img2page, target_locs_map,
+                    group_exmpls,
                     targetDir, targetMetaDir, imageMetaDir,
                     quarantineCvr, stopped=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
-        dict PARTITIONS_MAP: maps {partitionID: [int ballotID_i, ...]}
+        dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
         dict B2IMGS: maps {int ballotID: (imgpath_i, ...)}
         dict IMG2B: maps {imgpath: int ballotID}
         dict IMG2PAGE: maps {imgpath: int page}
-        dict TARGET_LOCS_MAP: maps {int partitionID: {int page: [[cbox_i, tbox_i, ...], ...]}},
+        dict TARGET_LOCS_MAP: maps {int groupID: {int page: [[cbox_i, tbox_i, ...], ...]}},
             where each box_i := [x1, y1, w, h, id, contest_id]
-        dict PARTITION_EXMPLS: maps {int partitionID: [int ballotID_i, ...]}
+        dict GROUP_EXMPLS: maps {int groupID: [int ballotID_i, ...]}
         str TARGETDIR: Dir to store extracted target patches
         str TARGETMETADIR: Dir to store metadata for each target
         str IMAGEMETADIR: Dir to store metadata for each ballot
@@ -627,9 +629,9 @@ def extract_targets(partitions_map, b2imgs, img2b, img2page, target_locs_map,
     Output:
         bool WORKED. True if everything ran correctly, False o.w.
     """
-    def get_bbs(partitionID, target_locs_map):
+    def get_bbs(groupID, target_locs_map):
         bbs_sides = []
-        boxes_sides = target_locs_map[partitionID]
+        boxes_sides = target_locs_map[groupID]
         for side, contests in sorted(boxes_sides.iteritems(), key=lambda t: t[0]):
             bbs = np.empty((0, 5))
             for contest in contests:
@@ -651,10 +653,10 @@ def extract_targets(partitions_map, b2imgs, img2b, img2page, target_locs_map,
     # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir, targetMetaDir, imgMetaDir], ...]
     jobs = []
     # 1.) Create jobs
-    for partitionID, ballotIDs in partitions_map.iteritems():
-        bbs = get_bbs(partitionID, target_locs_map)
+    for groupID, ballotIDs in group_to_ballots.iteritems():
+        bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Create 'blank ballots'. This might not work so well...
-        exmpl_id = partition_exmpls[partitionID][0]
+        exmpl_id = group_exmpls[groupID][0]
         blankpaths = b2imgs[exmpl_id]
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
         for ballotid in ballotIDs:

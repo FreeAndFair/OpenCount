@@ -43,20 +43,20 @@ class LabelContest(wx.Panel):
         how the targets are grouped together.
         """
         self.dirList = []
-        # Maps {partitionID: [csvpath_side0, ...]}
-        partition_targets_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                          self.proj.partition_targets_map),
+        # Maps {groupID: [csvpath_side0, ...]}
+        group_targets_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                      self.proj.group_targets_map),
                                                  'rb'))
-        # PARTITIONS_MAP: {int partitionID: [int ballotID_i, ...]}
-        partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                   self.proj.partitions_map), 'rb'))
-        # PARTITION_EXMPLS: {int partitionID: [int ballotID_i, ...]}
-        partition_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.partition_exmpls), 'rb'))
+        # GROUP_TO_BALLOTS: {int groupID: [int ballotID_i, ...]}
+        group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                     self.proj.group_to_ballots), 'rb'))
+        # GROUP_EXMPLS: {int groupID: [int ballotID_i, ...]}
+        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.group_exmpls), 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
-        # TARGET_LOCS_MAP: maps {int partitionID: {int page: [CONTEST_i, ...]}}
+        # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
 
@@ -69,9 +69,9 @@ class LabelContest(wx.Panel):
 
         self.groupedtargets = []
         
-        for partitionID, contests_sides in target_locs_map.iteritems():
-            # Grab an arbitrary exemplar image from this partition
-            imgpaths = b2imgs[partition_exmpls[partitionID][0]]
+        for groupID, contests_sides in target_locs_map.iteritems():
+            # Grab an arbitrary exemplar image from this group
+            imgpaths = b2imgs[group_exmpls[groupID][0]]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             for side, contests in contests_sides.iteritems():
                 exmpl_imP = imgpaths_ordered[side]
@@ -89,8 +89,8 @@ class LabelContest(wx.Panel):
                 if not lst:
                     # Means this file had no contests, so, add dummy 
                     # values to my data structures
-                    # Grab an arbitrary voted ballot from this partition
-                    imgpaths = b2imgs[partition_exmpls[partitionID][0]]
+                    # Grab an arbitrary voted ballot from this group
+                    imgpaths = b2imgs[group_exmpls[groupID][0]]
                     imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                     self.dirList.append(imgpaths_ordered[side])
                     self.groupedtargets.append([])
@@ -100,12 +100,14 @@ class LabelContest(wx.Panel):
                 #   but only go left->right if we're on a new column,
                 #   not if we're only off by a few pixels to the left.
                 errorby = self.template_width / 100
+                #errorby = 0.05
     
                 cols = {}
                 for _,_,x,_,_,_ in sum(lst, []):
                     found = False
                     for c in cols:
                         if abs(c-x) < errorby:
+                        #if (abs(c-x)/self.template_width) < errorby:
                             found = True
                             cols[x] = cols[c]
                             break
@@ -608,7 +610,7 @@ class LabelContest(wx.Panel):
             res = []
             target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                         self.proj.target_locs_map), 'rb'))
-            for partitionID, contests_sides in target_locs_map.iteritems():
+            for groupID, contests_sides in target_locs_map.iteritems():
                 for side, contests in sorted(contests_sides.iteritems(), key=lambda t: t[0]):
                     ballot = []
                     for contest in contests:

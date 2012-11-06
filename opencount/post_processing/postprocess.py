@@ -51,9 +51,9 @@ class ResultsPanel(ScrolledPanel):
         
         Returns dict with key-val pairs:
         'header' -> header line
-        samplepath -> [templatepath,precinct,flipped_front,flipped_back]
-        
+        samplepath -> [templatepath,attrvals,flipped_front,flipped_back]
         """
+        '''
         if not os.path.exists(self.proj.grouping_results):
             return None
 
@@ -71,6 +71,11 @@ class ResultsPanel(ScrolledPanel):
         if len(c_t) < 2: return None
 
         return c_t
+        '''
+        # GROUP_INFOMAP: maps {int groupID: {str key: str val}}
+        group_infomap = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                  self.proj.group_infomap), 'rb'))
+        return group_infomap
 
     def get_templatemap(self):
         localid_to_globalid = {}
@@ -80,15 +85,15 @@ class ResultsPanel(ScrolledPanel):
         # template -> target id -> contest
         templatemap = {}
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        partition_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.partition_exmpls), 'rb'))
+        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.group_exmpls), 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path, 
                                              self.proj.image_to_page), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
-        for partitionID, contests_sides in target_locs_map.iteritems():
+        for groupID, contests_sides in target_locs_map.iteritems():
             
-            exmpl_id = partition_exmpls[partitionID][0]
+            exmpl_id = group_exmpls[groupID][0]
             imgpaths = b2imgs[exmpl_id]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             for side, contests in sorted(contests_sides.iteritems(), key=lambda t: t[0]):
@@ -357,12 +362,26 @@ class ResultsPanel(ScrolledPanel):
 
     def tally_by_precinct_and_mode(self, cvr):
         """ Tallies by groupings of precinct and mode
-        
+        Input:
+            list CVR: List of [[imgpath_i, ballot_cvr_i, ...], ...], where each
+                ballot_cvr_i is a dict {int targetid: [bool isfilled_i, ..., 'OK'/'UNDERVOTE'/etc]}
+                for each contest.
         Returns: dict containing key-value pairs of 
         attribute -> cvr item
         e.g. 'precinct 1' : cvr item
         """
-        attributes = self.load_grouping()
+        def is_attrtype_exists(attrtype, proj):
+            attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+            for attr in attrs:
+                attrtypestr = '_'.join(sorted(attr['attrs'])).lower()
+                if attrtypestr == attrtype:
+                    return True
+            return False
+        # GROUP_INFOMAP: maps {int groupID: {str key: str val}}
+        group_infomap = self.load_grouping()
+        b2grp = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                          self.proj.ballot_to_group), 'rb'))
+        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         if os.path.exists(self.proj.quarantined):
             quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)) if x)
         else:
@@ -376,33 +395,41 @@ class ResultsPanel(ScrolledPanel):
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
 
-        if attributes != None: 
-            def groupby(lst, attr):
-                attr = attributes['header'].index(attr)
+        if group_infomap != None: 
+            def groupby(lst, attrtype, group_infomap, img2bal, bal2grp):
+                """
+                Input:
+                    lst LST: 
+                    str ATTRTYPE: Attrtype to group by
+                Output:
+                    dict RES. maps {attrval: [[imgpath_i, ballot_cvr_i, ...], ...]}
+                """
                 res = {}
+                # ROW := [imgpath, ...]
                 for a in lst:
-                    if os.path.abspath(a[0]) not in attributes:
-                        if os.path.abspath(a[0]) in quar:
-                            print "A-OKAY! It was quarantined"
+                    imgpath = a[0]
+                    ballotid = img2bal[imgpath]
+                    groupid = bal2grp.get(ballotid, None)
+                    if groupid == None:
+                        # TODO: Check to see if it's been quarantined.
+                        if False:
+                            print "OK, it's quarantined."
                         else:
+                            print "Uhoh, couldn't find imgpath {0}, with ballot id {1}".format(imgpath, ballotid)
                             pdb.set_trace()
-                            raise Exception("Oh no. " + os.path.abspath(a[0]) + " was not in the grouping results.")
                     else:
-                        try:
-                            thisattr = attributes[os.path.abspath(a[0])][attr]
-                        except Exception as e:
-                            print e
-                            pdb.set_trace()
-                        if thisattr not in res: res[thisattr] = []
-                        res[thisattr].append(a)
+                        infomap = group_infomap[groupid]
+                        attrval = infomap[attrtype]
+                        res.setdefault(attrval, []).append(a)
                 return res
     
-            if 'precinct' in attributes['header']:
-                ht = groupby(cvr, 'precinct')
+            #if 'precinct' in attributes['header']:
+            if is_attrtype_exists('precinct', self.proj):
+                ht = groupby(cvr, 'precinct', group_infomap, img2bal, b2grp)
                 for k,v in ht.items():
                     result += self.final_tally(v, name="Precinct: "+k)
-                    if 'mode' in attributes['header']:
-                        ht2 = groupby(v, 'mode')
+                    if is_attrtype_exists('mode', self.proj):
+                        ht2 = groupby(v, 'mode', group_infomap, img2bal, b2grp)
                         for k2,v2 in ht2.items():
                             name = "Precinct, Mode: "+k+", "+k2
                             result += self.final_tally(v2, name)
