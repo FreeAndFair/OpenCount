@@ -12,6 +12,7 @@ import cPickle as pickle
 import itertools
 import time
 from grouping.partask import do_partask
+from vendors import Vendor
 
 def pdb_on_crash(f):
     """
@@ -676,7 +677,7 @@ def extract_contest(args):
     else:
         return final
 
-def ballot_preprocess(i, f, image, contests, targets, lang):
+def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
     """
     Preprocess a ballot and turn it in to its corresponding data.
     For each contest, record the ballot ID, the contest bounding box,
@@ -699,7 +700,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
     return res
 
 
-def compare_preprocess(lang, path, image, contest, targets):
+def compare_preprocess(lang, path, image, contest, targets, vendor):
     """
     Identifies the text associated with the contest.
 
@@ -708,17 +709,14 @@ def compare_preprocess(lang, path, image, contest, targets):
     """
 
     targets = [x for x in targets if intersect(contest, x) == x]
-    l,u,r,d = contest
     cont_area = None
 
-    tops = sorted([a[1]-u-10 for a in targets])+[d]
-    if tops[0] > 0:
-        tops = [0]+tops
+    if vendor:
+        boxes = vendor.split_contest_to_targets(image, contest, targets)
     else:
-        tops = [0,0]+tops[1:] # In case the top is negative.
+        boxes = Vendor().split_contest_to_targets(image, contest, targets)
 
-    blocks = []
-    for count,(upper,lower) in enumerate(zip(tops, tops[1:])):
+    for count,(upper,lower) in boxes:
         istarget = (count != 0)
         print upper, lower
         if upper == lower:
@@ -1297,26 +1295,6 @@ def extend_multibox(ballots, box1, box2, orders):
 
     return res, newgroup
 
-# Wrong: 39 42 65
-
-def do_grouping(t, paths, giventargets, lang_map = {}):
-    global tmp
-    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
-    if t[-1] != '/': t += '/'
-    tmp = t
-    if not os.path.exists(tmp):
-        os.mkdir(tmp)
-    os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
-    ballots = []
-    for i,f in enumerate(paths):
-        print f
-        im, contests = extract_contest((f, sum(giventargets[i],[])))
-        lang = lang_map[f] if f in lang_map else 'eng'
-        get = ballot_preprocess(i, f, im, contests, sum(giventargets[i],[]), lang)
-        ballots.append(get)
-    #print "WORKING ON", ballots
-    return ballots, final_grouping(ballots, giventargets)
-
 @pdb_on_crash
 def find_contests(t, paths, giventargets):
     """
@@ -1344,13 +1322,13 @@ def find_contests(t, paths, giventargets):
     return ballots
 
 def group_given_contests_map(arg):
-    lang_map,giventargets,(i,(f,conts)) = arg
+    vendor,lang_map,giventargets,(i,(f,conts)) = arg
     print f
     im = load_num(f)
     lang = lang_map[f] if f in lang_map else 'eng'
-    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
+    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
         
-def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
+def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}):
     global tmp
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
@@ -1361,7 +1339,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
         os.mkdir(tmp)
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
-    args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
+    args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
     ballots = pool.map(group_given_contests_map, args)
     pool.close()
     pool.join()
