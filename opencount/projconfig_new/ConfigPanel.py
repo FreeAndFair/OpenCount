@@ -172,8 +172,14 @@ which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, n
                     curmats = {} # maps {str sim_pat: [(str imgpath, str diff_pat), ...]}
                     for imgname in imgnames:
                         imgpath = pathjoin(dirpath, imgname)
-                        sim_part = shrPat.match(imgname).groups()[0]
-                        diff_part = diffPat.match(imgname).groups()[0]
+                        sim_match = shrPat.match(imgname)
+                        diff_match = diffPat.match(imgname)
+                        if sim_match == None or diff_match == None:
+                            print "Warning: ballot {0} was skipped because it didn't \
+match the regular expressions.".format(imgpath)
+                            continue
+                        sim_part = sim_match.groups()[0]
+                        diff_part = diff_match.groups()[0]
                         curmats.setdefault(sim_part, []).append((imgpath, diff_part))
                     for sim_pat, tuples in curmats.iteritems():
                         # sort by diffPart
@@ -197,6 +203,9 @@ which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, n
         # 2.) Set project.voteddir
         self.project.voteddir = self.voteddir
         # 3.) Set project.imgsize, assuming that all image dimensions are the same
+        if len(image_to_ballot) == 0:
+            print "Everything is going to break. OpenCount didn't find any ballots."
+            return
         I = cv.LoadImage(image_to_ballot.keys()[0], cv.CV_LOAD_IMAGE_UNCHANGED)
         w, h = cv.GetSize(I)
         self.project.imgsize = (w, h)
