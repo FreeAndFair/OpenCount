@@ -52,21 +52,16 @@ class VerifyGroupingMainPanel(wx.Panel):
             self.group_exemplars = get_group_exemplars(proj)
             self.rlist_map = get_rlist_map(proj)
 
-        #print '...self.imgpath_groups...'
-        #print self.imgpath_groups
-        #print '...group exemplars...'
-        #print self.group_exemplars
-        #print '...rlist_map...'
-        #print self.rlist_map
-        
-        self.verify_panel.start(self.imgpath_groups, self.group_exemplars,
-                                self.rlist_map, 
-                                ondone=self.on_verify_done, do_align=True)
+        verifyoverlays_stateP = pathjoin(proj.projdir_path, '_state_verifyoverlays.p')
+
+        self.verify_panel.start(self.imgpath_groups, self.group_exemplars, self.rlist_map, 
+                                ondone=self.on_verify_done, do_align=True, stateP=verifyoverlays_stateP)
         self.Layout()
 
     def stop(self):
         self.save_session()
         self.proj.removeCloseEvent(self.save_session)
+        self.verify_panel.stop()
         self.export_results()
 
     def restore_session(self):
@@ -85,6 +80,7 @@ class VerifyGroupingMainPanel(wx.Panel):
                  'rlist_map': self.rlist_map,
                  'bbs_map': self.bbs_map}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
+        self.verify_panel.save_session()
 
     def export_results(self):
         """ Establishes the ballot -> group relationship, by exporting

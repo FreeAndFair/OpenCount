@@ -136,7 +136,7 @@ class ViewOverlays(ScrolledPanel):
         
     def select_group(self, idx):
         if idx < 0 or idx >= len(self.groups):
-            return
+            return None
         self.idx = idx
         self.listbox_groups.SetSelection(self.idx)
         group = self.groups[idx]
@@ -165,6 +165,8 @@ class ViewOverlays(ScrolledPanel):
         
         self.Layout()
 
+        return self.idx
+
     def get_current_group(self):
         return self.groups[self.idx]
         
@@ -186,7 +188,7 @@ class ViewOverlays(ScrolledPanel):
         """ Called when there are no more groups in the queue. """
         self.Disable()
 
-    def start(self, imgpath_groups, do_align=False, bbs_map=None):
+    def start(self, imgpath_groups, do_align=False, bbs_map=None, stateP=None):
         """
         Input:
             dict IMGPATH_GROUPS: {str grouptag: [imgpath_i, ...]}
@@ -194,17 +196,49 @@ class ViewOverlays(ScrolledPanel):
                 overlay subregions of images in IMGPATH_GROUPS, rather than
                 extracting+saving each subregion.
         """
-        self.groups = []
-        self.groupid2tag = {} # maps {int groupid: str tag}
-        self.tag2groupid = {}
-        self.bbs_map = bbs_map if bbs_map != None else {}
-        for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-            group = Group(groupid, imgpaths, tag=tag, do_align=do_align)
-            self.add_group(group)
-            self.groupid2tag[groupid] = tag
-            self.tag2groupid[tag] = groupid
+        self.stateP = stateP
+        if not self.restore_session():
+            self.groups = []
+            self.groupid2tag = {} # maps {int groupid: str tag}
+            self.tag2groupid = {}
+            self.bbs_map = bbs_map if bbs_map != None else {}
+            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
+                group = Group(groupid, imgpaths, tag=tag, do_align=do_align)
+                self.add_group(group)
+                self.groupid2tag[groupid] = tag
+                self.tag2groupid[tag] = groupid
         self.select_group(0)
 
+    def restore_session(self):
+        try:
+            print 'trying to load:', self.stateP
+            state = pickle.load(open(self.stateP, 'rb'))
+            groups = state['groups']
+            self.groups = []
+            for group_dict in groups:
+                self.add_group(Group.unmarshall(group_dict))
+
+            self.groupid2tag = state['groupid2tag']
+            self.tag2groupid = state['tag2groupid']
+            self.bbs_map = state['bbs_map']
+            return state
+        except:
+            traceback.print_exc()
+            return False
+    def create_state_dict(self):
+        state = {'groups': [g.marshall() for g in self.groups], 
+                 'groupid2tag': self.groupid2tag,
+                 'tag2groupid': self.tag2groupid,
+                 'bbs_map': self.bbs_map}
+        return state
+    def save_session(self):
+        try:
+            state = self.create_state_dict()
+            pickle.dump(state, open(self.stateP, 'wb'))
+            return state
+        except:
+            return False
+        
     def onListBox_groups(self, evt):
         if evt.Selection == -1:
             # Some ListBox events fire when nothing is selected (i.e. -1)
@@ -235,7 +269,7 @@ class SplitOverlays(ViewOverlays):
         self.sizer.Add(self.btn_sizer, proportion=0, border=10, flag=wx.ALL)
         self.Layout()
 
-    def start(self, imgpath_groups, do_align=False, bbs_map=None):
+    def start(self, imgpath_groups, do_align=False, bbs_map=None, stateP=None):
         """
         Input:
             dict IMGPATH_GROUPS: {str grouptag: [imgpath_i, ...]}
@@ -243,15 +277,17 @@ class SplitOverlays(ViewOverlays):
                 overlay subregions of images in IMGPATH_GROUPS, rather than
                 extracting+saving each subregion.
         """
-        self.groups = []
-        self.groupid2tag = {}
-        self.tag2groupid = {}
-        self.bbs_map = bbs_map if bbs_map != None else {}
-        for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-            group = GroupRankedList(attrid, imgpaths, tag=tag, do_align=do_align)
-            self.add_group(group)
-            self.groupid2tag[groupid] = tag
-            self.tag2groupid[tag] = groupid
+        self.stateP = stateP
+        if not self.restore_session():
+            self.groups = []
+            self.groupid2tag = {}
+            self.tag2groupid = {}
+            self.bbs_map = bbs_map if bbs_map != None else {}
+            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
+                group = GroupRankedList(attrid, imgpaths, tag=tag, do_align=do_align)
+                self.add_group(group)
+                self.groupid2tag[groupid] = tag
+                self.tag2groupid[tag] = groupid
         self.select_group(0)
 
     def onButton_split(self, evt):
@@ -346,7 +382,7 @@ class VerifyOverlays(SplitOverlays):
         self.Layout()
 
     def start(self, imgpath_groups, group_exemplars, rlist_map, 
-              do_align=False, bbs_map=None, ondone=None):
+              do_align=False, bbs_map=None, ondone=None, stateP=None):
         """
         Input:
             dict IMGPATH_GROUPS: {str grouptag: [imgpath_i, ...]}
@@ -356,28 +392,87 @@ class VerifyOverlays(SplitOverlays):
             fn ONDONE: Function that accepts one argument:
                 dict {str tag: [obj group_i, ...]}
         """
-        self.exemplar_imgpaths = group_exemplars
-        self.groups = []
-        self.groupid2tag = {}
-        self.tag2groupid = {}
-        self.bbs_map = bbs_map if bbs_map != None else {}
-        self.rankedlist_map = rlist_map
-        self.ondone = ondone
-        self.finished_groups = {}
-        self.exmplidx_sel = 0
-        self.quarantined_groups = []
-        for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-            group = GroupRankedList(groupid, imgpaths, tag=tag, do_align=do_align)
-            if imgpaths:
-                self.add_group(group)
-            self.groupid2tag[groupid] = tag
-            self.tag2groupid[tag] = groupid
-        self.select_group(0)
+        self.stateP = stateP
+        if not self.restore_session():
+            self.exemplar_imgpaths = group_exemplars
+            self.groups = []
+            self.groupid2tag = {}
+            self.tag2groupid = {}
+            self.bbs_map = bbs_map if bbs_map != None else {}
+            self.rankedlist_map = rlist_map
+            self.ondone = ondone
+            self.finished_groups = {}
+            self.exmplidx_sel = 0
+            self.quarantined_groups = []
+            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
+                group = GroupRankedList(groupid, imgpaths, tag=tag, do_align=do_align)
+                if imgpaths:
+                    self.add_group(group)
+                self.groupid2tag[groupid] = tag
+                self.tag2groupid[tag] = groupid
+        if len(self.groups) == 0:
+            self.handle_nomoregroups()
+        else:
+            self.select_group(0)
+
+    def stop(self):
+        # Do an export.
+        self.save_session()
+        self.export_results()
+
+    def export_results(self):
+        """ Calls the callback function and passes the verify_results
+        off.
+        """
+        if self.ondone:
+            verify_results = {} # maps {tag: [imgpath_i, ...]}
+            for tag, groups in self.finished_groups.iteritems():
+                for group in groups:
+                    verify_results.setdefault(tag, []).extend(group.imgpaths)
+            self.ondone(verify_results)
+
+    def restore_session(self):
+        try:
+            state = pickle.load(open(self.stateP, 'rb'))
+            groups = state['groups']
+            self.groups = []
+            for group_dict in groups:
+                self.add_group(GroupRankedList.unmarshall(group_dict))
+
+            self.groupid2tag = state['groupid2tag']
+            self.tag2groupid = state['tag2groupid']
+            self.bbs_map = state['bbs_map']
+            self.exemplar_imgpaths = state['exemplar_imgpaths']
+            self.rankedlist_map = state['rankedlist_map']
+            fingroups_in = state['finished_groups']
+            fingroups_new = {}
+            for tag, groups_marsh in fingroups_in.iteritems():
+                fingroups_new[tag] = [GroupRankedList.unmarshall(gdict) for gdict in groups_marsh]
+            self.finished_groups = fingroups_new
+            self.quarantined_groups = [GroupRankedList.unmarshall(gdict) for gdict in state['quarantined_groups']]
+            print '...Successfully loaded VerifyOverlays state...'
+            return state
+        except Exception as e:
+            traceback.print_exc()
+            print '...Failed to load VerifyOverlays state...'
+            return False
+    def create_state_dict(self):
+        state = SplitOverlays.create_state_dict(self)
+        state['exemplar_imgpaths'] = self.exemplar_imgpaths
+        state['rankedlist_map'] = self.rankedlist_map
+        fingroups_out = {}
+        for tag, groups in self.finished_groups.iteritems():
+            fingroups_out[tag] = [g.marshall() for g in groups]
+        state['finished_groups'] = fingroups_out
+        state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
+        return state
 
     def select_group(self, idx):
-        SplitOverlays.select_group(self, idx)
-
-        group = self.groups[self.idx]
+        curidx = SplitOverlays.select_group(self, idx)
+        if curidx == None:
+            # Say, if IDX is invalid (maybe no more groups?)
+            return
+        group = self.groups[curidx]
         self.select_exmpl_group(group.groupid, group.exmpl_idx)
 
         self.Layout()
@@ -411,12 +506,6 @@ class VerifyOverlays(SplitOverlays):
 
     def handle_nomoregroups(self):
         SplitOverlays.handle_nomoregroups(self)
-        if self.ondone:
-            verify_results = {} # maps {tag: [imgpath_i, ...]}
-            for tag, groups in self.finished_groups.iteritems():
-                for group in groups:
-                    verify_results.setdefault(tag, []).extend(group.imgpaths)
-            self.ondone(verify_results)
 
     def onButton_matches(self, evt):
         curgroup = self.groups[self.idx]
@@ -474,7 +563,7 @@ class CheckImageEquals(VerifyOverlays):
         self.Layout()
 
     def start(self, imgpaths, cat_imgpath, do_align=False, bbs_map=None,
-              ondone=None):
+              ondone=None, stateP=None):
         """
         Input:
             list IMGPATHS: [imgpath_i, ...]
@@ -483,18 +572,20 @@ class CheckImageEquals(VerifyOverlays):
             fn ONDONE: Function that accepts one argument:
                 dict {str tag: [obj group_i, ...]}
         """
-        # 0.) Munge IMGPATHS, BBS_MAP into VerifyOverlay-friendly versions
-        imgpath_groups = {} # maps {str tag: [imgpath_i, ...]}
-        bbs_map_v2 = {} # maps {(str tag, imgpath): (x1,y1,x2,y2)}
-        for imgpath in imgpaths:
-            imgpath_groups.setdefault(self.TAG_YES, []).append(imgpath)
-            if bbs_map:
-                bbs_map_v2[(self.TAG_YES, imgpath)] = bbs_map[imgpath]
-        imgpath_groups[self.TAG_NO] = []
-        group_exemplars = {self.TAG_YES: [cat_imgpath]}
-        rlist_map = {} # Don't care
-        VerifyOverlays.start(self, imgpath_groups, group_exemplars, rlist_map, 
-                             do_align=do_align, bbs_map=bbs_map_v2, ondone=ondone)
+        self.stateP = stateP
+        if not self.restore_session():
+            # 0.) Munge IMGPATHS, BBS_MAP into VerifyOverlay-friendly versions
+            imgpath_groups = {} # maps {str tag: [imgpath_i, ...]}
+            bbs_map_v2 = {} # maps {(str tag, imgpath): (x1,y1,x2,y2)}
+            for imgpath in imgpaths:
+                imgpath_groups.setdefault(self.TAG_YES, []).append(imgpath)
+                if bbs_map:
+                    bbs_map_v2[(self.TAG_YES, imgpath)] = bbs_map[imgpath]
+            imgpath_groups[self.TAG_NO] = []
+            group_exemplars = {self.TAG_YES: [cat_imgpath]}
+            rlist_map = {} # Don't care
+            VerifyOverlays.start(self, imgpath_groups, group_exemplars, rlist_map, 
+                                 do_align=do_align, bbs_map=bbs_map_v2, ondone=ondone)
         self.cat_imgpath = cat_imgpath
         I = scipy.misc.imread(cat_imgpath, flatten=True)
         bitmap = NumpyToWxBitmap(I)
@@ -609,6 +700,18 @@ class Group(object):
         else:
             return self.split_kmeans(K=2)
 
+    def marshall(self):
+        """ Returns a dict-rep of myself. In particular, you can't pickle
+        IplImages, so don't include them.
+        """
+        me = {'groupid': self.groupid, 'tag': self.tag,
+              'imgpaths': self.imgpaths, 'do_align': self.do_align}
+        return me
+
+    @staticmethod
+    def unmarshall(d):
+        return Group(d['groupid'], d['imgpaths'], tag=d['tag'], do_align=d['do_align'])
+
     def __eq__(self, o):
         return (isinstance(o, Group) and self.imgpaths == o.imgpaths)
     def __repr__(self):
@@ -632,6 +735,15 @@ class GroupRankedList(Group):
             return [self]
         else:
             return Group.split(self, mode=mode)
+    def marshall(self):
+        me = Group.marshall(self)
+        me['rlist_idx'] = self.rlist_idx
+        me['exmpl_idx'] = self.exmpl_idx
+        return me
+    @staticmethod
+    def unmarshall(d):
+        return GroupRankedList(d['groupid'], d['imgpaths'], rlist_idx=d['rlist_idx'],
+                               exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
     def __repr__(self):
         return "GroupRankedList({0},gid={1},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
                                                                                      self.groupid,
