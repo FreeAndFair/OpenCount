@@ -59,6 +59,8 @@ class VerifyGroupingMainPanel(wx.Panel):
         self.Layout()
 
     def stop(self):
+        if not self.proj:
+            return
         self.save_session()
         self.proj.removeCloseEvent(self.save_session)
         self.verify_panel.stop()

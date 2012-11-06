@@ -177,12 +177,12 @@ class MainFrame(wx.Frame):
                                                                  '_state_defineattrs.p'))
         elif new == MainFrame.LABEL_ATTRS:
             # Skip if there are no defined attributes
-            if not exists_attrs(self.project):
-                dlg = wx.MessageDialog(self, message="There are no Attributes defined \
+            if not exists_imgattr(self.project):
+                dlg = wx.MessageDialog(self, message="There are no Image-based Attributes defined \
 in this election -- skipping to the next relevant task.", style=wx.OK)
                 dlg.ShowModal()
-                self.notebook.ChangeSelection(self.SELTARGETS)
-                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.SELTARGETS)
+                self.notebook.ChangeSelection(self.LABEL_DIGATTRS)
+                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGATTRS)
             else:
                 self.panel_label_attrs.start(self.project)
         elif new == MainFrame.LABEL_DIGATTRS:
@@ -196,11 +196,25 @@ Attributes in this election -- skipping to the next page.", style=wx.OK)
             else:
                 self.panel_label_digitattrs.start(self.project)
         elif new == MainFrame.RUN_GROUPING:
-            self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
-                                                                 '_state_run_grouping.p'))
+            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
+                dlg = wx.MessageDialog(self, message="There are no attributes \
+to group in this election -- skipping to the next page.", style=wx.OK)
+                dlg.ShowModal()
+                self.notebook.ChangeSelection(self.SELTARGETS)
+                self.notebook.SendPageChangedEvent(self.RUN_GROUPING, self.SELTARGETS)
+            else:
+                self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
+                                                                     '_state_run_grouping.p'))
         elif new == MainFrame.CORRECT_GROUPING:
-            self.panel_correct_grouping.start(self.project, pathjoin(self.project.projdir_path,
-                                                                     '_state_correct_grouping.p'))
+            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
+                dlg = wx.MessageDialog(self, message="There are no attributes \
+to verify grouping for in this election -- skipping to the next page.", style=wx.OK)
+                dlg.ShowModal()
+                self.notebook.ChangeSelection(self.SELTARGETS)
+                self.notebook.SendPageChangedEvent(self.CORRECT_GROUPING, self.SELTARGETS)
+            else:
+                self.panel_correct_grouping.start(self.project, pathjoin(self.project.projdir_path,
+                                                                         '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
             self.panel_seltargets.start(self.project, pathjoin(self.project.projdir_path,
                                                                '_state_seltargets.p'),
@@ -238,12 +252,22 @@ Attributes in this election -- skipping to the next page.", style=wx.OK)
         evt.Skip()
 
 def exists_digitbasedattr(proj):
+    if not exists_attrs(proj):
+        return False
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     for attr in attrs:
         if attr['is_digitbased']:
             return True
     return False
-
+def exists_imgattr(proj):
+    if not exists_attrs(proj):
+        return False
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if not attr['is_digitbased']:
+            return True
+    return False
+    
 def exists_attrs(proj):
     if not os.path.exists(proj.ballot_attributesfile):
         return False

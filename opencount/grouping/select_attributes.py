@@ -48,6 +48,16 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.SetSizer(self.sizer)
 
     def start(self, proj):
+        def exists_imgattr(attrs):
+            for attr in attrs:
+                if not attr['is_digitbased']:
+                    return True
+            return False
+        # First check to see if there even exist any img-based attributes
+        attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+        if not exists_imgattr(attrs):
+            print "...No Img-based attributes in this election..."
+            return
         self.project = proj
         if self.stop not in proj.closehook:
             proj.addCloseEvent(self.stop)
@@ -74,6 +84,8 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.do_labelattribute(self.attridx)
         self.Fit()
     def stop(self):
+        if not self.project:
+            return
         self.project.removeCloseEvent(self.stop)
         self.save_boxes()
         self.save_session()

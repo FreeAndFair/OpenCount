@@ -69,6 +69,8 @@ class RunGroupingMainPanel(wx.Panel):
             pass
 
     def stop(self):
+        if not self.proj:
+            return
         self.save_session()
         self.proj.removeCloseEvent(self.save_session)
         self.export_results()

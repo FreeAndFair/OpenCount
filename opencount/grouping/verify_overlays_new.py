@@ -453,7 +453,6 @@ class VerifyOverlays(SplitOverlays):
             print '...Successfully loaded VerifyOverlays state...'
             return state
         except Exception as e:
-            traceback.print_exc()
             print '...Failed to load VerifyOverlays state...'
             return False
     def create_state_dict(self):
@@ -571,6 +570,7 @@ class CheckImageEquals(VerifyOverlays):
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2}
             fn ONDONE: Function that accepts one argument:
                 dict {str tag: [obj group_i, ...]}
+                
         """
         self.stateP = stateP
         if not self.restore_session():
@@ -596,6 +596,9 @@ class CheckImageEquals(VerifyOverlays):
         curgroup = self.get_current_group()
         self.finished_groups.setdefault(self.TAG_NO, []).append(curgroup)
         self.remove_group(curgroup)
+    def handle_nomoregroups(self):
+        self.export_results()
+        self.Close()
 
 class Group(object):
     def __init__(self, groupid, imgpaths, tag=None, do_align=False):
