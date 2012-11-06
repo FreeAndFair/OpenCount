@@ -101,7 +101,8 @@ class MainFrame(wx.Frame):
         if old == MainFrame.PROJECT:
             self.project = self.panel_projects.get_project()
             self.SetTitle("OpenCount -- Project {0}".format(self.project.name))
-        elif old == MainFrame.CONFIG:
+
+        if old == MainFrame.CONFIG:
             self.panel_config.stop()
         elif old == MainFrame.PARTITION:
             self.panel_partition.stop()
@@ -127,6 +128,41 @@ class MainFrame(wx.Frame):
             pass
         elif old == MainFrame.PROCESS:
             pass
+
+        if new >= MainFrame.SELTARGETS:
+            if not os.path.exists(pathjoin(self.project.projdir_path,
+                                           self.project.group_to_ballots)):
+                # Grouping wasn't performed, which means that we should
+                # simply use the partitions as the groups, since the user
+                # 'knows' that the partitions also specify a grouping.
+                partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                           self.project.partitions_map), 'rb'))
+                partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                              self.project.partitions_invmap), 'rb'))
+                partition_exmpls = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                             self.project.partition_exmpls), 'rb'))
+
+                # The GRP_INFOMAP should just contain partitionid info.
+                grp_infomap = {} # maps {int groupID: {str prop: str val}}
+                for partitionid, ballotids in partitions_map.iteritems():
+                    propdict = {'pid': partitionid}
+                    grp_infomap[partitionid] = propdict
+
+                grp2bals = partitions_map
+                bal2grp = partitions_invmap
+                grpexmpls = partition_exmpls
+                pickle.dump(grp2bals, open(pathjoin(self.project.projdir_path,
+                                                    self.project.group_to_ballots), 'wb'),
+                            pickle.HIGHEST_PROTOCOL)
+                pickle.dump(bal2grp, open(pathjoin(self.project.projdir_path,
+                                                   self.project.ballot_to_group), 'wb'),
+                            pickle.HIGHEST_PROTOCOL)
+                pickle.dump(grpexmpls, open(pathjoin(self.project.projdir_path,
+                                                     self.project.group_exmpls), 'wb'),
+                            pickle.HIGHEST_PROTOCOL)
+                pickle.dump(grp_infomap, open(pathjoin(self.project.projdir_path,
+                                                       self.project.group_infomap), 'wb'),
+                            pickle.HIGHEST_PROTOCOL)
 
         if new == MainFrame.PROJECT:
             self.panel_projects.start(PROJROOTDIR)

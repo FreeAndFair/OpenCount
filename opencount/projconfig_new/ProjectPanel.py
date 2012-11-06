@@ -142,7 +142,7 @@ class Project(object):
                      'partitions_invmap': 'partitions_invmap.p',
                      'decoded_map': 'decoded_map.p',
                      'imginfo_map': 'imginfo_map.p',
-                     'bbs_map': 'bbs_map.p',
+                     'barcode_bbs_map': 'barcode_bbs_map.p',
                      'partition_attrmap': 'partition_attrmap.p',
                      'target_locs_map': 'target_locs_map.p',
                      'extract_results': 'extract_results.p',

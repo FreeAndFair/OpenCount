@@ -69,7 +69,7 @@ class PartitionMainPanel(wx.Panel):
         partitions_invmap_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_invmap)
         decoded_map_outP = pathjoin(self.proj.projdir_path, self.proj.decoded_map)
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
-        bbs_map_outP = pathjoin(self.proj.projdir_path, self.proj.bbs_map)
+        bbs_map_outP = pathjoin(self.proj.projdir_path, self.proj.barcode_bbs_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
         pickle.dump(self.partitionpanel.partitioning, open(partitions_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
