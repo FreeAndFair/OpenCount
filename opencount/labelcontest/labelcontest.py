@@ -10,7 +10,7 @@ import csv
 import pickle
 import re
 
-from group_contests import do_grouping, final_grouping, extend_multibox, intersect, group_given_contests
+from group_contests import final_grouping, extend_multibox, intersect, group_given_contests
 from verifycontestgrouping import VerifyContestGrouping
 
 sys.path.append('..')
@@ -458,9 +458,12 @@ class LabelContest(wx.Panel):
                 dlg.ShowModal()
                 return
 
+            vendor = self.proj.vendor_obj if 'vendor_obj' in self.proj else None
             ballots, groups = group_given_contests(self.proj.ocr_tmp_dir, 
                                                    self.dirList, targets, 
-                                                   self.boxes, languages)
+                                                   self.boxes, 
+                                                   vendor,
+                                                   languages)
             self.grouping_cached = ballots
             print "CACHED", ballots
 

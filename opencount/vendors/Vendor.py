@@ -5,7 +5,8 @@ as barcode decoding.
 
 class Vendor(object):
     def __init__(self):
-        raise NotImplementedError("Can't instantiate abstract Vendor class.")
+        pass
+        #raise NotImplementedError("Can't instantiate abstract Vendor class.")
 
     def decode_image(self, imgpath):
         """ 
@@ -87,6 +88,8 @@ class Vendor(object):
         blocks = []
         for upper,lower in enumerate(zip(tops, tops[1:])):
             blocks.append((upper, lower))
+        
+        return blocks
         
         
 

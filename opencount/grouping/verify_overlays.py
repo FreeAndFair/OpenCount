@@ -1606,9 +1606,9 @@ elements num. is {1}".format(oldcount, newcount)
                 self.curidx = idx
                 imgpath = self.imgpaths[self.curidx]
                 wximg = wx.Image(imgpath, wx.BITMAP_TYPE_PNG)
-                c = wximg.GetHeight() / 800.
+                c = wximg.GetHeight() / 700.
                 new_w = wximg.GetWidth() / c
-                wximg = wximg.Rescale(new_w, 800, wx.IMAGE_QUALITY_HIGH)
+                wximg = wximg.Rescale(new_w, 700, wx.IMAGE_QUALITY_HIGH)
                 self.sbitmap.SetBitmap(wx.BitmapFromImage(wximg))
                 self.txt_imP.SetLabel(imgpath)
                 self.txt_n.SetLabel(str(self.curidx+1))

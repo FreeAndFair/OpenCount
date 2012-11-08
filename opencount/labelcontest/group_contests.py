@@ -12,6 +12,7 @@ import cPickle as pickle
 import itertools
 import time
 from grouping.partask import do_partask
+from vendors import Vendor
 
 def pdb_on_crash(f):
     """
@@ -676,7 +677,7 @@ def extract_contest(args):
     else:
         return final
 
-def ballot_preprocess(i, f, image, contests, targets, lang):
+def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
     """
     Preprocess a ballot and turn it in to its corresponding data.
     For each contest, record the ballot ID, the contest bounding box,
@@ -699,7 +700,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang):
     return res
 
 
-def compare_preprocess(lang, path, image, contest, targets):
+def compare_preprocess(lang, path, image, contest, targets, vendor):
     """
     Identifies the text associated with the contest.
 
@@ -708,17 +709,14 @@ def compare_preprocess(lang, path, image, contest, targets):
     """
 
     targets = [x for x in targets if intersect(contest, x) == x]
-    l,u,r,d = contest
     cont_area = None
 
-    tops = sorted([a[1]-u-10 for a in targets])+[d]
-    if tops[0] > 0:
-        tops = [0]+tops
+    if vendor:
+        boxes = vendor.split_contest_to_targets(image, contest, targets)
     else:
-        tops = [0,0]+tops[1:] # In case the top is negative.
+        boxes = Vendor().split_contest_to_targets(image, contest, targets)
 
-    blocks = []
-    for count,(upper,lower) in enumerate(zip(tops, tops[1:])):
+    for count,(upper,lower) in boxes:
         istarget = (count != 0)
         print upper, lower
         if upper == lower:
@@ -882,6 +880,9 @@ def compare(otexts1, otexts2, debug=False):
             best = float(weight+val)/size, num_writeins
         res[num_writeins] = (float(weight+val)/size,
                              (len(texts1), order, num_writeins))
+    #print otexts1
+    #print otexts2
+    #print "res", [x[1] for x in sorted(res.items())], best
     return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):
@@ -1049,12 +1050,16 @@ def group_by_pairing(contests_text, CONST):
     pool.close()
     pool.join()
     #"""
-    data = [[] for _ in range(mp.cpu_count())]
-    for i in range(len(contests_text)):
-        data[i%len(data)].append(i)
-    print "GO UP TO", (len(contests_text)**2)/mp.cpu_count()
-    data = [(x, contests_text) for x in data]
-    do_partask(do_group_pairing_map, data, N=mp.cpu_count())
+    if False:
+        do_group_pairing_map([(range(len(contests_text)), contests_text)])
+    else:
+        num = mp.cpu_count()
+        data = [[] for _ in range(num)]
+        for i in range(len(contests_text)):
+            data[i%len(data)].append(i)
+        print "GO UP TO", (len(contests_text)**2)/num
+        data = [(x, contests_text) for x in data]
+        do_partask(do_group_pairing_map, data, N=num)
     
 
     diff = {}
@@ -1074,6 +1079,7 @@ def group_by_pairing(contests_text, CONST):
     for (k1,k2),(dmap,best) in diff:
         contests[k1].similarity[k2] = dmap
     print "Created"
+    now = time.time()
     for (k1,k2),(dmap,best) in diff:
         if best[0] > CONST: continue
         if k1 == k2: continue
@@ -1082,6 +1088,7 @@ def group_by_pairing(contests_text, CONST):
         #print 'data', contests[k1].writein_num, contests[k2].writein_num
         #print contests_text[k1][2][1]
         #print contests_text[k2][2][1]
+    print "taken", time.time()-now
     print "Traverse"
     seen = {}
     res = []
@@ -1112,7 +1119,10 @@ def group_by_pairing(contests_text, CONST):
             this.append((contests_text[x][:2],get_order(*contest.similarity[x][write][1])))
         #print this
         res.append(this)
+    print "Workload reduction"
     print map(len,res)
+    print len([x for x in map(len,res) if x > 3])+sum([x for x in map(len,res) if x <= 3]), sum(map(len,res))
+    print "Factor", float(len([x for x in map(len,res) if x > 3])+sum([x for x in map(len,res) if x <= 3]))/sum(map(len,res))
     return res
 
 def full_group(contests_text, key):
@@ -1123,7 +1133,7 @@ def full_group(contests_text, key):
     elif key[1] == 'spa':
         CONST = .2
     elif key[1] == 'vie':
-        CONST = .2
+        CONST = .25
     elif key[1] == 'kor':
         CONST = .3
     elif key[1] == 'chi_sim':
@@ -1176,7 +1186,7 @@ def full_group(contests_text, key):
     #    print x
     newgroups = []
     STEP = 1000
-    print "Splitting to smaller subproblems:", len(new_contests)/STEP
+    print "Splitting to smaller subproblems:", round(.5+(float(len(new_contests))/STEP))
     for iternum in range(0,len(new_contests),STEP):
         print "SUBPROB", iternum/STEP
         newgroups += group_by_pairing(new_contests[iternum:min(iternum+STEP, len(new_contests))], CONST)
@@ -1285,26 +1295,6 @@ def extend_multibox(ballots, box1, box2, orders):
 
     return res, newgroup
 
-# Wrong: 39 42 65
-
-def do_grouping(t, paths, giventargets, lang_map = {}):
-    global tmp
-    #print "ARGUMENTS", (t, paths, giventargets, lang_map)
-    if t[-1] != '/': t += '/'
-    tmp = t
-    if not os.path.exists(tmp):
-        os.mkdir(tmp)
-    os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
-    ballots = []
-    for i,f in enumerate(paths):
-        print f
-        im, contests = extract_contest((f, sum(giventargets[i],[])))
-        lang = lang_map[f] if f in lang_map else 'eng'
-        get = ballot_preprocess(i, f, im, contests, sum(giventargets[i],[]), lang)
-        ballots.append(get)
-    #print "WORKING ON", ballots
-    return ballots, final_grouping(ballots, giventargets)
-
 @pdb_on_crash
 def find_contests(t, paths, giventargets):
     """
@@ -1332,13 +1322,13 @@ def find_contests(t, paths, giventargets):
     return ballots
 
 def group_given_contests_map(arg):
-    lang_map,giventargets,(i,(f,conts)) = arg
+    vendor,lang_map,giventargets,(i,(f,conts)) = arg
     print f
     im = load_num(f)
     lang = lang_map[f] if f in lang_map else 'eng'
-    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang)
+    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
         
-def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
+def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}):
     global tmp
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
@@ -1349,7 +1339,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
         os.mkdir(tmp)
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
-    args = [(lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
+    args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
     ballots = pool.map(group_given_contests_map, args)
     pool.close()
     pool.join()
@@ -1435,12 +1425,13 @@ class ThreadDoInferContests:
         print "AND I SEND THE RESUTS", bboxes
 
 
+"""
 if __name__ == "__main__":
     _, paths, them = pickle.load(open("marin_contest_run"))
     paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
     find_contests("tmp", paths, them)
     exit(0)
-
+#"""
 
 tmp = "tmp"
 
