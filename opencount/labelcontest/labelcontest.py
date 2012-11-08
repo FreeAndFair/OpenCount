@@ -81,10 +81,10 @@ class LabelContest(wx.Panel):
                     contestbox, targetboxes = contest[0], contest[1:]
                     for tbox in targetboxes:
                         # TBOX := [x1, y1, w, h, id, contest_id]
-                        gr.setdefault(tbox[5], []).append([tbox[4], tbox[5],
+                        gr.setdefault(tbox[5], []).append((tbox[4], tbox[5],
                                                            tbox[0], tbox[1],
                                                            tbox[0] + tbox[2],
-                                                           tbox[1] + tbox[3]])
+                                                           tbox[1] + tbox[3]))
                 lst = gr.values()
                 if not lst:
                     # Means this file had no contests, so, add dummy 
@@ -267,17 +267,17 @@ class LabelContest(wx.Panel):
     
             template.Add(regexnext)
 
-            def goto_num(x=None):
-                popup = wx.TextEntryDialog(None, "Enter the ballot to go to", 'Title', '')
+        def goto_num(x=None):
+            popup = wx.TextEntryDialog(None, "Enter the ballot to go to", 'Title', '')
     
-                if popup.ShowModal() == wx.ID_OK:
-                    val = popup.GetValue()
-                    self.nexttemplate(int(val)-self.templatenum)
+            if popup.ShowModal() == wx.ID_OK:
+                val = popup.GetValue()
+                self.nexttemplate(int(val)-self.templatenum)
 
-            goto = wx.Button(self, label='Go to ballot number')
-            goto.Bind(wx.EVT_BUTTON, goto_num)
+        goto = wx.Button(self, label='Go to ballot number')
+        goto.Bind(wx.EVT_BUTTON, goto_num)
     
-            template.Add(goto)
+        template.Add(goto)
     
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
@@ -616,8 +616,8 @@ class LabelContest(wx.Panel):
                     for contest in contests:
                         # CBOX := [x1, y1, w, h, id, contest_id]
                         cbox, tboxes = contest[0], contest[1:]
-                        entry = [cbox[4], cbox[0], cbox[1], 
-                                 cbox[0] + cbox[2], cbox[1] + cbox[3]]
+                        entry = (cbox[4], cbox[0], cbox[1], 
+                                 cbox[0] + cbox[2], cbox[1] + cbox[3])
                         ballot.append(entry)
                     res.append(ballot)
             #print "LOADING", res
@@ -831,10 +831,12 @@ class LabelContest(wx.Panel):
         
         SCALE = float(self.imgo.size[1])/500
         # Switch to selected contest.
+        @util.pdb_on_crash
         def foo(x):
             for i,(l,u,r,d) in enumerate(self.boxes[self.templatenum]):
                 if l <= x.X*SCALE <= r and u <= x.Y*SCALE <= d:
-
+                    print "Boxes are", self.boxes[self.templatenum]
+                    print "And this is", (l,u,r,d)
                     i = self.boxes[self.templatenum].index((l,u,r,d))
 
                     self.doadd(i-self.count)

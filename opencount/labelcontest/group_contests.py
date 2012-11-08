@@ -1128,6 +1128,8 @@ def full_group(contests_text, key):
         CONST = .3
     elif key[1] == 'chi_sim':
         CONST = .3
+    else:
+        CONST = .2
     
     debug=[]
 
@@ -1355,6 +1357,7 @@ def group_given_contests(t, paths, giventargets, contests, lang_map = {}):
     #print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
+@pdb_on_crash
 def final_grouping(ballots, giventargets, paths, languages):
     lookup = dict((x,i) for i,x in enumerate(paths))
     languages = dict((lookup[k],v) for k,v in languages.items())

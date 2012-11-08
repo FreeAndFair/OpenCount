@@ -61,6 +61,7 @@ class MainFrame(wx.Frame):
     def init_ui(self):
         self.notebook = wx.Notebook(self)
         self.setup_pages()
+        self.Maximize()
 
     def setup_pages(self):
         self.panel_projects = ProjectPanel(self.notebook)
