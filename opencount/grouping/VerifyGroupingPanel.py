@@ -1,4 +1,4 @@
-import os, sys, traceback, pdb
+import os, sys, traceback, pdb, csv, re
 try:
     import cPickle as pickle
 except:
@@ -110,6 +110,8 @@ class VerifyGroupingMainPanel(wx.Panel):
                                                    self.proj.partitions_map), 'rb'))
         partitions_invmap = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                       self.proj.partitions_invmap), 'rb'))
+        attrprops = pickle.load(open(pathjoin(self.proj.projdir_path, 
+                                              self.proj.attrprops), 'rb'))
 
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
         attrmap = {} # maps {str attrtype: dict attr}
@@ -117,12 +119,10 @@ class VerifyGroupingMainPanel(wx.Panel):
             attrmap['_'.join(sorted(attr['attrs']))] = attr
 
         # 1.) First, mark each ballot with its attribute properties
-        # TODO: Correctly take into account 'tabulation-only' attributes, and
-        # CUSTOM_ATTRIBUTES.
         ballot_attrvals = {} # maps {int ballotID: {attrtype: attrval}}
-
+        
         # Note: If groupingmode was PER_PARTITION, then self.VERIFY_RESULTS
-        # will only have information about one ballot from each partition. 
+        # will only have information about one ballot from each partition.
         for (attrtype, attrval), imgpaths in self.verify_results.iteritems():
             for imgpath in imgpaths:
                 ballotid = img2b[imgpath]
@@ -135,12 +135,37 @@ class VerifyGroupingMainPanel(wx.Panel):
                     partitionID = partitions_invmap[ballotid]
                     ballot_attrvals.setdefault(ballotid, {})[attrtype] = attrval
                     ballot_attrvals[ballotid]['pid'] = partitionID
+
+        # 1.b.) Add CUSTOM_ATTRIBUTE mapping
+        for attrtype, cattrprops in attrprops['CUSTATTR'].iteritems():
+            if cattrprops['type'] == cust_attrs.TYPE_SPREADSHEET:
+                ssfile = open(cattrprops['sspath'], 'rb')
+                reader = csv.DictReader(ssfile)
+                for ballotid, ballotprops in ballot_attrvals.iteritems():
+                    inval = ballotprops[cattrprops['attrin']]
+                    for row in reader:
+                        if row['in'] == inval:
+                            ballotprops[attrtype] = row['out']
+            elif props['type'] == cust_attrs.TYPE_FILENAME:
+                for ballotid, ballotprops in ballot_attrvals.iteritems():
+                    # Arbitrarily select the first image path...good?
+                    imgname = b2imgs[ballotid][0]
+                    matches = re.search(cattrprops['filename_regex'], imgname)
+                    outval = matches.groups()[0]
+                    ballotprops[attrtype] = outval
         
         # 2.) Create each group, based on the unique ballot property values
         group_idx_map = {} # maps {((attrtype,attrval), ...): int groupIdx}
         group_cnt = 0
         for ballotid, ballotprops in ballot_attrvals.iteritems():
-            ordered_props = tuple(sorted(ballotprops.items(), key=lambda t: t[0]))
+            # 2.a.) Filter out any 'is_tabulationonly' attrtypes
+            ballotprops_grp = {} # maps {attrtype: attrval}
+            for ballotattrtype, ballotattrval in ballotprops.iteritems():
+                for attrmode, attrdicts in attrprops.iteritems():
+                    for attrtype, attrprops in attrdicts.iteritems():
+                        if attrtype == ballotattrtype and not attrprops['is_tabulationonly']:
+                            ballotprops_grp[ballotattrtype] = ballotattrval
+            ordered_props = tuple(sorted(ballotprops_grp.items(), key=lambda t: t[0]))
             group_idx = group_idx_map.get(ordered_props, None)
             if group_idx == None:
                 group_idx = group_cnt

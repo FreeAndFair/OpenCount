@@ -25,88 +25,44 @@ A list of marshall'd custom_attributes (i.e. dictionaries):
   [m_custattr_i, ... ]
 """
 
-class CustomAttribute:
-    """
-    Custom Attribute Modalities:
-    """
-    M_SPREADSHEET = 0
-    M_FILENAME = 1
-    
-    def __init__(self, attrname, mode=0, sspath=None, attrin=None,
-                 filename_regex=None,
-                 is_tabulationonly=False,
-                 is_votedonly=False):
+TYPE_CATTR = 'cattr'
+TYPE_SPREADSHEET = 'spreadsheet'
+TYPE_FILENAME = 'filename'
+
+class CustomAttribute(object):
+    def __init__(self, attrname,
+                 is_tabulationonly=False):
         """
         str attrname:
-        int mode:
-        str sspath:
-        str attrin:
-        str filename_regex:
         bool is_tabulationonly: 
-        bool is_votedonly: True if this CustomAttribute is only found
-                           on voted ballots.
         """
         self.attrname = attrname
-        self.mode = mode
         self.is_tabulationonly = is_tabulationonly
-        self.is_votedonly = is_votedonly
+    def marshall(self):
+        return {'attrname': self.attrname, 'is_tabulationonly': self.is_tabulationonly,
+                'type': TYPE_CATTR}
 
-        """ M_SPREADSHEET """
+class Spreadsheet_Attr(CustomAttribute):
+    def __init__(self, attrname, sspath, attrin, is_tabulationonly):
+        CustomAttribute.__init__(self, attrname, is_tabulationonly)
         self.sspath = sspath
         self.attrin = attrin
-
-        """ M_FILENAME """
+    def marshall(self):
+        dct = CustomAttribute.marshall(self)
+        dct['sspath'] = self.sspath
+        dct['attrin'] = self.attrin
+        dct['type'] = TYPE_SPREADSHEET
+        return dct
+        
+class Filename_Attr(CustomAttribute):
+    def __init__(self, attrname, filename_regex, is_tabulationonly):
+        CustomAttribute.__init__(self, attrname, is_tabulationonly)
         self.filename_regex = filename_regex
-
-def marshall_cust_attr(custattr):
-    marsh = {}
-    marsh['attrname'] = custattr.attrname
-    marsh['mode'] = custattr.mode
-    marsh['attrin'] = custattr.attrin
-    marsh['sspath'] = custattr.sspath
-    marsh['filename_regex'] = custattr.filename_regex
-    marsh['is_tabulationonly'] = custattr.is_tabulationonly
-    marsh['is_votedonly'] = custattr.is_votedonly
-    return marsh
-
-def unmarshall_cust_attr(d):
-    # Legacy CustomAttribute handling.
-    K1 = 'is_tabulationonly'
-    K2 = 'is_votedonly'
-    is_tab = d[K1] if K1 in d else False
-    is_votedonly = d[K2] if K2 in d else False
-
-    return CustomAttribute(d['attrname'], mode=d['mode'], sspath=d['sspath'],
-                           attrin=d['attrin'],
-                           filename_regex=d['filename_regex'],
-                           is_tabulationonly=is_tab,
-                           is_votedonly=is_votedonly)
-
-def add_custom_attr_ss(proj, attrname, sspath, attrin, is_tabulationonly=False):
-    """ Adds a new SpreadSheet-based Custom Attribute """
-    custom_attrs = load_custom_attrs(proj)
-    if custom_attrs == None:
-        custom_attrs = []
-    cattr = CustomAttribute(attrname, mode=CustomAttribute.M_SPREADSHEET,
-                            sspath=sspath, attrin=attrin,
-                            is_tabulationonly=is_tabulationonly)
-    custom_attrs.append(cattr)
-    path = pathjoin(proj.projdir_path, proj.custom_attrs)
-    dump_custom_attrs(proj, custom_attrs)
-
-def add_custom_attr_filename(proj, attrname, regex, is_tabulationonly=False,
-                             is_votedonly=False):
-    """ Adds a new Filename-based Custom Attribute. """
-    custom_attrs = load_custom_attrs(proj)
-    if custom_attrs == None:
-        custom_attrs = []
-    cattr = CustomAttribute(attrname, mode=CustomAttribute.M_FILENAME,
-                            filename_regex=regex,
-                            is_tabulationonly=is_tabulationonly,
-                            is_votedonly=is_votedonly)
-    custom_attrs.append(cattr)
-    path = pathjoin(proj.projdir_path, proj.custom_attrs)
-    dump_custom_attrs(proj, custom_attrs)
+    def marshall(self):
+        dct = CustomAttribute.marshall(self)
+        dct['filename_regex'] = self.filename_regex
+        dct['type'] = TYPE_FILENAME
+        return dct
 
 def dump_custom_attrs(proj, custattrs=None):
     """ Stores the custom_attributes into the correct output location. """
@@ -148,37 +104,3 @@ def custattr_exists(proj, attrname):
     if custom_attrs != None:
         return custattr_get(custom_attrs, attrname) != None
     return False
-
-def custattr_map_inval_ss(proj, attrname, attr_inval):
-    """ Maps the attr_inval through the SpreadSheet associated with the
-    custom_attr 'attrname'. Assumes that attr_inval is a string. """
-    custom_attrs = load_custom_attrs(proj)
-    ss_attrs = [cattr for cattr in custom_attrs if cattr.mode == CustomAttribute.M_SPREADSHEET]
-    for cattr in ss_attrs:
-        sspath = cattr.sspath
-        attrin = cattr.attrin
-        if cattr.attrname == attrname:
-            csvf = open(sspath, 'rb')
-            reader = csv.DictReader(csvf)
-            for row in reader:
-                if row['in'] == attr_inval:
-                    return row['out']
-            print "Uhoh, attr_inval wasn't ever found:", attr_inval
-            pdb.set_trace()
-            assert False
-    print "Uhoh, attrname wasn't found in custom_attrs:", attrname
-    pdb.set_trace()
-    assert False
-
-def custattr_apply_filename(cattr, imgname):
-    """ Given a Filename-based CustomAttribute, extracts the relevant
-    value from the 'imgname'. 
-    Input:
-        obj cattr: A CustomAttribute
-        str imgname:
-    Output:
-        A value, inferred from the 'imgname'.
-    """
-    matches = re.search(cattr.filename_regex, imgname)
-    return matches.groups()[0]
-

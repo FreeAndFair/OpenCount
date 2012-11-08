@@ -183,7 +183,9 @@ class SelectAttributesMasterPanel(wx.Panel):
 
     def cluster_attr_patches(self, outdir):
         """ Try to discover multiple exemplars within the blank ballot
-        attribute patches (say, multi-backgrounds).
+        img-based attribute patches (say, multi-backgrounds). MULTEXEMPLARS_MAP
+        is a dict mapping:
+            {str attrtype: {str attrval: ([subpatchP, blankpathP, (x1,y1,x2,y2)], ...)}}
         """
         if not common.exists_imgattrs(self.project):
             return
@@ -220,7 +222,8 @@ class SelectAttributesMasterPanel(wx.Panel):
                     outname = "{0}_{1}.png".format(attrval, i)
                     fulloutpath = pathjoin(rootdir, outname)
                     cv.SaveImage(fulloutpath, I)
-                    bbout = [bb[1], bb[3], bb[0], bb[2]]
+                    x1,y1,x2,y2 = bb
+                    bbout = (x1,y1,x2,y2)
                     outfile_map.setdefault(attrtype, {}).setdefault(attrval, []).append((subpatchP, blankpath, bbout))
         # 3.) Also add in the user-selected patches in 'Label Attributes'
         # as additional exemplars.

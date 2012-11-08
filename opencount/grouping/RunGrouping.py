@@ -113,23 +113,32 @@ class RunGroupingMainPanel(wx.Panel):
                                                    self.proj.partitions_map), 'rb'))
         partition_attrmap = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                       self.proj.partition_attrmap), 'rb'))
+        partition_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                     self.proj.partition_exmpls), 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        # dict MULTEXEMPLARS_MAP: maps {attrtype: {attrval: [(subpatchP, blankpathP, (x1,y1,x2,y2)), ...]}}
         multexemplars_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                       self.proj.multexemplars_map), 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
         imginfo_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                 self.proj.imginfo_map), 'rb'))
+        attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
+        # 0.) Behavior depends on the Grouping Mode (PER_PARTITION or PER_BALLOT).
+        grp_mode = get_imggroup_modes
+
         print "...Running Extract Attrvals..."
         t = time.time()
         extract_results = doGrouping.extract_attrvals(partitions_map, partition_attrmap,
+                                                      partition_exmpls,
                                                       b2imgs, img2b, multexemplars_map,
-                                                      img2page, imginfo_map)
+                                                      img2page, imginfo_map, attrs)
         dur = time.time() - t
         print "...Finished Running Extract Attrvals ({0} s).".format(dur)
         self.extract_results = extract_results
         '''
+        return {}
 
     def run_digitbased_grouping(self):
         partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -181,6 +190,7 @@ class RunGroupingMainPanel(wx.Panel):
             self.run_imgbased_grouping()
         if exists_digattr(self.proj):
             self.run_digitbased_grouping()
+
         self.btn_rungrouping.Disable()
         self.Enable()
         

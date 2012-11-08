@@ -467,21 +467,12 @@ def templateSSWorker(job):
     file.close()
 
 def groupImagesWorkerMAP(job):
-    # dict attr2pat: maps {str attrval: [obj imgpatch_i, ...]}
-    # tuple superRegion: (y1, y2, x1, x2)
-    # str balKey: ballotid
-    # tuple balL: (sidepath_i, ...)
-    # float scale:
-    # str destDir:
-    # str metaDir:
-    # str attrName: Current attribute type we're grouping on.
     try:
-        (ballotid, imgpaths, attrName, attrinfo, attr2pat, superRegion,scale) = job
-        #(attr2pat, superRegion, balKey, balL, scale, destDir, metaDir, attrName) = job
+        #(ballotid, imgpaths, attrName, bb, attrinfo, attr2pat,scale) = job
+        (ballotid, imgpaths, attrtype, bb, attr2pat, isflip, scale) = job
 
-        # patchtuples also includes 'flip' possibilities.
         # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
-        patchTuples = createPatchTuplesMAP(balL,attr2pat,superRegion,flip=True)
+        patchTuples = createPatchTuplesMAP(imgpaths,attr2pat,bb,flip=isflip)
         # Remember, attr2pat contains multiple exemplars
         firstPat=attr2pat.values()[0][0] # TODO: arbitrary choice, is this ok?
         rszFac = sh.resizeOrNot(firstPat.shape,sh.MAX_PRECINCT_PATCH_DIM);
@@ -544,30 +535,7 @@ def groupImagesWorkerMAP(job):
 
         IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 15))
         Ireg = np.nan_to_num(IO[1])
-        '''
-        if attrName == 'party':
-            print "MEOW MEOW"
-            misc.imsave("_I1.png", I1)
-            misc.imsave("_P1.png", P1)
-            misc.imsave("_I1c.png", I1c)
-            misc.imsave("_Ireg.png", Ireg)
-            pdb.set_trace()
-        '''
-        '''
-        if finalOrder[0][2] == 'mail-pct':
-            print finalOrder[0][2:]
-            misc.imsave("_I1.png", I1)
-            misc.imsave("_P1.png", P1)
-            misc.imsave("_Ireg.png", Ireg)
-            pdb.set_trace()
-        '''
-
-        # saving I1, P1, I1c, IO[1] fixes things
-        # saving I1, P1 fixes things
-        # saving I1 fixes things
-        # saving P1 does NOT fix things.
-        # saving IO[1] does NOT fix things.
-        doWriteMAP(finalOrder, Ireg, IO[2], attrName , destDir, metaDir, balKey, bestExemplarIdx)
+        doWriteMAP(finalOrder, Ireg, IO[2], attrtype, destDir, metaDir, balKey, bestExemplarIdx)
     except Exception as e:
         traceback.print_exc()
         raise e
@@ -841,19 +809,30 @@ def create_dirs(*dirs):
         except Exception as e:
             pass
 
-def extract_attrvals(b2imgs, attrtype, attrinfo, attr2pat, img2page):
+def extract_attrvals(bal2imgs, attrtype, bbSuper, attrexemplars, imginfo_map, img2page, page):
     """
     Input:
-        dict B2IMGS:
-        str ATTRTYPE: 
+        dict BAL2IMGS: 
+        str ATTRTYPE:
+        tuple BBSUPER: Super region of ATTRTYPE (x1,y1,x2,y2). This is the
+            original bounding box that the user made in 'Define Attributes'.
         dict ATTRINFO: [_,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly]
-        dict ATTR2PAT: maps {str attrval: [(str imgpath_i, nparray imgpatch_i), ...]}. Stores 
+        dict ATTREXEMPLARS: maps {str attrval: [(str subpatchP_i, str imgpathP, (x1,y1,x2,y2), ...]}. Stores 
             all exemplar images for ATTRVAL, including the original image path
             that the patch was extracted from.
-        dict IMG2PAGE: maps {str imgpath: int page}
+        dict IMGINFO_MAP: 
+        int PAGE:
     Output:
-        Dunno.
+        dict RESULT. maps {int ballotid: {'attrOrder': attrorder, 'err': err,
+                                          'exemplaridx': exemplaridx, 'bb': (x1,y1,x2,y2)}}
     """
+    # 0.) Create the ATTR2PAT map
+    attr2pat = {} # maps {str attrval: [obj imgpatch_i, ...]}
+    for attrval, exemplars in attrexemplars.iteritems():
+        for (subpatchpath, imgpath, (x1,y1,x2,y2)) in exemplars:
+            exmpl = sh.standardImread(subpatchpath, flatten=True)
+            attr2pat.setdefault(attrval, []).append(exmpl)
+
     # 1.) Estimate smallest viable scale (for performance)
     '''
     if len(attr2pat)>2:
@@ -864,13 +843,18 @@ def extract_attrvals(b2imgs, attrtype, attrinfo, attr2pat, img2page):
     scale = 0.85
     print 'ATTR: ', attrName,': using starting scale:',scale
 
+
     # 2.) Generate jobs for the multiprocessing
     jobs=[]
     nProc=sh.numProcs()
 
     for ballotid, imgpaths in b2imgs.iteritems():
-        imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-        jobs.append([ballotid, imgpaths_ordered, attrName, attrinfo, attr2pat, superRegion, scale])
+        # B2IMGS has been sorted by page by the caller
+        imgpath = imgpaths[page]
+        isflip = imginfo_map[imgpath]['isflip']
+        # BBSUPER_INPUT := (y1,y2,x1,x2)
+        bbSuper_in = bbSuper[1], bbSuper[3], bbSuper[0], bbSuper[2]
+        jobs.append([ballotid, [imgpath], attrType, bbSuper_in, attr2pat, isflip, scale])
 
     # 3.) Perform jobs.
     if nProc < 2:
@@ -903,8 +887,8 @@ def extract_attrvals(b2imgs, attrtype, attrinfo, attr2pat, img2page):
     print 'ATTR: ', attrName, ': done'
     return True
 
-def do_extract_attrvals(partitions_map, partition_attrmap, b2imgs, img2bal,
-                        multexemplars_map, img2page, imginfo_map):
+def do_extract_attrvals(partitions_map, partition_attrmap, partition_exmpls, b2imgs, img2bal,
+                        multexemplars_map, img2page, imginfo_map, attrs):
     """ Extracts the values of image-based Attributes for each voted
     ballot. 
     Input:
@@ -917,15 +901,47 @@ def do_extract_attrvals(partitions_map, partition_attrmap, b2imgs, img2bal,
         dict IMG2PAGE: maps {str imgpath: int page}
         dict IMGINFO_MAP: maps {str imgpath: {str key: str val}}. Used for
             the 'isflip' mapping.
+        list ATTRS: [dict attr_i, ...]
     Output:
         dict RESULTS. maps {int ballotID: {attrtype: {'attrOrder': attrorder, 'err': err,
                                                       'exemplar_idx': exemplar_idx,
                                                       'bb': (x1,y1,x2,y2)}}}
     """
+    def get_grpmodes(attrs):
+        grpmodes_map = {} # maps {str attrtype: bool is_grp_per_partition}
+        for attr in attrs:
+            attrtype = '_'.join(sorted(attr['attrs']))
+            grpmodes_map[attrtype] = attr['grp_per_partition']
+        return grpmodes_map
     results = {}
     attrmap = {} # maps {str attrtype: {str attrval: (bb, int side, blankpath)}}
-    for partitionID, attrs in partition_attrmap.iteritems():
-        for attr in attrs:
+    grpmodes_map = get_grpmodes(attrs)
+    for partitionID, attrslst in partition_attrmap.iteritems():
+        for attr in attrslst:
             attrtype = attr[5]
-            #result = extract_attrvals(b2imgs, attrtype, att
+            page = attr[7]
+            in_bal2imgs = {}
+            if grpmodes_map[attrtype]:
+                # ATTRTYPE is group by partition
+                for partitionid, ballotids in partition_exmpls.iteritems():
+                    exmpl_ballotid = ballotids[0]
+                    imgpaths = b2imgs[exmpl_ballotid]
+                    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    in_bal2imgs[partitionid] = imgpaths_ordered
+            else:
+                # ATTRTYPE is group by ballot
+                for ballotid, imgpaths in b2imgs.iteritems():
+                    imgpaths = b2imgs[exmpl_ballotid]
+                    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    in_bal2imgs[ballotid] = imgpaths_ordered
+
+            bbSuper = None
+            for attrdict in attrs:
+                if attrtype == '_'.join(sorted(attrdict['attrs'])):
+                    bbSuper = attrdict['x1'], attrdict['y1'], attrdict['x2'], attrdict['y2']
+                    break
+            # dict ATTREXEMPLARS: maps {attrval: [(subpatchP, imgpath, (x1,y1,x2,y2)), ...]}
+            attrexemplars = multexemplars_map[attrtype]
+            result = extract_attrvals(in_bal2imgs, attrtype, bbSuper, attrexemplars, imginfo_map, page)
+            results.setdefault(ID, {})[attrtype] = result
     return results

@@ -66,9 +66,36 @@ class DefineAttributesMainPanel(wx.Panel):
         proj.ballot_attributesfile, which will be used by further
         components in the pipeline.
         """
+        # 0.) Save the ballot_attributesfile for legacy purposes
         attrboxes = sum(self.defineattrs.boxes_map.values(), [])
         m_boxes = [attrbox.marshall() for attrbox in attrboxes]
         pickle.dump(m_boxes, open(self.proj.ballot_attributesfile, 'wb'))
+        # 1.) Save the newer proj.attrprops dict.
+        attrprops = {} # maps {str attrmode: {str attrtype: dict props}}
+        DIGBASED = 'DIGITBASED'
+        IMGBASED = 'IMGBASED'
+        CUSTATTR = 'CUSTATTR'
+        attrprops[DIGBASED] = {}
+        attrprops[IMGBASED] = {}
+        attrprops[CUSTATTR] = {}
+        for box in sum(self.defineattrs.boxes_map.values(), []):
+            attrtype = '_'.join(sorted(box.attrtypes))
+            props = {'attrtype': attrtype,
+                     'x1': box.x1, 'y1': box.y1,
+                     'x2': box.x2, 'y2': box.y2,
+                     'is_tabulationonly': box.is_tabulationonly,
+                     'side': box.side,
+                     'grp_per_partition': box.grp_per_partition}
+            if box.is_digitbased:
+                props['num_digits'] = box.num_digits
+                attrprops.setdefault(DIGBASED, {})[attrtype] = props
+            else:
+                attrprops.setdefault(IMGBASED, {})[attrtype] = props
+        for cattr in self.defineattrs.cust_attrs:
+            attrtype = cattr.attrname
+            attrprops.setdefault(CUSTATTR, {})[attrtype] = cattr.marshall()
+        pickle.dump(attrprops, open(pathjoin(self.proj.projdir_path,
+                                             self.proj.attrprops), 'wb'))
         
 class DefineAttributesPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -78,6 +105,9 @@ class DefineAttributesPanel(ScrolledPanel):
         self.boxes_map = None
         # BALLOT_SIDES: [[imgpath_i_front, ...], ...]
         self.ballot_sides = None
+
+        # self.CUST_ATTRS: [obj CustomAttribute_i, ...]
+        self.cust_attrs = None
 
         # CUR_SIDE: Which side we're displaying
         self.cur_side = 0
@@ -110,6 +140,7 @@ class DefineAttributesPanel(ScrolledPanel):
         self.ballot_sides = ballot_sides
         if not self.restore_session():
             self.boxes_map = {}
+            self.cust_attrs = []
         self.cur_i = 0
         self.cur_side = 0
         self.display_image(self.cur_side, self.cur_i)
@@ -122,6 +153,7 @@ class DefineAttributesPanel(ScrolledPanel):
             state = pickle.load(open(self.stateP, 'rb'))
             self.boxes_map = state['boxes_map']
             self.ballot_sides = state['ballot_sides']
+            self.cust_attrs = state['cust_attrs']
         except:
             return False
         return True
@@ -131,7 +163,8 @@ class DefineAttributesPanel(ScrolledPanel):
             if box not in self.boxes_map.get(self.cur_side, []):
                 self.boxes_map.setdefault(self.cur_side, []).append(box)
         state = {'boxes_map': self.boxes_map,
-                 'ballot_sides': self.ballot_sides}
+                 'ballot_sides': self.ballot_sides,
+                 'cust_attrs': self.cust_attrs}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def display_image(self, cur_side, cur_i):
@@ -170,6 +203,15 @@ class DefineAttributesPanel(ScrolledPanel):
                 attrtypes.append(attrtypestr)
         return attrtypes
     
+    def add_custom_attr(self, cattr_box):
+        """ Adds the customattribute CATTR_BOX to my data structs.
+        Input:
+            obj CATTR_BOX: A CustomAttribute instance
+        """
+        if cattr_box not in self.cattr_boxes:
+            self.cattr_boxes.append(cattr_box)
+        return self.cattr_boxes
+
     def next_side(self):
         pass
     def prev_side(self):
@@ -236,9 +278,7 @@ will the Custom Attribute use?",
             attrname = dlg.results[0]
             spreadsheetpath = dlg.path
             attrin = dlg.combobox.GetValue()
-            print "attrname:", attrname
-            print "Spreadsheet path:", spreadsheetpath
-            print "Attrin:", attrin
+            is_tabulationonly = dlg.is_tabulationonly
             if not attrname:
                 d = wx.MessageDialog(self, message="You must choose a valid \
 attribute name.")
@@ -254,15 +294,9 @@ spreadsheet path.")
 'input' attribute type.")
                 d.ShowModal()
                 return
-            proj = self.GetParent().GetParent().proj
-            custom_attrs = cust_attrs.load_custom_attrs(proj)
-            if cust_attrs.custattr_exists(proj, attrname):
-                d = wx.MessageDialog(self, message="The attrname {0} already \
-exists as a Custom Attribute.".format(attrname))
-                d.ShowModal()
-                return
-            cust_attrs.add_custom_attr_ss(proj,
-                                          attrname, spreadsheetpath, attrin)
+            cattr = cust_attrs.Spreadsheet_Attr(attrname, spreadsheetpath, attrin,
+                                                is_tabulationonly)
+            self.GetParent().add_custom_attr(cattr)
         elif choice == FILENAME:
             print "Handling Filename-based Custom Attribute."
             dlg = FilenameAttrDialog(self)
@@ -282,40 +316,26 @@ an Attribute Name.")
             attrname = dlg.attrname
             regex = dlg.regex
             is_tabulationonly = dlg.is_tabulationonly
-            is_votedonly = dlg.is_votedonly
-            proj = self.GetParent().GetParent().proj
-            custom_attrs = cust_attrs.load_custom_attrs(proj)
-            if cust_attrs.custattr_exists(proj, attrname):
-                d = wx.MessageDialog(self, message="The attrname {0} already \
-exists as a Custom Attribute.".format(attrname))
-                d.ShowModal()
-                return
-            cust_attrs.add_custom_attr_filename(proj,
-                                                attrname, regex, 
-                                                is_tabulationonly=is_tabulationonly,
-                                                is_votedonly=is_votedonly)
+            cattr = cust_attrs.Filename_attr(attrname, regex, is_tabulationonly)
+            self.GetParent().add_custom_attr(cattr)
         
     def onButton_viewcustomattrs(self, evt):
         proj = self.GetParent().GetParent().proj
-        custom_attrs = cust_attrs.load_custom_attrs(proj)
-        if custom_attrs == None:
+        custom_attrs = self.GetParent().cust_attrs
+        if not custom_attrs:
             d = wx.MessageDialog(self, message="No Custom Attributes yet.")
             d.ShowModal()
             return
         print "Custom Attributes are:"
         for cattr in custom_attrs:
             attrname = cattr.attrname
-            if cattr.mode == cust_attrs.CustomAttribute.M_SPREADSHEET:
+            if isinstance(cattr, cust_attrs.Spreadsheet_Attr):
                 print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
                                                                              cattr.sspath,
                                                                              cattr.attrin)
-            elif cattr.mode == cust_attrs.CustomAttribute.M_FILENAME:
+            elif isinstance(cattr, cust_attrs.Filename_Attr):
                 print "  Attrname: {0} FilenameRegex: {1}".format(attrname,
                                                                   cattr.filename_regex)
-            else:
-                print "  Attrname: {0} Mode: {1}".format(attrname, cattr.mode)
-
-
 class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
     def __init__(self, parent, *args, **kwargs):
         select_targets.BoxDrawPanel.__init__(self, parent, *args, **kwargs)
@@ -539,11 +559,11 @@ dictated by the barcodes)?")
 
     def onButton_ok(self, evt):
         history = set()
-        if self.chkbox_is_digitbased.GetValue() == True:
+        self.is_digitbased = self.chkbox_is_digitbased.GetValue()
+        if self.is_digitbased:
             self.is_digitbased = True
             self.num_digits = int(self.num_digits_ctrl.GetValue())
-        if self.chkbox_is_tabulationonly.GetValue() == True:
-            self.is_tabulationonly = True
+        self.is_tabulationonly = self.chkbox_is_tabulationonly.GetValue()
         self.grp_per_parition = self.chkbox_grp_per_partition.GetValue()
         for txt, input_ctrl in self.input_pairs:
             val = input_ctrl.GetValue()
@@ -583,7 +603,6 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         self.chkbox_is_digitbased.Hide()
         self.num_digits_ctrl.Hide()
         self.numdigits_label.Hide()
-        self.chkbox_is_tabulationonly.Disable()
         self.btn_add.Hide()
 
         txt = wx.StaticText(self, label="Spreadsheet File:")
@@ -645,7 +664,6 @@ class FilenameAttrDialog(wx.Dialog):
         # self.regex is the user-inputted regex to use
         self.regex = None
         self.is_tabulationonly = False
-        self.is_votedonly = False
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -678,10 +696,7 @@ regex that will match the attribute value.")
 
         self.is_tabulationonly_chkbox = wx.CheckBox(self, label="Is this \
 for Tabulation Only?")
-        self.is_votedonly_chkbox = wx.CheckBox(self, label="Does this \
-only occur on voted ballots?")
         sizer.Add(self.is_tabulationonly_chkbox)
-        sizer.Add(self.is_votedonly_chkbox)
         
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Ok")
@@ -701,7 +716,6 @@ only occur on voted ballots?")
         self.attrname = self.attrname_input.GetValue()
         self.regex = self.re_input.GetValue()
         self.is_tabulationonly = self.is_tabulationonly_chkbox.GetValue()
-        self.is_votedonly = self.is_votedonly_chkbox.GetValue()
         self.EndModal(wx.ID_OK)
 
     def onButton_cancel(self, evt):

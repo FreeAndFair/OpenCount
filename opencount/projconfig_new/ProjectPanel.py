@@ -144,6 +144,7 @@ class Project(object):
                      'imginfo_map': 'imginfo_map.p',
                      'barcode_bbs_map': 'barcode_bbs_map.p',
                      'partition_attrmap': 'partition_attrmap.p',
+                     'attrprops': 'attrprops.p',
                      'target_locs_map': 'target_locs_map.p',
                      'extract_results': 'extract_results.p',
                      'digitpatch_dir': 'digitpatch_dir',
