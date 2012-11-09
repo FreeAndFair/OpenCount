@@ -9,12 +9,14 @@ from os.path import join as pathjoin
 
 sys.path.append('..')
 
-import wx, cv, numpy as np, Image
+import wx, cv, numpy as np, Image, scipy, scipy.misc
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import util_gui, util
 import grouping.partask as partask
 import labelcontest.group_contests as group_contests
+import pixel_reg.shared as shared
+import pixel_reg.imagesAlign as imagesAlign
 
 class SelectTargetsMainPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -51,7 +53,8 @@ class SelectTargetsMainPanel(wx.Panel):
             groups.append(group)
 
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
-        self.seltargets_panel.start(groups, stateP, ocrtmpdir)
+        align_outdir = pathjoin(proj.projdir_path, 'partitionsAlign_seltargs')
+        self.seltargets_panel.start(groups, stateP, ocrtmpdir, align_outdir)
 
     def stop(self):
         self.proj.removeCloseEvent(self.seltargets_panel.save_session)
@@ -247,7 +250,7 @@ this partition.")
 
         self.SetSizer(self.sizer)
 
-    def start(self, partitions, stateP, ocrtempdir):
+    def start(self, partitions, stateP, ocrtempdir, align_outdir):
         """
         Input:
             list PARTITIONS: A list of lists of lists, encoding partition+ballot+side(s):
@@ -255,12 +258,13 @@ this partition.")
             str STATEP: Path of the statefile.
             str OCRTEMPDIR: Used for InferContestRegion.
         """
-        self.partitions = partitions
-        print 'partitions: ', partitions
+        # 0.) First, align all ballots within each partition to each other.
         self.stateP = stateP
         self.ocrtempdir = ocrtempdir
         if not self.restore_session():
             # 0.) Populate my self.INV_MAP
+            partitions_align = align_partitions(partitions, align_outdir)
+            self.partitions = partitions_align
             self.inv_map = {}
             self.boxes = {}
             self.boxsize = None
@@ -287,6 +291,7 @@ this partition.")
             self.inv_map = state['inv_map']
             self.boxes = state['boxes']
             self.boxsize = state['boxsize']
+            self.partitions = state['partitions']
         except:
             return False
         return True
@@ -294,7 +299,8 @@ this partition.")
     def save_session(self):
         state = {'inv_map': self.inv_map,
                  'boxes': self.boxes,
-                 'boxsize': self.boxsize}
+                 'boxsize': self.boxsize,
+                 'partitions': self.partitions}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def do_tempmatch(self, box, img):
@@ -361,9 +367,7 @@ this partition.")
         # any matches in RESULTS that are too close to previously-found
         # matches.
         for imgpath, matches in results.iteritems():
-            print 'For imgpath {0}: {1} matches.'.format(imgpath, len(matches))
             partition_idx, j, page = self.inv_map[imgpath]
-            print partition_idx, j, page
             for (x, y, score) in matches:
                 boxB = TargetBox(x, y, x+w, y+h)
                 # 1.a.) See if any already-existing box is too close
@@ -411,7 +415,6 @@ this partition.")
         imgpath = self.partitions[i][j][page]
         
         # 1.) Display New Image
-        print "...Displaying image:", imgpath
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
         # 1.a.) Resize image s.t. width is equal to containing width
         wP, hP = self.parent.GetSize()
@@ -702,8 +705,6 @@ class ImagePanel(ScrolledPanel):
         self.sizer.Add(self.imgbitmap.GetSize())
         self.SetupScrolling()
         self.Refresh()
-        
-        print "...Scale is:", self.scale
 
     def zoomin(self, amt=0.1):
         self.set_scale(self.scale + amt)
@@ -747,8 +748,6 @@ class ImagePanel(ScrolledPanel):
 
     def onLeftDown(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        print "Left Down, at:", (x,y)
-
         evt.Skip()
 
     def onMotion(self, evt):
@@ -915,7 +914,6 @@ class BoxDrawPanel(ImagePanel):
                 dist = distL2(x1,y1,x,y)
                 if dist <= C:
                     results.append((orient, box, dist))
-        print results
         if not results:
             return None, None
         results = sorted(results, key=lambda t: t[2])
@@ -1362,6 +1360,52 @@ def bestmatch(A, B):
     cv.MatchTemplate(B, A, s_mat, cv.CV_TM_CCOEFF_NORMED)
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
+
+def align_partitions(partitions, outrootdir):
+    """ 
+    Input:
+        list PARTITIONS: list of list of lists, encodes partition+ballot+side.
+        str OUTROOTDIR: Rootdir to save aligned images to.
+    Output:
+        list PARITIONS_ALIGN. 
+    """
+    partitions_align = []
+    print '...Globally-aligning a subset of each partition...'
+    t = time.time()
+    for partitionid, partition in enumerate(partitions):
+        outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
+        try:
+            os.makedirs(outdir)
+        except:
+            pass
+        curPart = []
+        ballotRef = partition[0]
+        Irefs = [shared.standardImread(imP) for imP in ballotRef]
+        # 0.) First, handle the reference Ballot
+        curBallot = []
+        for side, Iref in enumerate(Irefs):
+            outname = 'bal_{0}_side_{1}.png'.format(0, side)
+            outpath = pathjoin(outdir, outname)
+            scipy.misc.imsave(outpath, Iref)
+            curBallot.append(outpath)
+        curPart.append(curBallot)
+        # 1.) Now, align all other Ballots to BALLOTREF
+        for i, ballot in enumerate(partition[1:]):
+            curBallot = []
+            for side, imgpath in enumerate(ballot):
+                Iref = Irefs[side]
+                I = shared.standardImread(imgpath, flatten=True)
+                H, Ireg, err = imagesAlign.imagesAlign(I, Iref, type='rigid', rszFac=0.25)
+                Ireg = np.nan_to_num(Ireg)
+                outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
+                outpath = pathjoin(outdir, outname)
+                scipy.misc.imsave(outpath, Ireg)
+                curBallot.append(outpath)
+            curPart.append(curBallot)
+        partitions_align.append(curPart)
+    dur = time.time() - t
+    print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
+    return partitions_align
 
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.bmp', 'jpeg', '.jpg', '.tif')
