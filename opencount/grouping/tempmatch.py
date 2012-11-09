@@ -120,8 +120,12 @@ def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
         A_im = A
     wA, hA = cv.GetSize(A_im)
     results = {} # {str imgpath: [(x1,y1,x2,y2,score),...]}
-    for imgpath in imgpaths:
-        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    for i,imgpath in enumerate(imgpaths):
+        if type(imgpath) == type(str()):
+            I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        else:
+            I = imgpath
+            imgpath = i
         if do_smooth in (SMOOTH_BOTH_BRD, SMOOTH_IMG_BRD):
             I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
         elif do_smooth in (SMOOTH_BOTH, SMOOTH_IMG):

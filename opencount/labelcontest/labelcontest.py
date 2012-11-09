@@ -458,7 +458,7 @@ class LabelContest(wx.Panel):
                 dlg.ShowModal()
                 return
 
-            vendor = self.proj.vendor_obj if 'vendor_obj' in self.proj else None
+            vendor = self.proj.vendor_obj if 'vendor_obj' in self.proj.vals else None
             ballots, groups = group_given_contests(self.proj.ocr_tmp_dir, 
                                                    self.dirList, targets, 
                                                    self.boxes, 

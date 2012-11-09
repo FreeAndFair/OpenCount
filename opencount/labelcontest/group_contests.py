@@ -694,7 +694,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
         if not os.path.exists(os.path.join(sub, "-".join(map(str,c)))):
             os.mkdir(os.path.join(sub, "-".join(map(str,c))))
         t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
-                               image, c, targets)
+                               image, c, targets, vendor)
         res.append((i, c, t))
     #print "RESULTING", res
     return res
@@ -714,7 +714,10 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     if vendor:
         boxes = vendor.split_contest_to_targets(image, contest, targets)
     else:
-        boxes = Vendor().split_contest_to_targets(image, contest, targets)
+        boxes = Vendor.Vendor().split_contest_to_targets(image, contest, targets)
+
+    l,u,r,d = contest
+    blocks = []
 
     for count,(upper,lower) in boxes:
         istarget = (count != 0)
@@ -1340,7 +1343,7 @@ def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    ballots = pool.map(group_given_contests_map, args)
+    ballots = map(group_given_contests_map, args)
     pool.close()
     pool.join()
     #ballots = map(group_given_contests_map, args)
