@@ -13,6 +13,7 @@ sys.path.append('..')
 
 import pixel_reg.doGrouping as doGrouping
 import grouping.digit_group_new as digit_group_new
+import specify_voting_targets.util_gui as util_gui
 
 GRP_PER_BALLOT = 0
 GRP_PER_PARTITION = 1 
@@ -186,6 +187,17 @@ class RunGroupingMainPanel(wx.Panel):
     def onButton_rungrouping(self, evt):
         """ Runs both Image-based and Digit-based Attrval extraction. """
         self.Disable()
+        # 0.) Remove relevant state files
+        util_gui.remove_files(pathjoin(self.proj.projdir_path,
+                                       '_state_verifyoverlays.p'),
+                              pathjoin(self.proj.projdir_path,
+                                       self.proj.ballot_to_group),
+                              pathjoin(self.proj.projdir_path,
+                                       self.proj.group_to_ballots),
+                              pathjoin(self.proj.projdir_path,
+                                       self.proj.group_infomap),
+                              pathjoin(self.proj.projdir_path,
+                                       self.proj.group_exmpls))
         if exists_imgattr(self.proj):
             self.run_imgbased_grouping()
         if exists_digattr(self.proj):

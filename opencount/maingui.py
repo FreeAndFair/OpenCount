@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback
+import os, sys, time, pdb, traceback, csv
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -25,6 +25,8 @@ from runtargets.extract_targets_new import TargetExtractPanel
 from threshold.threshold import ThresholdPanel
 from quarantine.quarantinepanel import QuarantinePanel
 from post_processing.postprocess import ResultsPanel
+
+import specify_voting_targets.util_gui as util_gui
 
 PROJROOTDIR = 'projects_new'
 
@@ -126,7 +128,7 @@ class MainFrame(wx.Frame):
         elif old == MainFrame.SET_THRESHOLD:
             self.panel_set_threshold.stop()
         elif old == MainFrame.QUARANTINE:
-            pass
+            self.panel_quarantine.stop()
         elif old == MainFrame.PROCESS:
             pass
 
@@ -152,6 +154,22 @@ class MainFrame(wx.Frame):
                 grp2bals = partitions_map
                 bal2grp = partitions_invmap
                 grpexmpls = partition_exmpls
+
+                # Also, export to proj.group_results.csv, for integration with
+                # quarantine/post-processing panels.
+                fields = ('ballotid', 'groupid')
+                csvfile = open(self.project.grouping_results, 'wb')
+                dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
+                try:
+                    dictwriter.writeheader()
+                except:
+                    util_gui._dictwriter_writeheader(csvfile, fields)
+                rows = []
+                for ballotid, groupid in bal2grp.iteritems():
+                    rows.append({'ballotid': ballotid, 'groupid': groupid})
+                dictwriter.writerows(rows)
+                csvfile.close()
+
                 pickle.dump(grp2bals, open(pathjoin(self.project.projdir_path,
                                                     self.project.group_to_ballots), 'wb'),
                             pickle.HIGHEST_PROTOCOL)
@@ -236,7 +254,7 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
             self.panel_set_threshold.start(self.project, size=sz)
             self.SendSizeEvent()
         elif new == MainFrame.QUARANTINE:
-            pass
+            self.panel_quarantine.start(self.project)
         elif new == MainFrame.PROCESS:
             self.panel_process.start(self.project)
 

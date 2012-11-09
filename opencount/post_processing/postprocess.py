@@ -24,6 +24,28 @@ class ResultsPanel(ScrolledPanel):
 
     def start(self, proj):
         self.proj = proj
+        # 0.) Grab all quarantined ballots
+        qballotids = []
+        if os.path.exists(pathjoin(proj.projdir_path, proj.grouping_quarantined)):
+            # list GROUPING_QUARANTINED: [int ballotID_i, ...]
+            grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
+                                                             grouping_quarantined), 'rb'))
+            qfiles.extend(grouping_quarantined)
+        if os.path.exists(proj.quarantined):
+            lines = open(proj.quarantined, 'r').read().split("\n")
+            lines = [int(l) for l in lines if l != '']
+            qballotids.extend(lines1)
+        if os.path.exists(proj.quarantined_manual):
+            lines = open(proj.quarantined_manual, 'r').read().split("\n")
+            lines = [int(l) for l in lines if l != '']
+            qballotids.extend(lines)
+        self.qballotids = sorted(list(set(qballotids)))
+        bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        self.qvotedpaths = []
+        for ballotid in qballotids:
+            votedpaths = bal2imgs[ballotid]
+            self.qvotedpaths.extend(votedpaths)
+        self.qvotedpaths = list(set(self.qvotedpaths))
         self.set_results()
 
     def set_results(self):
@@ -53,29 +75,47 @@ class ResultsPanel(ScrolledPanel):
         'header' -> header line
         samplepath -> [templatepath,attrvals,flipped_front,flipped_back]
         """
-        '''
         if not os.path.exists(self.proj.grouping_results):
             return None
-
+        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_page), 'rb'))
         c_t = {}
         for line in csv.reader(open(self.proj.grouping_results)):
             if len(line) < 2: continue
-            if line[0] == 'samplepath':
+            if line[0] == 'ballotid':
+                attrtypes = line[1:]
+                attrtypes = attrtypes[:-1] # ignore partitionID (always at end)
                 c_t['header'] = line[1:]
             else:
-                c_t[os.path.abspath(line[0])] = line[1:]
+                ballotid = int(line[0])
+                imgpaths = sorted(b2imgs[ballotid], key=lambda imP: img2page[imP])
+                #c_t[os.path.abspath(line[0])] = line[1:]
+                attrvals = line[1:]
+                attrvals = attrvals[:-1] # ignore partitionID (always at end)
+                c_t[imgpaths[0]] = attrvals
 
         for line in csv.reader(open(self.proj.quarantine_attributes)):
-            c_t[os.path.abspath(line[0])] = [None]+line[1:]
-
+            c_t[line[0]] = [None]+line[1:]
         if len(c_t) < 2: return None
 
         return c_t
+
         '''
+        # TODO: Fill in the QUARANTINE_ATTRIBUTES dict by reading from
+        # self.proj.quarantine_attributes
+        quarantine_attributes = {} # maps {int ballotID: {str prop: str propval}}
+        qimgpath_attrs = {} # maps {str imgpath: {str prop: str propval}}
+        for line in csv.reader(open(self.proj.quarantine_attributes, 'rb')):
+            imgpath = line[0]
+            attrs = line[1:]
+
         # GROUP_INFOMAP: maps {int groupID: {str key: str val}}
         group_infomap = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                   self.proj.group_infomap), 'rb'))
-        return group_infomap
+
+        return group_infomap, quarantine_attributes
+        '''
 
     def get_templatemap(self):
         localid_to_globalid = {}
@@ -135,17 +175,7 @@ class ResultsPanel(ScrolledPanel):
         # target -> voted yes/no
         isvoted = open(self.proj.targets_result).read().split("\n")[:-1]
         isvoted = set([x.split(",")[0] for x in isvoted if x[-1] == '1'])
-
-        quarantined = set()
-        if os.path.exists(self.proj.quarantined):
-            qfiles = open(self.proj.quarantined).read().split("\n")
-            for qfile in qfiles:
-                quarantined.add(qfile)
-        if os.path.exists(self.proj.quarantined_manual):
-            qfiles = open(self.proj.quarantined_manual).read().split("\n")
-            for qfile in qfiles:
-                quarantined.add(qfile)
-
+        
         templatemap = self.get_templatemap()
 
         text, order = self.get_text()
@@ -196,7 +226,7 @@ class ResultsPanel(ScrolledPanel):
             votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
             
             #votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
-            bools = [votedpath in quarantined for votedpath in votedpaths]
+            bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
             # If any of the sides is quarantined, skip it
             if True in bools: continue
 
@@ -371,36 +401,29 @@ class ResultsPanel(ScrolledPanel):
         e.g. 'precinct 1' : cvr item
         """
         def is_attrtype_exists(attrtype, proj):
+            if not os.path.exists(proj.ballot_attributesfile):
+                return False
             attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
             for attr in attrs:
                 attrtypestr = '_'.join(sorted(attr['attrs'])).lower()
                 if attrtypestr == attrtype:
                     return True
             return False
-        # GROUP_INFOMAP: maps {int groupID: {str key: str val}}
-        group_infomap = self.load_grouping()
+        # dict BALLOT_ATTRIBUTES: {'header': header_stuff, str imgpath: imgpath attr info}
+        ballot_attributes = self.load_grouping()
         b2grp = pickle.load(open(pathjoin(self.proj.projdir_path,
                                           self.proj.ballot_to_group), 'rb'))
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        if os.path.exists(self.proj.quarantined):
-            quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)) if x)
-        else:
-            quar1 = set()
-        if os.path.exists(self.proj.quarantined_manual):
-            quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)) if x)
-        else:
-            quar2 = set()
-        quar = quar1.union(quar2)
-
+        quar = self.qvotedpaths
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
-
-        if group_infomap != None: 
-            def groupby(lst, attrtype, group_infomap, img2bal, bal2grp):
+        if ballot_attributes != None: 
+            def groupby(lst, attrtype, ballot_attributes, img2bal, bal2grp, quar):
                 """
                 Input:
                     lst LST: 
                     str ATTRTYPE: Attrtype to group by
+                    list QUAR: [imgpath_i, ...], list of quarantined voted imgpaths.
                 Output:
                     dict RES. maps {attrval: [[imgpath_i, ballot_cvr_i, ...], ...]}
                 """
@@ -409,36 +432,33 @@ class ResultsPanel(ScrolledPanel):
                 for a in lst:
                     imgpath = a[0]
                     ballotid = img2bal[imgpath]
-                    groupid = bal2grp.get(ballotid, None)
-                    if groupid == None:
-                        # TODO: Check to see if it's been quarantined.
-                        if False:
+                    if imgpath not in ballot_attributes:
+                        if imgpath in quar:
+                            # IMGPATH will be processed later as a quarantined ballot.
                             print "OK, it's quarantined."
                         else:
                             print "Uhoh, couldn't find imgpath {0}, with ballot id {1}".format(imgpath, ballotid)
                             pdb.set_trace()
                     else:
-                        infomap = group_infomap[groupid]
-                        attrval = infomap[attrtype]
+                        attrtype_idx = ballot_attributes['header'].index(attrtype)
+                        attrval = ballot_attributes[imgpath][attrtype_idx]
                         res.setdefault(attrval, []).append(a)
                 return res
     
             #if 'precinct' in attributes['header']:
             if is_attrtype_exists('precinct', self.proj):
-                ht = groupby(cvr, 'precinct', group_infomap, img2bal, b2grp)
+                ht = groupby(cvr, 'precinct', ballot_attributes, img2bal, b2grp, quar)
                 for k,v in ht.items():
                     result += self.final_tally(v, name="Precinct: "+k)
                     if is_attrtype_exists('mode', self.proj):
-                        ht2 = groupby(v, 'mode', group_infomap, img2bal, b2grp)
+                        ht2 = groupby(v, 'mode', ballot_attributes, img2bal, b2grp, quar)
                         for k2,v2 in ht2.items():
                             name = "Precinct, Mode: "+k+", "+k2
                             result += self.final_tally(v2, name)
         return result
 
     def tally_by_precinct_and_mode_hack(self, cvr):
-        quar1 = set(x[0] for x in csv.reader(open(self.proj.quarantined)))
-        quar2 = set(x[0] for x in csv.reader(open(self.proj.quarantined_manual)))
-        quar = quar1.union(quar2)
+        quar = self.qvotedpaths
 
         result = ""
         result += self.final_tally(cvr, name="TOTAL")

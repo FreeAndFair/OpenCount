@@ -4,59 +4,85 @@ from wx.lib.pubsub import Publisher
 from util import ImageManipulate
 import PIL
 from PIL import Image
-import pickle
 import csv
 import os
+
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
+from os.path import join as pathjoin
 
 class QuarantinePanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, -1, *args, **kwargs)
         self.parent = parent
+        self.quarantinepanel = None
 
-        Publisher().subscribe(self.getproj, "broadcast.project")
-    
-    def getproj(self, msg):
-        self.proj = msg.data
-        
     firstTime = True
 
-    def start(self):
+    def start(self, proj):
+        self.proj = proj
         if not self.firstTime: return
         self.firstTime = False
+
+        # 0.) Grab all quarantined ballots.
+        qballotids = []
+        if os.path.exists(pathjoin(proj.projdir_path, proj.grouping_quarantined)):
+            # list GROUPING_QUARANTINED: [int ballotID_i, ...]
+            grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
+                                                             grouping_quarantined), 'rb'))
+            qfiles.extend(grouping_quarantined)
+        if os.path.exists(proj.quarantined):
+            lines = open(proj.quarantined, 'r').read().split("\n")
+            lines = [int(l) for l in lines if l != '']
+            qballotids.extend(lines1)
+        if os.path.exists(proj.quarantined_manual):
+            lines = open(proj.quarantined_manual, 'r').read().split("\n")
+            lines = [int(l) for l in lines if l != '']
+            qballotids.extend(lines)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         top = TopPanel(self)
-        main = MainPanel(self, self.proj)
-        top.start(main)
+        self.quarantinepanel = MainPanel(self, qballotids, self.proj)
+        top.start(self.quarantinepanel)
 
         sizer.Add(top, proportion=1, flag=wx.ALL|wx.EXPAND, border=5)
  
-        sizer.Add(main, proportion=10, flag=wx.ALL|wx.EXPAND, border=5)
+        sizer.Add(self.quarantinepanel, proportion=10, flag=wx.ALL|wx.EXPAND, border=5)
 
         self.SetSizer(sizer)
         self.Fit()
         self.Refresh()
 
+    def stop(self):
+        if self.quarantinepanel:
+            # Funny thing: If there are no quarantined attributes, then
+            # the page change can happen before self.quarantinepanel gets set.
+            self.quarantinepanel.save()
+            self.proj.removeCloseEvent(self.quarantinepanel.save)
+
 class MainPanel(wx.Panel):
-    def __init__(self, parent, proj, *args, **kwargs):
+    def __init__(self, parent, qballotids, proj, *args, **kwargs):
         wx.Panel.__init__(self, parent, -1, *args, **kwargs)
         self.parent = parent
+        self.qballotids = qballotids
         
         self.proj = proj
-        lines1 = open(self.proj.quarantined).read().split("\n")
-        # Catches case when self.proj.quarantined is the empty file
-        lines1 = [line for line in lines1 if line != '']
-        lines2 = open(self.proj.quarantined_manual).read().split("\n")
-        # Catches case when self.proj.quarantined is the empty file
-        lines2 = [line for line in lines2 if line != '']
-        
+
         image_to_ballot = pickle.load(open(self.proj.image_to_ballot))
         ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))
 
-        self.qfiles = list(set(lines1+lines2))
-        
-        self.qfiles = sorted(list(set(sum([ballot_to_images[image_to_ballot[x]] for x in self.qfiles], []))))
+        #self.qfiles = sorted(list(set(sum([ballot_to_images[image_to_ballot[x]] for x in self.qfiles], []))))
+        self.qfiles = []
+        for ballotid in qballotids:
+            imgpaths = ballot_to_images[ballotid]
+            imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+            self.qfiles.extend(imgpaths_ordered)
+        self.qfiles = sorted(list(set(self.qfiles)))
 
         self.count = 0
         self.number_of_contests = 0
@@ -161,7 +187,7 @@ class MainPanel(wx.Panel):
 
         if self.ballot_attributes:
             self.middle_col.Add(wx.StaticText(self, -1, label="Enter the ballot attributes below."))
-            for title in self.ballot_attributes['header'][1:-2]:
+            for title in self.ballot_attributes['header'][1:]:
                 sz = wx.BoxSizer(wx.HORIZONTAL)
                 attr = wx.TextCtrl(self, -1)
                 sz.Add(wx.StaticText(self, -1, label=title))
@@ -208,6 +234,8 @@ the next step.",
             self.Disable()
             dlg.ShowModal()
             self.Enable()
+            self.save()
+            self.proj.removeCloseEvent(self.save)
             # Change pages to the next step
             notebook = self.parent.parent
             oldpage = notebook.GetSelection()
@@ -224,14 +252,23 @@ the next step.",
             #print "RET NONE"
             return None
 
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_page), 'rb'))
         c_t = {}
         for line in csv.reader(open(self.proj.grouping_results)):
             if len(line) < 2: continue
-            if line[0] == 'samplepath':
-                c_t['header'] = line[1:]
-            elif os.path.abspath(line[0]) in self.qfiles:
-                c_t[os.path.abspath(line[0])] = line[1:]
-
+            if line[0] == 'ballotid':
+                attrtypes = line[1:]
+                attrtypes = attrtypes[:-1] # ignore partitionID (always at end)
+                c_t['header'] = attrtypes
+            elif line[0] in self.qfiles:
+                ballotid = int(line[0])
+                imgpaths = bal2imgs[ballotid]
+                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                attrvals = line[1:]
+                attrvals = attrvals[:-1] # ignore partitionID (always at end)
+                c_t[imgpaths_ordered[0]] = attrvals
         return c_t
 
     def show_ballot(self, n, firsttime=False):
@@ -258,14 +295,8 @@ the next step.",
         self.candidates = []
 
         #print "SETTING TO", self.discardlist, self.discardlist[self.curballot]
-        # TODO: Temp. hack to account for Marin Pol267 ballots.
         basedir, imgname = os.path.split(self.qfiles[self.curballot])
-        #if os.path.split(basedir)[1].strip('/') == 'Pol267':
-        if False:
-            print "Here is a Pol267 ballot!"
-            self.discard.SetValue(True)
-        else:
-            self.discard.SetValue(self.discardlist[self.curballot])
+        self.discard.SetValue(self.discardlist[self.curballot])
 
         #print "AND ATTRS IS", self.attributes
         #print "qf", self.qfiles
@@ -277,10 +308,11 @@ the next step.",
         elif self.ballot_attributes:
             if self.qfiles[self.curballot] in self.ballot_attributes:
                 #print 'b'
-                data = self.ballot_attributes[self.qfiles[self.curballot]][1:-2]
+                data = self.ballot_attributes[self.qfiles[self.curballot]][1:]
             else:
                 #print 'c'
-                data = ['']*(len(self.ballot_attributes['header'])-3)
+                #data = ['']*(len(self.ballot_attributes['header'])-3)
+                data = ['']*(len(self.ballot_attributes['header'])-1)
         else:
             #print 'd'
             data = []

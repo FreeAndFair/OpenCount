@@ -150,6 +150,7 @@ class Project(object):
                      'digitpatch_dir': 'digitpatch_dir',
                      'digpatch2imgpath': 'digpatch2imgpath.p',
                      'ballot_to_group': 'ballot_to_group.p',
+                     'grouping_quarantined': 'grouping_quarantined.p',
                      'group_to_ballots': 'group_to_ballots.p',
                      'group_infomap': 'group_infomap.p',
                      'group_exmpls': 'group_exmpls.p',

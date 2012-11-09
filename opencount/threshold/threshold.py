@@ -643,17 +643,20 @@ class GridShow(wx.ScrolledWindow):
         f.close()
 
         pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets, self.lastpos), open(self.proj.threshold_internal, "w"))
+        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
             
         out = open(self.proj.quarantined_manual, "w")
         for each in self.quarantined:
             if type(each) == type(0):
                 targetpath = self.lookupFullList(each)[0]
                 ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
-                out.write(ballotpath+"\n")
+                ballotid = img2bal[ballotpath]
+                out.write(str(ballotid)+"\n")
             else:
-                out.write(each+"\n")
+                # EACH is ballotpath
+                ballotid = img2bal[each]
+                out.write(str(ballotid)+"\n")
         out.close()
-
 
 class ThresholdPanel(wx.Panel):
     def __init__(self, parent, size):

@@ -12,6 +12,8 @@ from wx.lib.scrolledpanel import ScrolledPanel
 import common
 from verify_overlays_new import VerifyOverlays
 import digit_group_new
+sys.path.append('..')
+import specify_voting_targets.util_gui as util_gui
 
 class VerifyGroupingMainPanel(wx.Panel):
     # Number of exemplars to grab for each group
@@ -120,7 +122,7 @@ class VerifyGroupingMainPanel(wx.Panel):
 
         # 1.) First, mark each ballot with its attribute properties
         ballot_attrvals = {} # maps {int ballotID: {attrtype: attrval}}
-        
+
         # Note: If groupingmode was PER_PARTITION, then self.VERIFY_RESULTS
         # will only have information about one ballot from each partition.
         for (attrtype, attrval), imgpaths in self.verify_results.iteritems():
@@ -161,9 +163,13 @@ class VerifyGroupingMainPanel(wx.Panel):
             # 2.a.) Filter out any 'is_tabulationonly' attrtypes
             ballotprops_grp = {} # maps {attrtype: attrval}
             for ballotattrtype, ballotattrval in ballotprops.iteritems():
+                if ballotattrtype == 'pid':
+                    # Always add the partition id
+                    ballotprops_grp[ballotattrtype] = ballotattrval
+                    continue
                 for attrmode, attrdicts in attrprops.iteritems():
-                    for attrtype, attrprops in attrdicts.iteritems():
-                        if attrtype == ballotattrtype and not attrprops['is_tabulationonly']:
+                    for attrtype, attrpropdict in attrdicts.iteritems():
+                        if attrtype == ballotattrtype and not attrpropdict['is_tabulationonly']:
                             ballotprops_grp[ballotattrtype] = ballotattrval
             ordered_props = tuple(sorted(ballotprops_grp.items(), key=lambda t: t[0]))
             group_idx = group_idx_map.get(ordered_props, None)
@@ -181,6 +187,30 @@ class VerifyGroupingMainPanel(wx.Panel):
                 if i >= self.NUM_EXMPLS:
                     break
                 group_exmpls.setdefault(groupid, []).append(ballotid)
+
+        # 4.) Also, export to proj.group_results.csv, for integration with
+        # quarantine/post-processing panels.
+        all_attrtypes = set()
+        for attrmode, attrtype_dicts in attrprops.iteritems():
+            for attrtype, attrprops in attrtype_dicts.iteritems():
+                all_attrtypes.add(attrtype)
+        fields = ('ballotid', 'groupid') + tuple(sorted(tuple(all_attrtypes))) + ('pid',)
+        csvfile = open(self.proj.grouping_results, 'wb')
+        dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
+        try:
+            dictwriter.writeheader()
+        except:
+            util_gui._dictwriter_writeheader(csvfile, fields)
+        rows = []
+        for ballotid, ballotprops in ballot_attrvals.iteritems():
+            row = {}
+            for attrtype, attrval in ballotprops.iteritems():
+                row[attrtype] = attrval
+            row['ballotid'] = ballotid
+            row['groupid'] = b2g[ballotid]
+            rows.append(row)
+        dictwriter.writerows(rows)
+        csvfile.close()
 
         pickle.dump(b2g, open(pathjoin(self.proj.projdir_path,
                                        self.proj.ballot_to_group), 'wb'),
