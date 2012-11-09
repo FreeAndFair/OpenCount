@@ -54,6 +54,11 @@ class ProjectPanel(wx.Panel):
         projects = load_projects(projdir)
         for proj in projects:
             self.add_project(proj)
+    def can_move_on(self):
+        if not self.get_project():
+            msg = "Please select a project before moving on."
+            return False, msg
+        return True, None
 
     def get_project(self):
         """ Returns the Project instance of the selected project. """

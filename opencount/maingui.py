@@ -55,6 +55,7 @@ class MainFrame(wx.Frame):
         self.init_ui()
         
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onPageChange)
+        self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.onPageChanging)
         self.Bind(wx.EVT_CLOSE, self.onClose)
 
         self.notebook.ChangeSelection(0)
@@ -97,13 +98,18 @@ class MainFrame(wx.Frame):
         for panel, text in self.pages:
             self.notebook.AddPage(panel, text)
         
-    def onPageChange(self, evt):
+    def onPageChanging(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
-
         if old == MainFrame.PROJECT:
-            self.project = self.panel_projects.get_project()
-            self.SetTitle("OpenCount -- Project {0}".format(self.project.name))
+            status, msg = self.panel_projects.can_move_on()
+            if status:
+                self.project = self.panel_projects.get_project()
+                self.SetTitle("OpenCount -- Project {0}".format(self.project.name))
+            else:
+                dlg = wx.MessageDialog(self, message=msg, style=wx.ID_OK)
+                dlg.ShowModal()
+                evt.Veto()
 
         if old == MainFrame.CONFIG:
             self.panel_config.stop()
@@ -131,6 +137,10 @@ class MainFrame(wx.Frame):
             self.panel_quarantine.stop()
         elif old == MainFrame.PROCESS:
             pass
+
+    def onPageChange(self, evt):
+        old = evt.GetOldSelection()
+        new = evt.GetSelection()
 
         if new >= MainFrame.SELTARGETS:
             if not os.path.exists(pathjoin(self.project.projdir_path,
