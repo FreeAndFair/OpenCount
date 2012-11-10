@@ -385,8 +385,8 @@ class VerifyOverlays(SplitOverlays):
               do_align=False, bbs_map=None, ondone=None, stateP=None):
         """
         Input:
-            dict IMGPATH_GROUPS: {str grouptag: [imgpath_i, ...]}
-            dict GROUP_EXEMPLARS: maps {str grouptag: [exmpl_imgpath_i, ...]}
+            dict IMGPATH_GROUPS: {grouptag: [imgpath_i, ...]}
+            dict GROUP_EXEMPLARS: maps {grouptag: [exmpl_imgpath_i, ...]}
             dict RLIST_MAP: maps {str imgpath: (groupID_0, ...)}
             dict BBS_MAP: maps {(str tag, imgpath): (x1,y1,x2,y2)}
             fn ONDONE: Function that accepts one argument:

@@ -564,7 +564,7 @@ dictated by the barcodes)?")
             self.is_digitbased = True
             self.num_digits = int(self.num_digits_ctrl.GetValue())
         self.is_tabulationonly = self.chkbox_is_tabulationonly.GetValue()
-        self.grp_per_parition = self.chkbox_grp_per_partition.GetValue()
+        self.grp_per_partition = self.chkbox_grp_per_partition.GetValue()
         for txt, input_ctrl in self.input_pairs:
             val = input_ctrl.GetValue()
             if val in history:

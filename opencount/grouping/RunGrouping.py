@@ -26,7 +26,7 @@ class RunGroupingMainPanel(wx.Panel):
 
         # dict EXTRACT_RESULTS: maps {int ballotID: {attrtype: {'attrOrder': attrorder, 'err': err,
         #                                            'exemplar_idx': exemplar_idx,
-        #                                            'bb': (x1,y1,x2,y2)}}
+        #                                            'patchpath': patchpath}}
         self.extract_results = None
 
         # dict DIGITGROUP_RESULTS: maps {str attrtype: {int ID: ...}}
@@ -47,6 +47,7 @@ class RunGroupingMainPanel(wx.Panel):
         self.btn_rerun_digitgroup.Bind(wx.EVT_BUTTON, self.onButton_rerun_digitgroup)
         txt_rerunOr = wx.StaticText(self, label="- Or -")
         self.btn_rerun_grouping = wx.Button(self, label="Re-run All Grouping.")
+        self.btn_rerun_grouping.Bind(wx.EVT_BUTTON, self.onButton_rerun_grouping)
         rerun_btnsizer0 = wx.BoxSizer(wx.VERTICAL)
         rerun_btnsizer0.AddMany([(self.btn_rerun_imggroup,0,wx.ALL,10), (self.btn_rerun_digitgroup,0,wx.ALL,10)])
         rerun_btnsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -79,6 +80,22 @@ class RunGroupingMainPanel(wx.Panel):
     def export_results(self):
         """ Saves the results of imgbased/digitbased grouping.
         """
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        attrprops = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                              self.proj.attrprops), 'rb'))
+        if exists_imgattr(self.proj):
+            # 0.) Create the imgpatch2imgpath mapping, for VerifyGrouping to use.
+            # maps {str patchpath: str imgpath}
+            imgpatch2imgpath = {}
+            for ballotid, attrtypedicts in self.extract_results.iteritems():
+                imgpaths = bal2imgs[ballotid]
+                for attrtype, outdict in attrtypedicts.iteritems():
+                    side = attrprops['IMGBASED'][attrtype]['side']
+                    patchpath = outdict['patchpath']
+                    imgpatch2imgpath[patchpath] = imgpaths[0] # doesn't matter which one
+            pickle.dump(imgpatch2imgpath, open(pathjoin(self.proj.projdir_path,
+                                                        self.proj.imgpatch2imgpath), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
         pickle.dump(self.extract_results, open(pathjoin(self.proj.projdir_path,
                                                         self.proj.extract_results), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
@@ -109,7 +126,6 @@ class RunGroupingMainPanel(wx.Panel):
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def run_imgbased_grouping(self):
-        '''
         partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                    self.proj.partitions_map), 'rb'))
         partition_attrmap = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -123,23 +139,35 @@ class RunGroupingMainPanel(wx.Panel):
                                                       self.proj.multexemplars_map), 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
+        img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_flip), 'rb'))
         imginfo_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                 self.proj.imginfo_map), 'rb'))
-        attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
-        # 0.) Behavior depends on the Grouping Mode (PER_PARTITION or PER_BALLOT).
-        grp_mode = get_imggroup_modes
-
+        #attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
+        # dict ATTRPROPS: maps {str ATTRMODE: {ATTRTYPE: {str prop: propval}}}
+        attrprops = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                              self.proj.attrprops), 'rb'))
+        # dict PATCHES: maps {str exmplpath: [[(y1,y2,x1,x2), attrtype,attrval, side, is_digit, is_tabulationonly, is_grp_partition], ...]}
+        patches = {}
+        grpmode_map = {} # maps {attrtype: is_grp_per_partition}
+        for attrtype, attrpropdict in attrprops['IMGBASED'].iteritems():
+            side = attrpropdict['side']
+            grp_per_partition = attrpropdict['grp_per_partition']
+            grpmode_map[attrtype] = grp_per_partition
+            for attrval, exmpls in multexemplars_map[attrtype].iteritems():
+                for (subpatchP, exmplpath, (x1,y1,x2,y2)) in exmpls:
+                    patches.setdefault(exmplpath, []).append([(y1,y2,x1,x2), attrtype, attrval, side])
         print "...Running Extract Attrvals..."
+        patchDestDir_root = pathjoin(self.proj.projdir_path, 'grp_outpatches')
         t = time.time()
-        extract_results = doGrouping.extract_attrvals(partitions_map, partition_attrmap,
-                                                      partition_exmpls,
-                                                      b2imgs, img2b, multexemplars_map,
-                                                      img2page, imginfo_map, attrs)
+        stopped = lambda : False
+        # dict RESULTS: {int ballotID: {str attrtype: dict outdict}}
+        results = doGrouping.groupImagesMAP(b2imgs, partitions_map, partition_exmpls,
+                                            img2page, img2flip, patches, grpmode_map,
+                                            patchDestDir_root, stopped, self.proj)
         dur = time.time() - t
         print "...Finished Running Extract Attrvals ({0} s).".format(dur)
-        self.extract_results = extract_results
-        '''
-        return {}
+        self.extract_results = results
 
     def run_digitbased_grouping(self):
         partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -164,7 +192,6 @@ class RunGroupingMainPanel(wx.Panel):
         print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
                                                    GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
         voteddir_root = self.proj.voteddir
-        print '...voteddir_root is:', voteddir_root
         if self.digitdist == None:
             self.digitdist = compute_median_dist(self.proj)
         for attr in attrs:
@@ -212,6 +239,8 @@ class RunGroupingMainPanel(wx.Panel):
         pass
     def onButton_rerun_digitgroup(self, evt):
         pass
+    def onButton_rerun_grouping(self, evt):
+        self.onButton_rungrouping(None)
 
 def compute_median_dist(proj):
     """ Computes the median (horiz) distance between adjacent digits,

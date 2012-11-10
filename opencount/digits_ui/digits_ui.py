@@ -1,4 +1,4 @@
-import sys, os, pdb, Queue, threading, time, traceback
+import sys, os, pdb, Queue, threading, time, traceback, random
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -73,6 +73,10 @@ class LabelDigitsPanel(wx.Panel):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
+        
+        # NUM_EXMPLS: Number of randomly-chosen ballots to choose when
+        # searching for digit exemplars.
+        self.NUM_EXMPLS = 1000
 
     def start(self, project):
         """ First, extract all digit-patches into 
@@ -87,7 +91,7 @@ class LabelDigitsPanel(wx.Panel):
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
             _t = time.time()
-            patch2temp = do_extract_digitbased_patches(self.project)
+            patch2temp = do_extract_digitbased_patches(self.project, self.NUM_EXMPLS)
             print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
             pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
                                                   project.digitpatch2temp),
@@ -1257,17 +1261,16 @@ def autocrop_img(img):
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
 
-def do_extract_digitbased_patches(proj):
+def do_extract_digitbased_patches(proj, NUM_EXMPLS):
     """ Extracts all digit-based attribute patches, and stores them
     in the proj.extracted_digitpatch_dir directory.
     Input:
         obj proj:
+        int NUM_EXMPLS: Number of ballots to randomly select.
     Output:
         Returns a dict mapping {str patchpath: (imgpath, attrtype, bb, int side)}
     """
-
     # all_attrtypes is a list of dicts (marshall'd AttributeBoxes)
-    
     all_attrtypes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     digit_attrtypes = []  # list of (attrs,x1,y1,x2,y2,side)
     for attrbox_dict in all_attrtypes:
@@ -1285,12 +1288,24 @@ def do_extract_digitbased_patches(proj):
                                                proj.partitions_map), 'rb'))
     img2page = pickle.load(open(pathjoin(proj.projdir_path,
                                          proj.image_to_page), 'rb'))
-    # Arbitrarily choose 1 voted ballot from each partition
+    # Randomly choose NUM_EXMPLS ballots from the election
+    num_ballots = len(bal2imgs)
+    chosen_bids = set()
+    if num_ballots <= NUM_EXMPLS:
+        chosen_bids = set(bal2imgs.keys())
+    else:
+        _cnt = 0
+        ballot_ids = bal2imgs.keys()
+        while _cnt < NUM_EXMPLS:
+            bid = random.randrange(num_ballots)
+            if bid not in chosen_bids:
+                chosen_bids.add(bid)
+                _cnt += 1
+
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.partition_exmpls), 'rb'))
     tasks = [] # list [(int ballotID, [imgpath_side0, ...]), ...]
-    for partitionID, ballotIDs in partition_exmpls.iteritems():
-        ballotid = ballotIDs[0]
+    for ballotid in chosen_bids:
         imgpaths = bal2imgs[ballotid]
         imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
         tasks.append((ballotid, imgpaths_ordered))

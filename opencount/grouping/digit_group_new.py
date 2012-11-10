@@ -51,8 +51,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
         for ballotID, imgpaths in b2imgs.iteritems():
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             d_imgpaths.append(imgpaths_ordered[page])
-            for imgpath in imgpaths_ordered:
-                flip_map[imgpath] = img2flip[imgpath]
+        flip_map = img2flip
 
     # 1.) Load the digit exemplars
     digit_ex_imgs = {} # maps {(str digit, str meta): nparray digit_img}

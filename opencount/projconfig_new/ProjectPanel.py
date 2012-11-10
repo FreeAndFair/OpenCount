@@ -153,6 +153,7 @@ class Project(object):
                      'target_locs_map': 'target_locs_map.p',
                      'extract_results': 'extract_results.p',
                      'digitpatch_dir': 'digitpatch_dir',
+                     'imgpatch2imgpath': 'imgpatch2imgpath.p',
                      'digpatch2imgpath': 'digpatch2imgpath.p',
                      'ballot_to_group': 'ballot_to_group.p',
                      'grouping_quarantined': 'grouping_quarantined.p',

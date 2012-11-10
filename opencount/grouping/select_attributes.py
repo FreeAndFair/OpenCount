@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback, threading, csv
+import os, sys, time, pdb, traceback, threading, csv, random
 import cv, Image, numpy as np
 import wx
 
@@ -38,6 +38,9 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.attridx = None
         self.attrtypes = None
 
+        # NUM_EXMPLS: Number of ballots to randomly select
+        self.NUM_EXMPLS = 1000
+
         # self.STATEFILEP := Location of statefile.
         self.statefileP = None
 
@@ -72,10 +75,22 @@ class SelectAttributesMasterPanel(wx.Panel):
             img2page = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
             partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                          proj.partition_exmpls), 'rb'))
+            # Randomly choose self.NUM_EXMPLS ballots from the election
+            num_ballots = len(b2imgs)
+            chosen_ballotids = set()
+            if num_ballots <= self.NUM_EXMPLS:
+                chosen_ballotids = set(b2imgs.keys())
+            else:
+                _cnt = 0
+                UPPER = min(self.NUM_EXMPLS, num_ballots)
+                while _cnt < UPPER:
+                    bid = random.randrange(num_ballots)
+                    if bid not in chosen_ballotids:
+                        chosen_ballotids.add(bid)
+                        _cnt += 1
             blanks = [] # list of [[path_page0, path_page1, ...], ...]
-            for partitionID, ballotids in partition_exmpls.iteritems():
-                # Choose an arbitrary voted ballot from this partition
-                imgpaths = b2imgs[ballotids[0]]
+            for ballotid in chosen_ballotids:
+                imgpaths = b2imgs[ballotid]
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                 blanks.append(imgpaths_ordered)
             self.mapping, self.inv_mapping = do_extract_attr_patches(proj, blanks)

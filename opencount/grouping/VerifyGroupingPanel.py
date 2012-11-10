@@ -139,23 +139,24 @@ class VerifyGroupingMainPanel(wx.Panel):
                     ballot_attrvals[ballotid]['pid'] = partitionID
 
         # 1.b.) Add CUSTOM_ATTRIBUTE mapping
+        ss_dicts = {} # maps {str attrtype: dict ss_dict}
         for attrtype, cattrprops in attrprops['CUSTATTR'].iteritems():
             if cattrprops['type'] == cust_attrs.TYPE_SPREADSHEET:
-                ssfile = open(cattrprops['sspath'], 'rb')
-                reader = csv.DictReader(ssfile)
+                ssdict = ss_dicts.get(attrtype, None)
+                if ssdict == None:
+                    ss_dicts[attrtype] = read_sscustattr(cattrprops['sspath'])
+                    ssdict = ss_dicts[attrtype]
                 for ballotid, ballotprops in ballot_attrvals.iteritems():
                     inval = ballotprops[cattrprops['attrin']]
-                    for row in reader:
-                        if row['in'] == inval:
-                            ballotprops[attrtype] = row['out']
-            elif props['type'] == cust_attrs.TYPE_FILENAME:
+                    ballotprops[attrtype] = ssdict[inval]
+            elif cattrprops['type'] == cust_attrs.TYPE_FILENAME:
                 for ballotid, ballotprops in ballot_attrvals.iteritems():
                     # Arbitrarily select the first image path...good?
                     imgname = b2imgs[ballotid][0]
                     matches = re.search(cattrprops['filename_regex'], imgname)
                     outval = matches.groups()[0]
                     ballotprops[attrtype] = outval
-        
+
         # 2.) Create each group, based on the unique ballot property values
         group_idx_map = {} # maps {((attrtype,attrval), ...): int groupIdx}
         group_cnt = 0
@@ -231,14 +232,34 @@ class VerifyGroupingMainPanel(wx.Panel):
             dict VERIFY_RESULTS: maps {(attrtype,attrval): [imgpath_i, ...]}
         """
         print "...Verify Done!..."
-        print verify_results
-        # Munge the single-digit groups in GROUP_RESULTS into the normal
-        # digitattr groups.
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
-        digpatch2imgpath = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.digpatch2imgpath), 'rb'))
-        verify_results_fixed = apply_singledigit_fix(verify_results, attrs, digpatch2imgpath)
-        self.verify_results = verify_results_fixed
+        if exists_imgattr(self.proj):
+            # Convert the attrpatchpaths in VERIFY_RESULTS back into 
+            # voted imgpaths, using imgpatch2imgpath
+            imgpatch2imgpath = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                         self.proj.imgpatch2imgpath), 'rb'))
+            verify_results = apply_patch2imgpath_fix(verify_results, attrs, imgpatch2imgpath)
+
+        if exists_digattr(self.proj):
+            # Munge the single-digit groups in GROUP_RESULTS into the normal
+            # digitattr groups.
+            digpatch2imgpath = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                         self.proj.digpatch2imgpath), 'rb'))
+            verify_results = apply_singledigit_fix(verify_results, attrs, digpatch2imgpath)
+        self.verify_results = verify_results
+
+def exists_imgattr(proj):
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if not attr['is_digitbased']:
+            return True
+    return False
+def exists_digattr(proj):
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        if attr['is_digitbased']:
+            return True
+    return False
 
 def create_groups(proj):
     """
@@ -257,30 +278,47 @@ def create_groups(proj):
                                          proj.image_to_page), 'rb'))
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     imgpath_groups0 = create_imgbased_groups(extract_results, attrs,
-                                                       b2imgs, img2page)
+                                             b2imgs, img2page, proj)
     imgpath_groups1 = create_digitbased_groups(digitgroup_results, 
-                                               attrs, b2imgs, img2page)
+                                               attrs, b2imgs, img2page, proj)
     return dict(imgpath_groups0.items() + imgpath_groups1.items())
 
-def create_imgbased_groups(extract_results, attrs, b2imgs, img2page):
+def create_imgbased_groups(extract_results, attrs, b2imgs, img2page, proj):
     """
     Input:
         dict EXTRACT_RESULTS: maps {int ballotID: {attrtype: {'attrOrder': attrorder, 'err': err,
                                                               'exemplar_idx': exemplar_idx,
-                                                              'bb': (x1, y1, x2, y2)}}}
+                                                              'patchpath': patchpath}}}
+        dict MULTEXEMPLARS_MAP: maps {attrtype: {attrval: [(subpatchP, blankP, (x1,y1,x2,y2)), ...]}}
         list ATTRS: [dict attr_i, ...]
     Output:
         dict IMGPATH_GROUPS. IMGPATH_GROUPS maps
             {(attrtype, attrval): [imgpath_i, ...]}.
     """
-    return {}
+    if not extract_results:
+        return {}
+    multexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                  proj.multexemplars_map), 'rb'))
+    groups = {}
+    # Prepopulate GROUPS with all possible attrtype->attrval combinations.
+    for attrtype, stuffdict in multexemplars_map.iteritems():
+        for attrval in stuffdict:
+            groups[(attrtype, attrval)] = []
+    for ballotid, attrtypedicts in extract_results.iteritems():
+        for attrtype, attrdict in attrtypedicts.iteritems():
+            attrOrder = attrdict['attrOrder']
+            patchpath = attrdict['patchpath']
+            attrval = attrOrder[0]
+            groups.setdefault((attrtype, attrval), []).append(patchpath)
+    return groups
 
-def create_digitbased_groups(digitgroup_results, attrs, b2imgs, img2page):
+def create_digitbased_groups(digitgroup_results, attrs, b2imgs, img2page, proj):
     """
     Input:
         dict DIGITGROUP_RESULTS: maps {str digattrtype: {int ID: [str digitstr, imgpath, [str digit_i,(x1,y1,x2,y2),score_i,digpatchpath],...]}}.
             If GROUP_MODE is by partition, then ID is partitionID. If GROUP_MODE
             is by ballot, then ID is ballotID.
+        dict DIGMULTEXEMPLARS_MAP: maps {str digit: [(regionP, (x1,y1,x2,y2), exmplrP), ...]}
         list ATTRS: [dict attr_i, ...]
     Output:
         dict IMGPATH_GROUPS. IMGPATH_GROUPS maps
@@ -295,8 +333,15 @@ def create_digitbased_groups(digitgroup_results, attrs, b2imgs, img2page):
         print "Badness -- couldn't find attribute {0}.".format(attrtype)
         pdb.set_trace()
         return None
-    imgpath_groups = {} # maps {int attrID: [imgpath_i, ...]}
+    if not digitgroup_results:
+        return {}
+    digmultexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                     proj.digitmultexemplars_map), 'rb'))
+    imgpath_groups = {} # maps {(attrtype,digit): [imgpath_i, ...]}
     for attrtype, info in digitgroup_results.iteritems():
+        # Prepopulate IMGPATH_GROUPS with every attrtype->digit combination
+        for digitval in digmultexemplars_map:
+            imgpath_groups[(attrtype, digitval)] = []
         page = get_side(attrs, attrtype)
         for ID, digitmats in info.iteritems():
             digitstr, imgpath, digitinfo = digitmats
@@ -312,13 +357,31 @@ def get_group_exemplars(proj):
     Output:
         dict GROUP_EXEMPLARS. maps {(attrtype, attrval): [imgpath_i, ...]}
     """
+    digit_exemplars = get_digit_exemplars(proj)
+    img_exemplars = get_img_exemplars(proj)
+    return dict(digit_exemplars.items() + img_exemplars.items())
+
+def get_img_exemplars(proj):
+    # MULTEXEMPLARS_MAP: maps {attrtype: {attrval: [(subpatchP, blankpath, (x1,y1,x2,y2)), ...]}}
+    multexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
+                                                  proj.multexemplars_map), 'rb'))
+    exemplars = {} 
+    for attrtype, attrdict in multexemplars_map.iteritems():
+        for attrval, tuples in attrdict.iteritems():
+            for (subpatchP, blankpath, (x1,y1,x2,y2)) in tuples:
+                exemplars.setdefault((attrtype,attrval), []).append(subpatchP)
+    return exemplars
+
+def get_digit_exemplars(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     digattrtype = None
     for attr in attrs:
         if attr['is_digitbased']:
             digattrtype = '_'.join(sorted(attr['attrs']))
             break
-    assert digattrtype != None
+    if digattrtype == None:
+        # Means there are no digit attributes in this election
+        return {}
     # dict DIGIT_EXEMPLARS: maps {str digit: [(regionpath_i, (x1,y1,x2,y2), exemplarpath_i), ...]}
     if os.path.exists(pathjoin(proj.projdir_path, proj.digitmultexemplars_map)):
         digit_exemplars = pickle.load(open(pathjoin(proj.projdir_path, proj.digitmultexemplars_map), 'rb'))
@@ -341,6 +404,24 @@ def get_rlist_map(proj):
         dict RLIST_MAP. maps {str imgpath: (groupID_0, ...)}
     """
     return {}
+
+def apply_patch2imgpath_fix(verify_results, attrs, imgpatch2imgpath):
+    """ Converts patchpaths to ballotids, for img-based attributes.  """
+    def is_imgbased(attrs, attrtype):
+        for attr in attrs:
+            attrtypestr = '_'.join(sorted(attr['attrs']))
+            if attrtypestr == attrtype:
+                return not attr['is_digitbased']
+        print "Uh oh, couldn't find attrtype {0}.".format(attrtype)
+        pdb.set_trace()
+    out = {}
+    for (attrtype, attrval), patchpaths in verify_results.iteritems():
+        if not is_imgbased(attrs, attrtype):
+            out[(attrtype, attrval)] = patchpaths
+        else:
+            imgpaths = [imgpatch2imgpath[patchpath] for patchpath in patchpaths]
+            out[(attrtype, attrval)] = imgpaths
+    return out
 
 def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
     """ Converts the individual digit 'attributes' back into the original
@@ -368,7 +449,7 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
                 imgpath, idx = digpatch2imgpath[digpatchpath]
                 d_map.setdefault(imgpath, {})[idx] = attrval
         else:
-            verify_results_fixed[(attrtype, attrval)] = imgpaths
+            verify_results_fixed[(attrtype, attrval)] = digpatchpaths
             
     for imgpath, digitidx_map in d_map.iteritems():
         digits_lst = []
@@ -379,3 +460,13 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
         print "For imgP {0}, digitval is: {1}".format(imgpath, digitstrval)
         verify_results_fixed.setdefault((digitattrtype, digitstrval), []).append(imgpath)
     return verify_results_fixed
+
+def read_sscustattr(sspath):
+    """ Reads in the SSPATH csv file, and returns it as a dictionary for
+    more efficient retrievals.
+    """
+    reader = csv.DictReader(open(sspath, 'rb'))
+    outdict = {} # maps {str in: str out}
+    for row in reader:
+        outdict[row['in']] = row['out']
+    return outdict
