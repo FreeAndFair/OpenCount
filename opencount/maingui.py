@@ -11,16 +11,16 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
 from tab_wrap import tab_wrap
-from projconfig_new.ProjectPanel import ProjectPanel, Project
-from projconfig_new.ConfigPanel import ConfigPanel
-from partitions.PartitionPanel import PartitionMainPanel
+from projconfig_new.project_panel import ProjectPanel, Project
+from projconfig_new.config_panel import ConfigPanel
+from partitions.partition_panel import PartitionMainPanel
 from specify_voting_targets.select_targets import SelectTargetsMainPanel
 from labelcontest.labelcontest import LabelContest
 from grouping.define_attributes_new import DefineAttributesMainPanel
 from grouping.select_attributes import SelectAttributesMasterPanel
 from digits_ui.digits_ui import LabelDigitsPanel
-from grouping.RunGrouping import RunGroupingMainPanel
-from grouping.VerifyGroupingPanel import VerifyGroupingMainPanel
+from grouping.run_grouping import RunGroupingMainPanel
+from grouping.verify_grouping_panel import VerifyGroupingMainPanel
 from runtargets.extract_targets_new import TargetExtractPanel
 from threshold.threshold import ThresholdPanel
 from quarantine.quarantinepanel import QuarantinePanel
