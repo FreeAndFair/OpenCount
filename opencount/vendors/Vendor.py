@@ -22,8 +22,6 @@ class Vendor(object):
 
     def decode_ballot(self, ballot):
         """ Tries to decode the barcodes/timing marks present on BALLOT.
-        If an error occurs, then decode_barcodes is expected to raise
-        an exception with an appropriate error message.
         Input:
             list BALLOT: List of image paths, together which correspond
                 to one ballot. For instance, if the election is double-sided,
@@ -38,7 +36,7 @@ class Vendor(object):
         isflips = []
         bbs_all = []
         for imgpath in ballot:
-            bcs, isflip, bbs = self.decode_image(imgpath, *_args, **_kwargs)
+            bcs, isflip, bbs = self.decode_image(imgpath)
             decoded.append(bcs)
             isflip.append(isflip)
             bbs_all.append(bbs)
