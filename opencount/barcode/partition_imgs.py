@@ -48,21 +48,25 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
         return None
     kwargs = {}
     if vendor == 'hart':
-        kwargs['TOP_GUARD'] = cv.LoadImage(pathjoin(MYDIR, 'hart_topguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)
-        kwargs['BOT_GUARD'] = cv.LoadImage(pathjoin(MYDIR, 'hart_botguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)
-    
+        topbot_pairs= [[cv.LoadImage(pathjoin(MYDIR, 'hart_topguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
+                        cv.LoadImage(pathjoin(MYDIR, 'hart_botguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)],
+                       [cv.LoadImage(pathjoin(MYDIR, 'hart_topguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
+                        cv.LoadImage(pathjoin(MYDIR, 'hart_botguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)]]
     for imgpath in imgpaths:
         try:
-            barcodes, isflip, bbs = decode(imgpath, **kwargs)
+            barcodes, isflip, bbs = decode(imgpath, topbot_pairs, only_ul=True)
             if queue != None:
                 queue.put(True)
         except:
             print "Errored on:", imgpath
-            grouping.setdefault((None,), []).append((imgpath, None, None, None))
+            grouping.setdefault(("ERR0",), []).append((imgpath, None, None, None))
             continue
-        info = get_info(barcodes)
-        grouping.setdefault(barcodes, []).append((imgpath, isflip, bbs, info))
-        
+        try:
+            info = get_info(barcodes)
+            grouping.setdefault(barcodes, []).append((imgpath, isflip, bbs, info))
+        except:
+            grouping.setdefault(("ERR0",), []).append((imgpath, None, None, None))
+
     return grouping
 
 def partition_imgs_par(imgpaths, vendor="hart", queue=None):
@@ -132,17 +136,19 @@ def main():
     if grouping == None:
         grouping = partask.do_partask(_do_partition_imgs, 
                                       imgpaths,
-                                      _args=(vendor,),
+                                      _args=(vendor, None),
                                       combfn="dict", 
                                       N=None)
         try:
             os.makedirs(outdir)
         except:
             pass
-        pickle.dump(grouping, open(os.path.join(outdir, 'grouping.p'), 'wb'))
+        pickle.dump(grouping, open(os.path.join(outdir, 'grouping.p'), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
 
     dur = time.time() - t
     print "...Finished partition_imgs ({0} s).".format(dur)
+    print "    Avg. Time per ballot: {0} s".format(dur / len(imgpaths))
 
     print "Copying groups to outdir {0}...".format(outdir)
     t = time.time()
