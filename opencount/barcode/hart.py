@@ -145,6 +145,21 @@ def get_party(bc):
     return bc[10:12]
 def get_checksum(bc):
     return bc[-2:]
+def check_checksum(bc):
+    def compute_chksum(digits):
+         outsum = 1
+         w = 82
+         for digit in digits:
+             outsum = (outsum+digit*w)%97
+             w = (w*68)%97
+         if outsum == 1:
+             return 98
+         elif outsum == 0:
+             return 97
+         return outsum
+    chk = compute_chksum(map(int, bc[:-2]))
+    chk_shouldbe = int(get_checksum(bc))
+    return chk == chk_shouldbe, chk, chk_shouldbe
 
 def get_info(barcodes):
     """ Extracts various semantic meaning(s) from the decoded
