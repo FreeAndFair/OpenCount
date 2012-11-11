@@ -2,7 +2,7 @@ import sys, os, pickle, pdb, traceback, time
 import cv
 import i2of5
 
-def decode_patch(img, n, debug=False, TOP_GUARD=None, BOT_GUARD=None):
+def decode_patch(img, n, topbot_pairs, debug=False, imgP=None):
     """ Decodes the barcode present in IMG, returns it as a string.
     Input:
         IMG: Either a string (imgpath), or an image object.
@@ -15,18 +15,18 @@ def decode_patch(img, n, debug=False, TOP_GUARD=None, BOT_GUARD=None):
         I = cv.LoadImage(img, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         I = img
-    return i2of5.decode_i2of5(I, n, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+    return i2of5.decode_i2of5(I, n, topbot_pairs, debug=debug, imgP=imgP)
 
-def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
-    """ Given a Hart-style ballot, returns the barcodes in the order
-    UPPERLEFT, LOWERLEFT, LOWERRIGHT. Will try to detect flipped
-    ballots and correct, if need be.
+def decode(imgpath, topbot_pairs, only_ul=True, debug=False):
+    """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will 
+    try to detect flipped ballots and correct.
     Input:
         str imgpath:
+        list TOPBOT_PAIRS: list of [[IplImage topguard, IplImage botguard], ...].
     Output:
-        (list barcodes, bool isflipped, tuple BBS). BARCODES is a list of three
-        strings. ISFLIPPED is True if we detected the ballot was flipped. BBS
-        is a tuple of tuples: [BB_i, ...].
+        (list barcodes, bool isflipped, tuple BBS). BARCODES is a list of one
+        string (UpperLeft). ISFLIPPED is True if we detected the ballot was 
+        flipped. BBS is a tuple of tuples: [BB_i, ...].
     """
     def check_result(decoded, type='UL'):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
@@ -66,7 +66,7 @@ def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
     if only_ul:
         dec_ll, outbb_ll, check_ll = None, [0,0,0,0], None
     else:
-        dec_ll, outbb_ll = decode_patch(I, 12, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        dec_ll, outbb_ll = decode_patch(I, 12, topbot_pairs, debug=debug, imgP=imgpath)
         check_ll = check_result(dec_ll, type='LL')
     if not only_ul and "ERR" in check_ll:
         # 1.a.) Flip it
@@ -79,17 +79,17 @@ def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
         bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
         #LL = cv.GetSubRect(I, bb_ll)
         cv.SetImageROI(I, bb_ll)
-        dec_ll, outbb_ll = decode_patch(I, 12, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        dec_ll, outbb_ll = decode_patch(I, 12, topbot_pairs, debug=debug, imgP=imgpath)
     # offset outbb_ll by the cropping we did (bb_ll).
     bbs[1] = [outbb_ll[0] + bb_ll[0],
               outbb_ll[1] + bb_ll[1],
               outbb_ll[2],
               outbb_ll[3]]
     # 2.) Decode UpperLeft
-    bb_ul = (int(round(w*0.02)), int(round(h*0.03)), int(round(w * 0.13)), int(round(h * 0.23)))
+    bb_ul = (10, int(round(h*0.03)), int(round(w * 0.13)), int(round(h * 0.23)))
     #bb_ul = (0, 0, int(round(w * 0.15)), int(round(h*0.3)))
     cv.SetImageROI(I, bb_ul)
-    dec_ul, outbb_ul = decode_patch(I, 14, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+    dec_ul, outbb_ul = decode_patch(I, 14, topbot_pairs, debug=debug, imgP=imgpath)
     check_ul = check_result(dec_ul, type="UL")
     if only_ul and "ERR" in check_ul:
         isflipped = True
@@ -98,7 +98,9 @@ def decode(imgpath, only_ul=True, debug=False, TOP_GUARD=None, BOT_GUARD=None):
         cv.Flip(I, tmp, flipMode=-1)
         I = tmp
         cv.SetImageROI(I, bb_ul)
-        dec_ul, outbb_ul = decode_patch(I, 14, debug=debug, TOP_GUARD=TOP_GUARD, BOT_GUARD=BOT_GUARD)
+        print '...checking FLIP...'
+        print dec_ul, outbb_ul
+        dec_ul, outbb_ul = decode_patch(I, 14, topbot_pairs, debug=debug, imgP=imgpath)
     bbs[0] = [outbb_ul[0] + bb_ul[0],
               outbb_ul[1] + bb_ul[1],
               outbb_ul[2],
@@ -159,26 +161,49 @@ def get_info(barcodes):
             'party': get_party(ul)}
     return info
 
+def isimgext(f):
+    return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.bmp', '.jpg')
+
 def main():
     args = sys.argv[1:]
-    imgpath = args[0]
+    arg0 = args[0]
     mode = args[1]
     if 'only_ul' in args:
         only_ul=True
     else:
         only_ul=False
+    imgpaths = []
+    if isimgext(arg0):
+        imgpaths.append(arg0)
+    else:
+        for dirpath, dirnames, filenames in os.walk(arg0):
+            for imgname in [f for f in filenames if isimgext(f)]:
+                imgpaths.append(os.path.join(dirpath, imgname))
+    # 1.) Load in top/bot guard pairs.
+    topbot_pairs = [[cv.LoadImage(i2of5.TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE),
+                     cv.LoadImage(i2of5.BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)],
+                    [cv.LoadImage(i2of5.TOP_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE),
+                     cv.LoadImage(i2of5.BOT_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)]]
+    errs = []
     t = time.time()
     if mode == 'full':
-        decoded = decode(imgpath, debug=True, only_ul=only_ul)
+        for imgpath in imgpaths:
+            decoded = decode(imgpath, topbot_pairs, debug=True, only_ul=only_ul)
+            print '{0}: '.format(imgpath), decoded
+            if 'ERR' in decoded[0][0]:
+                errs.append(imgpath)
     elif mode == 'patch':
         n = args[2]
         decoded = decode_patch(imgpath, n)
     else:
         print "Unrecognized mode:", mode
         return
-    print decoded
     dur = time.time() - t
     print "...Time elapsed: {0} s".format(dur)
+    avg_time = dur / len(imgpaths)
+    print "Avg. Time per ballot ({0} ballots): {1} s".format(len(imgpaths), avg_time)
+    print "    Number of Errors: {0}".format(len(errs))
+    print errs
     
 if __name__ == '__main__':
     main()

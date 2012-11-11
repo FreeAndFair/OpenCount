@@ -1,9 +1,12 @@
-import os, sys, time, pdb
+import os, sys, time, pdb, math
 import numpy as np
 import cv
 
 TOP_GUARD_IMGP = 'hart_topguard.png'
 BOT_GUARD_IMGP = 'hart_botguard.png'
+
+TOP_GUARD_SKINNY_IMGP = 'hart_topguard_skinny.png'
+BOT_GUARD_SKINNY_IMGP = 'hart_botguard_skinny.png'
 
 BC_14_IMGP = 'hart_bc_14.png'
 BC_12_IMGP = 'hart_bc_12.png'
@@ -14,23 +17,25 @@ BC_12_HEIGHT = 450
 
 VERTICAL = 1
 HORIZONTAL = 2
-WIDE = 3
-NARROW = 4
+WIDE = 'W'
+NARROW = 'N'
 
-def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD=None):
+def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False, 
+                 imgP=None, cols=4):
     """ Decodes the interleaved two-of-five barcode. Returns a string.
     Input:
         IplImage img:
         int n: Number of digits in the barcode.
+        list TOPBOT_PAIRS: [[IplImage topguard, IplImage botguard], ...]. 
+        int COLS: Splits the barcode into COLS columns, separately
+            runs the decoding on each column, then chooses the most
+            popular decoding result.
     Output:
         (str decoded, tuple bb), where BB is the bounding box of the
         barcode within IMG: (x, y, w, h)
     """
     # For now, assume that the barcode is bottom-to-top.
-    if TOP_GUARD == None:
-        TOP_GUARD = cv.LoadImage(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    if BOT_GUARD == None:
-        BOT_GUARD = cv.LoadImage(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    TOP_GUARD, BOT_GUARD = topbot_pairs[0]
 
     TOP_GUARD = smooth_constborder(TOP_GUARD, xwin=3, ywin=3, val=255)
     BOT_GUARD = smooth_constborder(BOT_GUARD, xwin=3, ywin=3, val=255)
@@ -39,64 +44,72 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     BOT_WHITE_PAD = 31
     
     # 1.) Find location of top/bottom guards, to find location of barcode
-    w,h = cv.GetSize(img)
-    _ROI = cv.GetImageROI(img)
-    cv.SetImageROI(img, (_ROI[0], _ROI[1], w, h/2))
-    #cv.SaveImage("_imgtop.png", img)
-    top_mats = get_tempmatches(TOP_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
-    cv.SetImageROI(img, _ROI)
-    _ROI = cv.GetImageROI(img)
-    cv.SetImageROI(img, (_ROI[0], _ROI[1]+h / 2, w, h / 2))
-    #cv.SaveImage("_imgbot.png", img)
-    bot_mats = get_tempmatches(BOT_GUARD, img, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
-    cv.SetImageROI(img, _ROI)
-    # 1.a.) Get top-most/bottom-most match.
-    top_sorted = sorted(top_mats, key=lambda t: t[1])
-    bot_sorted = sorted(bot_mats, key=lambda t: -t[1])
-    if not top_sorted and not bot_sorted:
-        if debug:
-            print "...couldn't find either TOP/BOT guard..."
-        return None, [0,0,1,1]
-    elif top_sorted and not bot_sorted:
-        (xtop, ytop, sctop) = top_sorted[0]
-        (xbot, ybot, scbot) = xtop, ytop + (BC_14_HEIGHT if n==14 else BC_12_HEIGHT), 1.0
-    elif bot_sorted and not top_sorted:
-        (xbot, ybot, scbot) = bot_sorted[0]
-        ybot += h / 2
-        (xtop, ytop, sctop) = xbot, ybot - (BC_14_HEIGHT if n==14 else BC_12_HEIGHT), 1.0
-    else:
-        (xtop, ytop, sctop) = top_sorted[0]
-        (xbot, ybot, scbot) = bot_sorted[0]
-        ybot += h / 2
+    bc_height = BC_14_HEIGHT if n == 14 else BC_12_HEIGHT
+    bc_loc = find_barcode_loc_tm(img, bc_height, TOP_GUARD, BOT_GUARD, 
+                                 TOP_WHITE_PAD, BOT_WHITE_PAD, imgP=imgP)
+    if bc_loc == None:
+        if len(topbot_pairs) == 1:
+            return None, [0, 0, 1, 1]
+        return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols)
 
-    '''
-    cv.SetImageROI(img, (_ROI[0]+min(xtop, xbot), 
-                         _ROI[1]+ytop,
-                         TOP_GUARD.width,
-                         ybot-ytop + BOT_GUARD.height - TOP_WHITE_PAD))
-    cv.SaveImage("_tightbc.png", img)
-    '''
-    cv.SetImageROI(img, _ROI)
-
-    out_bb = [min(xtop, xbot),
-              ytop + TOP_WHITE_PAD,
-              TOP_GUARD.width, 
-              (ybot - ytop) + BOT_GUARD.height - TOP_WHITE_PAD]
-
-    # 2.) Crop+Straighten the barcode, so that it's totally horiz/vertical.
-    if (ytop >= ybot):
-        # Badness - TOP_GUARD needs to be on top of BOT_GUARD
-        print "Error - TOP_GUARD not on top of BOT_GUARD:", (xtop,ytop),(xbot,ybot)
-        return None, out_bb
-        
+    # 2.) Crop the barcode.
+    #cv.SaveImage("_imgcrop_pre.png", img)
+    roi_precrop = cv.GetImageROI(img)
     cv.SetImageROI(img, shiftROI(cv.GetImageROI(img),
-                                 (xtop, ytop, max(TOP_GUARD.width, BOT_GUARD.width),
-                                  ybot - ytop + BOT_GUARD.height)))
+                                 bc_loc))
+    #cv.SaveImage("_imgcrop.png", img)
+    decodings = []
+    w_bc, h_bc = cv.GetSize(img)
+    bc_roi = cv.GetImageROI(img)
+    for curcol in xrange(cols):
+        width = int(round(w_bc / cols))
+        x1 = width * curcol
+        cv.SetImageROI(img, shiftROI(bc_roi, (x1, 0, width, h_bc)))
+        decodings.append(decode_barcode(img, n, bc_loc, imgP=imgP))
+    #print decodings
+    #pdb.set_trace()
+    dstr_out, bbloc_out = get_most_popular(decodings)
+    cv.SetImageROI(img, roi_precrop)
+    #print dstr_out, bbloc_out
+    if dstr_out == None:
+        if len(topbot_pairs) == 1:
+            # We tried our best, give up.
+            return dstr_out, bbloc_out
+        else:
+            return decode_i2of5(img, n, topbot_pairs[1:],
+                                imgP=imgP, cols=cols)
+    return dstr_out, bbloc_out
+
+def get_most_popular(decodings):
+    decoding = None
+    votes = {} # maps {decoded_str: int count}
+    othermap = {} # maps {decoded_str: bc_loc}
+    none_bc_loc = None
+    for decoded_str, bc_loc in decodings:
+        bc_loc = tuple(bc_loc)
+        if decoded_str == None:
+            if bc_loc != None:
+                none_bc_loc = bc_loc
+            continue
+        if decoded_str not in votes:
+            votes[decoded_str] = 1
+            othermap[decoded_str] = bc_loc
+        else:
+            votes[decoded_str] += 1
+            othermap[decoded_str] = bc_loc
+    if votes:
+        best_decodedstr = sorted(votes.items(), key=lambda t:t[1])[0][0]
+        return best_decodedstr, othermap[best_decodedstr]
+    return None, none_bc_loc
+        
+def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
+    """ Given an image patch IMG that is a tight-bounding box around the 
+    barcode, return the decoding.
+    """
     img_post = dothreshold(img)
-    if debug:
-        cv.SaveImage("_imgpost.png", img_post)
+    #cv.SaveImage("_imgpost.png", img_post)
+    #img_post = img
     w_imgpost, h_imgpost = cv.GetSize(img_post)
-    # TODO: Implement Me.
 
     # 3.) Collapse the barcode to be 1D (by summing pix intensity values
     # to the parallel axis). 
@@ -108,20 +121,8 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     # 4.) Now we have something like [100 100 100 0 0 0 100 100 100 0 0 0 ...].
     # Compute the PIX_ON/PIX_OFF, which tells us what intensity
     # value is 'black' or 'white' by computing the histogram of FLAT.
-
-    pix_on, pix_off = 0.0, 0.0
-    bins, binsizes = np.histogram(flat_np)
-    bins_asort = np.argsort(bins)[::-1]
-    a_idx, b_idx = bins_asort[0], bins_asort[1]
-    a_val = (binsizes[a_idx] + binsizes[a_idx+1]) / 2.0
-    b_val = (binsizes[b_idx] + binsizes[b_idx+1]) / 2.0
-    if a_val < b_val:
-        pix_on = a_val
-        pix_off = b_val
-    else:
-        pix_on = b_val
-        pix_off = a_val
-
+    pix_on, pix_off = infer_on_off(flat_np)
+    #print 'pix_on, pix_off:', pix_on, pix_off
     # 4.a.) Advance to start of barcode
     i, foundbegin = 0, False
     while i < len(flat_tpl) and not foundbegin:
@@ -134,9 +135,9 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
         print "Uhoh, couldn't find start of barcode?"
         if debug:
             pdb.set_trace()
-        return None, out_bb
+        return None, bc_loc
     start_idx = i
-    out_bb[3] -= i    # skip to start of barcode
+    bc_loc[3] -= i    # skip to start of barcode
 
     # 4.b.) Find W_NARROW, W_WIDE, B_NARROW, B_WIDE
     # Due to image artifacts, wide/narrow may differ for black/white.
@@ -145,9 +146,12 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
 
     whts, blks = [], []
     curlen = 0
-    isblack = True
-    for idx, val in enumerate(flat_np[start_idx:]):
-        if abs(val - pix_on) <= (0.8 * pix_on):
+    isblack = is_pix_on(flat_np[start_idx], pix_on, pix_off)
+    UPPER_LIMIT = n * 5 + 7 # Number of stripes, including (7) for top/bot guards
+    for idx, val in enumerate(flat_tpl[start_idx:]):
+        if (len(whts) + len(blks)) >= UPPER_LIMIT:
+            break
+        if is_pix_on(val, pix_on, pix_off):
             if not isblack:
                 # Entering Black
                 whts.append(curlen)
@@ -155,7 +159,7 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
             else:
                 curlen += 1
             isblack = True
-        elif abs(val - pix_off) <= (0.8 * pix_off):
+        elif not is_pix_on(val, pix_on, pix_off):
             if isblack:
                 # Entering White
                 blks.append(curlen)
@@ -165,57 +169,17 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
             isblack = False
         else:
             curlen += 1
-    
-    bins_whts, binedges_whts = np.histogram(whts)
-    bins_blks, binedges_blks = np.histogram(blks)
-    # we get somethign like:
-    # bins_whts: [16 8 0 0 0 0 5 4 3 2]
-    # binsizes_whts: [4, 4.9, 5.8, 6.7, 7.6, 8.5, 9.4, 10.3, 11.2, 12.1, 13.]
-    # so, first separate by (16, 8), (5, 4, 3, 2), and then get the 
-    # most-populated bucket, and set the parameter to be the coresponding
-    # bin value. 
-    def get_median_bucket(hist):
-        K = int(sum(hist) / 2)
-        for i, bucket in enumerate(tuple(hist)):
-            if (K-bucket) <= 0:
-                return i
-            K -= bucket
-        print "UH OH, this is weird."
-        return 1
-    _idxs0 = np.where(bins_whts == 0)[0]
-    if len(_idxs0) == 0:
-        _idx0 = int(len(bins_whts) / 2)
-    else:
-        _idx0 = _idxs0[int(len(_idxs0)/2)]
-    _idxs1 = np.where(bins_blks == 0)[0]
-    if len(_idxs1) == 0:
-        _idx1 = int(len(bins_blks) / 2)
-    else:
-        _idx1 = _idxs1[int(len(_idxs1)/2)]
-    _bins0_wht = bins_whts[:_idx0]
-    _bins1_wht = bins_whts[_idx0:]
-    b0_w = get_median_bucket(_bins0_wht)
-    b1_w = get_median_bucket(_bins1_wht)
-    w_narrow = binedges_whts[:_idx0][b0_w]
-    w_wide = binedges_whts[_idx0:][b1_w]
-    '''
-    w_narrow = binedges_whts[np.argmax(_bins0_wht)]
-    w_wide = binedges_whts[np.argmax(_bins1_wht)+_idx0]
-    '''
-    _bins0_blk = bins_blks[:_idx1]
-    _bins1_blk = bins_blks[_idx1:]
-    b0_b = get_median_bucket(_bins0_blk)
-    b1_b = get_median_bucket(_bins1_blk)
-    b_narrow = binedges_blks[:_idx1][b0_b]
-    b_wide = binedges_blks[_idx1:][b1_b]
-    '''
-    b_narrow = binedges_blks[np.argmax(_bins0_blk)]
-    b_wide = binedges_blks[np.argmax(_bins1_blk)+_idx1]
-    '''
-    #print 'wht_narrow, wht_wide:', int(round(w_narrow)), int(round(w_wide))
-    #print 'blk_narrow, blk_wide:', int(round(b_narrow)), int(round(b_wide))
-    #cv.SaveImage("_img_post.png", img_post)
-    #pdb.set_trace()
+    if (len(whts) + len(blks) < UPPER_LIMIT) and curlen > 1:
+        # Add the upper-most black stripe, which didn't get added inside the for-loop
+        blks.append(curlen)
+        
+    if len(whts) + len(blks) != UPPER_LIMIT:
+        return None, bc_loc
+
+    w_narrow, w_wide = infer_narrow_wide(whts)
+    b_narrow, b_wide = infer_narrow_wide(blks)
+    #print 'white_narrow, white_wide:', w_narrow, w_wide
+    #print 'black_narrow, black_wide:', b_narrow, b_wide
     if w_narrow == 0 or w_wide == 0 or b_narrow == 0 or b_wide == 0:
         # Default to sensible values if badness happens. 
         w_narrow = 2.0
@@ -227,90 +191,255 @@ def decode_i2of5(img, n, orient=VERTICAL, debug=False, TOP_GUARD=None, BOT_GUARD
     
     # 5.) Convert the FLAT_NP to something like [Nblk, Nwht, Wblk, Wwht],
     # i.e. 'Narrow black', 'Wide white'. 
-    bars = [] # [barstr_i, ...]
-    i = 0
     # 5.b.) Do Convert.
-    bars = _convert_flat(flat_tpl, start_idx, pix_on, pix_off, w_narrow, w_wide, b_narrow, b_wide)
-    # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
-    test1 = bars[:4] == [NARROW, NARROW, NARROW, NARROW]
-    if not test1:
-        if debug:
-            print "Warning: Begin-guard not found. Continuing \
-to try decoding anyways."
-            pdb.set_trace()
-    test2 = bars[-3:] == [WIDE, NARROW, NARROW]
-    if not test2:
-        if debug:
-            print "Warning: End-guard not found. Continuing to try \
-decoding anyways."
-    bars = bars[4:]
-    bars = bars[:-3]
-    # 6.) Interpret BARS.
-    bars_blk, bars_wht = bars[::2], bars[1::2]
+    all_bars_wht = stripes_to_bars(whts, w_narrow, w_wide, imgP=imgP)
+    all_bars_blk = stripes_to_bars(blks, b_narrow, b_wide, imgP=imgP)
+    results = [] # [(str decoded, tuple bc_loc), ...]
+    # 5.c.) Iterate over all possible interpretations from stripes_to_bars
+    for bars_wht in all_bars_wht:
+        if (bars_wht[0] != NARROW or bars_wht[1] != NARROW):
+            print "Warning: WHITE Begin-guard not found."
+        bars_wht = bars_wht[2:-1]
 
-    decs_blk, decs_wht = [], []
-    for i_blk, bars_sym in enumerate(gen_by_n(bars_blk, 5)):
+        for bars_blk in all_bars_blk:
+            # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
+            if (bars_blk[0] != NARROW or bars_blk[1] != NARROW):
+                if debug:
+                    print "Warning: Begin-guard not found. Continuing \
+    to try decoding anyways."
+                    pdb.set_trace()
+            if (bars_blk[-2] != WIDE or bars_blk[-1] != NARROW):
+                if debug:
+                    print "Warning: End-guard not found. Continuing to try \
+    decoding anyways."
+                    pdb.set_trace()
+            bars_blk = bars_blk[2:-2]
+            # 6.) Interpret BARS.
+            decs_blk = bars_to_symbols(bars_blk)
+            decs_wht = bars_to_symbols(bars_wht)
+            if decs_blk == None or decs_wht == None:
+                continue
+            decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
+            if len(decoded) != n:
+                continue
+            results.append((decoded, bc_loc))
+    if not results:
+        return None, bc_loc
+    elif len(results) > 1:
+        print "...Wow, {0} possible decodings!".format(len(results))
+        return None, bc_loc
+    else:
+        return results[0]
+
+def bars_to_symbols(bars, debug=False):
+    symbols = []
+    for i, bars_sym in enumerate(gen_by_n(bars, 5)):
         sym = get_i2of5_val(bars_sym)
         if sym == None:
             print "...Invalid symbol:", bars_sym
             if debug:
                 pdb.set_trace()
-            return None, out_bb
-        decs_blk.append(sym)
-    for i_wht, bars_sym in enumerate(gen_by_n(bars_wht, 5)):
-        sym = get_i2of5_val(bars_sym)
-        if sym == None:
-            print "...Invalid symbol:", bars_sym
-            if debug:
-                pdb.set_trace()
-            return None, out_bb
-        decs_wht.append(sym)
-    decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
-    return decoded, out_bb
+            return None
+        symbols.append(sym)
+    return symbols
+
+def find_barcode_loc_hough(I, MAX_LINE_LEN=60, debug=True):
+    """ Given imgpatch I, find a tight boundingbox around the barcode.
+    Output:
+        (x1,y1,w,h)
+    """
+    def distL2(pt1, pt2):
+        return math.sqrt(((pt1[1]-pt2[1])**2.0) + ((pt1[0]-pt2[0])**2.0))
+    Ithr = cv.CreateImage(cv.GetSize(I), I.depth, I.channels)
+    cv.Canny(I, Ithr, 80, 120)
+    storage = cv.CreateMemStorage()
+    RHO = 1
+    THETA = math.pi / 2
+    THRESHOLD = 2 # num votes needed
+    MIN_LINE_LEN = 30
+    MAX_INTRALINE_GAP = 4
+    # list LINES: line segments, of the form: [[(x1,y1), (x2,y2)], ...]
+    lines = cv.HoughLines2(Ithr, storage, cv.CV_HOUGH_PROBABILISTIC, RHO, THETA,
+                           THRESHOLD, param1=MIN_LINE_LEN, param2=MAX_INTRALINE_GAP)
+    HORIZ_LINE_LEN = 46 # Empirical val. for OC
+    # Prune out lines that are too long or not horizontal enough
+    lines_out = []
+    for (pt1, pt2) in lines:
+        dist = distL2(pt1, pt2)
+        angle = math.atan2(abs(pt1[1]-pt2[1]), abs(pt1[0]-pt2[0]))
+        if (abs(angle) <= (math.pi/10)) and (abs(dist-HORIZ_LINE_LEN) <= 5):
+            lines_out.append((pt1, pt2))
+    # TODO: Prune out lines whose x1 is too far from the mean x1
+    # coordinate, idea being that the horiz-lines from the barcode
+    # will be mostly in an area 1-3 pixels wide
+    if debug:
+        colorImg0 = cv.CreateImage(cv.GetSize(I), I.depth, 3)
+        cv.Set(colorImg0, (255, 255, 255))
+        for ((x1,y1), (x2,y2)) in lines:
+            cv.Line(colorImg0, (x1,y1), (x2,y2), (255, 0, 0), thickness=1)
+        cv.SaveImage("_houghlines0.png", colorImg0)
+        colorImg1 = cv.CreateImage(cv.GetSize(I), I.depth, 3)
+        cv.Set(colorImg1, (255, 255, 255))
+        for ((x1,y1), (x2,y2)) in lines_out:
+            cv.Line(colorImg1, (x1,y1), (x2,y2), (255, 0, 0), thickness=1)
+        cv.SaveImage("_houghlines1.png", colorImg1)
+        cv.SaveImage("_houghlines2.png", I)
+    lines_sortX = sorted(lines_out, key=lambda (pt1, pt2): min(pt1[0], pt2[0]))
+    lines_sortY = sorted(lines_out, key=lambda (pt1, pt2): min(pt1[1], pt2[1]))
+    pt1_minx, pt2_minx = lines_sortX[0]
+    pt1_maxx, pt2_maxx = lines_sortX[-1]
+    x1 = min(pt1_minx[0], pt2_minx[0])
+    x2 = max(pt1_maxx[0], pt2_maxx[0])
+    pt1_miny, pt2_miny = lines_sortY[0]
+    pt1_maxy, pt2_maxy = lines_sortY[-1]
+    y1 = min(pt1_miny[1], pt2_miny[1])
+    y2 = max(pt1_maxy[1], pt2_maxy[1])
+    return [x1-5, y1-10, int(x2-x1+5), int(y2-y1+20)]
+
+def find_barcode_loc_tm(I, bc_height, TOP_GUARD, BOT_GUARD, 
+                        TOP_WHITE_PAD, BOT_WHITE_PAD, imgP=None):
+    """
+    Input:
+        IplImage I: Region where a barcode presumably exists.
+        int BC_HEIGHT: Estimated height of the barcode.
+    Output:
+        list BB. [x1, y1, w, h].
+        oc_tough_cases/unknown/329_331_25_232_1.png
+
+    """
+    w,h = cv.GetSize(I)
+    _ROI = cv.GetImageROI(I)
+    cv.SetImageROI(I, (_ROI[0], _ROI[1], w, h/2))
+    top_mats = get_tempmatches(TOP_GUARD, I, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
+    cv.SetImageROI(I, _ROI)
+    _ROI = cv.GetImageROI(I)
+    cv.SetImageROI(I, (_ROI[0], _ROI[1]+h / 2, w, h / 2))
+    bot_mats = get_tempmatches(BOT_GUARD, I, T=0.86, do_smooth=True, xwin=3, ywin=3, atleastone=True)
+    cv.SetImageROI(I, _ROI)
+    # 1.a.) Get top-most/bottom-most match.
+    top_sorted = sorted(top_mats, key=lambda t: t[1])  # (46, 58)
+    bot_sorted = sorted(bot_mats, key=lambda t: -t[1]) # (46, 74) => (46, 401)
+    if not top_sorted and not bot_sorted:
+        if debug:
+            print "...couldn't find either TOP/BOT guard..."
+        return None
+    if top_sorted and bot_sorted:
+        besttop, bestbot = top_sorted[0], bot_sorted[0]
+        # Check that BESTTOP is actually on top of BESTBOT
+        if besttop[1] > bestbot[1]:
+            return None
+    if top_sorted and not bot_sorted:
+        (xtop, ytop, sctop) = top_sorted[0]
+        (xbot, ybot, scbot) = xtop, ytop + bc_height, 1.0
+    elif bot_sorted and not top_sorted:
+        (xbot, ybot, scbot) = bot_sorted[0]
+        ybot += h / 2 # Account for cropping done above
+        (xtop, ytop, sctop) = xbot, ybot - bc_height, 1.0
+    else:
+        (xtop, ytop, sctop) = top_sorted[0]
+        (xbot, ybot, scbot) = bot_sorted[0]
+        ybot += h / 2 # Account for cropping done above
+    # 1.b.) Correct for the white-padding from topguard/botguard.
+    ytop += TOP_WHITE_PAD
+    ybot += (BOT_GUARD.height - BOT_WHITE_PAD)
+    # 2.) Try to recover from case where top/bot mat is too high/low.
+    if abs((ybot-ytop) - bc_height) >= (0.1 * bc_height):
+        # Get the more-confident guard match, and work relative to that one
+        if sctop > scbot:
+            ybot = ytop + bc_height
+        else:
+            ytop = ybot - bc_height
+    bb = [min(xtop, xbot), 
+          ytop,
+          TOP_GUARD.width,
+          int(abs(ybot - ytop))]
+    return bb
+
+def infer_on_off(flat_np):
+    """ Infers the pix_on/pix_off values from FLAT_NP. """
+    pix_on, pix_off = 0.0, 0.0
+    bins, binsizes = np.histogram(flat_np)
+    bins_asort = np.argsort(bins)[::-1]
+    a_idx, b_idx = bins_asort[0], bins_asort[1]
+    a_val = (binsizes[a_idx] + binsizes[a_idx+1]) / 2.0
+    b_val = (binsizes[b_idx] + binsizes[b_idx+1]) / 2.0
+    if a_val < b_val:
+        pix_on = a_val
+        pix_off = b_val
+    else:
+        pix_on = b_val
+        pix_off = a_val
+    return pix_on, pix_off
+    
+def infer_narrow_wide(lens):
+    """ Infers the narrow/wide parameters, given LENS, a list of integers
+    representing lengths of regions.
+    """
+    def get_median_bucket(hist):
+        K = int(sum(hist) / 2)
+        for i, bucket in enumerate(tuple(hist)):
+            if (K-bucket) <= 0:
+                return i
+            K -= bucket
+        print "UH OH, this is weird."
+        return 1
+    def get_mostpop_bucket(hist):
+        idx = np.argmax(hist)
+        return idx
+
+    bins, binedges = np.histogram(lens)
+    idxs0 = np.where(bins == 0)[0]
+    if len(idxs0) == 0:
+        idx0 = int(len(bins) / 2)
+    else:
+        idx0 = idxs0[int(len(idxs0) / 2)]
+
+    binsNarrow = bins[:idx0]
+    binsWide = bins[idx0:]
+    #narrow_idx = get_median_bucket(binsNarrow)
+    #wide_idx = get_median_bucket(binsWide)
+    narrow_idx = get_mostpop_bucket(binsNarrow)
+    wide_idx = min(get_mostpop_bucket(binsWide)+1, len(binedges))
+    narrow = binedges[:idx0][narrow_idx]
+    wide = binedges[idx0:][wide_idx]
+    return narrow, wide
 
 def is_pix_on(val, pix_on, pix_off):
     return abs(pix_on - val) < abs(pix_off - val)
 def w_or_n(cnt, w_narrow, w_wide, step=1):
     return NARROW if (abs((cnt+((step-1)*cnt)) - w_narrow) < abs((cnt+((step-1)*cnt)) - w_wide)) else WIDE
 
-def _convert_flat(flat_np, start_i, pix_on, pix_off, w_narrow, w_wide, b_narrow, b_wide):
-    """ Walks through FLAT_NP, turning the 1D-array into a series of
-    [NARROW, WIDE, ...]. Note that it alternates from black->white, and
-    the first bar is always black.
-    TODO: This is currently the most expensive operation. Perhaps 
-    doing this in OpenCV (say, computing the derivative?) would be the
-    best thing to do.
+def stripes_to_bars(lens, narrow, wide, imgP=None, T=0.04):
+    """ Converts the stripes in LENS to NARROW/WIDE to yield a set of
+    possible NARROW/WIDE interpretations. If a stripe's NARROW/WIDE-ness
+    is ambiguous, then we generate separate interpretations for each.
     """
-    bars = [] # i.e. ['NB', 'NW', 'WB', 'WW']
-    i = start_i
-    cnt = 0
-    is_on = False
-    n_step = int(round(w_narrow / 2.0))
-    w_step = int(round(w_wide / 2.0))
-    step = 1
-    # Start forward once
-    prev_val = flat_np[i]
-    i += 1
-    cnt += 1
-    is_on = True if is_pix_on(prev_val, pix_on, pix_off) else False
-
-    while i < len(flat_np):
-        val = flat_np[i]
-        ispixon = is_pix_on(val, pix_on, pix_off)
-        if ispixon == is_on:
-            cnt += 1
-        elif is_on:
-            bars.append(w_or_n(cnt, b_narrow, b_wide, step=step))
-            cnt = 1
-            is_on = False
+    def get_score(x, low, r):
+        return 2*((x-low) / r) - 1
+    r = wide - narrow
+    possibles = [] # [[NARROW_i0/WIDE_i0, ...], [NARROW_i1/WIDE_i1, ...], ...]
+    for i, stripe_len in enumerate(lens):
+        s = get_score(stripe_len, narrow, r) # -1.0 is perfect narrow, 1.0 is perfect wide
+        if abs(s) >= T:
+            possibles.append([WIDE if s > 0 else NARROW])
         else:
-            bars.append(w_or_n(cnt, w_narrow, w_wide, step=step))
-            cnt = 1
-            is_on = True
-        # Optimization: Step-size larger than 1 (BUGGY)
-        i += step
-        prev_val = val
-    return bars
+            print 'ambiguity, s={0}, stripe_len={1}'.format(s, stripe_len)
+            possibles.append([WIDE, NARROW])
+    # Now, generate all possible interpretations
+    interpretations = make_possibles(possibles)
+    return interpretations
+
+def make_possibles(lst):
+    prevs = []
+    for i, vals in enumerate(lst):
+        if i == 0:
+            prevs = [[v] for v in vals]
+        else:
+            cur = []
+            for v in vals:
+                cur.extend([prev+[v] for prev in prevs])
+            prevs = cur
+    return prevs
 
 def get_i2of5_val(bars):
     """ Given a sequence of narrow/wide, returns the value of the
@@ -385,7 +514,7 @@ def dothreshold(I):
     #I_mat = iplimage2cvmat(I)
     #I_np = np.asarray(I_mat)
     #bins, binsizes = np.histogram(I_np)
-    cv.Threshold(I, newI, 75, 255.0, cv.CV_THRESH_BINARY)
+    cv.Threshold(I, newI, 35, 255.0, cv.CV_THRESH_BINARY)
     return newI
 
 def get_tempmatches(A, B, T=0.8, do_smooth=True, xwin=13, ywin=13, MAX_MATS=50, atleastone=False):
