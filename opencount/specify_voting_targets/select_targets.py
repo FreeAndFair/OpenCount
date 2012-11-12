@@ -47,6 +47,8 @@ class SelectTargetsMainPanel(wx.Panel):
         for groupID, ballotids in group_exmpls.iteritems():
             group = []
             for ballotid in ballotids:
+                if len(group) >= 5:
+                    break
                 imgpaths = b2imgs[ballotid]
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                 group.append(imgpaths_ordered)

@@ -2,7 +2,7 @@ import sys, os, pickle, pdb, traceback, time
 import cv
 import i2of5
 
-def decode_patch(img, n, topbot_pairs, debug=False, imgP=None):
+def decode_patch(img, n, topbot_pairs, cols=4, debug=False, imgP=None):
     """ Decodes the barcode present in IMG, returns it as a string.
     Input:
         IMG: Either a string (imgpath), or an image object.
@@ -15,9 +15,9 @@ def decode_patch(img, n, topbot_pairs, debug=False, imgP=None):
         I = cv.LoadImage(img, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         I = img
-    return i2of5.decode_i2of5(I, n, topbot_pairs, debug=debug, imgP=imgP)
+    return i2of5.decode_i2of5(I, n, topbot_pairs, cols=cols, debug=debug, imgP=imgP)
 
-def decode(imgpath, topbot_pairs, only_ul=True, debug=False):
+def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False):
     """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will 
     try to detect flipped ballots and correct.
     Input:
@@ -28,88 +28,57 @@ def decode(imgpath, topbot_pairs, only_ul=True, debug=False):
         string (UpperLeft). ISFLIPPED is True if we detected the ballot was 
         flipped. BBS is a tuple of tuples: [BB_i, ...].
     """
-    def check_result(decoded, type='UL'):
+    def check_result(decoded):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
         LowerRight has 10 digits.
         """
-        if not decoded:
-            return "ERR0"
-        elif type == 'UL' and len(decoded) != 14:
-            return "ERR1"
-        elif type == 'LL' and len(decoded) != 12:
-            return "ERR1"
-        elif type == 'LR' and len(decoded) != 10:
-            return "ERR1"
+        if not decoded or len(decoded) != 14:
+            return False
         else:
-            return decoded
-    def dothreshold(mat):
-        newmat = cv.CreateMat(mat.rows, mat.cols, mat.type)
-        cv.Threshold(mat, newmat, 0.0, 255.0, cv.CV_THRESH_BINARY | cv.CV_THRESH_OTSU)
-        return newmat
-        
+            test, chk, chk_shouldbe = check_checksum(decoded)
+            if not test:
+                return False
+        return decoded
     # UpperLeft: 15% of width, 30% of height.
-    # LowerLeft: 15% of width, 30% of height.
-    # LowerRight: 15% of width, 30% of height.
     if type(imgpath) == str or type(imgpath) == unicode:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         I = imgpath
     w, h = cv.GetSize(I)
     isflipped = False
-    bbs = [None, None]
-
-    # 1.) First, try to find LowerLeft first. If it fails, then we
-    # guess that the ballot is flipped.
-    bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
-    cv.SetImageROI(I, bb_ll)
-
-    if only_ul:
-        dec_ll, outbb_ll, check_ll = None, [0,0,0,0], None
-    else:
-        dec_ll, outbb_ll = decode_patch(I, 12, topbot_pairs, debug=debug, imgP=imgpath)
-        check_ll = check_result(dec_ll, type='LL')
-    if not only_ul and "ERR" in check_ll:
-        # 1.a.) Flip it
-        isflipped = True
-        tmp = cv.CreateImage((w,h), I.depth, I.channels)
-        cv.ResetImageROI(I)
-        cv.Flip(I, tmp, flipMode=-1)
-        I = tmp
-        # 1.b.) Re-do LowerLeft
-        bb_ll = (0, h-1 - int(round(h*0.3)), int(round(w * 0.15)), int(round(h*0.3)))
-        #LL = cv.GetSubRect(I, bb_ll)
-        cv.SetImageROI(I, bb_ll)
-        dec_ll, outbb_ll = decode_patch(I, 12, topbot_pairs, debug=debug, imgP=imgpath)
-    # offset outbb_ll by the cropping we did (bb_ll).
-    bbs[1] = [outbb_ll[0] + bb_ll[0],
-              outbb_ll[1] + bb_ll[1],
-              outbb_ll[2],
-              outbb_ll[3]]
-    # 2.) Decode UpperLeft
     bb_ul = (10, int(round(h*0.03)), int(round(w * 0.13)), int(round(h * 0.23)))
-    #bb_ul = (0, 0, int(round(w * 0.15)), int(round(h*0.3)))
     cv.SetImageROI(I, bb_ul)
-    dec_ul, outbb_ul = decode_patch(I, 14, topbot_pairs, debug=debug, imgP=imgpath)
-    check_ul = check_result(dec_ul, type="UL")
-    if only_ul and "ERR" in check_ul:
+    dec_ul, outbb_ul, bbstripes_ul = decode_patch(I, 14, topbot_pairs, cols=col_sched[0],
+                                                  debug=debug, imgP=imgpath)
+    check = check_result(dec_ul)
+    if not check:
         isflipped = True
         tmp = cv.CreateImage((w,h), I.depth, I.channels)
         cv.ResetImageROI(I)
         cv.Flip(I, tmp, flipMode=-1)
         I = tmp
         cv.SetImageROI(I, bb_ul)
-        print '...checking FLIP...'
-        print dec_ul, outbb_ul
-        dec_ul, outbb_ul = decode_patch(I, 14, topbot_pairs, debug=debug, imgP=imgpath)
-    bbs[0] = [outbb_ul[0] + bb_ul[0],
-              outbb_ul[1] + bb_ul[1],
-              outbb_ul[2],
-              outbb_ul[3]]
-    dec_ul_res = check_result(dec_ul, type='UL')
-    if only_ul:
-        return ((dec_ul_res,), isflipped, [bbs[0]])
-    dec_ll_res = check_result(dec_ll, type='LL')
-    return ((dec_ul_res, dec_ll_res), isflipped, bbs)
+        dec_ul, outbb_ul, bbstripes_ul = decode_patch(I, 14, topbot_pairs, cols=col_sched[0],
+                                                      debug=debug, imgP=imgpath)
+    check_flip = check_result(dec_ul)
+    if not check_flip:
+        if len(col_sched) == 1:
+            return ((None,), isflipped, [outbb_ul], bbstripes_ul)
+        else:
+            return decode(imgpath, topbot_pairs, col_sched=col_sched[1:], debug=debug)
+    bb_out = [int(round(outbb_ul[0] + bb_ul[0])),
+              int(round(outbb_ul[1] + bb_ul[1])),
+              int(round(outbb_ul[2])),
+              int(round(outbb_ul[3]))]
+    bbstripes_ul_new = {}
+    for label, stripebbs in bbstripes_ul.iteritems():
+        bbs_new = []
+        for bb in stripebbs:
+            bbs_new.append([int(round(bb[0] + bb_out[0])),
+                            int(round(bb[1] + bb_out[1])),
+                            int(round(bb[2])), int(round(bb[3]))])
+        bbstripes_ul_new[label] = bbs_new
+    return ((dec_ul,), isflipped, [bb_out], bbstripes_ul_new)
 
 def get_sheet(bc):
     return bc[0]
@@ -183,10 +152,9 @@ def main():
     args = sys.argv[1:]
     arg0 = args[0]
     mode = args[1]
-    if 'only_ul' in args:
-        only_ul=True
-    else:
-        only_ul=False
+    draw_bbs = True if 'draw_bbs' in args else False
+    outdir = args[-1]
+
     imgpaths = []
     if isimgext(arg0):
         imgpaths.append(arg0)
@@ -203,10 +171,59 @@ def main():
     t = time.time()
     if mode == 'full':
         for imgpath in imgpaths:
-            decoded = decode(imgpath, topbot_pairs, debug=True, only_ul=only_ul)
-            print '{0}: '.format(imgpath), decoded
-            if 'ERR' in decoded[0][0]:
+            bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=True)
+            print '{0}: '.format(imgpath), bcs, isflip, bcloc
+            if 'ERR' in bcs[0][0]:
                 errs.append(imgpath)
+                continue
+            if draw_bbs:
+                imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
+                outrootdir = os.path.join(outdir, imgname)
+                bc_ul = bcloc[0]
+                try: os.makedirs(outrootdir)
+                except: pass
+                Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
+                # 1.) First, draw Barcode boundingbox
+                pt1 = tuple(map(int, (bc_ul[0], bc_ul[1])))
+                pt2 = tuple(map(int, (bc_ul[0]+bc_ul[2], bc_ul[1]+bc_ul[3])))
+                cv.Rectangle(Icolor, pt1, pt2,
+                             cv.CV_RGB(255, 0, 0), thickness=2)
+                Icolor_whiteNarrows = cv.CloneImage(Icolor)
+                Icolor_whiteWides = cv.CloneImage(Icolor)
+                Icolor_blackNarrows = cv.CloneImage(Icolor)
+                Icolor_blackWides = cv.CloneImage(Icolor)
+                # 2.) Now, draw stripe boundingboxes
+                for bb in bbstripes['whiteNarrows']:
+                    pt1 = tuple(map(int, (bb[0], bb[1])))
+                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    cv.Rectangle(Icolor_whiteNarrows, pt1, pt2,
+                                 cv.CV_RGB(0, 0, 255), thickness=1)
+                for bb in bbstripes['whiteWides']:
+                    pt1 = tuple(map(int, (bb[0], bb[1])))
+                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    cv.Rectangle(Icolor_whiteWides, pt1, pt2,
+                                 cv.CV_RGB(0, 0, 255), thickness=1)
+                for bb in bbstripes['blackNarrows']:
+                    pt1 = tuple(map(int, (bb[0], bb[1])))
+                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    cv.Rectangle(Icolor_blackNarrows, pt1, pt2,
+                                 cv.CV_RGB(0, 0, 255), thickness=1)
+                for bb in bbstripes['blackWides']:
+                    pt1 = tuple(map(int, (bb[0], bb[1])))
+                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    cv.Rectangle(Icolor_blackWides, pt1, pt2,
+                                 cv.CV_RGB(0, 0, 255), thickness=1)
+                outpath0 = os.path.join(outrootdir, 'bc_bb.png')
+                outpath1 = os.path.join(outrootdir, 'whiteNarrows.png')
+                outpath2 = os.path.join(outrootdir, 'whiteWides.png')
+                outpath3 = os.path.join(outrootdir, 'blackNarrows.png')
+                outpath4 = os.path.join(outrootdir, 'blackWides.png')
+                print '...saving to {0}...'.format(outpath0)
+                cv.SaveImage(outpath0, Icolor)
+                cv.SaveImage(outpath1, Icolor_whiteNarrows)
+                cv.SaveImage(outpath2, Icolor_whiteWides)
+                cv.SaveImage(outpath3, Icolor_blackNarrows)
+                cv.SaveImage(outpath4, Icolor_blackWides)
     elif mode == 'patch':
         n = args[2]
         decoded = decode_patch(imgpath, n)

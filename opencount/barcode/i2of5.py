@@ -49,7 +49,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
                                  TOP_WHITE_PAD, BOT_WHITE_PAD, imgP=imgP)
     if bc_loc == None:
         if len(topbot_pairs) == 1:
-            return None, [0, 0, 1, 1]
+            return None, [0, 0, 1, 1], None
         return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols)
 
     # 2.) Crop the barcode.
@@ -65,27 +65,27 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
         width = int(round(w_bc / cols))
         x1 = width * curcol
         cv.SetImageROI(img, shiftROI(bc_roi, (x1, 0, width, h_bc)))
-        decodings.append(decode_barcode(img, n, bc_loc, imgP=imgP))
+        decodings.append(decode_barcode(img, n, bc_loc[:], imgP=imgP))
     #print decodings
     #pdb.set_trace()
-    dstr_out, bbloc_out = get_most_popular(decodings)
+    dstr_out, bbloc_out, bbstripes_out = get_most_popular(decodings)
     cv.SetImageROI(img, roi_precrop)
     #print dstr_out, bbloc_out
     if dstr_out == None:
         if len(topbot_pairs) == 1:
             # We tried our best, give up.
-            return dstr_out, bbloc_out
+            return dstr_out, bbloc_out, bbstripes_out
         else:
             return decode_i2of5(img, n, topbot_pairs[1:],
                                 imgP=imgP, cols=cols)
-    return dstr_out, bbloc_out
+    return dstr_out, bbloc_out, bbstripes_out
 
 def get_most_popular(decodings):
     decoding = None
     votes = {} # maps {decoded_str: int count}
     othermap = {} # maps {decoded_str: bc_loc}
     none_bc_loc = None
-    for decoded_str, bc_loc in decodings:
+    for decoded_str, bc_loc, bbstripes in decodings:
         bc_loc = tuple(bc_loc)
         if decoded_str == None:
             if bc_loc != None:
@@ -93,23 +93,28 @@ def get_most_popular(decodings):
             continue
         if decoded_str not in votes:
             votes[decoded_str] = 1
-            othermap[decoded_str] = bc_loc
+            othermap[decoded_str] = (bc_loc, bbstripes)
         else:
             votes[decoded_str] += 1
-            othermap[decoded_str] = bc_loc
+            othermap[decoded_str] = (bc_loc, bbstripes)
     if votes:
         best_decodedstr = sorted(votes.items(), key=lambda t:t[1])[0][0]
-        return best_decodedstr, othermap[best_decodedstr]
-    return None, none_bc_loc
+        best_bcloc, best_bbstripes = othermap[best_decodedstr]
+        return best_decodedstr, best_bcloc, best_bbstripes
+    return None, none_bc_loc, None
         
 def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
     """ Given an image patch IMG that is a tight-bounding box around the 
     barcode, return the decoding.
     """
     img_post = dothreshold(img)
-    #cv.SaveImage("_imgpost.png", img_post)
+    cv.SaveImage("_imgpost.png", img_post)
     #img_post = img
     w_imgpost, h_imgpost = cv.GetSize(img_post)
+
+    # dict BBSTRIPES: maps {'whiteNarrow': [[x1,y1,w,h], ...], 'whiteWide': [[x1,y1,w,h], ...],
+    #                       'blackNarrow': ..., 'blackWide': ...}
+    bbstripes = {}
 
     # 3.) Collapse the barcode to be 1D (by summing pix intensity values
     # to the parallel axis). 
@@ -135,7 +140,7 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
         print "Uhoh, couldn't find start of barcode?"
         if debug:
             pdb.set_trace()
-        return None, bc_loc
+        return None, bc_loc, None
     start_idx = i
     bc_loc[3] -= i    # skip to start of barcode
 
@@ -148,12 +153,15 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
     curlen = 0
     isblack = is_pix_on(flat_np[start_idx], pix_on, pix_off)
     UPPER_LIMIT = n * 5 + 7 # Number of stripes, including (7) for top/bot guards
+    # stores y1-idxs of all detected stripes
+    whts_ys, blks_ys = [], []
     for idx, val in enumerate(flat_tpl[start_idx:]):
         if (len(whts) + len(blks)) >= UPPER_LIMIT:
             break
         if is_pix_on(val, pix_on, pix_off):
             if not isblack:
                 # Entering Black
+                whts_ys.append(h_imgpost - (idx+start_idx-1) - 1)
                 whts.append(curlen)
                 curlen = 1
             else:
@@ -162,6 +170,7 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
         elif not is_pix_on(val, pix_on, pix_off):
             if isblack:
                 # Entering White
+                blks_ys.append(h_imgpost - (idx+start_idx-1) - 1)
                 blks.append(curlen)
                 curlen = 1
             else:
@@ -169,12 +178,14 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
             isblack = False
         else:
             curlen += 1
+
     if (len(whts) + len(blks) < UPPER_LIMIT) and curlen > 1:
         # Add the upper-most black stripe, which didn't get added inside the for-loop
+        blks_ys.append(h_imgpost - (idx+start_idx-1) - 1)
         blks.append(curlen)
         
     if len(whts) + len(blks) != UPPER_LIMIT:
-        return None, bc_loc
+        return None, bc_loc, None
 
     w_narrow, w_wide = infer_narrow_wide(whts)
     b_narrow, b_wide = infer_narrow_wide(blks)
@@ -199,37 +210,55 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
     for bars_wht in all_bars_wht:
         if (bars_wht[0] != NARROW or bars_wht[1] != NARROW):
             print "Warning: WHITE Begin-guard not found."
-        bars_wht = bars_wht[2:-1]
+        bars_wht_noguard = bars_wht[2:-1]
 
         for bars_blk in all_bars_blk:
             # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
             if (bars_blk[0] != NARROW or bars_blk[1] != NARROW):
                 if debug:
-                    print "Warning: Begin-guard not found. Continuing \
-    to try decoding anyways."
+                    print "Warning: Begin-guard not found. Continuing..."
                     pdb.set_trace()
             if (bars_blk[-2] != WIDE or bars_blk[-1] != NARROW):
                 if debug:
-                    print "Warning: End-guard not found. Continuing to try \
-    decoding anyways."
+                    print "Warning: End-guard not found. Continuing..."
                     pdb.set_trace()
-            bars_blk = bars_blk[2:-2]
+            bars_blk_noguard = bars_blk[2:-2]
             # 6.) Interpret BARS.
-            decs_blk = bars_to_symbols(bars_blk)
-            decs_wht = bars_to_symbols(bars_wht)
+            decs_blk = bars_to_symbols(bars_blk_noguard)
+            decs_wht = bars_to_symbols(bars_wht_noguard)
             if decs_blk == None or decs_wht == None:
                 continue
             decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
             if len(decoded) != n:
                 continue
-            results.append((decoded, bc_loc))
+            bbstripes = compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, w_imgpost,
+                                           w_narrow, w_wide,
+                                           b_narrow, b_wide)
+            results.append((decoded, bc_loc, bbstripes))
     if not results:
-        return None, bc_loc
+        return None, bc_loc, None
     elif len(results) > 1:
         print "...Wow, {0} possible decodings!".format(len(results))
-        return None, bc_loc
+        return None, bc_loc, None
     else:
         return results[0]
+
+def compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, width,
+                       wht_narrow, wht_wide,
+                       blk_narrow, blk_wide):
+    def helper(ys, bars, width, height_narrow, height_wide, color=None):
+        out_narrow, out_wide = [], []
+        for i, curbar in enumerate(bars):
+            cury = ys[i]
+            if curbar == WIDE:
+                out_wide.append([0, cury, width, height_wide])
+            else:
+                out_narrow.append([0, cury, width, height_narrow])
+        return out_narrow, out_wide
+    whiteNarrows, whiteWides = helper(whts_ys, bars_wht, width, wht_narrow, wht_wide, 'White')
+    blackNarrows, blackWides = helper(blks_ys, bars_blk, width, blk_narrow, blk_wide, 'Black')
+    return {'whiteNarrows': whiteNarrows, 'whiteWides': whiteWides,
+            'blackNarrows': blackNarrows, 'blackWides': blackWides}
 
 def bars_to_symbols(bars, debug=False):
     symbols = []

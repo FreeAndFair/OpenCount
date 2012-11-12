@@ -54,7 +54,7 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
                         cv.LoadImage(pathjoin(MYDIR, 'hart_botguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)]]
     for imgpath in imgpaths:
         try:
-            barcodes, isflip, bbs = decode(imgpath, topbot_pairs, only_ul=True)
+            barcodes, isflip, bbs = decode(imgpath, topbot_pairs)
             if queue != None:
                 queue.put(True)
         except:

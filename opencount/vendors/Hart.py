@@ -39,8 +39,8 @@ class HartVendor(Vendor):
                 the location of each barcode:
                     [[str bc_i, ...], bool is_flip, [(x1,y1,x2,y2), ...]].
         """
-        decodes, isflipped, bbs = decode(imgpath, topbot_pairs, only_ul=True)
-        return decodes, isflipped, bbs
+        decodes, isflipped, bbs, bbstripes_dict = decode(imgpath, topbot_pairs)
+        return decodes, isflipped, bbs, bbstripes_dict
 
     def decode_ballot(self, ballot, topbot_guards):
         """
@@ -55,31 +55,17 @@ class HartVendor(Vendor):
         """
         results = []
         for imgpath in ballot:
-            (bcs, isflipped, bbs) = self.decode_image(imgpath, topbot_guards)
-            results.append((bcs, isflipped, bbs))
+            (bcs, isflipped, bbs, bbstripes_dict) = self.decode_image(imgpath, topbot_guards)
+            results.append((bcs, isflipped, bbs, bbstripes_dict))
         return results
 
     def partition_ballots(self, ballots, queue=None):
-        """
-        Input:
-            dict BALLOTS: {int ballotID: [imgpath_side0, ...]}.
-        Output:
-            (dict PARTITIONS, dict DECODED, dict BALLOT_INFO, dict BBS_MAP), where PARTITIONS stores the
-                partitioning as:
-                    {int partitionID: [int ballotID_i, ...]}
-                and DECODED stores barcode strings for each ballot as:
-                    {int ballotID: [(str BC_side0i, ...), (str BC_side1i, ...)]}
-                and IMAGE_INFO stores meaningful info for each image (extracted
-                from the barcode):
-                    {str imgpath: {str KEY: str VAL}}
-                where KEY could be 'page', 'party', 'precinct', 'isflip', etc, and
-                BBS_MAP stores the location of the barcodes:
-                    {str imgpath: [(x1, y1, x2, y2), ...]}
-        """
         partitions = {}
         decoded = {}
         imginfo = {}
         bbs_map = {}
+        bbstripes_map = {} # maps {'wideNarrow': [(str imgpath, (x1,y1,x2,y2)), ...], ...}
+        err_imgpaths = []
         bcs2partitionid = {} # maps {(str bcs, ...): int partitionID}
         cur_pid = 0
         TOP_GUARD = cv.LoadImage(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -89,28 +75,33 @@ class HartVendor(Vendor):
         topbot_pairs = [[TOP_GUARD, BOT_GUARD], [TOP_GUARD_SKINNY, BOT_GUARD_SKINNY]]
         for ballotid, imgpaths in ballots.iteritems():
             decoded_results = self.decode_ballot(imgpaths, topbot_pairs)
-            d_strs = []
-            for i, (bcs, isflipped, bbs) in enumerate(decoded_results):
-                if 'ERR' in bcs[0]:
-                    print "..error on: {0}".format(imgpaths[i])
-                    continue
+            decoded_strs = []
+            for i, (bcs, isflipped, bbs, bbstripes_dict) in enumerate(decoded_results):
                 imgpath = imgpaths[i]
-                info = get_info(bcs)
-                info['isflip'] = isflipped
-                imginfo[imgpath] = info
-                bbs_map[imgpath] = bbs
-                d_strs.append(bcs)
-            decoded[ballotid] = tuple(d_strs)
-            if tuple(d_strs) not in bcs2partitionid:
-                bcs2partitionid[tuple(d_strs)] = cur_pid
+                bc_ul = bcs[0]
+                if not bc_ul:
+                    print "..error on: {0}".format(imgpath)
+                    err_imgpaths.append(imgpath)
+                else:
+                    imgpath = imgpaths[i]
+                    info = get_info(bcs)
+                    info['isflip'] = isflipped
+                    imginfo[imgpath] = info
+                    bbs_map[imgpath] = bbs
+                    decoded_strs.append(bcs)
+                    for label, bbstripes in bbstripes_dict.iteritems():
+                        bbstripes_map.setdefault(label, []).extend(bbstripes)
+            decoded[ballotid] = tuple(decoded_strs)
+            if tuple(decoded_strs) not in bcs2partitionid:
+                bcs2partitionid[tuple(decoded_strs)] = cur_pid
                 partitions.setdefault(cur_pid, []).append(ballotid)
                 cur_pid += 1
             else:
-                pid = bcs2partitionid[tuple(d_strs)]
+                pid = bcs2partitionid[tuple(decoded_strs)]
                 partitions.setdefault(pid, []).append(ballotid)
             if queue:
                 queue.put(True)
-        return partitions, decoded, imginfo, bbs_map
+        return partitions, decoded, imginfo, bbs_map, bbstripes, err_imgpaths
 
     def __repr__(self):
         return 'HartVendor()'

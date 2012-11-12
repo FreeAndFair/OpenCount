@@ -57,6 +57,8 @@ class PartitionMainPanel(wx.Panel):
         for partitionID, ballotIDs in self.partitionpanel.partitioning.iteritems():
             exmpls = set()
             for ballotID in ballotIDs:
+                if ballotID in self.partitionpanel.quarantined_bals:
+                    continue
                 if len(exmpls) <= self.NUM_EXMPLS:
                     exmpls.add(ballotID)
                 partitions_invmap[ballotID] = partitionID
@@ -64,7 +66,8 @@ class PartitionMainPanel(wx.Panel):
                 for imgpath in imgpaths:
                     image_to_page[imgpath] = self.partitionpanel.imginfo[imgpath]['page']
                     image_to_flip[imgpath] = self.partitionpanel.imginfo[imgpath]['isflip']
-            partition_exmpls[partitionID] = sorted(list(exmpls))
+            if exmpls:
+                partition_exmpls[partitionID] = sorted(list(exmpls))
         partitions_map_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_map)
         partitions_invmap_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_invmap)
         decoded_map_outP = pathjoin(self.proj.projdir_path, self.proj.decoded_map)
@@ -105,6 +108,8 @@ class PartitionPanel(ScrolledPanel):
         self.imginfo = None
         # BBS_MAP: maps {str imgpath: [[x1,y1,x2,y2],...]}
         self.bbs_map = None
+
+        self.quarantined_bals = set()
 
         self.init_ui()
 
@@ -147,6 +152,7 @@ class PartitionPanel(ScrolledPanel):
             self.decoded = state['decoded']
             self.imginfo = state['imginfo']
             self.bbs_map = state['bbs_map']
+            self.quarantined_bals = state['quarantined_bals']
             if self.partitioning != None:
                 self.num_partitions_txt.SetLabel(str(len(self.partitioning)))
                 self.sizer_stats.ShowItems(True)
@@ -160,7 +166,8 @@ class PartitionPanel(ScrolledPanel):
                  'partitioning': self.partitioning,
                  'decoded': self.decoded,
                  'imginfo': self.imginfo,
-                 'bbs_map': self.bbs_map}
+                 'bbs_map': self.bbs_map,
+                 'quarantined_bals': self.quarantined_bals}
         pickle.dump(state, open(self.stateP, 'wb'))
 
     def onButton_run(self, evt):
@@ -174,9 +181,9 @@ class PartitionPanel(ScrolledPanel):
                 self.queue = queue
                 self.tlisten = tlisten
             def run(self):
-                partitioning, decoded, imginfo, bbs_map = self.vendor_obj.partition_ballots(self.b2imgs, queue=queue)
+                partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths = self.vendor_obj.partition_ballots(self.b2imgs, queue=queue)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
-                wx.CallAfter(self.callback, partitioning, decoded, imginfo, bbs_map)
+                wx.CallAfter(self.callback, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
             def __init__(self, queue, jobid, *args, **kwargs):
@@ -215,27 +222,55 @@ class PartitionPanel(ScrolledPanel):
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
         
-    def on_partitiondone(self, partitioning, decoded, imginfo, bbs_map):
+    def on_partitiondone(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
         """
         Input:
             dict PARTITIONING: {int partitionID: [int ballotID_i, ...]}
             dict DECODED: {int ballotID: [(str barcode_side0, ...), ...]}
             dict IMGINFO: {str imgpath: {str KEY: str VAL}}
             dict BBS_MAP: {str imgpath: [[x1,y1,x2,y2], ...]}
+            dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2)), ...]}
+            list ERR_IMGPATHS:
         """
         print "...Partitioning Done..."
-        print partitioning
-        print
-        print decoded
-        print
-        print imginfo
-        print
-        print bbs_map
+        print partitioning, '\n'
+        print decoded, '\n'
+        print imginfo, '\n'
+        print bbs_map, '\n'
+        print err_imgpaths
+
+        # TODO: Handle ERR_IMGPATHS. Maybe have the user manually go
+        # through each one, either quarantining or manually-labeling each one?
+        # For now, I'm just going to quarantine all of them. 
+        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        for err_imgpath in err_imgpaths:
+            ballotid = img2bal[err_imgpath]
+            self.quarantine_ballot(ballotid)
+
+        # For now, just blindly accept the partitioning w/out verifying,
+        # until Overlay Verification is implemented.
         self.partitioning = partitioning
         self.decoded = decoded
         self.imginfo = imginfo
         self.bbs_map = bbs_map
+        self.verifypatch_bbs = verifypatch_bbs
+        self.err_imgpaths = err_imgpaths
         self.num_partitions_txt.SetLabel(str(len(partitioning)))
         self.sizer_stats.ShowItems(True)
         self.Layout()
 
+        #self.start_verify(partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
+
+    def start_verify(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
+        # TODO: Verify the patches in VERIFYPATCH_BBS via overlay-verification,
+        # then save the results.
+        self.on_verify_done(partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
+
+    def on_verify_done(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
+        """ Receives the (corrected) results from VerifyOverlays. """
+        # TODO: Take the (verified) results from VerifyOverlays, and 
+        # apply any fixes to the right data structures.
+        pass
+
+    def quarantine_ballot(self, ballotid):
+        self.quarantined_bals.add(ballotid)
