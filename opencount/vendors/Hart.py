@@ -95,10 +95,12 @@ class HartVendor(Vendor):
             decoded[ballotid] = tuple(decoded_strs)
             if tuple(decoded_strs) not in bcs2partitionid:
                 bcs2partitionid[tuple(decoded_strs)] = cur_pid
+                print "ADD WITH NEW CURPID", cur_pid
                 partitions.setdefault(cur_pid, []).append(ballotid)
                 cur_pid += 1
             else:
                 pid = bcs2partitionid[tuple(decoded_strs)]
+                print "old[%s]"%cur_pid
                 partitions.setdefault(pid, []).append(ballotid)
         return partitions, decoded, imginfo, bbs_map, bbstripes_map, err_imgpaths
 

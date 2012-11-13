@@ -225,13 +225,15 @@ class SelectTargetsMainPanel(wx.Panel):
                 if (box.x1 >= otherbox.x1 and box.y1 >= otherbox.y1
                         and box.x2 <= otherbox.x2 and box.y2 <= otherbox.y2):
                     return i, otherbox
-            return None
+            return None, None
         assocs = {}
         contests = [b for b in boxes if isinstance(b, ContestBox)]
         targets = [b for b in boxes if isinstance(b, TargetBox)]
         for t in targets:
-            print t
             id, c = containing_box(t, contests)
+            if id == None:
+                print "Warning", t, "is not contained in any box."
+                continue
             if id in assocs:
                 assocs[id][1].append(t)
             else:

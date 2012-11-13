@@ -54,6 +54,8 @@ class LabelContest(wx.Panel):
         group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                  self.proj.group_exmpls), 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        print b2imgs.keys()
+
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
         # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}
@@ -70,14 +72,19 @@ class LabelContest(wx.Panel):
         self.groupedtargets = []
         
         for groupID, contests_sides in target_locs_map.iteritems():
-            # Grab an arbitrary exemplar image from this group
+
+            if groupID not in group_exmpls:
+                # All ballots in this partition had errors. Skip it.
+                # TODO this may crash when multi-sided ballots have errors
+                #self.groupedtargets.append([])
+                continue
+            # Grab an arbitrary exemplar image from this groupn
             imgpaths = b2imgs[group_exmpls[groupID][0]]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             for side, contests in contests_sides.iteritems():
                 exmpl_imP = imgpaths_ordered[side]
                 if self.dirList == []:
                     self.template_width, self.template_height = Image.open(exmpl_imP).size
-
 
                 self.dirList.append(exmpl_imP)
                 gr = {} # maps {int contestID: [[id, contest_id, x1, y1, x2, y2], ...]}
@@ -118,8 +125,6 @@ class LabelContest(wx.Panel):
                     if not found:
                         cols[x] = x
 
-                print cols
-    
                 # And sort by columns within each contest
                 lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
                 # And then sort each contest in the same way, globally
@@ -613,6 +618,7 @@ class LabelContest(wx.Panel):
 
                     
     def setupBoxes(self):
+        self.proj.infer_bounding_boxes = True
         if self.proj.infer_bounding_boxes:
             res = []
             target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -634,7 +640,8 @@ class LabelContest(wx.Panel):
             correctorder = [[y[0][1] for y in x] for x in self.groupedtargets]
 
             self.boxes = []
-            for ballot,order in zip(res,correctorder):
+            for i,(ballot,order) in enumerate(zip(res,correctorder)):
+                print i
                 boxes = []
                 for o in order:
                     try:
