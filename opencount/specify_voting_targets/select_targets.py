@@ -151,6 +151,7 @@ class SelectTargetsMainPanel(wx.Panel):
         contests = [b for b in boxes if isinstance(b, ContestBox)]
         targets = [b for b in boxes if isinstance(b, TargetBox)]
         for t in targets:
+            print t
             id, c = containing_box(t, contests)
             if id in assocs:
                 assocs[id][1].append(t)
@@ -513,7 +514,8 @@ this partition.")
                     # InferContests throws out the pre-determined contest
                     # grouping, so just stick each target in its own
                     # 'contest'
-                    style_boxes.append([(box.x1, box.y1, box.x2, box.y2)])
+                    if type(box) == TargetBox:
+                        style_boxes.append([(box.x1, box.y1, box.x2, box.y2)])
                 targets.append(style_boxes)
         #bboxes = dict(zip(imgpaths, group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)))
         # CONTEST_RESULTS: [[box_i, ...], ...], each subtuple_i is for imgpath_i.

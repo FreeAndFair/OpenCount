@@ -399,7 +399,7 @@ def to_graph(lines, width, height, minsize, giventargets):
     lines = [x for x in lines if x[1][2]-x[1][0] > width/10 or x[1][3]-x[1][1] > height/30]
     print "THERE ARE END", len(lines)
 
-    lines = extend_to_line(lines, width, height)
+    #lines = extend_to_line(lines, width, height)
 
     new_lines = []
     for k,line in lines:
@@ -581,6 +581,7 @@ def do_extract(name, img, squares, giventargets):
             imd.rectangle(box, fill=c)
         print "GIVEN", giventargets
         for box in giventargets:
+            print box, area(box)
             imd.rectangle(box, fill=(255,0,0))
         new.save(tmp+"/"+name+"-fullboxed.png")
 
@@ -629,7 +630,7 @@ def extract_contest(args):
 
     if do_save:
         show = num2pil(data)
-        new = load_pil(image_path).copy().convert("RGB")#Image.new("RGB", show.size, (255, 255, 255))
+        new = Image.new("RGB", show.size, (255, 255, 255))#load_pil(image_path).copy().convert("RGB")#
         imd = ImageDraw.Draw(new)
         for line in [x[1] for x in lines]:
             imd.rectangle(line, outline=(0,0,0))

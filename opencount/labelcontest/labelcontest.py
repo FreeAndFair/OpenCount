@@ -75,6 +75,10 @@ class LabelContest(wx.Panel):
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             for side, contests in contests_sides.iteritems():
                 exmpl_imP = imgpaths_ordered[side]
+                if self.dirList == []:
+                    self.template_width, self.template_height = Image.open(exmpl_imP).size
+
+
                 self.dirList.append(exmpl_imP)
                 gr = {} # maps {int contestID: [[id, contest_id, x1, y1, x2, y2], ...]}
                 for contest in contests:
@@ -90,16 +94,16 @@ class LabelContest(wx.Panel):
                     # Means this file had no contests, so, add dummy 
                     # values to my data structures
                     # Grab an arbitrary voted ballot from this group
-                    imgpaths = b2imgs[group_exmpls[groupID][0]]
-                    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-                    self.dirList.append(imgpaths_ordered[side])
+                    #imgpaths = b2imgs[group_exmpls[groupID][0]]
+                    #imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    #self.dirList.append(imgpaths_ordered[side])
                     self.groupedtargets.append([])
                     continue
                 # Figure out where the columns are.
                 # We want to sort each group going left->right top->down
                 #   but only go left->right if we're on a new column,
                 #   not if we're only off by a few pixels to the left.
-                errorby = self.template_width / 100
+                errorby = self.template_width / 20
                 #errorby = 0.05
     
                 cols = {}
@@ -113,6 +117,8 @@ class LabelContest(wx.Panel):
                             break
                     if not found:
                         cols[x] = x
+
+                print cols
     
                 # And sort by columns within each contest
                 lst = [sorted(x, key=lambda x: (cols[x[2]], x[3])) for x in lst]
@@ -140,8 +146,6 @@ class LabelContest(wx.Panel):
         Set everything up to display.
         """
         if not self.firstTime: return
-
-        self.template_width, self.template_height = self.proj.imgsize
 
         self.firstTime = False
 
