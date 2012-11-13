@@ -157,13 +157,25 @@ class MainFrame(wx.Frame):
 
                 # The GRP_INFOMAP should just contain partitionid info.
                 grp_infomap = {} # maps {int groupID: {str prop: str val}}
-                for partitionid, ballotids in partitions_map.iteritems():
+                grp2bals = {}
+                bal2grp = {}
+                grpexmpls = {}
+                curgroupid = 0
+                for (partitionid, ballotids) in sorted(partitions_map.iteritems()):
+                    if not ballotids:
+                        continue
                     propdict = {'pid': partitionid}
-                    grp_infomap[partitionid] = propdict
-
-                grp2bals = partitions_map
-                bal2grp = partitions_invmap
-                grpexmpls = partition_exmpls
+                    grp_infomap[curgroupid] = propdict
+                    grp2bals.setdefault(curgroupid, []).extend(ballotids)
+                    for ballotid in ballotids:
+                        bal2grp[ballotid] = curgroupid
+                    curgroupid += 1
+                curgroupid = 0
+                for (partitionid, ballotids) in sorted(partition_exmpls.iteritems()):
+                    if not ballotids:
+                        continue
+                    grpexmpls[curgroupid] = ballotids
+                    curgroupid += 1
 
                 # Also, export to proj.group_results.csv, for integration with
                 # quarantine/post-processing panels.

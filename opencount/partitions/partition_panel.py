@@ -48,33 +48,37 @@ class PartitionMainPanel(wx.Panel):
         them as PARTITION_EXMPLS: {partitionID: [int BallotID_i, ...]}
         """
         # partitioning: {int partitionID: [int ballotID_i, ...]}
+        partitions_map = {} 
         partitions_invmap = {}
         partition_exmpls = {}
         image_to_page = {} # maps {str imgpath: int side}
         image_to_flip = {} # maps {str imgpath: bool isflip}
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        for partitionID, ballotIDs in self.partitionpanel.partitioning.iteritems():
+        curPartID = 0
+        for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
             exmpls = set()
             for ballotID in ballotIDs:
                 if ballotID in self.partitionpanel.quarantined_bals:
                     continue
                 if len(exmpls) <= self.NUM_EXMPLS:
                     exmpls.add(ballotID)
-                partitions_invmap[ballotID] = partitionID
+                partitions_map.setdefault(curPartID, []).extend(ballotIDs)
+                partitions_invmap[ballotID] = curPartID
                 imgpaths = b2imgs[ballotID]
                 for imgpath in imgpaths:
                     image_to_page[imgpath] = self.partitionpanel.imginfo[imgpath]['page']
                     image_to_flip[imgpath] = self.partitionpanel.imginfo[imgpath]['isflip']
             if exmpls:
-                partition_exmpls[partitionID] = sorted(list(exmpls))
+                partition_exmpls[curPartID] = sorted(list(exmpls))
+                curPartID += 1
         partitions_map_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_map)
         partitions_invmap_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_invmap)
         decoded_map_outP = pathjoin(self.proj.projdir_path, self.proj.decoded_map)
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
         bbs_map_outP = pathjoin(self.proj.projdir_path, self.proj.barcode_bbs_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
-        pickle.dump(self.partitionpanel.partitioning, open(partitions_map_outP, 'wb'),
+        pickle.dump(partitions_map, open(partitions_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
