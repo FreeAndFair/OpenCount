@@ -264,13 +264,59 @@ class PartitionPanel(ScrolledPanel):
     def start_verify(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
         # TODO: Verify the patches in VERIFYPATCH_BBS via overlay-verification,
         # then save the results.
-        self.on_verify_done(partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
+        # I think we'll have 'categories' be dictated by the keys
+        # of verifypatch_bbs (which will be something like:
+        #     {'TIMINGMARK_ON': [(imgpath, (x1,y1,x2,y2)), ...],
+        #      'TIMINGMARK_OFF': [(imgpath, (x1,y1,x2,y2)), ...]}
+        # (at least for Diebold/Sequoia/ES&S). In this case, the cat_tags
+        # will be 'TIMINGMARK_ON' and 'TIMINGMARK_OFF'.
+        # For exmplcats (which keeps track of exemplar patches), for now 
+        # you can hardcode these to whatever you like until I figure out
+        # how to best handle this...maybe we just don't show exemplar_patches
+        # for barcode overlay verification...? Or perhaps the partition
+        # code has to provide examples of each category.
+        imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
+        exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
+        f = VerifyOverlaysFrame(self, imgcats, exmplcats, self.on_verify_done)
+        f.Maximize()
+        f.Show()
 
-    def on_verify_done(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
-        """ Receives the (corrected) results from VerifyOverlays. """
+    def on_verify_done(self, verify_results):
+        """ Receives the (corrected) results from VerifyOverlays.
+        Input:
+        dict VERIFY_RESULTS: {cat_tag: {grouptag: [imgpath_i, ...]}}
+            For each category CAT_TAG, each group GROUPTAG maps to a set
+            of imgpaths that the user claimed is part of GROUPTAG.
+        """
         # TODO: Take the (verified) results from VerifyOverlays, and 
         # apply any fixes to the right data structures.
         pass
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
+
+class VerifyOverlaysFrame(wx.Frame):
+    def __init__(self, parent, imgcategories, exmplcategories, ondone, *args, **kwargs):
+        """
+        Input:
+        dict IMGCATEGORIES: {cat_tag: {grouptag: [imgpath_i, ...]}}
+            For each category CAT_TAG, GROUPTAG is an identifier for
+            a set of imgpaths. 
+        dict EXMPLCATEGORIES: {cat_tag: {grouptag: [exmplpath_i, ...]}}
+            For each category CAT_TAG, GROUPTAG is an identifier for
+            a set of exemplar imgpatches.
+        fn ONDONE: Callback function to call after verification is done.
+        """
+        wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
+
+        self.verifyoverlays = verify_overlays_new.VerifyOverlaysMultCats(self)
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.verifyoverlays, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+        self.verifyoverlays.start(imgcategories, exmplcategories, 
+                                  do_align=True, ondone=self.ondone)
+
+        self.Layout()

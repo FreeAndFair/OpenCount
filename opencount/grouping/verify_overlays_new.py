@@ -4,6 +4,8 @@ try:
 except:
     import pickle
 
+from os.path import join as pathjoin
+
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.pubsub import Publisher
@@ -38,11 +40,6 @@ class ViewOverlays(ScrolledPanel):
 
         # list GROUPS: [obj GROUP_i, ...]
         self.groups = None
-
-        # dict GROUPID2TAG: maps {int groupid: str tag}
-        self.groupid2tag = None 
-        # dict TAG2GROUPID: maps {str tag: int groupid}
-        self.tag2groupid = None
 
         # dict BBS_MAP: maps {(tag, str imgpath): (x1,y1,x2,y2)}
         self.bbs_map = None
@@ -199,14 +196,10 @@ class ViewOverlays(ScrolledPanel):
         self.stateP = stateP
         if not self.restore_session():
             self.groups = []
-            self.groupid2tag = {} # maps {int groupid: str tag}
-            self.tag2groupid = {}
             self.bbs_map = bbs_map if bbs_map != None else {}
-            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-                group = Group(groupid, imgpaths, tag=tag, do_align=do_align)
+            for (tag, imgpaths) in imgpath_groups.iteritems():
+                group = Group(imgpaths, tag=tag, do_align=do_align)
                 self.add_group(group)
-                self.groupid2tag[groupid] = tag
-                self.tag2groupid[tag] = groupid
         self.select_group(0)
 
     def restore_session(self):
@@ -217,9 +210,6 @@ class ViewOverlays(ScrolledPanel):
             self.groups = []
             for group_dict in groups:
                 self.add_group(Group.unmarshall(group_dict))
-
-            self.groupid2tag = state['groupid2tag']
-            self.tag2groupid = state['tag2groupid']
             self.bbs_map = state['bbs_map']
             return state
         except:
@@ -227,8 +217,6 @@ class ViewOverlays(ScrolledPanel):
             return False
     def create_state_dict(self):
         state = {'groups': [g.marshall() for g in self.groups], 
-                 'groupid2tag': self.groupid2tag,
-                 'tag2groupid': self.tag2groupid,
                  'bbs_map': self.bbs_map}
         return state
     def save_session(self):
@@ -280,14 +268,10 @@ class SplitOverlays(ViewOverlays):
         self.stateP = stateP
         if not self.restore_session():
             self.groups = []
-            self.groupid2tag = {}
-            self.tag2groupid = {}
             self.bbs_map = bbs_map if bbs_map != None else {}
-            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-                group = GroupRankedList(attrid, imgpaths, tag=tag, do_align=do_align)
+            for (tag, imgpaths) in imgpath_groups.iteritems():
+                group = SplitGroup(imgpaths, tag=tag, do_align=do_align)
                 self.add_group(group)
-                self.groupid2tag[groupid] = tag
-                self.tag2groupid[tag] = groupid
         self.select_group(0)
 
     def onButton_split(self, evt):
@@ -298,7 +282,7 @@ class SplitOverlays(ViewOverlays):
         self.remove_group(curgroup)
 
     def onButton_setsplitmode(self, evt):
-        if not isinstance(self.get_current_group(), GroupRankedList):
+        if not isinstance(self.get_current_group(), VerifyGroup):
             disabled = [ChooseSplitModeDialog.ID_RANKEDLIST]
         else:
             disabled = None
@@ -332,9 +316,6 @@ class VerifyOverlays(SplitOverlays):
         # self.FINISHED_GROUPS: maps {tag: [obj group_i, ...]}, where
         # tag is the group that the user finalized on.
         self.finished_groups = {}
-
-        # self.GROUPID_SEL: groupID that the user has currently selected
-        self.groupid_sel = None
 
         # self.EXMPLIDX_SEL: The exemplaridx that the user has currently selected
         self.exmplidx_sel = None
@@ -382,34 +363,37 @@ class VerifyOverlays(SplitOverlays):
         self.Layout()
 
     def start(self, imgpath_groups, group_exemplars, rlist_map, 
-              do_align=False, bbs_map=None, ondone=None, stateP=None):
+              do_align=False, bbs_map=None, ondone=None, auto_ondone=False,
+              stateP=None):
         """
         Input:
             dict IMGPATH_GROUPS: {grouptag: [imgpath_i, ...]}
             dict GROUP_EXEMPLARS: maps {grouptag: [exmpl_imgpath_i, ...]}
             dict RLIST_MAP: maps {str imgpath: (groupID_0, ...)}
-            dict BBS_MAP: maps {(str tag, imgpath): (x1,y1,x2,y2)}
+            dict BBS_MAP: maps {(grouptag, imgpath): (x1,y1,x2,y2)}
             fn ONDONE: Function that accepts one argument:
-                dict {str tag: [obj group_i, ...]}
+                dict {grouptag: [obj group_i, ...]}
+            bool AUTO_ONDONE: If True, then when all groups are gone,
+                this will immediately call the ondone function.
         """
         self.stateP = stateP
         if not self.restore_session():
             self.exemplar_imgpaths = group_exemplars
             self.groups = []
-            self.groupid2tag = {}
-            self.tag2groupid = {}
             self.bbs_map = bbs_map if bbs_map != None else {}
+            self.possible_tags = set()
             self.rankedlist_map = rlist_map
             self.ondone = ondone
+            self.auto_ondone = auto_ondone
             self.finished_groups = {}
             self.exmplidx_sel = 0
             self.quarantined_groups = []
-            for groupid, (tag, imgpaths) in enumerate(imgpath_groups.iteritems()):
-                group = GroupRankedList(groupid, imgpaths, tag=tag, do_align=do_align)
+            for (tag, imgpaths) in imgpath_groups.iteritems():
+                group = VerifyGroup(imgpaths, tag=tag, do_align=do_align)
+                self.possible_tags.add(group.tag)
                 if imgpaths:
                     self.add_group(group)
-                self.groupid2tag[groupid] = tag
-                self.tag2groupid[tag] = groupid
+            self.possible_tags = tuple(self.possible_tags)
         if len(self.groups) == 0:
             self.handle_nomoregroups()
         else:
@@ -437,19 +421,17 @@ class VerifyOverlays(SplitOverlays):
             groups = state['groups']
             self.groups = []
             for group_dict in groups:
-                self.add_group(GroupRankedList.unmarshall(group_dict))
+                self.add_group(VerifyGroup.unmarshall(group_dict))
 
-            self.groupid2tag = state['groupid2tag']
-            self.tag2groupid = state['tag2groupid']
             self.bbs_map = state['bbs_map']
             self.exemplar_imgpaths = state['exemplar_imgpaths']
             self.rankedlist_map = state['rankedlist_map']
             fingroups_in = state['finished_groups']
             fingroups_new = {}
             for tag, groups_marsh in fingroups_in.iteritems():
-                fingroups_new[tag] = [GroupRankedList.unmarshall(gdict) for gdict in groups_marsh]
+                fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
             self.finished_groups = fingroups_new
-            self.quarantined_groups = [GroupRankedList.unmarshall(gdict) for gdict in state['quarantined_groups']]
+            self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
             print '...Successfully loaded VerifyOverlays state...'
             return state
         except Exception as e:
@@ -472,66 +454,144 @@ class VerifyOverlays(SplitOverlays):
             # Say, if IDX is invalid (maybe no more groups?)
             return
         group = self.groups[curidx]
-        self.select_exmpl_group(group.groupid, group.exmpl_idx)
+        self.select_exmpl_group(group.tag, group.exmpl_idx)
 
         self.Layout()
 
-    def select_exmpl_group(self, groupid, exmpl_idx):
+    def select_exmpl_group(self, grouptag, exmpl_idx):
         """ Displays the correct exemplar img patch on the screen. """
-        if groupid < 0 or groupid >= len(self.exemplar_imgpaths):
-            print "...Invalid GroupID: {0}...".format(groupid)
+        if grouptag not in self.exemplar_imgpaths:
+            print "...Invalid GroupTAG: {0}...".format(grouptag)
             return
-        tag = self.groupid2tag[groupid]
-        exemplar_paths = self.exemplar_imgpaths[tag]
+        exemplar_paths = self.exemplar_imgpaths[grouptag]
         if exmpl_idx < 0 or exmpl_idx >= len(exemplar_paths):
             print "...Invalid exmpl_idx: {0}...".format(exmpl_idx)
             return
         exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx])
         exemplarImg_bitmap = NumpyToWxBitmap(exemplar_npimg)
-        self.groupid_sel = groupid
         self.exmplidx_sel = exmpl_idx
         self.exemplarImg.SetBitmap(exemplarImg_bitmap)
-        self.txt_exemplarTag.SetLabel(str(self.groupid2tag[groupid]))
+        self.txt_exemplarTag.SetLabel(str(grouptag))
         self.txt_curexmplidx.SetLabel(str(exmpl_idx+1))
-        self.txt_totalexmplidxs.SetLabel(str(len(self.exemplar_imgpaths[tag])))
-        self.txt_curlabel.SetLabel(str(tag))
+        self.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
+        self.txt_curlabel.SetLabel(str(grouptag))
         self.Layout()
-
-    def get_groupid_sel(self):
-        """ Returns the groupid of the currently-selected group, i.e.
-        the group with the exemplar image currently showing.
-        """
-        return self.groupid_sel
 
     def handle_nomoregroups(self):
         SplitOverlays.handle_nomoregroups(self)
+        if self.auto_ondone:
+            self.stop()
 
     def onButton_matches(self, evt):
         curgroup = self.groups[self.idx]
-        cursel_groupid = self.get_groupid_sel()
-        curtag = self.groupid2tag[cursel_groupid]
+        curtag = curgroup.tag
         self.finished_groups.setdefault(curtag, []).append(curgroup)
         self.remove_group(curgroup)
         print "FinishedGroups:", self.finished_groups
 
     def onButton_manual_relabel(self, evt):
-        dlg = ManualRelabelDialog(self, self.groupid2tag.values())
+        dlg = ManualRelabelDialog(self, self.possible_tags)
         status = dlg.ShowModal()
         if status == wx.CANCEL:
             return
         sel_tag = dlg.tag
-        sel_groupid = self.tag2groupid[sel_tag]
-        self.select_exmpl_group(sel_groupid, self.groups[self.idx].exmpl_idx)
+        self.select_exmpl_group(sel_tag, self.get_current_group().exmpl_idx)
     def onButton_nextexmpl(self, evt):
+        curtag = self.get_current_group().tag
         nextidx = self.exmplidx_sel + 1
-        self.select_exmpl_group(self.get_groupid_sel(), nextidx)
+        self.select_exmpl_group(curtag, nextidx)
     def onButton_prevexmpl(self, evt):
+        curtag = self.get_current_group().tag
         previdx = self.exmplidx_sel - 1
-        self.select_exmpl_group(self.get_groupid_sel(), previdx)
+        self.select_exmpl_group(curtag, previdx)
     def onButton_quarantine(self, evt):
         curgroup = self.get_current_group()
         self.quarantined_groups.append(curgroup)
         self.remove_group(curgroup)
+
+class VerifyOverlaysMultCats(wx.Panel):
+    """ A widget that lets the user verify the overlays of N different
+    categories (i.e. 'party', 'language', 'precinct').
+    """
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+
+        self.verify_results_cat = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
+        
+        self.init_ui()
+
+    def init_ui(self):
+        self.nb = wx.Notebook(self)
+        self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onPageChange)
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.nb, proportion=1, border=10, flag=wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+    def start(self, imgpath_cats, cat_exemplars, do_align=False,
+              bbs_map_cats=None, ondone=None):
+        """
+        Input:
+        dict IMGPATH_CATS: {cat_tag: {grouptag: [imgpath_i, ...]}}
+            For each category CAT_TAG, GROUPTAG is an identifier for
+            a set of imgpaths. 
+        dict CAT_EXEMPLARS: {cat_tag: {grouptag: [exmplpath_i, ...]}}
+            For each category CAT_TAG, GROUPTAG is an identifier for
+            a set of exemplar imgpatches.
+        bool DO_ALIGN:
+            If True, then this will align all imgpatches when overlaying.
+        """
+        categories = tuple(set(imgpath_cats.keys()))
+        self.imgpath_cats = imgpath_cats
+        self.cat_exemplars = cat_exemplars
+        self.do_align = do_align
+        self.bbs_map_cats = bbs_map_cats if bbs_map_cats else {}
+        self.ondone = ondone
+        self.cat2page = {} # maps {cat_tag: int pageidx}
+        self.page2cat = {} # maps {int pageidx: cat_tag}
+        self.started_pages = {} # maps {int pageidx: bool hasStarted}
+        pages = []
+        for i, category in enumerate(categories):
+            verifyoverlays = VerifyOverlays(self.nb)
+            pages.append((verifyoverlays, category))
+            self.cat2page[category] = i
+            self.page2cat[i] = category
+        for i, (page, category) in enumerate(pages):
+            self.nb.AddPage(page, str(category))
+        self.nb.ChangeSelection(0)
+        self.nb.SendPageChangedEvent(-1, 0)
+        self.Layout()
+            
+    def onPageChange(self, evt):
+        old = evt.GetOldSelection()
+        new = evt.GetSelection()
+        if new in self.started_pages:
+            return
+        curcat = self.page2cat[new]
+        imgpath_groups = self.imgpath_cats[curcat]
+        exemplar_groups = self.cat_exemplars[curcat]
+        bbs_map = self.bbs_map_cats.get(curcat, None)
+        verifyoverlays = self.nb.GetPage(new)
+        verifyoverlays.start(imgpath_groups, exemplar_groups, None, 
+                             bbs_map=bbs_map, do_align=self.do_align, 
+                             ondone=self.on_cat_done, auto_ondone=True)
+        self.started_pages[new] = True
+        
+    def on_cat_done(self, verify_results):
+        """ Called when a category is finished overlay verification.
+        Input:
+            dict VERIFY_RESULTS: {grouptag: [imgpath_i, ...]}
+        """
+        print "...In on_cat_done..."
+        curcat = self.page2cat[self.nb.GetSelection()]
+        self.verify_results_cat[curcat] = verify_results
+
+        if len(self.verify_results_cat) == len(self.cat2page):
+            print "We're done verifying all categories!"
+            self.Disable()
+            if self.ondone:
+                self.ondone(self.verify_results_cat)
 
 class CheckImageEquals(VerifyOverlays):
     """ A widget that lets the user separate a set of images into two
@@ -601,8 +661,7 @@ class CheckImageEquals(VerifyOverlays):
         self.Close()
 
 class Group(object):
-    def __init__(self, groupid, imgpaths, tag=None, do_align=False):
-        self.groupid = groupid
+    def __init__(self, imgpaths, tag=None, do_align=False):
         self.tag = tag
         self.imgpaths = imgpaths
     
@@ -623,13 +682,34 @@ class Group(object):
             self.overlay_min = minimg
             self.overlay_max = maximg
         return self.overlay_min, self.overlay_max
+    def marshall(self):
+        """ Returns a dict-rep of myself. In particular, you can't pickle
+        IplImages, so don't include them.
+        """
+        me = {'tag': self.tag,
+              'imgpaths': self.imgpaths, 'do_align': self.do_align}
+        return me
 
+    @staticmethod
+    def unmarshall(d):
+        return Group(d['imgpaths'], tag=d['tag'], do_align=d['do_align'])
+
+    def __eq__(self, o):
+        return (isinstance(o, Group) and self.imgpaths == o.imgpaths)
+    def __repr__(self):
+        return "Group({0},numimgs={1})".format(self.tag,
+                                               len(self.imgpaths))
+    def __str__(self):
+        return "Group({0},numimgs={1})".format(self.tag,
+                                               len(self.imgpaths))
+
+class SplitGroup(Group):
     def midsplit(self):
         """ Laziest split method: Split down the middle. """
         mid = len(self.imgpaths) / 2
         imgsA, imgsB = self.imgpaths[:mid], self.imgpaths[mid:]
-        return [type(self)(self.groupid, imgsA, tag=self.tag, do_align=self.do_align),
-                type(self)(self.groupid, imgsB, tag=self.tag, do_align=self.do_align)]
+        return [type(self)(imgsA, tag=self.tag, do_align=self.do_align),
+                type(self)(imgsB, tag=self.tag, do_align=self.do_align)]
 
     def split_kmeans(self, K=2):
         t = time.time()
@@ -640,7 +720,7 @@ class Group(object):
         print "...Completed k-means ({0} s)".format(dur)
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(self.groupid, imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -652,7 +732,7 @@ class Group(object):
         print "...Completed PCA+k-means ({0} s)".format(dur)
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(self.groupid, imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
         
@@ -665,7 +745,7 @@ class Group(object):
         print "...Completed k-meansV2 ({0} s)".format(dur)
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(self.groupid, imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -678,7 +758,7 @@ class Group(object):
         print "...Completed k-mediods ({0} s)".format(dur)
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(self.groupid, imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -688,8 +768,8 @@ class Group(object):
         if len(self.imgpaths) == 1:
             return [self]
         elif len(self.imgpaths) == 2:
-            return [type(self)(self.groupid, [self.imgpaths[0]], tag=self.tag, do_align=self.do_align),
-                    type(self)(self.groupid, [self.imgpaths[1]], tag=self.tag, do_align=self.do_align)]
+            return [type(self)([self.imgpaths[0]], tag=self.tag, do_align=self.do_align),
+                    type(self)([self.imgpaths[1]], tag=self.tag, do_align=self.do_align)]
         if mode == 'midsplit':
             return self.midsplit()
         elif mode == 'kmeans':
@@ -703,32 +783,21 @@ class Group(object):
         else:
             return self.split_kmeans(K=2)
 
-    def marshall(self):
-        """ Returns a dict-rep of myself. In particular, you can't pickle
-        IplImages, so don't include them.
-        """
-        me = {'groupid': self.groupid, 'tag': self.tag,
-              'imgpaths': self.imgpaths, 'do_align': self.do_align}
-        return me
-
     @staticmethod
     def unmarshall(d):
-        return Group(d['groupid'], d['imgpaths'], tag=d['tag'], do_align=d['do_align'])
-
+        return SplitGroup(d['imgpaths'], tag=d['tag'], do_align=d['do_align'])
     def __eq__(self, o):
-        return (isinstance(o, Group) and self.imgpaths == o.imgpaths)
+        return (isinstance(o, SplitGroup) and self.imgpaths == o.imgpaths)
     def __repr__(self):
-        return "Group({0},gid={1},numimgs={2})".format(self.tag,
-                                                       self.groupid,
-                                                       len(self.imgpaths))
+        return "SplitGroup({0},numimgs={1})".format(self.tag,
+                                                    len(self.imgpaths))
     def __str__(self):
-        return "Group({0},gid={1},numimgs={2})".format(self.tag,
-                                                       self.groupid,
-                                                       len(self.imgpaths))
+        return "SplitGroup({0},numimgs={1})".format(self.tag,
+                                                    len(self.imgpaths))
     
-class GroupRankedList(Group):
-    def __init__(self, groupid, imgpaths, rlist_idx=0, exmpl_idx=0, *args, **kwargs):
-        Group.__init__(self, groupid, imgpaths, *args, **kwargs)
+class VerifyGroup(SplitGroup):
+    def __init__(self, imgpaths, rlist_idx=0, exmpl_idx=0, *args, **kwargs):
+        SplitGroup.__init__(self, imgpaths, *args, **kwargs)
         self.rlist_idx = rlist_idx
         self.exmpl_idx = exmpl_idx
     def split(self, mode=None):
@@ -737,44 +806,46 @@ class GroupRankedList(Group):
         if mode == 'rankedlist':
             return [self]
         else:
-            return Group.split(self, mode=mode)
+            return SplitGroup.split(self, mode=mode)
     def marshall(self):
-        me = Group.marshall(self)
+        me = SplitGroup.marshall(self)
         me['rlist_idx'] = self.rlist_idx
         me['exmpl_idx'] = self.exmpl_idx
         return me
     @staticmethod
     def unmarshall(d):
-        return GroupRankedList(d['groupid'], d['imgpaths'], rlist_idx=d['rlist_idx'],
-                               exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
+        return VerifyGroup(d['imgpaths'], rlist_idx=d['rlist_idx'],
+                           exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
+    def __eq__(self, o):
+        return (isinstance(o, VerifyGroup) and self.imgpaths == o.imgpaths)
     def __repr__(self):
-        return "GroupRankedList({0},gid={1},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
-                                                                                     self.groupid,
-                                                                                     self.rlist_idx,
-                                                                                     self.exmpl_idx,
-                                                                                     len(self.imgpaths))
+        return "VerifyGroup({0},rlidx={1},exidx={2},numimgs={3})".format(self.tag,
+                                                                         self.rlist_idx,
+                                                                         self.exmpl_idx,
+                                                                         len(self.imgpaths))
     def __str__(self):
-        return "GroupRankedList({0},gid={1},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
-                                                                                     self.groupid,
-                                                                                     self.rlist_idx,
-                                                                                     self.exmpl_idx,
-                                                                                     len(self.imgpaths))
+        return "VerifyGroup({0},rlidx={1},exidx={2},numimgs={3})".format(self.tag,
+                                                                         self.rlist_idx,
+                                                                         self.exmpl_idx,
+                                                                         len(self.imgpaths))
 
-class DigitGroup(Group):
+class DigitGroup(VerifyGroup):
+    @staticmethod
+    def unmarshall(d):
+        return DigitGroup(d['imgpaths'], rlist_idx=d['rlist_idx'],
+                          exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
+    def __eq__(self, o):
+        return (isinstance(o, VerifyGroup) and self.imgpaths == o.imgpaths)
     def __repr__(self):
-        return "DigitGroup({0},gid={1},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
-                                                                                self.groupid,
-                                                                                self.rlist_idx,
-                                                                                self.exmpl_idx,
-                                                                                len(self.imgpaths))
+        return "DigitGroup({0},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
+                                                                        self.rlist_idx,
+                                                                        self.exmpl_idx,
+                                                                        len(self.imgpaths))
     def __str__(self):
-        return "DigitGroup({0},gid={1},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
-                                                                                self.groupid,
-                                                                                self.rlist_idx,
-                                                                                self.exmpl_idx,
-                                                                                len(self.imgpaths))
-    
-    
+        return "DigitGroup({0},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
+                                                                        self.rlist_idx,
+                                                                        self.exmpl_idx,
+                                                                        len(self.imgpaths))
 
 class ManualRelabelDialog(wx.Dialog):
     def __init__(self, parent, tags, *args, **kwargs):
@@ -1002,9 +1073,54 @@ def test_checkimgequal():
     f.Show()
     app.MainLoop()
 
+def test_verifycategories():
+    class TestFrame(wx.Frame):
+        def __init__(self, parent, imgcategories, exmplcategories, *args, **kwargs):
+            wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
+
+            self.viewoverlays = VerifyOverlaysMultCats(self)
+
+            self.sizer = wx.BoxSizer(wx.VERTICAL)
+            self.sizer.Add(self.viewoverlays, proportion=1, flag=wx.EXPAND)
+            self.SetSizer(self.sizer)
+            self.Layout()
+
+            self.viewoverlays.start(imgcategories, exmplcategories, 
+                                    do_align=True, ondone=self.ondone)
+
+        def ondone(self, verify_results):
+            print 'verify_results:', verify_results
+    args = sys.argv[1:]
+    imgsdir = args[0]
+    exmpls_dir = args[1]
+    
+    imgcats = {} # maps {cat_tag: {str groupname: [imgpath_i, ...]}}
+    for catdir in os.listdir(imgsdir):
+        cat_fulldir = pathjoin(imgsdir, catdir)
+        for groupdir in os.listdir(cat_fulldir):
+            group_fulldir = pathjoin(cat_fulldir, groupdir)
+            for imgname in os.listdir(group_fulldir):
+                imgpath = pathjoin(group_fulldir, imgname)
+                imgcats.setdefault(catdir, {}).setdefault(groupdir, []).append(imgpath)
+
+    exmplscats = {} # maps {cat_tag: {groupname: [exmplpath_i, ...]}}
+    for catdir in os.listdir(exmpls_dir):
+        cat_fulldir = pathjoin(exmpls_dir, catdir)
+        for groupdir in os.listdir(cat_fulldir):
+            group_fulldir = pathjoin(cat_fulldir, groupdir)
+            for imgname in os.listdir(group_fulldir):
+                imgpath = pathjoin(group_fulldir, imgname)
+                exmplscats.setdefault(catdir, {}).setdefault(groupdir, []).append(imgpath)
+
+    app = wx.App(False)
+    f = TestFrame(None, imgcats, exmplscats)
+    f.Show()
+    app.MainLoop()
+
 def main():
     #test_verifyoverlays()
-    test_checkimgequal()
+    #test_checkimgequal()
+    test_verifycategories()
 
 if __name__ == '__main__':
     main()
