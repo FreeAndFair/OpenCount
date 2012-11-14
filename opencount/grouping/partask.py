@@ -11,6 +11,8 @@ def do_partask(fn, jobs, _args=None, blocking=True,
                combfn=None, init=None,
                pass_idx=False,
                singleproc=False,
+               manager=None,
+               pass_queue=None,
                N=None):
     """ The developer-facing main function. do_partask will split up
     'jobs' into N equally-sized chunks C_i, and apply 'fn' to each
@@ -21,6 +23,7 @@ def do_partask(fn, jobs, _args=None, blocking=True,
               fn(list, arg_0, ..., arg_N)
             where each arg_i is optional, and provided by '_args'
         list jobs: A list of tasks, to be split up by do_partask.
+            If JOBS is a dict, then it will be split up by keys.
         list _args: 
         bool blocking: 
         fn combfn: A combining function that must take two arguments
@@ -41,10 +44,15 @@ def do_partask(fn, jobs, _args=None, blocking=True,
             return fn(jobs, _args, 0)
         else:
             return fn(jobs, _args)
-    manager = multiprocessing.Manager()
+
+    if manager == None:
+        print "...creating new Manager..."
+        manager = multiprocessing.Manager()
+    else:
+        print "...Received Your Manager, roger..."
     queue = manager.Queue()
 
-    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx, N))
+    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx, pass_queue, N))
     p.start()
 
     num_jobs = len(jobs)
@@ -83,7 +91,7 @@ class POOL_CLOSED:
 
 _POOL_CLOSED = POOL_CLOSED()
 
-def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, N=None):
+def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=None):
     def handle_result(result):
         queue.put(result)
     pool = multiprocessing.Pool()
@@ -95,11 +103,14 @@ def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, N=None):
     for i, job in enumerate(divy_list(jobs, n_procs)):
         num_tasks = len(job)
         print "Process {0} got {1} tasks.".format(i, num_tasks)
+
         the_args = (job,)
         if _args != None:
             the_args += (_args,)
         if pass_idx == True:
             the_args += (cnt,)
+        if pass_queue:
+            the_args += (pass_queue,)
         pool.apply_async(fn, args=the_args, callback=handle_result)
         cnt += num_tasks
     pool.close()
@@ -114,8 +125,16 @@ def divy_list(lst, k):
     Output:
         K tuples.
     """
+    dictflag = False
+    if isinstance(lst, dict):
+        dictflag = True
+        lst = lst.items()
+
     if len(lst) <= k:
-        return [[thing] for thing in lst]
+        if not dictflag:
+            return [[thing] for thing in lst]
+        else:
+            return [dict([thing]) for thing in lst]
     chunksize = math.ceil(len(lst) / float(k))
     i = 0
     chunks = []
@@ -128,6 +147,8 @@ def divy_list(lst, k):
         i += 1
     if curchunk:
         chunks.append(curchunk)
+    if dictflag:
+        chunks = [dict(c) for c in chunks]
     return chunks
     
 """

@@ -1,4 +1,4 @@
-import sys, os, pdb, traceback, threading, Queue
+import sys, os, pdb, traceback, threading, multiprocessing, Queue
 try:
     import cPickle as pickle
 except:
@@ -176,16 +176,17 @@ class PartitionPanel(ScrolledPanel):
 
     def onButton_run(self, evt):
         class PartitionThread(threading.Thread):
-            def __init__(self, b2imgs, vendor_obj, callback, jobid, queue, tlisten, *args, **kwargs):
+            def __init__(self, b2imgs, vendor_obj, callback, jobid, manager, progress_queue, tlisten, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
                 self.b2imgs = b2imgs
                 self.vendor_obj = vendor_obj
                 self.callback = callback
                 self.jobid = jobid
-                self.queue = queue
+                self.manager = manager
+                self.queue = progress_queue
                 self.tlisten = tlisten
             def run(self):
-                partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths = self.vendor_obj.partition_ballots(self.b2imgs, queue=queue)
+                partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths = self.vendor_obj.partition_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
                 wx.CallAfter(self.callback, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
                 self.tlisten.stop()
@@ -214,10 +215,11 @@ class PartitionPanel(ScrolledPanel):
 
         vendor_obj = self.proj.vendor_obj
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        queue = Queue.Queue()
-        tlisten = ListenThread(queue, self.PARTITION_JOBID)
+        manager = multiprocessing.Manager()
+        progress_queue = manager.Queue()
+        tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
         t = PartitionThread(b2imgs, vendor_obj, self.on_partitiondone,
-                            self.PARTITION_JOBID, queue, tlisten)
+                            self.PARTITION_JOBID, manager, progress_queue, tlisten)
         numtasks = len(b2imgs)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
@@ -237,11 +239,11 @@ class PartitionPanel(ScrolledPanel):
             list ERR_IMGPATHS:
         """
         print "...Partitioning Done..."
-        print partitioning, '\n'
-        print decoded, '\n'
-        print imginfo, '\n'
-        print bbs_map, '\n'
-        print err_imgpaths
+        #print partitioning, '\n'
+        #print decoded, '\n'
+        #print imginfo, '\n'
+        #print bbs_map, '\n'
+        print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
 
         # TODO: Handle ERR_IMGPATHS. Maybe have the user manually go
         # through each one, either quarantining or manually-labeling each one?

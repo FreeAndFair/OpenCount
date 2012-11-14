@@ -8,7 +8,7 @@ class Vendor(object):
         pass
         #raise NotImplementedError("Can't instantiate abstract Vendor class.")
 
-    def partition_ballots(self, ballots):
+    def partition_ballots(self, ballots, *args, **kwargs):
         """
         Input:
             dict BALLOTS: {int ballotID: [imgpath_side0, ...]}.

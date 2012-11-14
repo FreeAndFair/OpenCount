@@ -1,13 +1,17 @@
-import os, sys
+import os, sys, traceback, pdb
 from os.path import join as pathjoin
 
 import cv
+import wx
+from wx.lib.pubsub import Publisher
 
 from Vendor import Vendor
 
 sys.path.append('..')
 
 from barcode.hart import decode, get_info
+from grouping import partask
+import util
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
@@ -59,7 +63,7 @@ class HartVendor(Vendor):
             results.append((bcs, isflipped, bbs, bbstripes_dict))
         return results
 
-    def partition_ballots(self, ballots, queue=None):
+    def partition_ballots(self, ballots, manager=None, queue=None):
         partitions = {}
         decoded = {}
         imginfo = {}
@@ -68,13 +72,10 @@ class HartVendor(Vendor):
         err_imgpaths = []
         bcs2partitionid = {} # maps {(str bcs, ...): int partitionID}
         cur_pid = 0
-        TOP_GUARD = cv.LoadImage(TOP_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        BOT_GUARD = cv.LoadImage(BOT_GUARD_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        TOP_GUARD_SKINNY = cv.LoadImage(TOP_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        BOT_GUARD_SKINNY = cv.LoadImage(BOT_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        topbot_pairs = [[TOP_GUARD, BOT_GUARD], [TOP_GUARD_SKINNY, BOT_GUARD_SKINNY]]
-        for ballotid, imgpaths in ballots.iteritems():
-            decoded_results = self.decode_ballot(imgpaths, topbot_pairs)
+        topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]
+        decoded_results_map = decode_ballots(ballots, topbot_paths, manager, queue)
+        for ballotid, decoded_results in decoded_results_map.iteritems():
+            imgpaths = ballots[ballotid]
             decoded_strs = []
             for i, (bcs, isflipped, bbs, bbstripes_dict) in enumerate(decoded_results):
                 imgpath = imgpaths[i]
@@ -99,11 +100,42 @@ class HartVendor(Vendor):
             else:
                 pid = bcs2partitionid[tuple(decoded_strs)]
                 partitions.setdefault(pid, []).append(ballotid)
-            if queue:
-                queue.put(True)
-        return partitions, decoded, imginfo, bbs_map, bbstripes, err_imgpaths
+        return partitions, decoded, imginfo, bbs_map, bbstripes_map, err_imgpaths
 
     def __repr__(self):
         return 'HartVendor()'
     def __str__(self):
         return 'HartVendor()'
+
+def _do_decode_ballots(ballots, (topbot_paths,), queue=None):
+    try:
+        cvread = lambda imP: cv.LoadImage(imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        topbot_pairs = [[cvread(topbot_paths[0][0]), cvread(topbot_paths[0][1])],
+                        [cvread(topbot_paths[1][0]), cvread(topbot_paths[1][1])]]
+        results = {}
+        for ballotid, imgpaths in ballots.iteritems():
+            balresults = []
+            for imgpath in imgpaths:
+                bcs, isflipped, bbs, bbstripes_dict = decode(imgpath, topbot_pairs)
+                balresults.append((bcs, isflipped, bbs, bbstripes_dict))
+            results[ballotid] = balresults
+            if queue:
+                queue.put(True)
+        return results
+    except:
+        traceback.print_exc()
+
+def decode_ballots(ballots, topbot_paths, manager, queue):
+    try:
+        decoded_results = partask.do_partask(_do_decode_ballots,
+                                             ballots,
+                                             _args=(topbot_paths,),
+                                             combfn='dict',
+                                             manager=manager,
+                                             pass_queue=queue,
+                                             N=12)
+        return decoded_results
+    except:
+        traceback.print_exc()
+        return None
+
