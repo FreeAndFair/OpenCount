@@ -29,8 +29,14 @@ class SelectTargetsMainPanel(wx.Panel):
 
     def init_ui(self):
         self.seltargets_panel = SelectTargetsPanel(self)
+
+        btn_getimgpath = wx.Button(self, label="Get Image Path...")
+        btn_getimgpath.Bind(wx.EVT_BUTTON, self.onButton_getimgpath)
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.seltargets_panel, proportion=1, flag=wx.EXPAND)
+        self.sizer.Add(btn_getimgpath)
+
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -47,7 +53,7 @@ class SelectTargetsMainPanel(wx.Panel):
         # 0.) Munge GROUP2BALLOT to list of lists of lists
         groups = []
         numtasks = 0
-        for groupID, ballotids in group_exmpls.iteritems():
+        for groupID, ballotids in sorted(group_exmpls.iteritems(), key=lambda t: t[0]):
             group = []
             for ballotid in ballotids:
                 if len(group) >= 5:
@@ -57,6 +63,7 @@ class SelectTargetsMainPanel(wx.Panel):
                 group.append(imgpaths_ordered)
             numtasks += 1
             groups.append(group)
+        self.displayed_imgpaths = groups
 
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
         align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
@@ -231,6 +238,14 @@ class SelectTargetsMainPanel(wx.Panel):
                 assocs[id] = [c, [t]]
         return assocs
 
+    def onButton_getimgpath(self, evt):
+        S = self.seltargets_panel
+        imgpath = self.displayed_imgpaths[S.cur_i][S.cur_j][S.cur_page]
+        print 'imgpath:', imgpath
+        dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
+                               style=wx.OK)
+        dlg.ShowModal()
+
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
     partitions
@@ -308,13 +323,15 @@ this partition.")
         self.txt_curpage = wx.StaticText(self, label="1")
         txt_slash2 = wx.StaticText(self, label=" / ")
         self.txt_totalpages = wx.StaticText(self, label="Baz")
+        self.txt_curimgpath = wx.StaticText(self, label="")
         self.txt_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.txt_sizer.AddMany([(txt1,),
                                 (self.txt_curpartition,), (txt_slash0,), (self.txt_totalpartitions,),
                                 (50,0), (txt2,),
                                 (self.txt_curballot,), (txt_slash1,), (self.txt_totalballots,),
                                 (50,0), (txt3,),
-                                (self.txt_curpage,), (txt_slash2,), (self.txt_totalpages,)])
+                                (self.txt_curpage,), (txt_slash2,), (self.txt_totalpages,),
+                                (50,0), (self.txt_curimgpath)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(txt, flag=wx.ALIGN_CENTER)
@@ -504,6 +521,7 @@ this partition.")
 
         #self.SetupScrolling()
         # 3.) Finally, update relevant StaticText in the UI.
+        self.txt_curimgpath.SetLabel(imgpath)
         self.txt_curpartition.SetLabel(str(self.cur_i+1))
         self.txt_curballot.SetLabel(str(self.cur_j+1))
         self.txt_curpage.SetLabel(str(self.cur_page+1))
