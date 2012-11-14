@@ -10,6 +10,7 @@ from os.path import join as pathjoin
 sys.path.append('..')
 
 import wx, cv, numpy as np, Image, scipy, scipy.misc
+from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import util_gui, util
@@ -19,6 +20,7 @@ import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
 
 class SelectTargetsMainPanel(wx.Panel):
+    GLOBALALIGN_JOBID = util.GaugeID("GlobalAlignJobId")
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 
@@ -44,6 +46,7 @@ class SelectTargetsMainPanel(wx.Panel):
                                              proj.image_to_page), 'rb'))
         # 0.) Munge GROUP2BALLOT to list of lists of lists
         groups = []
+        numtasks = 0
         for groupID, ballotids in group_exmpls.iteritems():
             group = []
             for ballotid in ballotids:
@@ -52,11 +55,80 @@ class SelectTargetsMainPanel(wx.Panel):
                 imgpaths = b2imgs[ballotid]
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                 group.append(imgpaths_ordered)
+            numtasks += 1
             groups.append(group)
 
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
-        align_outdir = pathjoin(proj.projdir_path, 'partitionsAlign_seltargs')
-        self.seltargets_panel.start(groups, stateP, ocrtmpdir, align_outdir)
+        align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
+
+        class GlobalAlignThread(threading.Thread):
+            def __init__(self, groups, align_outdir, stateP, ocrtmpdir, 
+                         manager, queue, callback, jobid, tlisten, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
+                self.groups = groups
+                self.align_outdir = align_outdir
+                self.stateP = stateP
+                self.ocrtmpdir = ocrtmpdir
+                self.manager = manager
+                self.queue = queue
+                self.callback = callback
+                self.jobid = jobid
+                self.tlisten = tlisten
+            def run(self):
+                print '...Globally-aligning a subset of each partition...'
+                t = time.time()
+                groups_align_map = do_align_partitions(self.groups, self.align_outdir, self.manager, self.queue)
+                dur = time.time() - t
+                print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
+                wx.CallAfter(self.callback, groups_align_map, self.stateP, self.ocrtmpdir)
+                self.tlisten.stop()
+        class ListenThread(threading.Thread):
+            def __init__(self, queue, jobid, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
+                self.queue = queue
+                self.jobid = jobid
+                self._stop = threading.Event()
+            def stop(self):
+                print "...ListenThread: Someone called my stop()..."
+                self._stop.set()
+            def is_stopped(self):
+                return self._stop.isSet()
+            def run(self):
+                while True:
+                    if self.is_stopped():
+                        print "...ListenThread: Stopping."
+                        return
+                    try:
+                        val = self.queue.get(block=True, timeout=1)
+                        if val == True:
+                            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                    except Queue.Empty:
+                        pass
+
+        if not os.path.exists(align_outdir):
+            manager = multiprocessing.Manager()
+            queue = manager.Queue()
+            tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
+            workthread = GlobalAlignThread(groups, align_outdir, stateP, ocrtmpdir, 
+                                           manager, queue, self.on_align_done, 
+                                           self.GLOBALALIGN_JOBID, tlisten)
+            workthread.start()
+            tlisten.start()
+            gauge = util.MyGauge(self, 1, thread=workthread, msg="Running Global Alignment...",
+                                 job_id=self.GLOBALALIGN_JOBID)
+            gauge.Show()
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.GLOBALALIGN_JOBID))
+        else:
+            # SelectTargets restores its self.partitions from stateP.
+            self.seltargets_panel.start(None, stateP, ocrtmpdir)
+
+    def on_align_done(self, groups_align_map, stateP, ocrtmpdir):
+        groups_align = []
+        for groupid in sorted(groups_align_map.keys()):
+            ballots = groups_align_map[groupid]
+            groups_align.append(ballots)
+        self.seltargets_panel.start(groups_align, stateP, ocrtmpdir)
 
     def stop(self):
         self.proj.removeCloseEvent(self.seltargets_panel.save_session)
@@ -253,7 +325,7 @@ this partition.")
 
         self.SetSizer(self.sizer)
 
-    def start(self, partitions, stateP, ocrtempdir, align_outdir):
+    def start(self, partitions, stateP, ocrtempdir):
         """
         Input:
             list PARTITIONS: A list of lists of lists, encoding partition+ballot+side(s):
@@ -266,8 +338,7 @@ this partition.")
         self.ocrtempdir = ocrtempdir
         if not self.restore_session():
             # 0.) Populate my self.INV_MAP
-            partitions_align = align_partitions(partitions, align_outdir)
-            self.partitions = partitions_align
+            self.partitions = partitions
             self.inv_map = {}
             self.boxes = {}
             self.boxsize = None
@@ -1365,24 +1436,24 @@ def bestmatch(A, B):
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
 
-def align_partitions(partitions, outrootdir):
+def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
     """ 
     Input:
         list PARTITIONS: list of list of lists, encodes partition+ballot+side.
         str OUTROOTDIR: Rootdir to save aligned images to.
     Output:
-        list PARITIONS_ALIGN. 
+        dict PARTITIONS_ALIGN: {int partitionID: [BALLOT_i, ...]}
     """
-    partitions_align = []
-    print '...Globally-aligning a subset of each partition...'
+    partitions_align = {} # maps {partitionID: [[imgpath_i, ...], ...]}
+
     t = time.time()
-    for partitionid, partition in enumerate(partitions):
+    for idx, partition in enumerate(partitions):
+        partitionid = start_pid + idx
         outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
         try:
             os.makedirs(outdir)
         except:
             pass
-        curPart = []
         ballotRef = partition[0]
         Irefs = [shared.standardImread(imP) for imP in ballotRef]
         # 0.) First, handle the reference Ballot
@@ -1392,7 +1463,7 @@ def align_partitions(partitions, outrootdir):
             outpath = pathjoin(outdir, outname)
             scipy.misc.imsave(outpath, Iref)
             curBallot.append(outpath)
-        curPart.append(curBallot)
+        partitions_align[partitionid] = [curBallot]
         # 1.) Now, align all other Ballots to BALLOTREF
         for i, ballot in enumerate(partition[1:]):
             curBallot = []
@@ -1405,11 +1476,27 @@ def align_partitions(partitions, outrootdir):
                 outpath = pathjoin(outdir, outname)
                 scipy.misc.imsave(outpath, Ireg)
                 curBallot.append(outpath)
-            curPart.append(curBallot)
-        partitions_align.append(curPart)
+            partitions_align[partitionid].append(curBallot)
+        if queue:
+            queue.put(True)
     dur = time.time() - t
-    print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
+
     return partitions_align
+
+def do_align_partitions(partitions, outrootdir, manager, queue):
+    try:
+        partitions_align = partask.do_partask(align_partitions, 
+                                              partitions,
+                                              _args=(outrootdir,),
+                                              manager=manager,
+                                              pass_queue=queue,
+                                              pass_idx=True,
+                                              combfn='dict',
+                                              N=None)
+        return partitions_align
+    except:
+        traceback.print_exc()
+        return None
 
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.bmp', 'jpeg', '.jpg', '.tif')

@@ -40,10 +40,12 @@ def do_partask(fn, jobs, _args=None, blocking=True,
     TODO: non-blocking functionality is not implemented.
     """
     if singleproc or N == 1:
+        moreargs = ()
         if pass_idx:
-            return fn(jobs, _args, 0)
-        else:
-            return fn(jobs, _args)
+            moreargs += (0,)
+        if pass_queue != None:
+            moreargs += (pass_queue,)
+        return fn(jobs, _args, *moreargs)
 
     if manager == None:
         print "...creating new Manager..."
