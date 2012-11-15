@@ -1,5 +1,5 @@
 import sys, os, time, math, pdb, traceback, threading, Queue, copy
-import multiprocessing, csv
+import multiprocessing, csv, shutil
 try:
     import cPickle as pickle
 except ImportError:
@@ -1454,6 +1454,16 @@ def bestmatch(A, B):
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
 
+def cropout_border(I, top, bot, left, right):
+    """ float TOP,BOT,LEFT,RIGHT are between [0.0, 1.0]. """
+    h, w = I.shape
+    x1 = int(round(left*w))
+    y1 = int(round(top*h))
+    x2 = int(round(w - (right*w)))
+    y2 = int(round(h - (bot*h)))
+    Inew = I[y1:y2, x1:x2]
+    return np.copy(Inew)
+
 def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
     """ 
     Input:
@@ -1462,8 +1472,10 @@ def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
     Output:
         dict PARTITIONS_ALIGN: {int partitionID: [BALLOT_i, ...]}
     """
+    # Global Alignment approach: Perform alignment on a smaller patch
+    # near the center, then apply the discovered transformation H to
+    # the entire image. Works better than working on the entire image.
     partitions_align = {} # maps {partitionID: [[imgpath_i, ...], ...]}
-
     t = time.time()
     for idx, partition in enumerate(partitions):
         partitionid = start_pid + idx
@@ -1473,25 +1485,28 @@ def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
         except:
             pass
         ballotRef = partition[0]
-        Irefs = [shared.standardImread(imP) for imP in ballotRef]
+        # Remove 20% of image from each side. Helps with global alignment.
+        Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
         # 0.) First, handle the reference Ballot
         curBallot = []
-        for side, Iref in enumerate(Irefs):
+        for side, (Iref_imP, Iref) in enumerate(Irefs):
             outname = 'bal_{0}_side_{1}.png'.format(0, side)
             outpath = pathjoin(outdir, outname)
-            scipy.misc.imsave(outpath, Iref)
+            shutil.copy(Iref_imP, outpath)
             curBallot.append(outpath)
         partitions_align[partitionid] = [curBallot]
         # 1.) Now, align all other Ballots to BALLOTREF
         for i, ballot in enumerate(partition[1:]):
             curBallot = []
             for side, imgpath in enumerate(ballot):
-                Iref = Irefs[side]
+                Iref_imgP, Iref = Irefs[side]
                 I = shared.standardImread(imgpath, flatten=True)
-                H, Ireg, err = imagesAlign.imagesAlign(I, Iref, type='rigid', rszFac=0.25)
-                Ireg = np.nan_to_num(Ireg)
+                Icrop = cropout_border(I, 0.2,0.2,0.2,0.2)
+                H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
                 outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
                 outpath = pathjoin(outdir, outname)
+                Ireg = imagesAlign.imtransform(I, H)
+                Ireg = np.nan_to_num(Ireg)
                 scipy.misc.imsave(outpath, Ireg)
                 curBallot.append(outpath)
             partitions_align[partitionid].append(curBallot)
