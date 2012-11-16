@@ -59,12 +59,12 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         inputsizer.Add(labeltxt)
         inputsizer.Add(self.inputctrl)
         self.progress_txt = wx.StaticText(self, label='')
-        sizer3 = wx.BoxSizer(wx.VERTICAL)
-        sizer3.Add(inputsizer)
-        sizer3.Add(nextbtn)
-        sizer3.Add(prevbtn)
-        sizer3.Add(donebtn)
-        sizer3.Add(self.progress_txt)
+        self.btn_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.btn_sizer.Add(inputsizer)
+        self.btn_sizer.Add(nextbtn)
+        self.btn_sizer.Add(prevbtn)
+        self.btn_sizer.Add(donebtn)
+        self.btn_sizer.Add(self.progress_txt)
 
         sizer_img = wx.BoxSizer(wx.VERTICAL)
         sizer_img.Add(self.imgpatch, proportion=0)
@@ -79,12 +79,11 @@ values for this caption...")
         sizer_lstbox.Add(txt_listbox)
         sizer_lstbox.Add(self.listbox, flag=wx.EXPAND)
 
-        self.sizer2.Add(sizer_img)
-        self.sizer2.Add((40, 40))
-        self.sizer2.Add(sizer3, proportion=0)
+        self.sizer2.Add(self.btn_sizer, proportion=0)
         self.sizer2.Add((40, 40))
         self.sizer2.Add(sizer_lstbox)
         
+        self.sizer.Add(sizer_img)
         self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
 
     def update_caption_txt(self, imgidx):
@@ -124,8 +123,6 @@ values for this caption...")
         """ Adds the 'label' for the given image by updating internal
         data structures. Returns True if it's valid, False o.w.
         """
-        if not label:
-            return False
         if self.possibles and label not in self.possibles:
             return False
         oldlabel = self.imagelabels[imgpath]
@@ -337,8 +334,19 @@ Implies that imgpath is present in imageslist more than once."
 
         self.cur_imgidx = idx
         imgpath = self.imagepaths[self.cur_imgidx]
-        bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
+        wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
+        w_win, h_win = self.GetClientSize()
+        w_new = min(wximg.GetWidth(), int(round(0.6*w_win)))
+        c = wximg.GetWidth() / float(w_new)
+        h_new = wximg.GetHeight() / c
+        wximg_scaled = wximg.Scale(w_new, h_new, quality=wx.IMAGE_QUALITY_HIGH)
+        bitmap = wx.BitmapFromImage(wximg_scaled)
+        #bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
+        if h_new >= (h_win * 0.75):
+            self.sizer.SetOrientation(wx.HORIZONTAL)
+        else:
+            self.sizer.SetOrientation(wx.VERTICAL)
         self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
                                                                              len(self.imagepaths)))
         self.inputctrl.SetValue(self.imagelabels[imgpath])
@@ -357,4 +365,3 @@ Implies that imgpath is present in imageslist more than once."
             row = {'imgpath': imgpath, 'label': label}
             dictwriter.write_row(row)
         f.close()
-

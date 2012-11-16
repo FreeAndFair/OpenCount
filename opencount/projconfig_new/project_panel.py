@@ -148,6 +148,8 @@ class Project(object):
                      'decoded_map': 'decoded_map.p',
                      'imginfo_map': 'imginfo_map.p',
                      'barcode_bbs_map': 'barcode_bbs_map.p',
+                     'partition_quarantined': 'partition_quarantined.p',
+                     'partition_discarded': 'partition_discarded.p',
                      'partition_attrmap': 'partition_attrmap.p',
                      'attrprops': 'attrprops.p',
                      'target_locs_map': 'target_locs_map.p',

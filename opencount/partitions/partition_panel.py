@@ -13,6 +13,7 @@ sys.path.append('..')
 
 import util
 import barcode.partition_imgs as partition_imgs
+import grouping.label_imgs as label_imgs
 
 class PartitionMainPanel(wx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
@@ -78,6 +79,13 @@ class PartitionMainPanel(wx.Panel):
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
         bbs_map_outP = pathjoin(self.proj.projdir_path, self.proj.barcode_bbs_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
+        # Finally, also output the quarantined/discarded ballots
+        pickle.dump(tuple(self.partitionpanel.quarantined_bals), 
+                    open(pathjoin(self.proj.projdir_path, self.proj.partition_quarantined), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
+        pickle.dump(tuple(self.partitionpanel.discarded_bals),
+                    open(pathjoin(self.proj.projdir_path, self.proj.partition_discarded), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
         pickle.dump(partitions_map, open(partitions_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
@@ -114,6 +122,7 @@ class PartitionPanel(ScrolledPanel):
         self.bbs_map = None
 
         self.quarantined_bals = set()
+        self.discarded_bals = set()
 
         self.init_ui()
 
@@ -157,6 +166,7 @@ class PartitionPanel(ScrolledPanel):
             self.imginfo = state['imginfo']
             self.bbs_map = state['bbs_map']
             self.quarantined_bals = state['quarantined_bals']
+            self.discarded_bals = state['discarded_bals']
             if self.partitioning != None:
                 self.num_partitions_txt.SetLabel(str(len(self.partitioning)))
                 self.sizer_stats.ShowItems(True)
@@ -171,7 +181,8 @@ class PartitionPanel(ScrolledPanel):
                  'decoded': self.decoded,
                  'imginfo': self.imginfo,
                  'bbs_map': self.bbs_map,
-                 'quarantined_bals': self.quarantined_bals}
+                 'quarantined_bals': self.quarantined_bals,
+                 'discarded_bals': self.discarded_bals}
         pickle.dump(state, open(self.stateP, 'wb'))
 
     def onButton_run(self, evt):
@@ -245,13 +256,51 @@ class PartitionPanel(ScrolledPanel):
         #print bbs_map, '\n'
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
 
-        # TODO: Handle ERR_IMGPATHS. Maybe have the user manually go
-        # through each one, either quarantining or manually-labeling each one?
-        # For now, I'm just going to quarantine all of them. 
+        if err_imgpaths:
+            dlg = LabelDialog(self, err_imgpaths)
+            status = dlg.ShowModal()
+            # dict ERRS_CORRECTED: {str imgpath: str label or ID_Quarantine/ID_Discard}
+            self.errs_corrected = dlg.label_res
+            imgflips = dlg.imgflips
+            # build a ballotid->partitionid map now, for performance
+            bal2partition = {}
+            for partitionid, ballotids in partitioning.iteritems():
+                for bid in ballotids:
+                    bal2partition[bid] = partitionid
+        else:
+            self.errs_corrected = {}
+            imgflips = {}
+            bal2partition = {} # not used if d.n.e. ERR_IMGPATHS
+
+        # For a ballot B, if any of its sides is quarantined/discarded,
+        # then don't process the rest of B.
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        for err_imgpath in err_imgpaths:
-            ballotid = img2bal[err_imgpath]
-            self.quarantine_ballot(ballotid)
+        for imgpath, label in self.errs_corrected.iteritems():
+            if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
+                ballotid = img2bal[imgpath]
+                partitionid = bal2partition[ballotid]
+                try: partitioning[partitionid].remove(ballotid)
+                except: pass
+                if partitionid in partitioning and not partitioning[partitionid]:
+                    # Minor housecleaning - pop off empty partitions as they arise
+                    partitioning.pop(partitionid)
+                try: decoded.pop(ballotid)
+                except: pass
+                try: imginfo.pop(imgpath)
+                except: pass
+                try: bbs_map.pop(imgpath)
+                except: pass
+            else:
+                # TODO: For now, assume that multiple barcodes in the 
+                # labeling-UI are separated by commas.
+                bcs = label.split(",")
+                info = self.proj.vendor_obj.get_barcode_info(bcs)
+                info['isflip'] = imgflips[imgpath]
+                imginfo[imgpath] = info
+            if label == LabelDialog.ID_Quarantine:
+                self.quarantine_ballot(ballotid)
+            elif label == LabelDialog.ID_Discard:
+                self.discard_ballot(ballotid)
 
         # For now, just blindly accept the partitioning w/out verifying,
         # until Overlay Verification is implemented.
@@ -300,6 +349,8 @@ class PartitionPanel(ScrolledPanel):
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
+    def discard_ballot(self, ballotid):
+        self.discarded_bals.add(ballotid)
 
 class VerifyOverlaysFrame(wx.Frame):
     def __init__(self, parent, imgcategories, exmplcategories, ondone, *args, **kwargs):
@@ -326,3 +377,109 @@ class VerifyOverlaysFrame(wx.Frame):
                                   do_align=True, ondone=self.ondone)
 
         self.Layout()
+
+class LabelOrDiscardPanel(label_imgs.LabelPanel):
+    """
+    A widget that lets the user either manually label an image, quarantine,
+    or discard.
+    """
+    def __init__(self, parent, *args, **kwargs):
+        label_imgs.LabelPanel.__init__(self, parent, *args, **kwargs)
+
+        self.quar_imgpaths = set()
+        self.discard_imgpaths = set()
+        self.imgflips = {}
+
+    def _init_ui(self):
+        label_imgs.LabelPanel._init_ui(self)
+
+        self.radio_quarantine = wx.RadioButton(self, label="Quarantine (Process Later)", 
+                                               style=wx.RB_GROUP)
+        self.radio_discard = wx.RadioButton(self, label="Discard (Don't Process)")
+        self.radio_normal = wx.RadioButton(self, label="Normal Ballot (Process Normally)")
+        radiobtn_sizer = wx.BoxSizer(wx.VERTICAL)
+        radiobtn_sizer.AddMany([(self.radio_quarantine,), (self.radio_discard,),
+                                (self.radio_normal,)])
+        self.chkbox_isflip = wx.CheckBox(self, label="Is the ballot flipped (upside down)?")
+        self.btn_sizer.AddMany([(radiobtn_sizer,), (self.chkbox_isflip,)])
+
+    def add_label(self, imgpath, label):
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        if self.radio_quarantine.GetValue():
+            self.quar_imgpaths.add(curimgpath)
+        elif self.radio_discard.GetValue():
+            self.discard_imgpaths.add(curimgpath)
+        self.imgflips[imgpath] = self.chkbox_isflip.GetValue()
+        return label_imgs.LabelPanel.add_label(self, imgpath, label)
+
+    def display_img(self, *args, **kwargs):
+        label_imgs.LabelPanel.display_img(self, *args, **kwargs)
+        self.radio_quarantine.SetValue(False)
+        self.radio_discard.SetValue(False)
+        self.radio_normal.SetValue(False)
+        self.chkbox_isflip.SetValue(False)
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        if curimgpath in self.quar_imgpaths:
+            self.radio_quarantine.SetValue(True)
+        elif curimgpath in self.discard_imgpaths:
+            self.radio_discard.SetValue(True)
+        else:
+            self.radio_normal.SetValue(True)
+        if self.imgflips.get(curimgpath, False):
+            self.chkbox_isflip.SetValue(True)
+
+class LabelDialog(wx.Dialog):
+    """ 
+    A Modal Dialog that lets the user label a set of images.
+    """
+    class QuarantineID(object):
+        def __str__(self):
+            return "QuarantineID"
+        def __repr__(self):
+            return "QuarantineID()"
+        def __eq__(self, o):
+            return o and isinstance(o, type(self))
+    class DiscardID(object):
+        def __str__(self):
+            return "DiscardID"
+        def __repr__(self):
+            return "DiscardID()"
+        def __eq__(self, o):
+            return o and isinstance(o, type(self))
+
+    ID_Quarantine = QuarantineID()
+    ID_Discard = DiscardID()
+    def __init__(self, parent, imageslist, captions=None, possibles=None, 
+                 outfile=None, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, title="Label These Images", 
+                           size=(800, 600), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER, 
+                           *args, **kwargs)
+        
+        self.labelpanel = LabelOrDiscardPanel(self)
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.sizer.Add(self.labelpanel, proportion=1, border=10, flag=wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+        self.labelpanel.start(imageslist, captions=captions, callback=self.on_label_done,
+                              outfile=outfile, possibles=possibles)
+
+        self.Layout()
+
+    def on_label_done(self, label_res):
+        """
+        Input:
+        dict LABEL_RES: {str imgpath: str label}
+        """
+        # Also grab the quarantined/discarded images
+        label_res_cpy = label_res.copy()
+        for quar_imgpath in self.labelpanel.quar_imgpaths:
+            label_res_cpy[quar_imgpath] = self.ID_Quarantine
+        for discard_imgpath in self.labelpanel.discard_imgpaths:
+            label_res_cpy[discard_imgpath] = self.ID_Discard
+        self.label_res = label_res_cpy
+        self.imgflips = self.labelpanel.imgflips
+        self.EndModal(wx.ID_OK)
+

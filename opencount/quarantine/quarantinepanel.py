@@ -28,20 +28,7 @@ class QuarantinePanel(wx.Panel):
         self.firstTime = False
 
         # 0.) Grab all quarantined ballots.
-        qballotids = []
-        if os.path.exists(pathjoin(proj.projdir_path, proj.grouping_quarantined)):
-            # list GROUPING_QUARANTINED: [int ballotID_i, ...]
-            grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
-                                                             grouping_quarantined), 'rb'))
-            qfiles.extend(grouping_quarantined)
-        if os.path.exists(proj.quarantined):
-            lines = open(proj.quarantined, 'r').read().split("\n")
-            lines = [int(l) for l in lines if l != '']
-            qballotids.extend(lines1)
-        if os.path.exists(proj.quarantined_manual):
-            lines = open(proj.quarantined_manual, 'r').read().split("\n")
-            lines = [int(l) for l in lines if l != '']
-            qballotids.extend(lines)
+        qballotids = get_quarantined_ballots(proj)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -522,3 +509,24 @@ class TopPanel(wx.Panel):
 
         self.Fit()
         self.Refresh()
+
+def get_quarantined_ballots(proj):
+    qballotids = []
+    if os.path.exists(pathjoin(proj.projdir_path, proj.partition_quarantined)):
+        partition_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
+                                                          proj.partition_quarantined), 'rb'))
+        qballotids.extend(partition_quarantined)
+    if os.path.exists(pathjoin(proj.projdir_path, proj.grouping_quarantined)):
+        # list GROUPING_QUARANTINED: [int ballotID_i, ...]
+        grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
+                                                         grouping_quarantined), 'rb'))
+        qballotids.extend(grouping_quarantined)
+    if os.path.exists(proj.quarantined):
+        lines = open(proj.quarantined, 'r').read().split("\n")
+        lines = [int(l) for l in lines if l != '']
+        qballotids.extend(lines1)
+    if os.path.exists(proj.quarantined_manual):
+        lines = open(proj.quarantined_manual, 'r').read().split("\n")
+        lines = [int(l) for l in lines if l != '']
+        qballotids.extend(lines)
+    return list(set(qballotids))

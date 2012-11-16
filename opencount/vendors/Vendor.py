@@ -45,6 +45,19 @@ class Vendor(object):
         """
         raise NotImplementedError("Implement your own partition_ballots.")
 
+    def get_barcode_info(self, bcs):
+        """ Given a list of the decoded barcodes present on an image,
+        output a dictionary mapping properties to property-values. For
+        instance, if the barcode encodes the party, then you could output
+        {'party': get_party(bcs), ...}. The output must output a 'page'
+        mapping, which maps to an integer indicating page (0, 1, ...).
+        Input:
+            list BCS: List of strings, i.e. ['1001100', '0001000'].
+        Output:
+            dict INFO.
+        """
+        raise NotImplementedError("Implement your own get_barcode_info")
+
     def split_contest_to_targets(self, ballot_image, contest, targets):
         """
         Given an image of a contest, extract 

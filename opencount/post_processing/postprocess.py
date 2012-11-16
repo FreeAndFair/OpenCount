@@ -10,6 +10,7 @@ import csv
 from os.path import join as pathjoin
 from util import encodepath
 import util
+from quarantine.quarantinepanel import get_quarantined_ballots
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -25,24 +26,10 @@ class ResultsPanel(ScrolledPanel):
     def start(self, proj):
         self.proj = proj
         # 0.) Grab all quarantined ballots
-        qballotids = []
-        if os.path.exists(pathjoin(proj.projdir_path, proj.grouping_quarantined)):
-            # list GROUPING_QUARANTINED: [int ballotID_i, ...]
-            grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
-                                                             grouping_quarantined), 'rb'))
-            qfiles.extend(grouping_quarantined)
-        if os.path.exists(proj.quarantined):
-            lines = open(proj.quarantined, 'r').read().split("\n")
-            lines = [int(l) for l in lines if l != '']
-            qballotids.extend(lines1)
-        if os.path.exists(proj.quarantined_manual):
-            lines = open(proj.quarantined_manual, 'r').read().split("\n")
-            lines = [int(l) for l in lines if l != '']
-            qballotids.extend(lines)
-        self.qballotids = sorted(list(set(qballotids)))
+        self.qballotids = sorted(get_quarantined_ballots(proj))
         bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
         self.qvotedpaths = []
-        for ballotid in qballotids:
+        for ballotid in self.qballotids:
             votedpaths = bal2imgs[ballotid]
             self.qvotedpaths.extend(votedpaths)
         self.qvotedpaths = list(set(self.qvotedpaths))

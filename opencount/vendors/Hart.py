@@ -102,6 +102,9 @@ class HartVendor(Vendor):
                 partitions.setdefault(pid, []).append(ballotid)
         return partitions, decoded, imginfo, bbs_map, bbstripes_map, err_imgpaths
 
+    def get_barcode_info(self, bcs):
+        return get_info(bcs)
+
     def __repr__(self):
         return 'HartVendor()'
     def __str__(self):
