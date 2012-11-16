@@ -1458,6 +1458,7 @@ def bestmatch(A, B):
 
 def cropout_border(I, top, bot, left, right):
     """ float TOP,BOT,LEFT,RIGHT are between [0.0, 1.0]. """
+    '''
     h, w = I.shape
     x1 = int(round(left*w))
     y1 = int(round(top*h))
@@ -1465,6 +1466,9 @@ def cropout_border(I, top, bot, left, right):
     y2 = int(round(h - (bot*h)))
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
+    '''
+    # TODO: Disable the cropping, due to adverse affects on Yolo
+    return I
 
 def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
     """ 
