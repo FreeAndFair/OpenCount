@@ -849,7 +849,7 @@ def compare(otexts1, otexts2, debug=False):
     #print 'size', size
     if size == 0:
         print "Possible Error: A contest has no text associated with it"
-        return [(1<<30,(0,0,0)) for _ in range(len(texts1))], (1<<30, 0)
+        return [(1<<30,(len(texts1),0,0)) for _ in range(len(texts1))], (1<<30, 0)
 
     titles1 = [x for t,x in otexts1 if not t]
     titles2 = [x for t,x in otexts2 if not t]
@@ -1081,6 +1081,8 @@ def group_by_pairing(contests_text, CONST):
     #print diff[0]
 
     for (k1,k2),(dmap,best) in diff:
+        if k1 == k2:
+            print 'eq', k1, k2, dmap, best
         contests[k1].similarity[k2] = dmap
     print "Created"
     now = time.time()
@@ -1108,8 +1110,10 @@ def group_by_pairing(contests_text, CONST):
         write = contest.writein_num
         #print "FOR THIS GROUP", write
         if contest.cid in contest.similarity:
+            print 'case 1', get_order(*contest.similarity[contest.cid][write][1]), contest.similarity[contest.cid][write][1]
             this = [(contests_text[contest.cid][:2],get_order(*contest.similarity[contest.cid][write][1]))]
         else:
+            #print 'case 2', range(len(contests_text[contest.cid][:2])-1)
             v = []
             l = range(len(contests_text[contest.cid][:2])-1)
             this = [(contests_text[contest.cid][:2],zip(l,l))]
@@ -1122,6 +1126,7 @@ def group_by_pairing(contests_text, CONST):
             #print "This", list(enumerate(contests_text[x][2][1:]))
             this.append((contests_text[x][:2],get_order(*contest.similarity[x][write][1])))
         #print this
+        print "ADD", len(res), this
         res.append(this)
     print "Workload reduction"
     print map(len,res)
@@ -1233,7 +1238,10 @@ def equ_class(contests, languages):
         print "ON GROUP", i, key, len(group)
         print "-"*50
         result += full_group(group, key)
+        if len(result) >= 74:
+            print "RES74", result[74]
         print "Finished one group"
+        print "Total length", len(result)
     
     #print "RETURNING", result
     return result
@@ -1344,7 +1352,7 @@ def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    ballots = map(group_given_contests_map, args)
+    ballots = pool.map(group_given_contests_map, args)
     pool.close()
     pool.join()
     #ballots = map(group_given_contests_map, args)
@@ -1360,6 +1368,7 @@ def final_grouping(ballots, giventargets, paths, languages):
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
+    pickle.dump((ballots, languages), open("/tmp/aaa", "w"))
     return equ_class(ballots, languages)
 
 def sort_nicely( l ): 
@@ -1455,6 +1464,8 @@ if __name__ == "__main__":
 """
     
 if __name__ == "__main__":
+    equ_class(*pickle.load(open("/tmp/aaa")))
+    exit(0)
     paths = eval(open("../orangedata_paths").read())
     lookup = dict((x,i) for i,x in enumerate(paths))
     languages = eval(open("../orangedata_lang").read())

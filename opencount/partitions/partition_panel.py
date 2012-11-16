@@ -64,7 +64,7 @@ class PartitionMainPanel(wx.Panel):
                     continue
                 if len(exmpls) <= self.NUM_EXMPLS:
                     exmpls.add(ballotID)
-                partitions_map.setdefault(curPartID, []).extend(ballotIDs)
+                partitions_map.setdefault(curPartID, []).append(ballotID)
                 partitions_invmap[ballotID] = curPartID
                 imgpaths = b2imgs[ballotID]
                 for imgpath in imgpaths:

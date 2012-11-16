@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw
 import csv
 import pickle
 import re
+import pdb
 
 from group_contests import final_grouping, extend_multibox, intersect, group_given_contests
 from verifycontestgrouping import VerifyContestGrouping
@@ -537,6 +538,7 @@ class LabelContest(wx.Panel):
             print "I get the data", data
             self.equivs_processed = data
 
+        pdb.set_trace()
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)

@@ -382,6 +382,7 @@ def convertImagesWorkerMAP(job):
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
     print "START"
     try:
         (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
@@ -474,6 +475,8 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
             it[0] = True
             print "I AM DONE NOW!"
             
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
+        print "GOING UP TO", len(jobs)
         pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
         while not it[0]:
             if stopped():
@@ -653,13 +656,17 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, target_locs_map,
     # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir, targetMetaDir, imgMetaDir], ...]
     jobs = []
     # 1.) Create jobs
-    for groupID, ballotIDs in group_to_ballots.iteritems():
+    print "Creating blank ballots; go up to", len(group_to_ballots)
+    print group_to_ballots
+    for i,(groupID, ballotIDs) in enumerate(group_to_ballots.iteritems()):
+        print i
         bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Create 'blank ballots'. This might not work so well...
         exmpl_id = group_exmpls[groupID][0]
         blankpaths = b2imgs[exmpl_id]
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
         for ballotid in ballotIDs:
+            print 'on bid', ballotid
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             job = [blankpaths_ordered, bbs, imgpaths_ordered, targetDir, 

@@ -166,6 +166,7 @@ class MainFrame(wx.Frame):
                         continue
                     propdict = {'pid': partitionid}
                     grp_infomap[curgroupid] = propdict
+                    print 'extend', curgroupid, 'by', ballotids
                     grp2bals.setdefault(curgroupid, []).extend(ballotids)
                     for ballotid in ballotids:
                         bal2grp[ballotid] = curgroupid
@@ -179,6 +180,7 @@ class MainFrame(wx.Frame):
 
                 # Also, export to proj.group_results.csv, for integration with
                 # quarantine/post-processing panels.
+                print "SET TO", grp2bals
                 fields = ('ballotid', 'groupid')
                 csvfile = open(self.project.grouping_results, 'wb')
                 dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
