@@ -181,6 +181,25 @@ class ViewOverlays(ScrolledPanel):
         else:
             # No more groups to display, so do some cleanup
             self.handle_nomoregroups()
+
+    def update_listbox(self):
+        """ Updates the entries in the self.listbox_groups widget,
+        recomputing group sizes. In particular, removes empty groups.
+        """
+        # 1.) First, remove all empty groups
+        remove_groups = []
+        for i, group in enumerate(self.groups):
+            if not group.imgpaths:
+                remove_groups.append(group)
+        for group in remove_groups:
+            self.remove_group(group)
+        # 2.) Now, update all entries
+        newlabels = []
+        for i, group in enumerate(self.groups):
+            label = "{0} -> {1} elements".format(group.tag, len(group.imgpaths))
+            newlabels.append(label)
+        self.listbox_groups.SetItems(newlabels)
+
     def handle_nomoregroups(self):
         """ Called when there are no more groups in the queue. """
         self.Disable()
@@ -323,9 +342,6 @@ class VerifyOverlays(SplitOverlays):
         # self.ONDONE: A callback function to call when verifying is done.
         self.ondone = None
 
-        # list self.QUARANTINED_GROUPS: List of [obj group_i, ...]
-        self.quarantined_groups = None
-
     def init_ui(self):
         SplitOverlays.init_ui(self)
         
@@ -348,11 +364,8 @@ class VerifyOverlays(SplitOverlays):
         self.sizer_exmpls = wx.BoxSizer(wx.VERTICAL)
         self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
 
-        self.btn_quarantine = wx.Button(self, label="Quarantine")
-        self.btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
 
-        self.btn_sizer.AddMany([(btn_matches,), (self.btn_manual_relabel,), (self.sizer_exmpls,),
-                                (self.btn_quarantine,)])
+        self.btn_sizer.AddMany([(btn_matches,), (self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
         txt_curlabel0 = wx.StaticText(self, label="Current guess: ")
         self.txt_curlabel = wx.StaticText(self, label="")
@@ -377,17 +390,16 @@ class VerifyOverlays(SplitOverlays):
                 this will immediately call the ondone function.
         """
         self.stateP = stateP
+        self.auto_ondone = auto_ondone
+        self.ondone = ondone
         if not self.restore_session():
             self.exemplar_imgpaths = group_exemplars
             self.groups = []
             self.bbs_map = bbs_map if bbs_map != None else {}
             self.possible_tags = set()
             self.rankedlist_map = rlist_map
-            self.ondone = ondone
-            self.auto_ondone = auto_ondone
             self.finished_groups = {}
             self.exmplidx_sel = 0
-            self.quarantined_groups = []
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = VerifyGroup(imgpaths, tag=tag, do_align=do_align)
                 self.possible_tags.add(group.tag)
@@ -504,6 +516,66 @@ class VerifyOverlays(SplitOverlays):
         curtag = self.get_current_group().tag
         previdx = self.exmplidx_sel - 1
         self.select_exmpl_group(curtag, previdx)
+
+class VerifyOrFlagOverlays(VerifyOverlays):
+    """ A widget that lets you either verify overlays, or flag a group
+    to set aside (Quarantine). 
+    """
+    def __init__(self, parent, *args, **kwargs):
+        VerifyOverlays.__init__(self, parent, *args, **kwargs)
+
+        # list self.QUARANTINED_GROUPS: List of [obj group_i, ...]
+        self.quarantined_groups = None
+
+    def init_ui(self):
+        VerifyOverlays.init_ui(self)
+        
+        self.btn_quarantine = wx.Button(self, label="Quarantine")
+        self.btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
+        self.btn_sizer.Add(self.btn_quarantine)
+
+    def start(self, *args, **kwargs):
+        self.quarantined_groups = []
+        VerifyOverlays.start(self, *args, **kwargs)
+
+    def export_results(self):
+        if self.ondone:
+            verify_results = {} # maps {tag: [imgpath_i, ...]}
+            for tag, groups in self.finished_groups.iteritems():
+                for group in groups:
+                    verify_results.setdefault(tag, []).extend(group.imgpaths)
+            quarantined_results = []
+            for group in self.quarantined_groups:
+                quarantined_results.extend(group.imgpaths)
+            self.ondone(verify_results, quarantined_results)
+
+    def restore_session(self):
+        try:
+            state = pickle.load(open(self.stateP, 'rb'))
+            groups = state['groups']
+            self.groups = []
+            for group_dict in groups:
+                self.add_group(VerifyGroup.unmarshall(group_dict))
+
+            self.bbs_map = state['bbs_map']
+            self.exemplar_imgpaths = state['exemplar_imgpaths']
+            self.rankedlist_map = state['rankedlist_map']
+            fingroups_in = state['finished_groups']
+            fingroups_new = {}
+            for tag, groups_marsh in fingroups_in.iteritems():
+                fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
+            self.finished_groups = fingroups_new
+            self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
+            print '...Successfully loaded VerifyOverlays state...'
+            return state
+        except Exception as e:
+            print '...Failed to load VerifyOverlays state...'
+            return False
+    def create_state_dict(self):
+        state = VerifyOverlays.create_state_dict(self)
+        state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
+        return state
+
     def onButton_quarantine(self, evt):
         curgroup = self.get_current_group()
         self.quarantined_groups.append(curgroup)
@@ -530,7 +602,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         self.Layout()
 
     def start(self, imgpath_cats, cat_exemplars, do_align=False,
-              bbs_map_cats=None, ondone=None):
+              bbs_map_cats=None, ondone=None, verifypanelClass=None):
         """
         Input:
         dict IMGPATH_CATS: {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -542,6 +614,8 @@ class VerifyOverlaysMultCats(wx.Panel):
         bool DO_ALIGN:
             If True, then this will align all imgpatches when overlaying.
         """
+        if verifypanelClass == None:
+            verifypanelClass = VerifyOverlays
         categories = tuple(set(imgpath_cats.keys()))
         self.imgpath_cats = imgpath_cats
         self.cat_exemplars = cat_exemplars
@@ -553,7 +627,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         self.started_pages = {} # maps {int pageidx: bool hasStarted}
         pages = []
         for i, category in enumerate(categories):
-            verifyoverlays = VerifyOverlays(self.nb)
+            verifyoverlays = verifypanelClass(self.nb)
             pages.append((verifyoverlays, category))
             self.cat2page[category] = i
             self.page2cat[i] = category
@@ -562,6 +636,12 @@ class VerifyOverlaysMultCats(wx.Panel):
         self.nb.ChangeSelection(0)
         self.nb.SendPageChangedEvent(-1, 0)
         self.Layout()
+
+    def save_session(self):
+        pages = range(self.nb.GetPageCount())
+        for i in pages:
+            verifypanel = self.nb.GetPage(i)
+            verifypanel.save_session()
             
     def onPageChange(self, evt):
         old = evt.GetOldSelection()
@@ -615,7 +695,6 @@ class CheckImageEquals(VerifyOverlays):
         self.btn_sizer.Add(btn_no)
 
         self.btn_manual_relabel.Hide()
-        self.btn_quarantine.Hide()
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
 
