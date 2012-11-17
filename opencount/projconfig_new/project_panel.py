@@ -259,20 +259,27 @@ def load_projects(projdir):
     """
     projects = []
     dummy_proj = Project()
-    for dirpath, dirnames, filenames in os.walk(projdir):
-        for f in filenames:
-            if f == PROJ_FNAME:
-                fullpath = pathjoin(dirpath, f)
-                try:
-                    proj = pickle.load(open(fullpath, 'rb'))
-                    # Add in any new Project properties to PROJ
-                    for prop, propval_default in dummy_proj.vals.iteritems():
-                        if not hasattr(proj, prop):
-                            print '...adding property {0}->{1} to project...'.format(prop, propval_default)
-                            setattr(proj, prop, propval_default)
-                    projects.append(proj)
-                except:
-                    pass
+    #for dirpath, dirnames, filenames in os.walk(projdir):
+    #    for f in filenames:
+    print projdir
+    for subfolder in os.listdir(projdir):
+        if os.path.isdir(pathjoin(projdir, subfolder)):
+            for f in os.listdir(pathjoin(projdir, subfolder)):
+                print f
+                if f == PROJ_FNAME:
+                    fullpath = pathjoin(projdir, pathjoin(subfolder, f))
+                    print f
+                    try:
+                        proj = pickle.load(open(fullpath, 'rb'))
+                        print type(proj)
+                        # Add in any new Project properties to PROJ
+                        for prop, propval_default in dummy_proj.vals.iteritems():
+                            if not hasattr(proj, prop):
+                                print '...adding property {0}->{1} to project...'.format(prop, propval_default)
+                                setattr(proj, prop, propval_default)
+                        projects.append(proj)
+                    except:
+                        pass
     return projects
 
 def create_project(name, projrootdir):
