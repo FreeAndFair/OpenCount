@@ -42,7 +42,7 @@ class PartitionMainPanel(wx.Panel):
     def stop(self):
         self.partitionpanel.save_session()
         self.proj.removeCloseEvent(self.partitionpanel.save_session)
-        self.export_results()
+
     def export_results(self):
         """ Export the partitions_map and partitions_invmap, where
         PARTITIONS_MAP maps {partitionID: [int BallotID_i, ...]}, and
@@ -352,6 +352,9 @@ class PartitionPanel(ScrolledPanel):
         self.img2decoding = img2decoding
         self.imginfo = imginfo_map
         self.flipmap = flipmap
+
+        # Export results.
+        self.GetParent().export_results()
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
