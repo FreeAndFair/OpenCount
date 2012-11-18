@@ -385,46 +385,41 @@ def convertImagesWorkerMAP(job):
     wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
     print "START"
     try:
-        (tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
         t0=time.clock();
 
         # need to load the template images
         tplImL=[]
-        for tplP in tplL:
-            tplImL.append(sh.standardImread(tplP, flatten=True));
+        for i, tplP in enumerate(tplL):
+            tplImg = sh.standardImread(tplP, flatten=True)
+            if tplL_flips[i]:
+                tplImg = sh.fastFlip(tplImg)
+            tplImL.append(tplImg)
 
         # load images
         balImL=[]
 
-        for b in balL:
+        for i, imP in enumerate(balL):
             #if '329_672_157_3_3' in b:
             #    pdb.set_trace()
-            balImL.append(sh.standardImread(b, flatten=True));
+            balImg = sh.standardImread(imP, flatten=True)
+            if balL_flips[i]:
+                balImg = sh.fastFlip(balImg)
+            balImL.append(balImg)
 
         print 'load bal: ', time.clock()-t0
         # check if ballot is flipped
         t0=time.clock();
 
         # TODO: extend to more than two pages at some point
-
-        if len(tplImL)==1:
-            balPerm=[checkBallotFlipped(balImL[0],tplImL[0])]
-            order=[0]
-        else:
-            # tplImL, balImL is already in [front, back] order
-            balPerm=associateTwoPage(tplImL,balImL)
-            order=balPerm[2]
-
-        print 'assoc bal: ', time.clock()-t0
-        for idx in range(len(tplL)):
-            print "tick", idx
-            res=balPerm[idx]
-            tpl=tplImL[idx]
-            bbs=bbsL[idx]
-            bal=res[1]; flipped=res[0]
-            balP = balL[idx]
-            writeMAP(extractTargetsRegions(bal,tpl,bbs, balP=balP), targetDir, targetDiffDir, 
-                     targetMetaDir, imageMetaDir, balL[order[idx]], tplL[idx], flipped)
+        for side, tplImg in enumerate(tplImL):
+            tplImgPath = tplL[side]
+            balImg = balImL[side]
+            balP = balL[side]
+            bbs = bbsL[side]
+            flipped = balL_flips[side]
+            writeMAP(extractTargetsRegions(balImg, tplImg, bbs, balP=balP), targetDir, targetDiffDir, 
+                     targetMetaDir, imageMetaDir, balP, tplImgPath, flipped)
     except Exception as e:
         traceback.print_exc()
         raise e
@@ -610,7 +605,7 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
         quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
     return worked
 
-def extract_targets(group_to_ballots, b2imgs, img2b, img2page, target_locs_map,
+def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls,
                     targetDir, targetMetaDir, imageMetaDir,
                     quarantineCvr, stopped=None):
@@ -620,6 +615,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, target_locs_map,
         dict B2IMGS: maps {int ballotID: (imgpath_i, ...)}
         dict IMG2B: maps {imgpath: int ballotID}
         dict IMG2PAGE: maps {imgpath: int page}
+        dict IMG2FLIP: maps {imgpath: bool isflip}
         dict TARGET_LOCS_MAP: maps {int groupID: {int page: [[cbox_i, tbox_i, ...], ...]}},
             where each box_i := [x1, y1, w, h, id, contest_id]
         dict GROUP_EXMPLS: maps {int groupID: [int ballotID_i, ...]}
@@ -665,12 +661,14 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, target_locs_map,
         exmpl_id = group_exmpls[groupID][0]
         blankpaths = b2imgs[exmpl_id]
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+        blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
         for ballotid in ballotIDs:
             print 'on bid', ballotid
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-            job = [blankpaths_ordered, bbs, imgpaths_ordered, targetDir, 
-                   targetDiffDir, targetMetaDir, imageMetaDir]
+            imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
+            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
+                   targetDir, targetDiffDir, targetMetaDir, imageMetaDir]
             jobs.append(job)
             
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped)

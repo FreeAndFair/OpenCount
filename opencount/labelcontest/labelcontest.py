@@ -147,13 +147,17 @@ class LabelContest(wx.Panel):
 
     firstTime = True
 
-    def start(self, sz=None):
+    def start(self, img2flip, sz=None):
         """
         Set everything up to display.
+        Input:
+            dict IMG2FLIP: maps {str imgpath: bool isflipped}
         """
         if not self.firstTime: return
 
         self.firstTime = False
+
+        self.img2flip = img2flip
 
         print "SET UP", sz
         self.thesize = sz

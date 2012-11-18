@@ -357,4 +357,3 @@ def checkBallotFlipped(I,Iref,verbose=False):
         return (True, sh.fastFlip(I),errR);
     else:
         return (False, I, err);
-

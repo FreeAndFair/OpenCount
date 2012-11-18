@@ -73,9 +73,11 @@ class RunThread(threading.Thread):
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
+        img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_flip), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
-        res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page,
+        res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                         target_locs_map, group_exmpls,
                                         self.proj.extracted_dir,
                                         self.proj.extracted_metadata,

@@ -268,8 +268,10 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
                 proj.patch_loc_dir -- For language, and *something* else.
             """
             self.panel_label_contests.proj = self.project
+            img2flip = pickle.load(open(pathjoin(self.project.projdir_path,
+                                                 self.project.image_to_flip), 'rb'))
             sz = self.GetSize()
-            self.panel_label_contests.start(sz)
+            self.panel_label_contests.start(img2flip, sz)
             self.SendSizeEvent()
         elif new == MainFrame.TARGET_EXTRACT:
             self.panel_target_extract.start(self.project)

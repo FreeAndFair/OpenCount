@@ -307,7 +307,8 @@ class PartitionPanel(ScrolledPanel):
                 outpath = pathjoin(outrootdir, str(bc_val), str(dircnt), "{0}_{1}.png".format(imgname, str(userdata)))
                 tag = (bc_val, userdata)
                 #imgpatches.append((imgpath, (x1,y1,x2,y2), outpath, (bc_val, userdata)))
-                imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), outpath, tag))
+                isflip = flipmap[imgpath]
+                imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), isflip, outpath, tag))
                 i += 1
         print '...extracting...'
         t = time.time()

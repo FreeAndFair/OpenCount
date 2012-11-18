@@ -69,10 +69,11 @@ class SelectTargetsMainPanel(wx.Panel):
         align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
 
         class GlobalAlignThread(threading.Thread):
-            def __init__(self, groups, align_outdir, stateP, ocrtmpdir, 
+            def __init__(self, groups, img2flip, align_outdir, stateP, ocrtmpdir, 
                          manager, queue, callback, jobid, tlisten, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
                 self.groups = groups
+                self.img2flip = img2flip
                 self.align_outdir = align_outdir
                 self.stateP = stateP
                 self.ocrtmpdir = ocrtmpdir
@@ -84,7 +85,8 @@ class SelectTargetsMainPanel(wx.Panel):
             def run(self):
                 print '...Globally-aligning a subset of each partition...'
                 t = time.time()
-                groups_align_map = do_align_partitions(self.groups, self.align_outdir, self.manager, self.queue)
+                groups_align_map = do_align_partitions(self.groups, self.img2flip,
+                                                       self.align_outdir, self.manager, self.queue)
                 dur = time.time() - t
                 print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
@@ -117,7 +119,9 @@ class SelectTargetsMainPanel(wx.Panel):
             manager = multiprocessing.Manager()
             queue = manager.Queue()
             tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
-            workthread = GlobalAlignThread(groups, align_outdir, stateP, ocrtmpdir, 
+            img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.image_to_flip), 'rb'))
+            workthread = GlobalAlignThread(groups, img2flip, align_outdir, stateP, ocrtmpdir, 
                                            manager, queue, self.on_align_done, 
                                            self.GLOBALALIGN_JOBID, tlisten)
             workthread.start()
@@ -1470,7 +1474,7 @@ def cropout_border(I, top, bot, left, right):
     # TODO: Disable the cropping, due to adverse affects on Yolo
     return I
 
-def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
+def align_partitions(partitions, (outrootdir, img2flip), start_pid, queue=None):
     """ 
     Input:
         list PARTITIONS: list of list of lists, encodes partition+ballot+side.
@@ -1492,13 +1496,20 @@ def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
             pass
         ballotRef = partition[0]
         # Remove 20% of image from each side. Helps with global alignment.
-        Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
+        Irefs = []
+        for side, imP in enumerate(ballotRef):
+            I = shared.standardImread(imP, flatten=True)
+            if img2flip[imP]:
+                I = shared.fastFlip(I)
+            Irefs.append((imP, I))
+        #Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
         # 0.) First, handle the reference Ballot
         curBallot = []
         for side, (Iref_imP, Iref) in enumerate(Irefs):
             outname = 'bal_{0}_side_{1}.png'.format(0, side)
             outpath = pathjoin(outdir, outname)
-            shutil.copy(Iref_imP, outpath)
+            #shutil.copy(Iref_imP, outpath)
+            scipy.misc.imsave(outpath, Iref)
             curBallot.append(outpath)
         partitions_align[partitionid] = [curBallot]
         # 1.) Now, align all other Ballots to BALLOTREF
@@ -1507,6 +1518,8 @@ def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
             for side, imgpath in enumerate(ballot):
                 Iref_imgP, Iref = Irefs[side]
                 I = shared.standardImread(imgpath, flatten=True)
+                if img2flip[imgpath]:
+                    I = shared.fastFlip(I)
                 Icrop = cropout_border(I, 0.2,0.2,0.2,0.2)
                 H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
                 outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
@@ -1522,11 +1535,11 @@ def align_partitions(partitions, (outrootdir,), start_pid, queue=None):
 
     return partitions_align
 
-def do_align_partitions(partitions, outrootdir, manager, queue):
+def do_align_partitions(partitions, img2flip, outrootdir, manager, queue):
     try:
         partitions_align = partask.do_partask(align_partitions, 
                                               partitions,
-                                              _args=(outrootdir,),
+                                              _args=(outrootdir, img2flip),
                                               manager=manager,
                                               pass_queue=queue,
                                               pass_idx=True,

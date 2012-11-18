@@ -6,7 +6,7 @@ import grouping.partask as partask
 def extract(imgpatches, do_threshold=None):
     """
     Input:
-        dict IMGPATCHES: {imgpath: [((x1,y1,x2,y2), outpath, tag), ...]}
+        dict IMGPATCHES: {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
     Output:
         dict IMG2PATCH: {(imgpath, tag): patchpath},
         dict PATCH2STUFF. {patchpath: (imgpath, (x1,y1,x2,y2), tag)}.
@@ -22,9 +22,12 @@ def _extract_patches(imgpatches, (do_threshold,)):
     patch2stuff = {}
     for imgpath, tups in imgpatches.iteritems():
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+        if tups and tups[0][1]:
+            # Image should be flipped
+            cv.Flip(I, I, flipMode=-1)
         if do_threshold != None:
             cv.Threshold(I, I, do_threshold, 255.0, cv.CV_THRESH_BINARY)
-        for ((x1,y1,x2,y2), outpath, tag) in tups:
+        for ((x1,y1,x2,y2), isflip, outpath, tag) in tups:
             try: os.makedirs(os.path.split(outpath)[0])
             except: pass
             cv.SetImageROI(I, tuple(map(int, (x1,y1,x2-x1,y2-y1))))
