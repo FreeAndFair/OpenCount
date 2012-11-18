@@ -20,10 +20,10 @@ HORIZONTAL = 2
 WIDE = 'W'
 NARROW = 'N'
 
-WHITE_WIDE = 'wW'
-WHITE_NARROW = 'wN'
-BLACK_WIDE = 'bW'
-BLACK_NARROW = 'bN'
+WHITE_WIDE = 'whiteWide'
+WHITE_NARROW = 'whiteNarrow'
+BLACK_WIDE = 'blackWide'
+BLACK_NARROW = 'blackNarrow'
 
 def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False, 
                  imgP=None, cols=4):
