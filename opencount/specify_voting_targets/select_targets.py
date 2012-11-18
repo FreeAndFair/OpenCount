@@ -42,6 +42,7 @@ class SelectTargetsMainPanel(wx.Panel):
 
     def start(self, proj, stateP, ocrtmpdir):
         self.proj = proj
+        self.stateP = stateP
         # GROUP2BALLOT: dict {int groupID: [int ballotID_i, ...]}
         group2ballot = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.group_to_ballots), 'rb'))
@@ -65,17 +66,17 @@ class SelectTargetsMainPanel(wx.Panel):
             groups.append(group)
         self.displayed_imgpaths = groups
 
+        self.proj.addCloseEvent(self.save_session)
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
         align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
 
         class GlobalAlignThread(threading.Thread):
-            def __init__(self, groups, img2flip, align_outdir, stateP, ocrtmpdir, 
+            def __init__(self, groups, img2flip, align_outdir, ocrtmpdir, 
                          manager, queue, callback, jobid, tlisten, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
                 self.groups = groups
                 self.img2flip = img2flip
                 self.align_outdir = align_outdir
-                self.stateP = stateP
                 self.ocrtmpdir = ocrtmpdir
                 self.manager = manager
                 self.queue = queue
@@ -90,7 +91,7 @@ class SelectTargetsMainPanel(wx.Panel):
                 dur = time.time() - t
                 print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
-                wx.CallAfter(self.callback, groups_align_map, self.stateP, self.ocrtmpdir)
+                wx.CallAfter(self.callback, groups_align_map, self.ocrtmpdir)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
             def __init__(self, queue, jobid, *args, **kwargs):
@@ -115,13 +116,14 @@ class SelectTargetsMainPanel(wx.Panel):
                     except Queue.Empty:
                         pass
 
-        if not os.path.exists(align_outdir):
+        #if not os.path.exists(align_outdir):
+        if not self.restore_session():
             manager = multiprocessing.Manager()
             queue = manager.Queue()
             tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
             img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_flip), 'rb'))
-            workthread = GlobalAlignThread(groups, img2flip, align_outdir, stateP, ocrtmpdir, 
+            workthread = GlobalAlignThread(groups, img2flip, align_outdir, ocrtmpdir, 
                                            manager, queue, self.on_align_done, 
                                            self.GLOBALALIGN_JOBID, tlisten)
             workthread.start()
@@ -132,19 +134,42 @@ class SelectTargetsMainPanel(wx.Panel):
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.GLOBALALIGN_JOBID))
         else:
             # SelectTargets restores its self.partitions from stateP.
-            self.seltargets_panel.start(None, stateP, ocrtmpdir)
+            seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
+            self.seltargets_panel.start(None, seltargets_stateP, ocrtmpdir)
 
-    def on_align_done(self, groups_align_map, stateP, ocrtmpdir):
+    def on_align_done(self, groups_align_map, ocrtmpdir):
         groups_align = []
         for groupid in sorted(groups_align_map.keys()):
             ballots = groups_align_map[groupid]
             groups_align.append(ballots)
-        self.seltargets_panel.start(groups_align, stateP, ocrtmpdir)
+        # Order the displayed groups by size (smallest to largest)
+        groups_sizes = map(len, groups_align)
+        groups_sizes_argsort = np.argsort(groups_sizes)
+        groups_align_bysize = [groups_align[i] for i in groups_sizes_argsort]
+        self.i2groupid = groups_sizes_argsort
+        seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
+        self.seltargets_panel.start(groups_align_bysize, seltargets_stateP, ocrtmpdir)
 
     def stop(self):
+        self.proj.removeCloseEvent(self.save_session)
         self.proj.removeCloseEvent(self.seltargets_panel.save_session)
+        self.save_session()
         self.seltargets_panel.save_session()
         self.export_results()
+
+    def restore_session(self):
+        try:
+            state = pickle.load(open(self.stateP, 'rb'))
+            self.i2groupid = state['i2groupid']
+            self.displayed_imgpaths = state['displayed_imgpaths']
+        except:
+            return False
+        return True
+
+    def save_session(self):
+        state = {'i2groupid': self.i2groupid,
+                 'displayed_imgpaths': self.displayed_imgpaths}
+        pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def export_results(self):
         """ For each group, export the locations of the voting
@@ -163,7 +188,8 @@ class SelectTargetsMainPanel(wx.Panel):
         #     box := [x1, y1, width, height, id, contest_id]
         target_locs_map = {}
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
-        for group_idx, boxes_sides in self.seltargets_panel.boxes.iteritems():
+        for i, boxes_sides in self.seltargets_panel.boxes.iteritems():
+            group_idx = self.i2groupid[i]
             csvpaths = []
             for side, boxes in enumerate(boxes_sides):
                 outpath = pathjoin(self.proj.target_locs_dir,
@@ -174,7 +200,7 @@ class SelectTargetsMainPanel(wx.Panel):
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
                 box_assocs = self.compute_box_ids(boxes)
                 # TODO: For now, just grab one exemplar image from this group
-                imgpath = self.seltargets_panel.partitions[group_idx][0][side]
+                imgpath = self.seltargets_panel.partitions[i][0][side]
                 rows_contests = [] 
                 rows_targets = []
                 id_c, id_t = 0, 0
@@ -246,7 +272,8 @@ class SelectTargetsMainPanel(wx.Panel):
 
     def onButton_getimgpath(self, evt):
         S = self.seltargets_panel
-        imgpath = self.displayed_imgpaths[S.cur_i][S.cur_j][S.cur_page]
+        cur_groupid = self.i2groupid[S.cur_i]
+        imgpath = self.displayed_imgpaths[cur_groupid][S.cur_j][S.cur_page]
         print 'imgpath:', imgpath
         dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
                                style=wx.OK)
@@ -297,11 +324,18 @@ this partition.")
 
         btn_nextpartition = wx.Button(self, label="Next Partition...")
         btn_prevpartition = wx.Button(self, label="Previous Partition...")
+        sizer_partitionbtns = wx.BoxSizer(wx.VERTICAL)
+        sizer_partitionbtns.AddMany([(btn_nextpartition,), (btn_prevpartition,)])
+
         btn_nextimg = wx.Button(self, label="Next Ballot")
         btn_previmg = wx.Button(self, label="Previous Ballot")
+        sizer_ballotbtns = wx.BoxSizer(wx.VERTICAL)
+        sizer_ballotbtns.AddMany([(btn_nextimg,), (btn_previmg,)])
 
         btn_nextpage = wx.Button(self, label="Next Page")
         btn_prevpage = wx.Button(self, label="Previous Page")
+        sizer_pagebtns = wx.BoxSizer(wx.VERTICAL)
+        sizer_pagebtns.AddMany([(btn_nextpage,), (btn_prevpage,)])
         
         btn_nextpartition.Bind(wx.EVT_BUTTON, self.onButton_nextpartition)
         btn_prevpartition.Bind(wx.EVT_BUTTON, self.onButton_prevpartition)
@@ -310,11 +344,24 @@ this partition.")
         btn_nextpage.Bind(wx.EVT_BUTTON, self.onButton_nextpage)
         btn_prevpage.Bind(wx.EVT_BUTTON, self.onButton_prevpage)
 
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_prevpartition,), (btn_nextpartition,),
-                           (btn_previmg,), (btn_nextimg,),
-                           (btn_prevpage,), (btn_nextpage,)])
+        btn_jump_partition = wx.Button(self, label="Jump to Partition...")
+        btn_jump_ballot = wx.Button(self, label="Jump to Ballot...")
+        btn_jump_page = wx.Button(self, label="Jump to Page...")
+        sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
+        sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
+        sizer_btn_jump.Add(btn_jump_page, border=10, flag=wx.ALL)
         
+        btn_jump_partition.Bind(wx.EVT_BUTTON, self.onButton_jump_partition)
+        btn_jump_ballot.Bind(wx.EVT_BUTTON, self.onButton_jump_ballot)
+        btn_jump_page.Bind(wx.EVT_BUTTON, self.onButton_jump_page)
+        
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.Add(sizer_partitionbtns, border=10, flag=wx.ALL)
+        btn_sizer.Add(sizer_ballotbtns, border=10, flag=wx.ALL)
+        btn_sizer.Add(sizer_pagebtns, border=10, flag=wx.ALL)
+        btn_sizer.Add(sizer_btn_jump, border=10, flag=wx.ALL)
+
         txt1 = wx.StaticText(self, label="Partition: ")
         self.txt_curpartition = wx.StaticText(self, label="1")
         txt_slash0 = wx.StaticText(self, label=" / ")
@@ -356,7 +403,6 @@ this partition.")
             str STATEP: Path of the statefile.
             str OCRTEMPDIR: Used for InferContestRegion.
         """
-        # 0.) First, align all ballots within each partition to each other.
         self.stateP = stateP
         self.ocrtempdir = ocrtempdir
         if not self.restore_session():
@@ -376,7 +422,7 @@ this partition.")
         self.txt_totalballots.SetLabel(str(len(self.partitions[0])))
         self.txt_totalpages.SetLabel(str(len(self.partitions[0][0])))
         self.txt_sizer.Layout()
-        self.display_image(0, 0, 0)
+        self.display_image(0, 0, 0, autofit=True)
 
         # 2.) Start in Target-Create mode.
         self.imagepanel.set_mode_m(BoxDrawPanel.M_CREATE)
@@ -487,9 +533,11 @@ this partition.")
         self.Refresh()
         print "...Finished adding results from tempmatch run."
 
-    def display_image(self, i, j, page):
+    def display_image(self, i, j, page, autofit=False):
         """ Displays the J-th image in partition I. Also handles
         reading/saving in the currently-created boxes for the old/new image.
+        If AUTOFIT is True, then this will auto-scale the image such that
+        if fits entirely in the current client size.
         Input:
             int I: Which partition to display
             int J: Which image in partition I to display.
@@ -513,13 +561,20 @@ this partition.")
         
         # 1.) Display New Image
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
-        # 1.a.) Resize image s.t. width is equal to containing width
-        wP, hP = self.parent.GetSize()
-        _c = wximg.GetWidth() / float(wP)
-        wimg = wP
-        himg = int(round(wximg.GetHeight() / _c))
-        #self.imagepanel.set_image(wximg, size=(wimg, himg))
-        self.imagepanel.set_image(wximg)
+        if autofit:
+            wP, hP = self.imagepanel.GetClientSize()
+            w_img, h_img = wximg.GetWidth(), wximg.GetHeight()
+            if w_img > h_img and w_img > wP:
+                _c = w_img / float(wP)
+                w_img_new = wP
+                h_img_new = int(round(h_img / _c))
+            elif w_img < h_img and h_img > hP:
+                _c = h_img / float(hP)
+                w_img_new = int(round(w_img / _c))
+                h_img_new = hP
+            self.imagepanel.set_image(wximg, size=(w_img_new, h_img_new))
+        else:
+            self.imagepanel.set_image(wximg)
         
         # 2.) Read in previously-created boxes for I (if exists)
         boxes = self.boxes.get(self.cur_i, [])[page]
@@ -592,6 +647,54 @@ this partition.")
         self.imagepanel.zoomin(amt=amt)
     def zoomout(self, amt=0.1):
         self.imagepanel.zoomout(amt=amt)
+
+    def onButton_jump_partition(self, evt):
+        dlg = wx.TextEntryDialog(self, "Which Group Number?", "Enter group number")
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        try:
+            idx = int(dlg.GetValue()) - 1
+        except:
+            print "Invalid index:", idx
+            return
+        if idx < 0 or idx >= len(self.partitions):
+            print "Invalid group index:", idx
+            return
+        self.txt_totalballots.SetLabel(str(len(self.partitions[idx])))
+        self.txt_totalpages.SetLabel(str(len(self.partitions[idx][0])))
+        self.display_image(idx, 0, 0)
+
+    def onButton_jump_ballot(self, evt):
+        dlg = wx.TextEntryDialog(self, "Which Ballot Number?", "Enter Ballot number")
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        try:
+            idx = int(dlg.GetValue()) - 1
+        except:
+            print "Invalid index:", idx
+            return
+        if idx < 0 or idx >= len(self.partitions[self.cur_i]):
+            print "Invalid ballot index:", idx
+            return
+        self.txt_totalpages.SetLabel(str(len(self.partitions[self.cur_i][idx])))
+        self.display_image(self.cur_i, idx, 0)
+
+    def onButton_jump_page(self, evt):
+        dlg = wx.TextEntryDialog(self, "Which Page Number?", "Enter Page number")
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        try:
+            idx = int(dlg.GetValue()) - 1
+        except:
+            print "Invalid index:", idx
+            return
+        if idx < 0 or idx >= len(self.partitions[self.cur_i][self.cur_j]):
+            print "Invalid page index:", idx
+            return
+        self.display_image(self.cur_i, self.cur_j, idx)
 
     def infercontests(self):
         imgpaths_exs = [] # list of [imgpath_i, ...]
@@ -786,7 +889,7 @@ class ImagePanel(ScrolledPanel):
         to match SIZE, maintaining aspect ratio.
         """
         self.img = img
-
+        
         c = size[0] / float(self.img.GetWidth()) if size else self.scale
         self.set_scale(c)
         
@@ -1153,7 +1256,7 @@ class BoxDrawPanel(ImagePanel):
 
         if isinstance(box, TargetBox) or isinstance(box, ContestBox):
             # Draw the 'grabber' circles
-            CIRCLE_RAD = 3
+            CIRCLE_RAD = 2
             dc.SetPen(wx.Pen("Black", 1))
             dc.SetBrush(wx.Brush("White"))
             dc.DrawCircle(client_x, client_y, CIRCLE_RAD)           # Upper-Left
@@ -1289,7 +1392,7 @@ class TargetBox(Box):
         if self.is_sel:
             return ("Yellow", 3)
         else:
-            return ("Green", 3)
+            return ("Green", 2)
     def copy(self):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
 class ContestBox(Box):

@@ -260,7 +260,7 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
                                                                          '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
             self.panel_seltargets.start(self.project, pathjoin(self.project.projdir_path,
-                                                               '_state_seltargets.p'),
+                                                               '_state_selecttargetsMain.p'),
                                         self.project.ocr_tmp_dir)
         elif new == MainFrame.LABEL_CONTESTS:
             """ Requires:
