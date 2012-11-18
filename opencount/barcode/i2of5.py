@@ -20,6 +20,11 @@ HORIZONTAL = 2
 WIDE = 'W'
 NARROW = 'N'
 
+WHITE_WIDE = 'wW'
+WHITE_NARROW = 'wN'
+BLACK_WIDE = 'bW'
+BLACK_NARROW = 'bN'
+
 def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False, 
                  imgP=None, cols=4):
     """ Decodes the interleaved two-of-five barcode. Returns a string.
@@ -257,8 +262,8 @@ def compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, width,
         return out_narrow, out_wide
     whiteNarrows, whiteWides = helper(whts_ys, bars_wht, width, wht_narrow, wht_wide, 'White')
     blackNarrows, blackWides = helper(blks_ys, bars_blk, width, blk_narrow, blk_wide, 'Black')
-    return {'whiteNarrows': whiteNarrows, 'whiteWides': whiteWides,
-            'blackNarrows': blackNarrows, 'blackWides': blackWides}
+    return {WHITE_NARROW: whiteNarrows, WHITE_WIDE: whiteWides,
+            BLACK_NARROW: blackNarrows, BLACK_WIDE: blackWides}
 
 def bars_to_symbols(bars, debug=False):
     symbols = []

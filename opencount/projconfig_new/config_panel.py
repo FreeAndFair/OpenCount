@@ -217,7 +217,7 @@ match the regular expressions.".format(imgpath)
         # 5.) Set project.num_pages
         self.project.num_pages = int(self.numpages_txtctrl.GetValue())
         # 6.) Set project.vendor_obj
-        self.project.vendor_obj = VENDOR_CLASSES[self.vendor_dropdown.GetStringSelection().lower()]()
+        self.project.vendor_obj = VENDOR_CLASSES[self.vendor_dropdown.GetStringSelection().lower()](self.project)
         
     def restore_session(self, stateP=None):
         try:

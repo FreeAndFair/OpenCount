@@ -1,4 +1,4 @@
-import sys, os, pdb, traceback, threading, multiprocessing, Queue
+import sys, os, pdb, traceback, threading, multiprocessing, Queue, time
 try:
     import cPickle as pickle
 except:
@@ -11,9 +11,11 @@ from wx.lib.pubsub import Publisher
 
 sys.path.append('..')
 
+import extract_patches
 import util
 import barcode.partition_imgs as partition_imgs
 import grouping.label_imgs as label_imgs
+import grouping.verify_overlays_new as verify_overlays_new
 
 class PartitionMainPanel(wx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
@@ -57,27 +59,32 @@ class PartitionMainPanel(wx.Panel):
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         curPartID = 0
+        # 1.) First, build up partitions_map, partitions_invmap
         for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
-            exmpls = set()
+            if not ballotIDs:
+                continue
             for ballotID in ballotIDs:
-                if ballotID in self.partitionpanel.quarantined_bals:
+                if ballotID in self.partitionpanel.quarantined_bals or ballotID in self.partitionpanel.discarded_bals:
                     continue
-                if len(exmpls) <= self.NUM_EXMPLS:
-                    exmpls.add(ballotID)
                 partitions_map.setdefault(curPartID, []).append(ballotID)
                 partitions_invmap[ballotID] = curPartID
                 imgpaths = b2imgs[ballotID]
                 for imgpath in imgpaths:
                     image_to_page[imgpath] = self.partitionpanel.imginfo[imgpath]['page']
-                    image_to_flip[imgpath] = self.partitionpanel.imginfo[imgpath]['isflip']
+                    image_to_flip[imgpath] = self.partitionpanel.flipmap[imgpath]
+            curPartID += 1
+        # 2.) Grab NUM_EXMPLS number of exemplars from each partition
+        for partitionID, ballotIDs in partitions_map.iteritems():
+            exmpls = set()
+            for ballotID in ballotIDs:
+                if len(exmpls) <= self.NUM_EXMPLS:
+                    exmpls.add(ballotID)
             if exmpls:
-                partition_exmpls[curPartID] = sorted(list(exmpls))
-                curPartID += 1
+                partition_exmpls[partitionID] = sorted(list(exmpls))
         partitions_map_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_map)
         partitions_invmap_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_invmap)
-        decoded_map_outP = pathjoin(self.proj.projdir_path, self.proj.decoded_map)
+        img2decoding_outP = pathjoin(self.proj.projdir_path, self.proj.img2decoding)
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
-        bbs_map_outP = pathjoin(self.proj.projdir_path, self.proj.barcode_bbs_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
         # Finally, also output the quarantined/discarded ballots
         pickle.dump(tuple(self.partitionpanel.quarantined_bals), 
@@ -90,11 +97,9 @@ class PartitionMainPanel(wx.Panel):
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        pickle.dump(self.partitionpanel.decoded, open(decoded_map_outP, 'wb'),
+        pickle.dump(self.partitionpanel.img2decoding, open(img2decoding_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(self.partitionpanel.imginfo, open(imginfo_map_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
-        pickle.dump(self.partitionpanel.bbs_map, open(bbs_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(image_to_page, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_page), 'wb'),
@@ -114,12 +119,10 @@ class PartitionPanel(ScrolledPanel):
         self.voteddir = None
         # PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         self.partitioning = None
-        # DECODED: maps {int ballotID: [(str barcode_side0, ...), ...]}
-        self.decoded = None
+        # IMG2DECODING: maps {imgpath: [str bc_i, ...]}
+        self.img2decoding = None
         # IMGINFO: maps {str imgpath: {str key: str val}}
         self.imginfo = None
-        # BBS_MAP: maps {str imgpath: [[x1,y1,x2,y2],...]}
-        self.bbs_map = None
 
         self.quarantined_bals = set()
         self.discarded_bals = set()
@@ -162,9 +165,8 @@ class PartitionPanel(ScrolledPanel):
             state = pickle.load(open(self.stateP, 'rb'))
             self.voteddir = state['voteddir']
             self.partitioning = state['partitioning']
-            self.decoded = state['decoded']
+            self.img2decoding = state['img2decoding']
             self.imginfo = state['imginfo']
-            self.bbs_map = state['bbs_map']
             self.quarantined_bals = state['quarantined_bals']
             self.discarded_bals = state['discarded_bals']
             if self.partitioning != None:
@@ -178,9 +180,8 @@ class PartitionPanel(ScrolledPanel):
         print "...PartitionPanel: Saving state..."
         state = {'voteddir': self.voteddir,
                  'partitioning': self.partitioning,
-                 'decoded': self.decoded,
+                 'img2decoding': self.img2decoding,
                  'imginfo': self.imginfo,
-                 'bbs_map': self.bbs_map,
                  'quarantined_bals': self.quarantined_bals,
                  'discarded_bals': self.discarded_bals}
         pickle.dump(state, open(self.stateP, 'wb'))
@@ -197,9 +198,9 @@ class PartitionPanel(ScrolledPanel):
                 self.queue = progress_queue
                 self.tlisten = tlisten
             def run(self):
-                partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths = self.vendor_obj.partition_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
+                flipmap, verifypatch_bbs, err_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
-                wx.CallAfter(self.callback, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
+                wx.CallAfter(self.callback, flipmap, verifypatch_bbs, err_imgpaths)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
             def __init__(self, queue, jobid, *args, **kwargs):
@@ -229,7 +230,7 @@ class PartitionPanel(ScrolledPanel):
         manager = multiprocessing.Manager()
         progress_queue = manager.Queue()
         tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
-        t = PartitionThread(b2imgs, vendor_obj, self.on_partitiondone,
+        t = PartitionThread(b2imgs, vendor_obj, self.on_decodedone,
                             self.PARTITION_JOBID, manager, progress_queue, tlisten)
         numtasks = len(b2imgs)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
@@ -239,21 +240,14 @@ class PartitionPanel(ScrolledPanel):
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
         
-    def on_partitiondone(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
+    def on_decodedone(self, flipmap, verifypatch_bbs, err_imgpaths):
         """
         Input:
-            dict PARTITIONING: {int partitionID: [int ballotID_i, ...]}
-            dict DECODED: {int ballotID: [(str barcode_side0, ...), ...]}
-            dict IMGINFO: {str imgpath: {str KEY: str VAL}}
-            dict BBS_MAP: {str imgpath: [[x1,y1,x2,y2], ...]}
-            dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2)), ...]}
+            dict FLIPMAP: {imgpath: bool isFlipped}
+            dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
             list ERR_IMGPATHS:
         """
         print "...Partitioning Done..."
-        #print partitioning, '\n'
-        #print decoded, '\n'
-        #print imginfo, '\n'
-        #print bbs_map, '\n'
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
 
         if err_imgpaths:
@@ -261,91 +255,102 @@ class PartitionPanel(ScrolledPanel):
             status = dlg.ShowModal()
             # dict ERRS_CORRECTED: {str imgpath: str label or ID_Quarantine/ID_Discard}
             self.errs_corrected = dlg.label_res
-            imgflips = dlg.imgflips
-            # build a ballotid->partitionid map now, for performance
-            bal2partition = {}
-            for partitionid, ballotids in partitioning.iteritems():
-                for bid in ballotids:
-                    bal2partition[bid] = partitionid
+            self.errs_flipmap = dlg.imgflips
         else:
             self.errs_corrected = {}
-            imgflips = {}
-            bal2partition = {} # not used if d.n.e. ERR_IMGPATHS
+            self.errs_flipmap = {}
 
-        # For a ballot B, if any of its sides is quarantined/discarded,
-        # then don't process the rest of B.
+        # For a ballot B in ERRS_CORRECTED, if any of its sides was
+        # quarantined/discarded, then don't process the rest of B.
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         for imgpath, label in self.errs_corrected.iteritems():
+            ballotid = img2bal[imgpath]
             if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
-                ballotid = img2bal[imgpath]
-                partitionid = bal2partition[ballotid]
-                try: partitioning[partitionid].remove(ballotid)
-                except: pass
-                if partitionid in partitioning and not partitioning[partitionid]:
-                    # Minor housecleaning - pop off empty partitions as they arise
-                    partitioning.pop(partitionid)
-                try: decoded.pop(ballotid)
-                except: pass
-                try: imginfo.pop(imgpath)
-                except: pass
-                try: bbs_map.pop(imgpath)
-                except: pass
-            else:
-                # TODO: For now, assume that multiple barcodes in the 
-                # labeling-UI are separated by commas.
-                bcs = label.split(",")
-                info = self.proj.vendor_obj.get_barcode_info(bcs)
-                info['isflip'] = imgflips[imgpath]
-                imginfo[imgpath] = info
+                # Remove all mentions of this ballot from relevant data structs
+                for bc_val, tups in verifypatch_bbs.iteritems():
+                    i = 0
+                    while i < len(tups):
+                        tup_imP, tup_bb, tup_userdata = tups[i]
+                        tup_balid = img2bal[tup_imP]
+                        if tup_balid == ballotid:
+                            tups.pop(i)
+                        else:
+                            i += 1
+                for flipmap_imP in flipmap.keys():
+                    flipmap_bid = img2bal[flipmap_imP]
+                    if flipmap_bid == ballotid:
+                        flipmap.pop(flipmap_imP)
             if label == LabelDialog.ID_Quarantine:
                 self.quarantine_ballot(ballotid)
             elif label == LabelDialog.ID_Discard:
                 self.discard_ballot(ballotid)
 
-        # For now, just blindly accept the partitioning w/out verifying,
-        # until Overlay Verification is implemented.
-        self.partitioning = partitioning
-        self.decoded = decoded
-        self.imginfo = imginfo
-        self.bbs_map = bbs_map
-        self.verifypatch_bbs = verifypatch_bbs
-        self.err_imgpaths = err_imgpaths
-        self.num_partitions_txt.SetLabel(str(len(partitioning)))
-        self.sizer_stats.ShowItems(True)
-        self.Layout()
+        self.start_verify(flipmap, verifypatch_bbs)
 
-        #self.start_verify(partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths)
-
-    def start_verify(self, partitioning, decoded, imginfo, bbs_map, verifypatch_bbs, err_imgpaths):
-        # TODO: Verify the patches in VERIFYPATCH_BBS via overlay-verification,
-        # then save the results.
-        # I think we'll have 'categories' be dictated by the keys
-        # of verifypatch_bbs (which will be something like:
-        #     {'TIMINGMARK_ON': [(imgpath, (x1,y1,x2,y2)), ...],
-        #      'TIMINGMARK_OFF': [(imgpath, (x1,y1,x2,y2)), ...]}
-        # (at least for Diebold/Sequoia/ES&S). In this case, the cat_tags
-        # will be 'TIMINGMARK_ON' and 'TIMINGMARK_OFF'.
-        # For exmplcats (which keeps track of exemplar patches), for now 
-        # you can hardcode these to whatever you like until I figure out
-        # how to best handle this...maybe we just don't show exemplar_patches
-        # for barcode overlay verification...? Or perhaps the partition
-        # code has to provide examples of each category.
+    def start_verify(self, flipmap, verifypatch_bbs):
+        # 1.) Extract all patches to an outdir
+        imgpatches = {} # {imgpath: [((x1,y1,x2,y2), outpath, tag), ...]}
+        outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
+        bc_val_cnt = {} # maps {bc_val: int cnt}
+        bc_val_dircnt = {} # maps {bc_val: int dircnt}
+        for bc_val, tups in verifypatch_bbs.iteritems():
+            for (imgpath, (x1,y1,x2,y2), userdata) in tups:
+                i = bc_val_cnt.get(bc_val, None)
+                if i == None: 
+                    bc_val_cnt[bc_val] = 0
+                    bc_val_dircnt[bc_val] = 0
+                    i = 0
+                if i != 0 and i % 750 == 0:
+                    bc_val_dircnt[bc_val] += 1
+                dircnt = bc_val_dircnt[bc_val]
+                imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
+                outpath = pathjoin(outrootdir, str(bc_val), str(dircnt), "{0}_{1}.png".format(imgname, str(userdata)))
+                tag = (bc_val, userdata)
+                #imgpatches.append((imgpath, (x1,y1,x2,y2), outpath, (bc_val, userdata)))
+                imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), outpath, tag))
+                i += 1
+        print '...extracting...'
+        t = time.time()
+        img2patch, patch2stuff = extract_patches.extract(imgpatches, do_threshold=35)
+        dur = time.time() - t
+        print '...done extracting ({0} s)...'.format(dur)
+        cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
-        f = VerifyOverlaysFrame(self, imgcats, exmplcats, self.on_verify_done)
+        for bc_val, tups in verifypatch_bbs.iteritems():
+            for (imgpath, (x1,y1,x2,y2), userdata) in tups:
+                patchpath = img2patch[(imgpath, (bc_val, userdata))]
+                imgcats.setdefault(cattag, {}).setdefault(bc_val, []).append(patchpath)
+        callback = lambda verifyRes: self.on_verify_done(verifyRes, patch2stuff, flipmap, verifypatch_bbs)
+        f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
         f.Maximize()
         f.Show()
 
-    def on_verify_done(self, verify_results):
+    def on_verify_done(self, verify_results, patch2stuff, flipmap, verifypatch_bbs):
         """ Receives the (corrected) results from VerifyOverlays.
         Input:
         dict VERIFY_RESULTS: {cat_tag: {grouptag: [imgpath_i, ...]}}
             For each category CAT_TAG, each group GROUPTAG maps to a set
             of imgpaths that the user claimed is part of GROUPTAG.
         """
-        # TODO: Take the (verified) results from VerifyOverlays, and 
-        # apply any fixes to the right data structures.
-        pass
+        verified_decodes = {} # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+        for cat_tag, thedict in verify_results.iteritems():
+            for bc_val, patchpaths in thedict.iteritems():
+                for patchpath in patchpaths:
+                    imgpath, bb, (bc_val_this, userdata) = patch2stuff[patchpath]
+                    verified_decodes.setdefault(bc_val, []).append((imgpath, bb, userdata))
+        manual_labeled = {} # maps {str imgpath: str label}
+        for imgpath, label in self.errs_corrected.iteritems():
+            if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
+                manual_labeled[imgpath] = label
+        partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)
+        # Add in manually-corrected flipped
+        for imgpath, isflip in self.errs_flipmap.iteritems():
+            flipmap[imgpath] = isflip
+        self.partitioning = partitioning
+        self.img2decoding = img2decoding
+        self.imginfo = imginfo_map
+        self.flipmap = flipmap
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
@@ -366,6 +371,8 @@ class VerifyOverlaysFrame(wx.Frame):
         """
         wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
+        self.ondone = ondone
+
         self.verifyoverlays = verify_overlays_new.VerifyOverlaysMultCats(self)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -374,9 +381,13 @@ class VerifyOverlaysFrame(wx.Frame):
         self.Layout()
 
         self.verifyoverlays.start(imgcategories, exmplcategories, 
-                                  do_align=True, ondone=self.ondone)
+                                  do_align=False, ondone=self.on_verify_done)
 
         self.Layout()
+    
+    def on_verify_done(self, verify_results):
+        self.Close()
+        self.ondone(verify_results)
 
 class LabelOrDiscardPanel(label_imgs.LabelPanel):
     """

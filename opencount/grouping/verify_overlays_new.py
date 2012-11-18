@@ -650,7 +650,8 @@ class VerifyOverlaysMultCats(wx.Panel):
             return
         curcat = self.page2cat[new]
         imgpath_groups = self.imgpath_cats[curcat]
-        exemplar_groups = self.cat_exemplars[curcat]
+        #exemplar_groups = self.cat_exemplars[curcat]
+        exemplar_groups = self.cat_exemplars.get(curcat, {})
         bbs_map = self.bbs_map_cats.get(curcat, None)
         verifyoverlays = self.nb.GetPage(new)
         verifyoverlays.start(imgpath_groups, exemplar_groups, None, 

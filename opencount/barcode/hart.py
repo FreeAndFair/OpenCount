@@ -24,9 +24,11 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False):
         str imgpath:
         list TOPBOT_PAIRS: list of [[IplImage topguard, IplImage botguard], ...].
     Output:
-        (list barcodes, bool isflipped, tuple BBS). BARCODES is a list of one
-        string (UpperLeft). ISFLIPPED is True if we detected the ballot was 
-        flipped. BBS is a tuple of tuples: [BB_i, ...].
+        (list barcodes, bool isflipped, tuple BBS, dict BBSTRIPES_MAP). 
+        BARCODES is a list of one string (UpperLeft).
+        ISFLIPPED is True if we detected the ballot was flipped. 
+        BBS is a tuple of tuples: [(x1,y1, w, h), ...]
+        BBSTRIPES_MAP maps {str label: [(x1,y1,x2,y2), ...]}
     """
     def check_result(decoded):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
@@ -74,11 +76,46 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False):
     for label, stripebbs in bbstripes_ul.iteritems():
         bbs_new = []
         for bb in stripebbs:
-            bbs_new.append([int(round(bb[0] + bb_out[0])),
-                            int(round(bb[1] + bb_out[1])),
-                            int(round(bb[2])), int(round(bb[3]))])
+            x1_out = bb[0] + bb_out[0]
+            y1_out = bb[1] + bb_out[1]
+            bbs_new.append([int(round(x1_out)),
+                            int(round(y1_out)),
+                            int(round(x1_out + bb[2])), 
+                            int(round(y1_out + bb[3]))])
         bbstripes_ul_new[label] = bbs_new
     return ((dec_ul,), isflipped, [bb_out], bbstripes_ul_new)
+
+def interpret_labels(img_bc_labels):
+    """
+    Input:
+        dict IMG_BC_LABELS: {str imgpath: [(bbstripe_i, bc_label_i), ...]}
+    Output:
+        dict IMG_DECODED_MAP: {str imgpath: str BC}
+    """
+    img_decoded_map = {}
+    for imgpath, tups in img_bc_labels.iteritems():
+        tups_sorted = sorted(tups, key=lambda t: t[0])
+        bc = []
+        whts = []
+        blks = []
+        # LABEL is WHITE_NARROW, WHITE_WIDE, BLACK_NARROW, BLACK_WIDE
+        for i, (idx, label) in enumerate(tups_sorted):
+            if i != idx:
+                print "Uhoh, problem."
+                pdb.set_trace()
+            assert i == idx
+            if label in (i2of5.WHITE_NARROW, i2of5.WHITE_WIDE):
+                whts.append(i2of5.NARROW if label == i2of5.WHITE_NARROW else i2of5.WIDE)
+            else:
+                blks.append(i2of5.NARROW if label == i2of5.BLACK_NARROW else i2of5.WIDE)
+        # Strip out begin/end guards
+        whts_noguard = whts[2:-1]
+        blks_noguard = blks[2:-2]
+        whts_digits = i2of5.bars_to_symbols(whts_noguard)
+        blks_digits = i2of5.bars_to_symbols(blks_noguard)
+        decoding = ''.join(sum(map(None, blks_digits, whts_digits), ()))
+        img_decoded_map[imgpath] = decoding
+    return img_decoded_map
 
 def get_sheet(bc):
     return bc[0]

@@ -145,7 +145,7 @@ class Project(object):
                      'partition_exmpls': 'partition_exmpls.p',
                      'partitions_map': 'partitions_map.p',
                      'partitions_invmap': 'partitions_invmap.p',
-                     'decoded_map': 'decoded_map.p',
+                     'img2decoding': 'img2decoding.p',
                      'imginfo_map': 'imginfo_map.p',
                      'barcode_bbs_map': 'barcode_bbs_map.p',
                      'partition_quarantined': 'partition_quarantined.p',
