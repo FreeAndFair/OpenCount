@@ -858,7 +858,7 @@ def compare(otexts1, otexts2, debug=False):
     #print 'dist of titles is', val
 
     all_vals = []
-    for num_writeins in range(len(texts2)):
+    for num_writeins in [0]:#range(len(texts2)):
         rottexts2 = [[texts2[i] for _,i in get_order(len(texts2),order,num_writeins)] for order in range(len(texts2))]
         values = [(sum(row_dist(a,b) for a,b in zip(texts1, t2)),i) for i,t2 in enumerate(rottexts2)]
         if debug:
