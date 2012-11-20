@@ -289,7 +289,7 @@ class PartitionPanel(ScrolledPanel):
 
     def start_verify(self, flipmap, verifypatch_bbs):
         # 1.) Extract all patches to an outdir
-        imgpatches = {} # {imgpath: [((x1,y1,x2,y2), outpath, tag), ...]}
+        imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
         bc_val_cnt = {} # maps {bc_val: int cnt}
         bc_val_dircnt = {} # maps {bc_val: int dircnt}
