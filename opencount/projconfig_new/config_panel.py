@@ -11,10 +11,11 @@ import cv
 sys.path.append('..')
 
 import util
-from vendors import Hart
+from vendors import Hart, Diebold
 
-BALLOT_VENDORS = ("Diebold", "Hart", "Sequoia")
+BALLOT_VENDORS = ("Hart",)
 VENDOR_CLASSES = {'hart': Hart.HartVendor}
+
 
 class ConfigPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):

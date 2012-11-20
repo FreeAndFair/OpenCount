@@ -18,25 +18,38 @@ def decode(imgpath, template="diebold-mark.jpg"):
     # C_LOW, C_HIGH are lower/upper percentage to crop image by
     c_low = 0.9268
     c_high = 0.9909
-    y1 = int(round(c_low * h))
-    y2 = int(round(c_high * h))
-    cv.SetImageROI(I, (0, y1, w, int(y2-y1)))
+    y1_off = int(round(c_low * h))
+    y2_off = int(round(c_high * h))
+    cv.SetImageROI(I, (0, y1_off, w, int(y2_off-y1_off)))
     decoding, bbs = decode_patch(I, Itemp)
     if decoding in (None, '1'*32):
         # Try Flipping the image, and try again.
-        c_low = 1.0 - c_high
-        c_high = 1.0 - c_low
-        y1 = int(round(c_low * h))
-        y2 = int(round(c_high*h))
-        cv.SetImageROI(I, (0, y1, w, int(y2-y1)))
+        c_low_flip = 1.0 - c_high
+        c_high_flip = 1.0 - c_low
+        y1_flip = int(round(c_low_flip * h))
+        y2_flip = int(round(c_high_flip * h))
+        cv.SetImageROI(I, (0, y1_flip, w, int(y2_flip-y1_flip)))
         cv.Flip(I, I, flipMode=-1)
         isflip = True
         decoding, bbs = decode_patch(I, Itemp)
+        bbs_out = []
+        for (x1,y1,x2,y2) in bbs:
+            bbs_out.append([x1, y2_flip - y1, x2, y2_flip - y2])
+
+    # Note: Output BBS should be in original image coordinate system,
+    # even if the image is flipped.
+    if not isflip:
+        bbs_out = []
+        for (x1,y1,x2,y2) in bbs:
+            bbs_out.append([x1, y1_off + y1, x2, y1_off + y2])
+
+    # TODO: I think the BBS_OUT is buggy right now, either due to
+    # my correction-code, or the decoder itself.
 
     if decoding == None:
         return None, None, None
     else:
-        return decoding, isflip, bbs
+        return decoding, isflip, bbs_out
 
 def decode_patch(patch, template):
     """

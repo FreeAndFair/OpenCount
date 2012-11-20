@@ -293,6 +293,7 @@ class PartitionPanel(ScrolledPanel):
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
         bc_val_cnt = {} # maps {bc_val: int cnt}
         bc_val_dircnt = {} # maps {bc_val: int dircnt}
+        img_cnt = {} # maps {imgpath: int cnt}
         for bc_val, tups in verifypatch_bbs.iteritems():
             for (imgpath, (x1,y1,x2,y2), userdata) in tups:
                 i = bc_val_cnt.get(bc_val, None)
@@ -302,9 +303,13 @@ class PartitionPanel(ScrolledPanel):
                     i = 0
                 if i != 0 and i % 750 == 0:
                     bc_val_dircnt[bc_val] += 1
+                if imgpath not in img_cnt:
+                    img_cnt[imgpath] = 1
+                else:
+                    img_cnt[imgpath] += 1
                 dircnt = bc_val_dircnt[bc_val]
                 imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
-                outpath = pathjoin(outrootdir, str(bc_val), str(dircnt), "{0}_{1}.png".format(imgname, str(userdata)))
+                outpath = pathjoin(outrootdir, str(bc_val), str(dircnt), "{0}_{1}_{2}.png".format(imgname, str(userdata), img_cnt[imgpath]))
                 tag = (bc_val, userdata)
                 #imgpatches.append((imgpath, (x1,y1,x2,y2), outpath, (bc_val, userdata)))
                 isflip = flipmap[imgpath]
