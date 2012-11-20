@@ -51,6 +51,8 @@ class SelectTargetsMainPanel(wx.Panel):
         b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
         img2page = pickle.load(open(pathjoin(proj.projdir_path,
                                              proj.image_to_page), 'rb'))
+        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
+                                                  proj.image_to_flip), 'rb'))
         # 0.) Munge GROUP2BALLOT to list of lists of lists
         groups = []
         numtasks = 0
@@ -121,9 +123,7 @@ class SelectTargetsMainPanel(wx.Panel):
             manager = multiprocessing.Manager()
             queue = manager.Queue()
             tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
-            img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_flip), 'rb'))
-            workthread = GlobalAlignThread(groups, img2flip, align_outdir, ocrtmpdir, 
+            workthread = GlobalAlignThread(groups, self.img2flip, align_outdir, ocrtmpdir, 
                                            manager, queue, self.on_align_done, 
                                            self.GLOBALALIGN_JOBID, tlisten)
             workthread.start()
@@ -135,7 +135,7 @@ class SelectTargetsMainPanel(wx.Panel):
         else:
             # SelectTargets restores its self.partitions from stateP.
             seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
-            self.seltargets_panel.start(None, seltargets_stateP, ocrtmpdir)
+            self.seltargets_panel.start(None, self.img2flip, seltargets_stateP, ocrtmpdir)
 
     def on_align_done(self, groups_align_map, ocrtmpdir):
         groups_align = []
@@ -148,7 +148,7 @@ class SelectTargetsMainPanel(wx.Panel):
         groups_align_bysize = [groups_align[i] for i in groups_sizes_argsort]
         self.i2groupid = groups_sizes_argsort
         seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
-        self.seltargets_panel.start(groups_align_bysize, seltargets_stateP, ocrtmpdir)
+        self.seltargets_panel.start(groups_align_bysize, self.img2flip, seltargets_stateP, ocrtmpdir)
 
     def stop(self):
         self.proj.removeCloseEvent(self.save_session)
@@ -395,14 +395,16 @@ this partition.")
 
         self.SetSizer(self.sizer)
 
-    def start(self, partitions, stateP, ocrtempdir):
+    def start(self, partitions, img2flip, stateP, ocrtempdir):
         """
         Input:
             list PARTITIONS: A list of lists of lists, encoding partition+ballot+side(s):
                 [[[imgpath_i0_front, ...], ...], [[imgpath_i1_front, ...], ...], ...]
+            dict IMG2FLIP: maps {str imgpath: bool isflipped}
             str STATEP: Path of the statefile.
             str OCRTEMPDIR: Used for InferContestRegion.
         """
+        self.img2flip = img2flip
         self.stateP = stateP
         self.ocrtempdir = ocrtempdir
         if not self.restore_session():
@@ -477,6 +479,7 @@ this partition.")
         queue = Queue.Queue()
         # Template match on /all/ images across all partitions, all pages
         imgpaths = sum([t for t in sum(self.partitions, [])], [])
+        # TODO: Correctly handle IMG2FLIP for template matching.
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
                            imgpaths, self.tm_param, self.win_ballot,
                            self.on_tempmatch_done)

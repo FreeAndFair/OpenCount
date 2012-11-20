@@ -569,7 +569,7 @@ def get_img_exemplars(proj):
 
 def get_digit_exemplars(proj):
     if not exists_digattr(proj):
-        return
+        return {}
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     digattrtype = None
     for attr in attrs:

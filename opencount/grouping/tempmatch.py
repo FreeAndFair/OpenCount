@@ -15,13 +15,14 @@ SMOOTH_IMG_BRD = 4
 SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
-def bestmatch(A, imgpaths, do_smooth=0, xwinA=3, ywinA=3, 
+def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
               xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """ Runs template matching on IMGPATHS, searching for best match
     for A. 
     Input:
         A: Either a string (path), or an IplImage.
         list IMGPATHS: List of imgpaths to search over
+        dict IMG2FLIP: maps {str imgpath: bool isflipped}
         int DO_SMOOTH:
         dict  PREVMATCHES: {imgpath: [(x_i, y_i), ...]}. Matches to ignore.
     Output:
@@ -43,6 +44,8 @@ def bestmatch(A, imgpaths, do_smooth=0, xwinA=3, ywinA=3,
             I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
         elif do_smooth in (SMOOTH_BOTH, SMOOTH_IMG):
             I = smooth(I, xwinI, ywinI)
+        if img2flip and img2flip[imgpath]:
+            cv.Flip(I, I, flipMode=-1)
         w_I, h_I = cv.GetSize(I)
         matchmat = cv.CreateMat(h_I-h_A+1, w_I-w_A+1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, matchmat, cv.CV_TM_CCOEFF_NORMED)
@@ -63,11 +66,11 @@ def bestmatch(A, imgpaths, do_smooth=0, xwinA=3, ywinA=3,
     print 'results:', results
     return results
 
-def _do_bestmatch(imgpaths, (A_str, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
+def _do_bestmatch(imgpaths, (A_str, img2flip, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
     A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
-        result = bestmatch(A_cv, imgpaths, do_smooth=do_smooth, xwinA=xwinA,
+        result = bestmatch(A_cv, imgpaths, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
                            ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches,
                            jobid=jobid)
         return result
@@ -75,7 +78,7 @@ def _do_bestmatch(imgpaths, (A_str, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h,
         traceback.print_exc()
         return {}
 
-def bestmatch_par(A, imgpaths, NP=None, do_smooth=0, xwinA=3, ywinA=3,
+def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
                   xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """
     Input:
@@ -91,14 +94,14 @@ def bestmatch_par(A, imgpaths, NP=None, do_smooth=0, xwinA=3, ywinA=3,
     A_str = A.tostring()
     w, h = cv.GetSize(A)
     result = partask.do_partask(_do_bestmatch, imgpaths,
-                                _args=(A_str, do_smooth, xwinA, ywinA,
+                                _args=(A_str, img2flip, do_smooth, xwinA, ywinA,
                                        xwinI, ywinI, w, h, prevmatches, jobid),
-                                combfn='dict', singleproc=False)
+                                combfn='dict', N=None)
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
     return result
 
-def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
+def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
                     xwinI=13, ywinI=13, MAX_MATS=50, prevmatches=None,
                     atleastone=False, jobid=None):
     """ Runs template matching, trying to find image A within each image
@@ -107,6 +110,7 @@ def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
     Input:
         IplImage A:
         list IMGPATHS:
+        dict IMG2FLIP: maps {str imgpath: bool isflipped}
         float T:
         dict PREVMATCHES: maps {str imgpath: [(x1,y1,x2,y2), ...]}
     Output:
@@ -129,7 +133,9 @@ def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
         if do_smooth in (SMOOTH_BOTH_BRD, SMOOTH_IMG_BRD):
             I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
         elif do_smooth in (SMOOTH_BOTH, SMOOTH_IMG):
-            I = smooth(I, xwinI, ywinI)        
+            I = smooth(I, xwinI, ywinI)
+        if img2flip and img2flip[imgpath]:
+            cv.Flip(I, I, flipMode=-1)
         wI, hI = cv.GetSize(I)
         M = cv.CreateMat(hI-hA+1, wI-wA+1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, M, cv.CV_TM_CCOEFF_NORMED)
@@ -176,14 +182,14 @@ def get_tempmatches(A, imgpaths, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
     return results
 
-def _do_get_tempmatches(imgpaths, (A_str, T, do_smooth, xwinA, ywinA,
+def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                    xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
                                    atleastone, jobid)):
     result = {}
     A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A, A_str)
     try:
-        results = get_tempmatches(A, imgpaths, T=T, do_smooth=do_smooth, xwinA=xwinA, 
+        results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, do_smooth=do_smooth, xwinA=xwinA, 
                                   ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
                                   prevmatches=prevmatches,
                                   jobid=jobid)
@@ -192,7 +198,7 @@ def _do_get_tempmatches(imgpaths, (A_str, T, do_smooth, xwinA, ywinA,
         return {}
     return results
 
-def get_tempmatches_par(A, imgpaths, T=0.8, do_smooth=0, 
+def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, 
                         xwinA=13, ywinA=13, xwinI=13, ywinI=13,
                         MAX_MATS=50, prevmatches=None,
                         atleastone=False, NP=None, jobid=None):
@@ -206,7 +212,7 @@ def get_tempmatches_par(A, imgpaths, T=0.8, do_smooth=0,
     w, h = cv.GetSize(A)
     try:
         result = partask.do_partask(_do_get_tempmatches, imgpaths,
-                                    _args=(A_str, T, do_smooth, xwinA, ywinA,
+                                    _args=(A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                            xwinI, ywinI, w, h, MAX_MATS, prevmatches,
                                            atleastone, jobid),
                                     combfn='dict', singleproc=False)

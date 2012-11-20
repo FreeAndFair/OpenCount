@@ -62,6 +62,8 @@ class SelectAttributesMasterPanel(wx.Panel):
             print "...No Img-based attributes in this election..."
             return
         self.project = proj
+        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
+                                                  proj.image_to_flip), 'rb'))
         if self.stop not in proj.closehook:
             proj.addCloseEvent(self.stop)
         self.statefileP = pathjoin(proj.projdir_path, '_selectattrs_state.p')
@@ -93,7 +95,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                 imgpaths = b2imgs[ballotid]
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                 blanks.append(imgpaths_ordered)
-            self.mapping, self.inv_mapping = do_extract_attr_patches(proj, blanks)
+            self.mapping, self.inv_mapping = do_extract_attr_patches(proj, blanks, self.img2flip)
             self.attrtypes = list(common.get_attrtypes(proj, with_digits=False))
             self.attridx = 0
         self.do_labelattribute(self.attridx)
@@ -274,7 +276,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                 x2_off, y2_off = x2 - x, y2 - y
                 boxes.setdefault(patchpath, []).append(((x1_off,y1_off,x2_off,y2_off), attrval, subpatchP))
         outdir0 = os.path.join(self.project.projdir_path, 'selectattr_outdir0')
-        self.selectattrs.start(patchpaths, curattrtype, boxes=boxes, outdir0=outdir0)
+        self.selectattrs.start(patchpaths, self.img2flip, curattrtype, boxes=boxes, outdir0=outdir0)
         self.selectattrs.mosaicpanel.txt_attrtype.SetLabel("{0} ({1} / {2}).".format(curattrtype, attridx+1, len(self.attrtypes)))
         self.Layout()
         return self.attridx
@@ -342,8 +344,9 @@ class SelectAttributesPanel(wx.Panel):
         self.SetSizer(sizer)
         self.Fit()
         
-    def start(self, patchpaths, attr, boxes=None, outdir0=None):
+    def start(self, patchpaths, img2flip, attr, boxes=None, outdir0=None):
         self.patchpaths = patchpaths
+        self.img2flip = img2flip
         self.attr = attr
         self.boxes = boxes if boxes != None else {}
         if outdir0 != None:
@@ -501,7 +504,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
     def on_tempmatchdone(self, results, w, h, attrval):
         """
         Input:
-            dict RESULTS: {str imgpath: (x, y, float score)}
+            dict RESULTS: {str regionpath: (x, y, float score)}
             int W, H: Width/Height of patch being searched for.
         """
         print "...TempMatching done!"
@@ -512,12 +515,12 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         #for _, (_, _, score) in results.iteritems():
         #    scores.append(score)
         #hist, edges = np.histogram(scores)
-        for imgpath, (x, y, score) in results.iteritems():
+        for regionpath, (x, y, score) in results.iteritems():
             if score < self.TM_THRESHOLD:
                 continue
-            I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+            I = cv.LoadImage(regionpath, cv.CV_LOAD_IMAGE_UNCHANGED)
             cv.SetImageROI(I,(x, y, w, h))
-            imgname = os.path.split(imgpath)[1]
+            imgname = os.path.split(regionpath)[1]
             imgname_noext = os.path.splitext(imgname)[0]
             outname = "{0}_{1}.png".format(imgname_noext, self.GetParent().GetParent().attr)
             outrootdir = os.path.join(self.GetParent().GetParent().outdir0, self.GetParent().GetParent().attr)
@@ -528,7 +531,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             outpath = os.path.join(outrootdir, outname)
             cv.SaveImage(outpath, I)
             outpaths.append(outpath)
-            patch2img[outpath] = imgpath
+            patch2img[outpath] = regionpath
         initgroups = [outpaths]
         exemplarpaths = ['_selectattr_patch.png']
         self._verifyframe = view_overlays.ViewOverlaysFrame(None, initgroups, 
@@ -559,17 +562,17 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         self.Refresh()
 
 class TM_Thread(threading.Thread):
-    def __init__(self, patch, imgpaths, attrval, jobid, callback=None, *args, **kwargs):
+    def __init__(self, patch, regionpaths, attrval, jobid, callback=None, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.patch = patch
-        self.imgpaths = imgpaths
+        self.regionpaths = regionpaths
         self.callback = callback
         self.attrval = attrval
         self.jobid = jobid
     def run(self):
         print "...calling template matching..."
         t = time.time()
-        results = tempmatch.bestmatch_par(self.patch, self.imgpaths, do_smooth=tempmatch.SMOOTH_BOTH,
+        results = tempmatch.bestmatch_par(self.patch, self.regionpaths, do_smooth=tempmatch.SMOOTH_BOTH,
                                           xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=12, jobid=self.jobid)
         dur = time.time() - t
         print "...finished template matching ({0} s)".format(dur)
@@ -714,7 +717,7 @@ class PatchBitmap(util_widgets.CellBitmap):
             dc.SetPen(wx.Pen("Red", 2))
             dc.DrawRectangle(x1, y1, x2-x1, y2-y1)
 
-def do_extract_attr_patches(proj, blanks):
+def do_extract_attr_patches(proj, blanks, img2flip):
     """Extract all attribute patches from all blank ballots into
     the specified outdir. Saves them to:
         <projdir>/extract_attrs_templates/ATTRTYPE/*.png
@@ -727,7 +730,7 @@ def do_extract_attr_patches(proj, blanks):
     """
     mapping, invmapping, blank2attrpatch, invb2ap = partask.do_partask(extract_attr_patches,
                                                                        blanks,
-                                                                       _args=(proj,),
+                                                                       _args=(proj, img2flip),
                                                                        combfn=_extract_combfn,
                                                                        init=({}, {}, {}, {}),
                                                                        N=1)
@@ -760,7 +763,7 @@ def _extract_combfn(result, subresult):
     new_invblank2attrpatch = dict(invblank2attrpatch.items() + invblank2attrpatch_sub.items())
     return (new_mapping, new_invmapping, new_blank2attrpatch, new_invblank2attrpatch)
 
-def extract_attr_patches(blanks, (proj,)):
+def extract_attr_patches(blanks, (proj, img2flip)):
     """
     Extracts all image-based attributes from blank ballots, and saves
     the patches to the outdir proj.labelattrs_patchesdir.
@@ -820,6 +823,8 @@ def extract_attr_patches(blanks, (proj,)):
                             print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
                             pdb.set_trace()
                         img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                        if img2flip[imgpath]:
+                            cv.Flip(img, img, flipMode=-1)
                         cv.SetImageROI(img, (int(x1), int(y1), int(x2-x1), int(y2-y1)))
                         cv.SaveImage(patchoutP, img)
                         

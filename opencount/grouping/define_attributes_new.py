@@ -36,6 +36,8 @@ class DefineAttributesMainPanel(wx.Panel):
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
+        img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_flip), 'rb'))
         # PARTITION_EXMPLS: {int partitionID: [int ballotID_i, ...]}
         partition_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                      self.proj.partition_exmpls), 'rb'))
@@ -54,7 +56,7 @@ class DefineAttributesMainPanel(wx.Panel):
                         ballot_sides.append([imgpath])
                     else:
                         ballot_sides[side].append(imgpath)
-        self.defineattrs.start(ballot_sides, stateP)
+        self.defineattrs.start(ballot_sides, img2flip, stateP)
 
     def stop(self):
         self.defineattrs.save_session()
@@ -129,15 +131,17 @@ class DefineAttributesPanel(ScrolledPanel):
         self.Layout()
         self.SetupScrolling()
 
-    def start(self, ballot_sides, stateP):
+    def start(self, ballot_sides, img2flip, stateP):
         """
         Input:
             list BALLOT_SIDES: [[imgP_i_side0, ...], [imgP_i_side1, ...] ...], i.e. a list of 
                 candidate ballots (includes all sides) to display.
+            dict IMG2FLIP: maps {str imgpath: bool isflipped}
             str STATEP:
         """
         self.stateP = stateP
         self.ballot_sides = ballot_sides
+        self.img2flip = img2flip
         if not self.restore_session():
             self.boxes_map = {}
             self.cust_attrs = []
@@ -187,6 +191,8 @@ class DefineAttributesPanel(ScrolledPanel):
         imgpath = ballots[cur_i]
         boxes = self.boxes_map.get(cur_side, [])
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
+        if self.img2flip[imgpath]:
+            wximg = wximg.Rotate90().Rotate90()
         self.boxdraw.set_image(wximg)
         self.boxdraw.set_boxes(boxes)
     
