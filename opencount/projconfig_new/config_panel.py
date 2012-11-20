@@ -11,10 +11,10 @@ import cv
 sys.path.append('..')
 
 import util
-from vendors import Hart, Diebold
+from vendors import Hart, Diebold, ES_S
 
-BALLOT_VENDORS = ("Hart",)
-VENDOR_CLASSES = {'hart': Hart.HartVendor}
+BALLOT_VENDORS = ("Hart", "es_s")
+VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor}
 
 
 class ConfigPanel(wx.Panel):
