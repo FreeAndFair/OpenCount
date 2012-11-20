@@ -22,7 +22,7 @@ def decode(imgpath, template="diebold-mark.jpg"):
     y2_off = int(round(c_high * h))
     cv.SetImageROI(I, (0, y1_off, w, int(y2_off-y1_off)))
     decoding, bbs = decode_patch(I, Itemp)
-    if decoding in (None, '1'*32):
+    if decoding in (None, '1'*34):
         # Try Flipping the image, and try again.
         c_low_flip = 1.0 - c_high
         c_high_flip = 1.0 - c_low
