@@ -80,7 +80,9 @@ def _do_bestmatch(imgpaths, (A_str, img2flip, do_smooth, xwinA, ywinA, xwinI, yw
 
 def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
                   xwinI=3, ywinI=3, prevmatches=None, jobid=None):
-    """
+    """ Find the best match for A in each image in IMGPATHS, using NP
+    processes. A multiprocessing-wrapper for bestmatch (see doc for
+    bestmatch for more details).
     Input:
         IplImage A:
         list IMGPATHS:
@@ -125,7 +127,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
     wA, hA = cv.GetSize(A_im)
     results = {} # {str imgpath: [(x1,y1,x2,y2,score),...]}
     for i,imgpath in enumerate(imgpaths):
-        if type(imgpath) == type(str()):
+        if isinstance(imgpath, str) or isinstance(imgpath, unicode):
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         else:
             I = imgpath
@@ -202,9 +204,14 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
                         xwinA=13, ywinA=13, xwinI=13, ywinI=13,
                         MAX_MATS=50, prevmatches=None,
                         atleastone=False, NP=None, jobid=None):
-    """ For each img in IMGPATHS, template match for A.
+    """ For each img in IMGPATHS, template match for A, using NP processes.
+    A multiprocessing wrapper for get_tempmatches (see doc for get_tempmatches
+    for more details).
     Input:
         IplImage A:
+        lst IMGPATHS:
+        int NP: Number of processes, or None for auto.
+        
     Output:
         dict MATCHES, of the form {str imgpath: [(x1, y1, x2, y2 float resp), ...]}
     """

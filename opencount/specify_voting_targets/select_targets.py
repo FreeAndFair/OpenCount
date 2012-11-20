@@ -14,7 +14,7 @@ from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import util_gui, util
-import grouping.partask as partask
+import grouping.partask as partask, grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
 import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
@@ -471,24 +471,25 @@ this partition.")
         # 2.a.) Copy the smooth'd PATCHB back into PATCH
         #patch_cv = cv.GetSubRect(patchB, (BRD/2, BRD/2, patch_cv.width, patch_cv.height))
         cv.SetImageROI(patchB, (BRD/2, BRD/2, patch_cv.width, patch_cv.height))
-        patch = iplimage2pil(patchB)
-        patch.save("_patch.png")        
+        patch = patchB
+        #patch = iplimage2pil(patchB)
+        #patch.save("_patch.png")        
+        cv.SaveImage("_patch.png", patch)
         # 3.) Run template matching across all images in self.IMGPATHS,
         # using PATCH as the template.
         
         queue = Queue.Queue()
         # Template match on /all/ images across all partitions, all pages
         imgpaths = sum([t for t in sum(self.partitions, [])], [])
-        # TODO: Correctly handle IMG2FLIP for template matching.
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
-                           imgpaths, self.tm_param, self.win_ballot,
+                           imgpaths, self.tm_param, self.win_ballot, self.win_target,
                            self.on_tempmatch_done)
         thread.start()
 
     def on_tempmatch_done(self, results, w, h):
         """ Invoked after template matching computation is complete. 
         Input:
-            dict RESULTS: maps {str imgpath: [(x,y,score_i), ...}. The matches
+            dict RESULTS: maps {str imgpath: [(x1,y1,x2,y2,score_i), ...}. The matches
                 that template matching discovered.
             int w: width of the patch
             int h: height of the patch
@@ -514,8 +515,8 @@ this partition.")
         # matches.
         for imgpath, matches in results.iteritems():
             partition_idx, j, page = self.inv_map[imgpath]
-            for (x, y, score) in matches:
-                boxB = TargetBox(x, y, x+w, y+h)
+            for (x1, y1, x2, y2, score) in matches:
+                boxB = TargetBox(x1, y1, x1+w, y1+h)
                 # 1.a.) See if any already-existing box is too close
                 do_add = True
                 for boxA in self.boxes[partition_idx][page]:
@@ -1298,11 +1299,11 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
 class TM_Thread(threading.Thread):
     TEMPLATE_MATCH_JOBID = 48
     def __init__(self, queue, job_id, patch, img, imgpaths, tm_param,
-                 win_ballot,
+                 win_ballot, win_target,
                  callback, *args, **kwargs):
         """
         Input:
-            PATCH: A PIL Image.
+            PATCH: An IplImage.
         """
         threading.Thread.__init__(self, *args, **kwargs)
         self.queue = queue
@@ -1312,19 +1313,28 @@ class TM_Thread(threading.Thread):
         self.imgpaths = imgpaths
         self.tm_param = tm_param
         self.win_ballot = win_ballot
+        self.win_target = win_target
         self.callback = callback
     def run(self):
         print "...running template matching..."
         t = time.time()
-        patch_str = self.patch.tostring()
-        w, h = self.patch.size
+        #patch_str = self.patch.tostring()
+        w, h = cv.GetSize(self.patch)
         # results: {str imgpath: [(x,y,score_i), ...]}
-        results = partask.do_partask(do_find_matches, self.imgpaths, 
-                                     _args=(patch_str, w, h, self.tm_param, self.win_ballot),
-                                     combfn='dict', singleproc=False)
+        #results = partask.do_partask(do_find_matches, self.imgpaths, 
+        #                             _args=(patch_str, w, h, self.tm_param, self.win_ballot),
+        #                             combfn='dict', singleproc=False)
+        xwinB, ywinB = self.win_ballot
+        xwinT, ywinT = self.win_target
+        # results: {str imgpath: [(x1,y1,x2,y2,score_i), ...]}
+        # Note: self.patch is already smooth'd.
+        results = tempmatch.get_tempmatches_par(self.patch, self.imgpaths,
+                                                do_smooth=tempmatch.SMOOTH_IMG_BRD,
+                                                T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
+                                                xwinI=xwinB, ywinI=ywinB)
         dur = time.time() - t
         print "...finished running template matching ({0} s).".format(dur)
-        self.callback(results, self.patch.size[0], self.patch.size[1])
+        self.callback(results, w, h)
 
 class Box(object):
     def __init__(self, x1, y1, x2, y2):
@@ -1485,52 +1495,6 @@ def expand_box(box, factor, bounds=None):
         b.x2 = int(round(box.x2 + (box.width*factor)))
         b.y2 = int(round(box.y2 + (box.height*factor)))
     return b
-
-def do_find_matches(imgpaths, (patch_str, w, h, C, win_ballot)):
-    """ PATCH_STR is the string-repr of the image patch data (by calling
-    img.tostring(). We do this because anything passed to multiprocessing
-    methods must be pickle-able (cvMats/PIL images are not).
-    """
-    patch_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
-    cv.SetData(patch_cv, patch_str)
-    return find_matches(imgpaths, patch_cv, C=C, xwin=win_ballot[0], ywin=win_ballot[1])
-def find_matches(imgpaths, patch, C=0.8, do_smooth=True, xwin=13, ywin=13, MAX_MATS=50):
-    """ Runs template matching to find PATCH in each IMGPATHS. If 
-    DO_SMOOTH is True, then this will apply a gaussian blur with
-    window size [XWIN,YWIN] on IMGPATHS (but not on PATCH).
-    Input:
-        list imgpaths: [imgpath_i, ...]
-        IplImage patch: 
-        float C:
-    Output:
-        list matches, {str imgpath: [(x,y,score_i), ...]}
-    """
-    matches = {} # maps {str imgpath: [(x,y,score_i), ...]}
-    for imgpath in imgpaths:
-        img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        if do_smooth:
-            img_smooth = cv.CreateImage((img.width, img.height), img.depth, img.channels)
-            cv.Smooth(img, img_smooth, cv.CV_GAUSSIAN, param1=xwin,param2=ywin)
-            img = img_smooth
-        M = cv.CreateMat(img.height-patch.height+1, img.width-patch.width+1, cv.CV_32F)
-        cv.MatchTemplate(img, patch, M, cv.CV_TM_CCOEFF_NORMED)
-        M_np = np.array(M)
-        score = np.inf
-        print 'best score:', np.max(M_np)
-        num_mats = 0
-        while score > C and num_mats < MAX_MATS:
-            M_idx = np.argmax(M_np)
-            i = int(M_idx / M.cols)
-            j = M_idx % M.cols
-            score = M_np[i,j]
-            if score < C:
-                break
-            matches.setdefault(imgpath, []).append((j, i, score))
-            # Suppression
-            M_np[i-(patch.height/3):i+(patch.height/3),
-                 j-(patch.width/3):j+(patch.width/3)] = -1.0
-            num_mats += 1
-    return matches
 
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """
