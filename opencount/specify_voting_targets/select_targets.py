@@ -284,6 +284,12 @@ class SelectTargetsPanel(ScrolledPanel):
     partitions
     """
     TEMPLATE_MATCH_JOBID = 830
+    
+    # TM_MODE_ALL: Run template matching on all images
+    TM_MODE_ALL = 901
+    # TM_MODE_POST: Run template matching only on images after (post) the
+    #               currently-displayed group.
+    TM_MODE_POST = 902
 
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -312,6 +318,7 @@ class SelectTargetsPanel(ScrolledPanel):
         # Window sizes for Smoothing
         self.win_ballot = (13, 13)
         self.win_target = (15, 15)
+        self.tm_mode = self.TM_MODE_POST
 
         # STATEP: Path for state file.
         self.stateP = None
@@ -477,10 +484,15 @@ this partition.")
         cv.SaveImage("_patch.png", patch)
         # 3.) Run template matching across all images in self.IMGPATHS,
         # using PATCH as the template.
-        
+        if self.tm_mode == self.TM_MODE_ALL:
+            # Template match on /all/ images across all partitions, all pages
+            imgpaths = sum([t for t in sum(self.partitions, [])], [])
+        elif self.tm_mode == self.TM_MODE_POST:
+            # Template match only on images after this partition (including 
+            # this partition)
+            imgpaths = sum([t for t in sum(self.partitions[self.cur_i:], [])], [])
+        print "...Running template matching on {0} images...".format(len(imgpaths))
         queue = Queue.Queue()
-        # Template match on /all/ images across all partitions, all pages
-        imgpaths = sum([t for t in sum(self.partitions, [])], [])
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
                            imgpaths, self.tm_param, self.win_ballot, self.win_target,
                            self.on_tempmatch_done)
@@ -787,6 +799,7 @@ class Toolbar(wx.Panel):
         self.parent.tm_param = dlg.tm_param
         self.parent.win_ballot = dlg.win_ballot
         self.parent.win_target = dlg.win_target
+        self.parent.tm_mode = dlg.tm_mode
         
 class OptionsDialog(wx.Dialog):
     ID_APPLY = 42
@@ -835,6 +848,19 @@ class OptionsDialog(wx.Dialog):
         sizer1 = wx.BoxSizer(wx.VERTICAL)
         sizer1.AddMany([(txt10,), (sizer10,), (sizer11,)])
 
+        txt_tm_mode = wx.StaticText(self, label="Template Matching Mode")
+        self.radio_tm_mode_all = wx.RadioButton(self, label="Template match on all images", 
+                                                style=wx.RB_GROUP)
+        self.radio_tm_mode_post = wx.RadioButton(self, label="Template match only on images \
+after (and including) the currently-displayed group.")
+        if self.GetParent().GetParent().tm_mode == SelectTargetsPanel.TM_MODE_ALL:
+            self.radio_tm_mode_all.SetValue(True)
+        elif self.GetParent().GetParent().tm_mode == SelectTargetsPanel.TM_MODE_POST:
+            self.radio_tm_mode_post.SetValue(True)
+        sizer_tm_mode = wx.BoxSizer(wx.VERTICAL)
+        sizer_tm_mode.AddMany([(txt_tm_mode,), (self.radio_tm_mode_all,),
+                               (self.radio_tm_mode_post,)])
+
         btn_apply = wx.Button(self, label="Apply")
         btn_apply.Bind(wx.EVT_BUTTON, self.onButton_apply)
         btn_cancel = wx.Button(self, label="Cancel")
@@ -844,7 +870,7 @@ class OptionsDialog(wx.Dialog):
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(txt0, flag=wx.ALIGN_CENTER)
-        sizer.AddMany([(tm_sizer,), (sizer0,), (sizer1,), (btn_sizer, 0, wx.ALIGN_CENTER)])
+        sizer.AddMany([(tm_sizer,), (sizer0,), (sizer1,), (sizer_tm_mode,), (btn_sizer, 0, wx.ALIGN_CENTER)])
         self.SetSizer(sizer)
         self.Fit()
 
@@ -852,6 +878,10 @@ class OptionsDialog(wx.Dialog):
         self.tm_param = float(self.tm_param.GetValue())
         self.win_ballot = (int(self.xwin_ballot.GetValue()), int(self.ywin_ballot.GetValue()))
         self.win_target = (int(self.xwin_target.GetValue()), int(self.ywin_target.GetValue()))
+        if self.radio_tm_mode_all.GetValue():
+            self.tm_mode = SelectTargetsPanel.TM_MODE_ALL
+        else:
+            self.tm_mode = SelectTargetsPanel.TM_MODE_POST
         self.EndModal(OptionsDialog.ID_APPLY)
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
