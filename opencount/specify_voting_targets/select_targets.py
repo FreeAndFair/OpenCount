@@ -324,7 +324,7 @@ class SelectTargetsPanel(ScrolledPanel):
         self.stateP = None
 
         self.toolbar = Toolbar(self)
-        self.imagepanel = TemplateMatchDrawPanel(self, self.do_tempmatch)
+        self.imagepanel = TargetFindPanel(self, self.do_tempmatch)
 
         txt = wx.StaticText(self, label="Select all Voting Targets from \
 this partition.")
@@ -761,6 +761,7 @@ class Toolbar(wx.Panel):
 
     def _setup_ui(self):
         self.btn_addtarget = wx.Button(self, label="Add Target")
+        self.btn_forceaddtarget = wx.Button(self, label="Force Add Target")
         self.btn_addcontest = wx.Button(self, label="Add Contest")
         self.btn_modify = wx.Button(self, label="Modify")
         self.btn_zoomin = wx.Button(self, label="Zoom In")
@@ -769,7 +770,8 @@ class Toolbar(wx.Panel):
         self.btn_opts = wx.Button(self, label="Options...")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_addcontest), (self.btn_modify,),
+        btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_forceaddtarget,), 
+                           (self.btn_addcontest), (self.btn_modify,),
                            (self.btn_zoomin,), (self.btn_zoomout,),
                            (self.btn_infercontests,), (self.btn_opts,)])
         self.sizer.Add(btn_sizer)
@@ -777,6 +779,7 @@ class Toolbar(wx.Panel):
 
     def _setup_evts(self):
         self.btn_addtarget.Bind(wx.EVT_BUTTON, self.onButton_addtarget)
+        self.btn_forceaddtarget.Bind(wx.EVT_BUTTON, self.onButton_forceaddtarget)
         self.btn_addcontest.Bind(wx.EVT_BUTTON, self.onButton_addcontest)
         self.btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_IDLE))
         self.btn_zoomin.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomin())
@@ -786,6 +789,8 @@ class Toolbar(wx.Panel):
     def onButton_addtarget(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = TargetBox
+    def onButton_forceaddtarget(self, evt):
+        self.setmode(TargetFindPanel.M_FORCEADD_TARGET)
     def onButton_addcontest(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = ContestBox
@@ -1313,7 +1318,7 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
         self.tempmatch_fn = tempmatch_fn
 
     def onLeftUp(self, evt):
-        x, y = evt.GetPositionTuple()
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             if isinstance(box, TargetBox):
@@ -1325,6 +1330,37 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
             self.Refresh()
         else:
             BoxDrawPanel.onLeftUp(self, evt)
+
+class TargetFindPanel(TemplateMatchDrawPanel):
+    M_FORCEADD_TARGET = 3
+
+    def onLeftDown(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if self.mode_m == self.M_FORCEADD_TARGET:
+            print "...Creating Forced Target."
+            self.clear_selected()
+            self.startBox(x, y)
+            self.Refresh()
+        else:
+            TemplateMatchDrawPanel.onLeftDown(self, evt)
+
+    def onLeftUp(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if self.mode_m == self.M_FORCEADD_TARGET and self.isCreate:
+            # If this is the first-created box B, then make sure that 
+            # subsequent-created boxes match the dimensions of B
+            box = self.finishBox(x, y)
+            if self.GetParent().boxsize == None:
+                self.GetParent().boxsize = (box.width, box.height)
+            else:
+                w, h = self.GetParent().boxsize
+                box.x2 = box.x1 + w
+                box.y2 = box.y1 + h
+            self.boxes.append(box)
+            self.Refresh()
+        else:
+            TemplateMatchDrawPanel.onLeftUp(self, evt)
+        
 
 class TM_Thread(threading.Thread):
     TEMPLATE_MATCH_JOBID = 48
