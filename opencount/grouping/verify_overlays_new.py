@@ -832,6 +832,50 @@ class SeparateImages(VerifyOverlays):
         self.Layout()
         self.Refresh()
 
+class SeparateImagesFrame(wx.Frame):
+    def __init__(self, parent, imgpath_groups, callback,
+                 realign_callback=None, *args, **kwargs):
+        """
+        Input:
+            list IMGPATH_GROUPS: List of lists of imgpaths
+            fn CALLBACK: Callback function to call with final results. 
+                Should accept one argument: List of lists of imgpaths.
+            fn REALIGN_CALLBACK: Function to call when the user wishes
+                to realign the images in the current group. Should
+                accept a list of imgpaths, and return either 'okay' or
+                a new list of imgpaths.
+        """
+        wx.Frame.__init__(self, parent, *args, **kwargs)
+        self.imgpath_groups = imgpath_groups
+        self.callback = callback
+        
+        self.separatepanel = SeparateImages(self)
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.separatepanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        
+        self.SetSizer(self.sizer)
+        
+        imggroups = {} # maps {tag: [imgpath_i, ...]}
+        for tagid, imgpaths in enumerate(imgpath_groups):
+            imggroups[tagid] = imgpaths
+
+        self.separatepanel.start(imggroups, do_align=False, ondone=self.verify_ondone,
+                                 auto_ondone=True, realign_callback=self.realign_callback)
+
+        self.Layout()
+
+    def ondone_verify(self, results):
+        """ 
+        Input: 
+            dict RESULTS: maps {tag: [imgpath_i, ...]}
+        """
+        out = []
+        for tag, imgpaths in results.iteritems():
+            out.append(imgpaths)
+        self.callback(out)
+        self.Close()
+
 class Group(object):
     def __init__(self, imgpaths, tag=None, do_align=False):
         self.tag = tag
