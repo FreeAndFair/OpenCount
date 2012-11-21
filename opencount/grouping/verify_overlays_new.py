@@ -364,7 +364,6 @@ class VerifyOverlays(SplitOverlays):
         self.sizer_exmpls = wx.BoxSizer(wx.VERTICAL)
         self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
 
-
         self.btn_sizer.AddMany([(btn_matches,), (self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
         txt_curlabel0 = wx.StaticText(self, label="Current guess: ")
@@ -739,6 +738,64 @@ class CheckImageEquals(VerifyOverlays):
     def handle_nomoregroups(self):
         self.export_results()
         self.Close()
+
+class SeparateImages(VerifyOverlays):
+    """ A widget that lets a user separate a set of images into different
+    categories, where the number of categories isn't known in advance.
+    """
+    TAG_UNIVERSAL = "TAG"
+
+    def __init__(self, parent, *args, **kwargs):
+        VerifyOverlays.__init__(self, parent, *args, **kwargs)
+        
+    def init_ui(self):
+        VerifyOverlays.init_ui(self)
+
+        self.btn_explode_group = wx.Button(self, label="Explode this group.")
+        self.btn_explode_group.Bind(wx.EVT_BUTTON, self.onButton_explode)
+        self.btn_sizer.Add(self.btn_explode_group)
+        
+        self.sizer_exmpls.ShowItems(False)
+        self.sizer_curlabel.ShowItems(False)
+        self.btn_manual_relabel.Hide()
+
+        self.Layout()
+
+    def start(self, imggroups, do_align=False, bbs_map=None,
+              ondone=None, stateP=None, auto_ondone=False):
+        """
+        Input:
+            dict IMGGROUPS: {tag: [imgpath_i, ...]}
+            dict BBS_MAP: maps {(tag, imgpath): (x1,y1,x2,y2)}
+        """
+        self.stateP = stateP
+        if not self.restore_session():
+            exemplars = [] # No need for exemplars
+            VerifyOverlays.start(self, imggroups, exemplars, None, 
+                                 bbs_map=bbs_map, ondone=ondone, stateP=stateP,
+                                 auto_ondone=auto_ondone)
+            
+    def export_results(self):
+        if self.ondone:
+            verify_results = {} # maps {int id: [imgpath_i, ...]}
+            idx = 0
+            for (tag, groups) in self.finished_groups.iteritems():
+                for group in groups:
+                    verify_results[idx] = group.imgpaths
+                    idx += 1
+            self.ondone(verify_results)
+
+    def onButton_explode(self, evt):
+        """ Add each individual element of the current group into
+        self.finished_groups in their own groups. Used if the user just
+        'gives up' on a particularly bad group overlays.
+        """
+        curgroup = self.get_current_group()
+        newgroups = []
+        for imgpath in curgroup.imgpaths:
+            newgroups.append(Group([imgpath]))
+        self.finished_groups.setdefault(self.TAG_UNIVERSAL, []).extend(newgroups)
+        self.remove_group(curgroup)
 
 class Group(object):
     def __init__(self, imgpaths, tag=None, do_align=False):
@@ -1197,10 +1254,43 @@ def test_verifycategories():
     f.Show()
     app.MainLoop()
 
+def test_separateimages():
+    class TestFrame(wx.Frame):
+        def __init__(self, parent, imggroups, *args, **kwargs):
+            wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
+
+            self.separateimages = SeparateImages(self)
+
+            self.sizer = wx.BoxSizer(wx.VERTICAL)
+            self.sizer.Add(self.separateimages, proportion=1, flag=wx.EXPAND)
+            self.SetSizer(self.sizer)
+            self.Layout()
+
+            self.separateimages.start(imggroups, ondone=self.ondone, auto_ondone=True)
+
+        def ondone(self, verify_results):
+            print "Number of groups:", len(verify_results)
+
+    args = sys.argv[1:]
+    imgsdir = args[0]
+    
+    imggroups = {} # maps {tag: [imgpath_i, ...]}
+    for catdir in os.listdir(imgsdir):
+        cat_fulldir = pathjoin(imgsdir, catdir)
+        for imgname in os.listdir(cat_fulldir):
+            imgpath = pathjoin(cat_fulldir, imgname)
+            imggroups.setdefault('tag', []).append(imgpath)
+
+    app = wx.App(False)
+    f = TestFrame(None, imggroups)
+    f.Show()
+    app.MainLoop()
+
 def main():
     #test_verifyoverlays()
     #test_checkimgequal()
-    test_verifycategories()
+    #test_verifycategories()
+    test_separateimages()
 
 if __name__ == '__main__':
     main()
