@@ -1368,7 +1368,7 @@ def final_grouping(ballots, giventargets, paths, languages):
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     #print ballots
-    pickle.dump((ballots, languages), open("/tmp/aaa", "w"))
+    #pickle.dump((ballots, languages), open("/tmp/aaa", "w"))
     return equ_class(ballots, languages)
 
 def sort_nicely( l ): 
