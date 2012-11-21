@@ -753,22 +753,35 @@ class SeparateImages(VerifyOverlays):
 
         self.btn_explode_group = wx.Button(self, label="Explode this group.")
         self.btn_explode_group.Bind(wx.EVT_BUTTON, self.onButton_explode)
-        self.btn_sizer.Add(self.btn_explode_group)
+        self.btn_realign_imgs = wx.Button(self, label="Re-align images...")
+        self.btn_realign_imgs.Bind(wx.EVT_BUTTON, self.onButton_realign)
+
+        self.btn_sizer.AddMany([(self.btn_explode_group,), (self.btn_realign_imgs,)])
         
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
         self.btn_manual_relabel.Hide()
+        self.btn_realign_imgs.Hide()
 
         self.Layout()
 
     def start(self, imggroups, do_align=False, bbs_map=None,
-              ondone=None, stateP=None, auto_ondone=False):
+              ondone=None, stateP=None, auto_ondone=False,
+              realign_callback=None):
         """
         Input:
             dict IMGGROUPS: {tag: [imgpath_i, ...]}
             dict BBS_MAP: maps {(tag, imgpath): (x1,y1,x2,y2)}
+            fn REALIGN_CALLBACK: If given, this should be given the list
+                of imgpaths to re-align. It will return either:
+                    'okay' -- reload from the old imgepaths
+                    lst imgpaths: -- imgpaths to use in place of the
+                                     old imgpaths.
         """
         self.stateP = stateP
+        self.realign_callback = realign_callback
+        if self.realign_callback:
+            self.btn_realign_imgs.Show()
         if not self.restore_session():
             exemplars = [] # No need for exemplars
             VerifyOverlays.start(self, imggroups, exemplars, None, 
@@ -797,6 +810,28 @@ class SeparateImages(VerifyOverlays):
         self.finished_groups.setdefault(self.TAG_UNIVERSAL, []).extend(newgroups)
         self.remove_group(curgroup)
 
+    def onButton_realign(self, evt):
+        curgroup = self.get_current_group()
+        result = self.realign_callback(curgroup.imgpaths)
+        if result == 'okay':
+            pass
+        else:
+            for i, new_imgpath in enumerate(result):
+                curgroup.imgpaths[i] = new_imgpath
+        # Now, re-compute the overlays for this group
+        overlay_min, overlay_max = curgroup.get_overlays(force=True)
+        minimg_np = iplimage2np(overlay_min)
+        maximg_np = iplimage2np(overlay_max)
+
+        min_bitmap = NumpyToWxBitmap(minimg_np)
+        max_bitmap = NumpyToWxBitmap(maximg_np)
+
+        self.minOverlayImg.SetBitmap(min_bitmap)
+        self.maxOverlayImg.SetBitmap(max_bitmap)
+        
+        self.Layout()
+        self.Refresh()
+
 class Group(object):
     def __init__(self, imgpaths, tag=None, do_align=False):
         self.tag = tag
@@ -806,14 +841,15 @@ class Group(object):
         self.overlay_min = None
         self.overlay_max = None
         self.do_align = do_align
-    def get_overlays(self, bbs_map=None):
+    def get_overlays(self, bbs_map=None, force=False):
         """
         Input:
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2)}
+            bool FORCE: If True, this will re-compute the overlays.
         Output:
             IplImage minimg, IplImage maximg.
         """
-        if not self.overlay_min:
+        if not self.overlay_min or force:
             minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
                                                      rszFac=0.75, bbs_map=bbs_map)
             self.overlay_min = minimg
@@ -1256,8 +1292,10 @@ def test_verifycategories():
 
 def test_separateimages():
     class TestFrame(wx.Frame):
-        def __init__(self, parent, imggroups, *args, **kwargs):
+        def __init__(self, parent, imggroups, altimg, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
+
+            self.altimg = altimg
 
             self.separateimages = SeparateImages(self)
 
@@ -1265,14 +1303,25 @@ def test_separateimages():
             self.sizer.Add(self.separateimages, proportion=1, flag=wx.EXPAND)
             self.SetSizer(self.sizer)
             self.Layout()
-
-            self.separateimages.start(imggroups, ondone=self.ondone, auto_ondone=True)
+            realign_callback = self.realign if altimg != None else None
+            self.separateimages.start(imggroups, ondone=self.ondone, auto_ondone=True,
+                                      realign_callback=realign_callback)
 
         def ondone(self, verify_results):
             print "Number of groups:", len(verify_results)
 
+        def realign(self, imgpaths):
+            out = []
+            for imgpath in imgpaths:
+                out.append(self.altimg)
+            return out
+
     args = sys.argv[1:]
     imgsdir = args[0]
+    try:
+        altimg = args[1]
+    except:
+        altimg = None
     
     imggroups = {} # maps {tag: [imgpath_i, ...]}
     for catdir in os.listdir(imgsdir):
@@ -1282,7 +1331,7 @@ def test_separateimages():
             imggroups.setdefault('tag', []).append(imgpath)
 
     app = wx.App(False)
-    f = TestFrame(None, imggroups)
+    f = TestFrame(None, imggroups, altimg)
     f.Show()
     app.MainLoop()
 
