@@ -135,7 +135,12 @@ class VerifyContestGrouping:
         
         print len(res), map(len,res)
         
-        frame = grouping.view_overlays.ViewOverlaysFrame(None, res, ondone=self.on_verify_done)
+        #frame = grouping.view_overlays.ViewOverlaysFrame(None, res, ondone=self.on_verify_done)
+        # TODO: Provide the 'realign_callback' function for realigning a
+        # set of overlay'd contest patches.
+        frame = grouping.verify_overlays_new.SeparateImagesFrame(None, res, self.on_verify_done,
+                                                                 realign_callback=None)
+        
         frame.Maximize()
         frame.Show()
 

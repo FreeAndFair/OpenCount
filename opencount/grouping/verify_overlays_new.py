@@ -151,6 +151,12 @@ class ViewOverlays(ScrolledPanel):
             bbs_map_v2 = {}
         overlay_min, overlay_max = group.get_overlays(bbs_map=bbs_map_v2)
 
+        wImg, hImg = cv.GetSize(overlay_min)
+        if wImg > hImg:
+            self.set_patch_layout('horizontal')
+        else:
+            self.set_patch_layout('vertical')
+
         minimg_np = iplimage2np(overlay_min)
         maximg_np = iplimage2np(overlay_max)
 
@@ -498,7 +504,8 @@ class VerifyOverlays(SplitOverlays):
         curtag = curgroup.tag
         self.finished_groups.setdefault(curtag, []).append(curgroup)
         self.remove_group(curgroup)
-        print "FinishedGroups:", self.finished_groups
+        self.Layout()
+        self.SetupScrolling()
 
     def onButton_manual_relabel(self, evt):
         dlg = ManualRelabelDialog(self, self.possible_tags)
@@ -760,7 +767,10 @@ class SeparateImages(VerifyOverlays):
         
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
+        self.sizer_diff.ShowItems(False)
+        self.sizer_attrpatch.ShowItems(False)
         self.btn_manual_relabel.Hide()
+        
         self.btn_realign_imgs.Hide()
 
         self.Layout()
@@ -848,6 +858,7 @@ class SeparateImagesFrame(wx.Frame):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.imgpath_groups = imgpath_groups
         self.callback = callback
+        self.realign_callback = realign_callback
         
         self.separatepanel = SeparateImages(self)
 
@@ -860,7 +871,7 @@ class SeparateImagesFrame(wx.Frame):
         for tagid, imgpaths in enumerate(imgpath_groups):
             imggroups[tagid] = imgpaths
 
-        self.separatepanel.start(imggroups, do_align=False, ondone=self.verify_ondone,
+        self.separatepanel.start(imggroups, do_align=False, ondone=self.ondone_verify,
                                  auto_ondone=True, realign_callback=self.realign_callback)
 
         self.Layout()
