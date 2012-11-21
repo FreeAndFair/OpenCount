@@ -70,12 +70,11 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
         width = int(round(w_bc / cols))
         x1 = width * curcol
         cv.SetImageROI(img, shiftROI(bc_roi, (x1, 0, width, h_bc)))
-        decodings.append(decode_barcode(img, n, bc_loc[:], imgP=imgP))
-    #print decodings
-    #pdb.set_trace()
-    dstr_out, bbloc_out, bbstripes_out = get_most_popular(decodings)
+        decodings.append(decode_barcode(img, n, bc_loc[:], xoff=x1, imgP=imgP))
+
+    dstr_out, bbloc_out, bbstripes_out = get_most_popular(decodings, w_bc)
     cv.SetImageROI(img, roi_precrop)
-    #print dstr_out, bbloc_out
+
     if dstr_out == None:
         if len(topbot_pairs) == 1:
             # We tried our best, give up.
@@ -85,7 +84,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
                                 imgP=imgP, cols=cols)
     return dstr_out, bbloc_out, bbstripes_out
 
-def get_most_popular(decodings):
+def get_most_popular(decodings, w_bc):
     decoding = None
     votes = {} # maps {decoded_str: int count}
     othermap = {} # maps {decoded_str: bc_loc}
@@ -98,22 +97,37 @@ def get_most_popular(decodings):
             continue
         if decoded_str not in votes:
             votes[decoded_str] = 1
-            othermap[decoded_str] = (bc_loc, bbstripes)
+            othermap[decoded_str] = [(bc_loc, bbstripes)]
         else:
             votes[decoded_str] += 1
-            othermap[decoded_str] = (bc_loc, bbstripes)
+            othermap[decoded_str].append((bc_loc, bbstripes))
     if votes:
         best_decodedstr = sorted(votes.items(), key=lambda t:t[1])[0][0]
-        best_bcloc, best_bbstripes = othermap[best_decodedstr]
-        return best_decodedstr, best_bcloc, best_bbstripes
+        tuples = othermap[best_decodedstr]
+        # BEST_BBSTRIPES: maps {stripeType: [[x1,y1,w,h], ...]}
+        best_bcloc, best_bbstripes = tuples[int(len(tuples) / 2)]
+        # Correct the BB stripes to encompass the entire width of barcode
+        bbstripes_out = {} 
+        for stripetype, bbs in best_bbstripes.iteritems():
+            newbbs = [(0, y1, w_bc, h) for (x1,y1,w,h) in bbs]
+            bbstripes_out[stripetype] = newbbs
+        return best_decodedstr, best_bcloc, bbstripes_out
     return None, none_bc_loc, None
         
-def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
+def decode_barcode(img, n, bc_loc, xoff=0, debug=False, imgP=None):
     """ Given an image patch IMG that is a tight-bounding box around the 
     barcode, return the decoding.
+    Input:
+        IplImage IMG
+        int N: Number of digits in barcode
+        tuple BC_LOC: [x1,y1,w,h], location of the entire barcode.
+        int XOFF: X offset into the current barcode. Used to correct
+            the x1 for BBSTRIPES_OUT.
+    Output:
+        (str DECODING, list BB, dict BBSTRIPES_OUT)
     """
     img_post = dothreshold(img)
-    cv.SaveImage("_imgpost.png", img_post)
+    #cv.SaveImage("_imgpost.png", img_post)
     #img_post = img
     w_imgpost, h_imgpost = cv.GetSize(img_post)
 
@@ -194,8 +208,6 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
 
     w_narrow, w_wide = infer_narrow_wide(whts)
     b_narrow, b_wide = infer_narrow_wide(blks)
-    #print 'white_narrow, white_wide:', w_narrow, w_wide
-    #print 'black_narrow, black_wide:', b_narrow, b_wide
     if w_narrow == 0 or w_wide == 0 or b_narrow == 0 or b_wide == 0:
         # Default to sensible values if badness happens. 
         w_narrow = 2.0
@@ -216,7 +228,6 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
         if (bars_wht[0] != NARROW or bars_wht[1] != NARROW):
             print "Warning: WHITE Begin-guard not found."
         bars_wht_noguard = bars_wht[2:-1]
-
         for bars_blk in all_bars_blk:
             # I2OF5 always starts and ends with (N,N,N,N) and (W,N,N).
             if (bars_blk[0] != NARROW or bars_blk[1] != NARROW):
@@ -236,7 +247,7 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
             decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
             if len(decoded) != n:
                 continue
-            bbstripes = compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, w_imgpost,
+            bbstripes = compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, w_imgpost, xoff,
                                            w_narrow, w_wide,
                                            b_narrow, b_wide)
             results.append((decoded, bc_loc, bbstripes))
@@ -248,7 +259,7 @@ def decode_barcode(img, n, bc_loc, debug=False, imgP=None):
     else:
         return results[0]
 
-def compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, width,
+def compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, width, xoff,
                        wht_narrow, wht_wide,
                        blk_narrow, blk_wide):
     def helper(ys, bars, width, height_narrow, height_wide, color=None):
@@ -256,9 +267,9 @@ def compute_stripe_bbs(whts_ys, blks_ys, bars_wht, bars_blk, width,
         for i, curbar in enumerate(bars):
             cury = ys[i]
             if curbar == WIDE:
-                out_wide.append([0, cury, width, height_wide])
+                out_wide.append([xoff, cury, width, height_wide])
             else:
-                out_narrow.append([0, cury, width, height_narrow])
+                out_narrow.append([xoff, cury, width, height_narrow])
         return out_narrow, out_wide
     whiteNarrows, whiteWides = helper(whts_ys, bars_wht, width, wht_narrow, wht_wide, 'White')
     blackNarrows, blackWides = helper(blks_ys, bars_blk, width, blk_narrow, blk_wide, 'Black')
@@ -276,59 +287,6 @@ def bars_to_symbols(bars, debug=False):
             return None
         symbols.append(sym)
     return symbols
-
-def find_barcode_loc_hough(I, MAX_LINE_LEN=60, debug=True):
-    """ Given imgpatch I, find a tight boundingbox around the barcode.
-    Output:
-        (x1,y1,w,h)
-    """
-    def distL2(pt1, pt2):
-        return math.sqrt(((pt1[1]-pt2[1])**2.0) + ((pt1[0]-pt2[0])**2.0))
-    Ithr = cv.CreateImage(cv.GetSize(I), I.depth, I.channels)
-    cv.Canny(I, Ithr, 80, 120)
-    storage = cv.CreateMemStorage()
-    RHO = 1
-    THETA = math.pi / 2
-    THRESHOLD = 2 # num votes needed
-    MIN_LINE_LEN = 30
-    MAX_INTRALINE_GAP = 4
-    # list LINES: line segments, of the form: [[(x1,y1), (x2,y2)], ...]
-    lines = cv.HoughLines2(Ithr, storage, cv.CV_HOUGH_PROBABILISTIC, RHO, THETA,
-                           THRESHOLD, param1=MIN_LINE_LEN, param2=MAX_INTRALINE_GAP)
-    HORIZ_LINE_LEN = 46 # Empirical val. for OC
-    # Prune out lines that are too long or not horizontal enough
-    lines_out = []
-    for (pt1, pt2) in lines:
-        dist = distL2(pt1, pt2)
-        angle = math.atan2(abs(pt1[1]-pt2[1]), abs(pt1[0]-pt2[0]))
-        if (abs(angle) <= (math.pi/10)) and (abs(dist-HORIZ_LINE_LEN) <= 5):
-            lines_out.append((pt1, pt2))
-    # TODO: Prune out lines whose x1 is too far from the mean x1
-    # coordinate, idea being that the horiz-lines from the barcode
-    # will be mostly in an area 1-3 pixels wide
-    if debug:
-        colorImg0 = cv.CreateImage(cv.GetSize(I), I.depth, 3)
-        cv.Set(colorImg0, (255, 255, 255))
-        for ((x1,y1), (x2,y2)) in lines:
-            cv.Line(colorImg0, (x1,y1), (x2,y2), (255, 0, 0), thickness=1)
-        cv.SaveImage("_houghlines0.png", colorImg0)
-        colorImg1 = cv.CreateImage(cv.GetSize(I), I.depth, 3)
-        cv.Set(colorImg1, (255, 255, 255))
-        for ((x1,y1), (x2,y2)) in lines_out:
-            cv.Line(colorImg1, (x1,y1), (x2,y2), (255, 0, 0), thickness=1)
-        cv.SaveImage("_houghlines1.png", colorImg1)
-        cv.SaveImage("_houghlines2.png", I)
-    lines_sortX = sorted(lines_out, key=lambda (pt1, pt2): min(pt1[0], pt2[0]))
-    lines_sortY = sorted(lines_out, key=lambda (pt1, pt2): min(pt1[1], pt2[1]))
-    pt1_minx, pt2_minx = lines_sortX[0]
-    pt1_maxx, pt2_maxx = lines_sortX[-1]
-    x1 = min(pt1_minx[0], pt2_minx[0])
-    x2 = max(pt1_maxx[0], pt2_maxx[0])
-    pt1_miny, pt2_miny = lines_sortY[0]
-    pt1_maxy, pt2_maxy = lines_sortY[-1]
-    y1 = min(pt1_miny[1], pt2_miny[1])
-    y2 = max(pt1_maxy[1], pt2_maxy[1])
-    return [x1-5, y1-10, int(x2-x1+5), int(y2-y1+20)]
 
 def find_barcode_loc_tm(I, bc_height, TOP_GUARD, BOT_GUARD, 
                         TOP_WHITE_PAD, BOT_WHITE_PAD, imgP=None):

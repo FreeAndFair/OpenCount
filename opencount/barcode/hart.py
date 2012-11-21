@@ -210,7 +210,7 @@ def main():
         for imgpath in imgpaths:
             bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=True)
             print '{0}: '.format(imgpath), bcs, isflip, bcloc
-            if 'ERR' in bcs[0][0]:
+            if None in bcs:
                 errs.append(imgpath)
                 continue
             if draw_bbs:
@@ -220,6 +220,8 @@ def main():
                 try: os.makedirs(outrootdir)
                 except: pass
                 Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
+                if isflip:
+                    cv.Flip(Icolor, Icolor, flipMode=-1)
                 # 1.) First, draw Barcode boundingbox
                 pt1 = tuple(map(int, (bc_ul[0], bc_ul[1])))
                 pt2 = tuple(map(int, (bc_ul[0]+bc_ul[2], bc_ul[1]+bc_ul[3])))
@@ -230,24 +232,24 @@ def main():
                 Icolor_blackNarrows = cv.CloneImage(Icolor)
                 Icolor_blackWides = cv.CloneImage(Icolor)
                 # 2.) Now, draw stripe boundingboxes
-                for bb in bbstripes['whiteNarrows']:
+                for bb in bbstripes[i2of5.WHITE_NARROW]:
                     pt1 = tuple(map(int, (bb[0], bb[1])))
-                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    pt2 = tuple(map(int, (bb[2], bb[3])))
                     cv.Rectangle(Icolor_whiteNarrows, pt1, pt2,
                                  cv.CV_RGB(0, 0, 255), thickness=1)
-                for bb in bbstripes['whiteWides']:
+                for bb in bbstripes[i2of5.WHITE_WIDE]:
                     pt1 = tuple(map(int, (bb[0], bb[1])))
-                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    pt2 = tuple(map(int, (bb[2], bb[3])))
                     cv.Rectangle(Icolor_whiteWides, pt1, pt2,
                                  cv.CV_RGB(0, 0, 255), thickness=1)
-                for bb in bbstripes['blackNarrows']:
+                for bb in bbstripes[i2of5.BLACK_NARROW]:
                     pt1 = tuple(map(int, (bb[0], bb[1])))
-                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    pt2 = tuple(map(int, (bb[2], bb[3])))
                     cv.Rectangle(Icolor_blackNarrows, pt1, pt2,
                                  cv.CV_RGB(0, 0, 255), thickness=1)
-                for bb in bbstripes['blackWides']:
+                for bb in bbstripes[i2of5.BLACK_WIDE]:
                     pt1 = tuple(map(int, (bb[0], bb[1])))
-                    pt2 = tuple(map(int, (bb[0]+bb[2], bb[1]+bb[3])))
+                    pt2 = tuple(map(int, (bb[2], bb[3])))
                     cv.Rectangle(Icolor_blackWides, pt1, pt2,
                                  cv.CV_RGB(0, 0, 255), thickness=1)
                 outpath0 = os.path.join(outrootdir, 'bc_bb.png')
