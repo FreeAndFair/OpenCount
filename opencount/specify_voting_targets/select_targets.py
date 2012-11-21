@@ -1610,10 +1610,10 @@ def cropout_border(I, top, bot, left, right):
     # TODO: Disable the cropping, due to adverse affects on Yolo
     return I
 
-def align_partitions(partitions, (outrootdir, img2flip), start_pid, queue=None):
+def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queue=None):
     """ 
     Input:
-        list PARTITIONS: list of list of lists, encodes partition+ballot+side.
+        list PARTITIONS: [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
         str OUTROOTDIR: Rootdir to save aligned images to.
     Output:
         dict PARTITIONS_ALIGN: {int partitionID: [BALLOT_i, ...]}
@@ -1623,69 +1623,122 @@ def align_partitions(partitions, (outrootdir, img2flip), start_pid, queue=None):
     # the entire image. Works better than working on the entire image.
     partitions_align = {} # maps {partitionID: [[imgpath_i, ...], ...]}
     t = time.time()
-    for idx, partition in enumerate(partitions):
-        partitionid = start_pid + idx
-        outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
-        try:
-            os.makedirs(outdir)
-        except:
-            pass
-        ballotRef = partition[0]
-        # Remove 20% of image from each side. Helps with global alignment.
-        Irefs = []
-        for side, imP in enumerate(ballotRef):
-            I = shared.standardImread(imP, flatten=True)
-            if img2flip[imP]:
-                I = shared.fastFlip(I)
-            Irefs.append((imP, I))
-        #Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
-        # 0.) First, handle the reference Ballot
-        curBallot = []
-        for side, (Iref_imP, Iref) in enumerate(Irefs):
-            outname = 'bal_{0}_side_{1}.png'.format(0, side)
-            outpath = pathjoin(outdir, outname)
-            #shutil.copy(Iref_imP, outpath)
-            scipy.misc.imsave(outpath, Iref)
-            curBallot.append(outpath)
-        partitions_align[partitionid] = [curBallot]
-        # 1.) Now, align all other Ballots to BALLOTREF
-        for i, ballot in enumerate(partition[1:]):
-            curBallot = []
-            for side, imgpath in enumerate(ballot):
-                Iref_imgP, Iref = Irefs[side]
-                I = shared.standardImread(imgpath, flatten=True)
-                if img2flip[imgpath]:
+    print 'meow'
+    print "...this process is aligning {0} ballots...".format(sum(map(lambda t: len(t[1]), partitions), 0))
+    try:
+        for idx, (partitionid, ballots) in enumerate(partitions):
+            outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
+            try:
+                os.makedirs(outdir)
+            except:
+                pass
+            ballotRef = ballots[0]
+            # Remove 20% of image from each side. Helps with global alignment.
+            Irefs = []
+            for side, imP in enumerate(ballotRef):
+                I = shared.standardImread(imP, flatten=True)
+                if img2flip[imP]:
                     I = shared.fastFlip(I)
-                Icrop = cropout_border(I, 0.2,0.2,0.2,0.2)
-                H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
-                outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
+                Irefs.append((imP, I))
+            #Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
+            # 0.) First, handle the reference Ballot
+            curBallot = []
+            for side, (Iref_imP, Iref) in enumerate(Irefs):
+                outname = 'bal_{0}_side_{1}.png'.format(0, side)
                 outpath = pathjoin(outdir, outname)
-                Ireg = imagesAlign.imtransform(I, H)
-                Ireg = np.nan_to_num(Ireg)
-                scipy.misc.imsave(outpath, Ireg)
+                #shutil.copy(Iref_imP, outpath)
+                scipy.misc.imsave(outpath, Iref)
                 curBallot.append(outpath)
-            partitions_align[partitionid].append(curBallot)
-        if queue:
-            queue.put(True)
-    dur = time.time() - t
-
-    return partitions_align
+            partitions_align[partitionid] = [curBallot]
+            # 1.) Now, align all other Ballots to BALLOTREF
+            for i, ballot in enumerate(ballots[1:]):
+                curBallot = []
+                for side, imgpath in enumerate(ballot):
+                    Iref_imgP, Iref = Irefs[side]
+                    I = shared.standardImread(imgpath, flatten=True)
+                    if img2flip[imgpath]:
+                        I = shared.fastFlip(I)
+                    Icrop = cropout_border(I, 0.2,0.2,0.2,0.2)
+                    H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
+                    outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
+                    outpath = pathjoin(outdir, outname)
+                    Ireg = imagesAlign.imtransform(I, H)
+                    Ireg = np.nan_to_num(Ireg)
+                    scipy.misc.imsave(outpath, Ireg)
+                    curBallot.append(outpath)
+                partitions_align[partitionid].append(curBallot)
+            if queue:
+                queue.put(True)
+        dur = time.time() - t
+        if result_queue:
+            result_queue.put(partitions_align)
+        return partitions_align
+    except:
+        traceback.print_exc()
+        if result_queue:
+            result_queue.put({})
+        return None
 
 def do_align_partitions(partitions, img2flip, outrootdir, manager, queue):
+    """
+    Input:
+        list PARTITIONS[i][j][k] := i-th partition, j-th ballot, k-th side. 
+        dict IMG2FLIP: maps {str imgpath: bool isflipped}
+    Output:
+        dict PARTITIONS_ALIGN. maps {int partitionID: [[imgpath_i, ...], ...]}
+    """
     try:
-        partitions_align = partask.do_partask(align_partitions, 
-                                              partitions,
-                                              _args=(outrootdir, img2flip),
-                                              manager=manager,
-                                              pass_queue=queue,
-                                              pass_idx=True,
-                                              combfn='dict',
-                                              N=None)
+        N = min(multiprocessing.cpu_count(), len(partitions))
+        # Evenly-distribute partitions by partition size.
+        partitions_evenly = divy_lists(partitions, N)
+        pool = multiprocessing.Pool()
+        result_queue = manager.Queue()
+
+        for i,task in enumerate(partitions_evenly):
+            # TASK := [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
+            print "...pool apply async {0}...".format(i)
+            pool.apply_async(align_partitions, args=(task, (outrootdir, img2flip), 
+                                                     queue, result_queue))
+        pool.close()
+        pool.join()
+
+        cnt = 0; num_tasks = len(partitions_evenly)
+        partitions_align = {} 
+        while cnt < num_tasks:
+            subresult = result_queue.get()
+            print '...got result {0}...'.format(cnt)
+            partitions_align = dict(partitions_align.items() + subresult.items())
+            cnt += 1
         return partitions_align
     except:
         traceback.print_exc()
         return None
 
+def divy_lists(lst, N):
+    """ Given a list of sublists (where each sublist may be of unequal
+    size), output N lists of list of sublists, where the size of each 
+    list of sublists is maximized (i.e. ensuring an equal distribution
+    of sublist sizes).
+    Input:
+        list LST[i][j] := j-th element of i-th sublist
+    Output:
+        list OUT[i][j][k] := k-th element of j-th sublist within i-th list.
+    """
+    if len(lst) <= N:
+        return [[[i, l]] for i, l in enumerate(lst)]
+    outlst = [None]*N
+    lst_np = np.array(lst)
+    lstlens = map(lambda l: -len(l), lst_np)
+    lstlens_argsort = np.argsort(lstlens)
+    for i, lst_idx in enumerate(lstlens_argsort):
+        sublist = lst[lst_idx]
+        out_idx = i % N
+        if outlst[out_idx] == None:
+            outlst[out_idx] = [[lst_idx, sublist]]
+        else:
+            outlst[out_idx].append([lst_idx, sublist])
+    return outlst
+    
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.bmp', 'jpeg', '.jpg', '.tif')
 
