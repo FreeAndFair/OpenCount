@@ -143,7 +143,7 @@ class SelectTargetsMainPanel(wx.Panel):
             ballots = groups_align_map[groupid]
             groups_align.append(ballots)
         # Order the displayed groups by size (smallest to largest)
-        groups_sizes = map(len, groups_align)
+        groups_sizes = map(lambda g: -len(g), groups_align)
         groups_sizes_argsort = np.argsort(groups_sizes)
         groups_align_bysize = [groups_align[i] for i in groups_sizes_argsort]
         self.i2groupid = groups_sizes_argsort
@@ -1623,7 +1623,6 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
     # the entire image. Works better than working on the entire image.
     partitions_align = {} # maps {partitionID: [[imgpath_i, ...], ...]}
     t = time.time()
-    print 'meow'
     print "...this process is aligning {0} ballots...".format(sum(map(lambda t: len(t[1]), partitions), 0))
     try:
         for idx, (partitionid, ballots) in enumerate(partitions):
@@ -1696,7 +1695,6 @@ def do_align_partitions(partitions, img2flip, outrootdir, manager, queue):
 
         for i,task in enumerate(partitions_evenly):
             # TASK := [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
-            print "...pool apply async {0}...".format(i)
             pool.apply_async(align_partitions, args=(task, (outrootdir, img2flip), 
                                                      queue, result_queue))
         pool.close()

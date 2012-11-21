@@ -288,12 +288,18 @@ class PartitionPanel(ScrolledPanel):
         self.start_verify(flipmap, verifypatch_bbs)
 
     def start_verify(self, flipmap, verifypatch_bbs):
+        """
+        Input:
+            dict FLIPMAP: maps {str imgpath: bool isflip}
+            dict VERIFYPATCH_BBS: maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+        """
         # 1.) Extract all patches to an outdir
         imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
         bc_val_cnt = {} # maps {bc_val: int cnt}
         bc_val_dircnt = {} # maps {bc_val: int dircnt}
         img_ctr = util.Counter()
+        print "...creating jobs for barcode-patch extraction..."
         for bc_val, tups in verifypatch_bbs.iteritems():
             for (imgpath, (x1,y1,x2,y2), userdata) in tups:
                 i = bc_val_cnt.get(bc_val, None)
@@ -337,6 +343,7 @@ class PartitionPanel(ScrolledPanel):
             For each category CAT_TAG, each group GROUPTAG maps to a set
             of imgpaths that the user claimed is part of GROUPTAG.
         """
+        print "...barcode patch verification done!"
         verified_decodes = {} # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
         for cat_tag, thedict in verify_results.iteritems():
             for bc_val, patchpaths in thedict.iteritems():
@@ -347,7 +354,10 @@ class PartitionPanel(ScrolledPanel):
         for imgpath, label in self.errs_corrected.iteritems():
             if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
                 manual_labeled[imgpath] = label
+        print "...generating partitions..."
+        # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)
+        print "...done generating partitions..."
         # Add in manually-corrected flipped
         for imgpath, isflip in self.errs_flipmap.iteritems():
             flipmap[imgpath] = isflip
@@ -355,6 +365,30 @@ class PartitionPanel(ScrolledPanel):
         self.img2decoding = img2decoding
         self.imginfo = imginfo_map
         self.flipmap = flipmap
+
+        # Finally, sanity check that, within each partition, each ballot
+        # has the same number of pages.
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        bad_ballotids = []
+        for partitionID, ballotids in partitioning.iteritems():
+            num_pages = max([len(bal2imgs[b]) for b in ballotids])
+            cur_bad_ballotids = [b for b in ballotids if len(bal2imgs[b]) != num_pages]
+            if cur_bad_ballotids:
+                print '...REMOVING {0} ballots from partition {1}...'.format(len(cur_bad_ballotids),
+                                                                             partitionID)
+                print "    Should have {0} Pages".format(num_pages)
+                print "    {0}".format([len(bal2imgs[b]) for b in cur_bad_ballotids])
+                                                                                 
+            bad_ballotids.extend(cur_bad_ballotids)
+            cur_bad_ballotids = set(cur_bad_ballotids)
+            ballotids[:] = [b for b in ballotids if b not in cur_bad_ballotids]
+        # For each 'bad' ballotid, add them into its own new partition
+        print "...There were {0} ballotids with anomalous page numbers. \
+Adding to separate partitions...".format(len(bad_ballotids))
+        curPartId = len(self.partitioning)
+        for badballotid in bad_ballotids:
+            self.partitioning[curPartId] = [badballotid]
+            curPartId += 1
 
         # Export results.
         self.GetParent().export_results()

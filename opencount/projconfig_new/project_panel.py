@@ -261,6 +261,9 @@ def load_projects(projdir):
     dummy_proj = Project()
     #for dirpath, dirnames, filenames in os.walk(projdir):
     #    for f in filenames:
+    try: os.makedirs(projdir)
+    except: pass
+
     for subfolder in os.listdir(projdir):
         if os.path.isdir(pathjoin(projdir, subfolder)):
             for f in os.listdir(pathjoin(projdir, subfolder)):
