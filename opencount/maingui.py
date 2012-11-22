@@ -142,6 +142,9 @@ class MainFrame(wx.Frame):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
 
+        if self.project:
+            self.project.save()
+
         if new >= MainFrame.SELTARGETS:
             if not os.path.exists(pathjoin(self.project.projdir_path,
                                            self.project.group_to_ballots)):

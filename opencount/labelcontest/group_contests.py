@@ -1,5 +1,5 @@
 from PIL import Image, ImageDraw
-import os, sys, pdb
+import os, sys, pdb, traceback
 import time
 import random
 sys.path.append('..')
@@ -1335,11 +1335,14 @@ def find_contests(t, paths, giventargets):
     return ballots
 
 def group_given_contests_map(arg):
-    vendor,lang_map,giventargets,(i,(f,conts)) = arg
-    print f
-    im = load_num(f)
-    lang = lang_map[f] if f in lang_map else 'eng'
-    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
+    try:
+        vendor,lang_map,giventargets,(i,(f,conts)) = arg
+        print f
+        im = load_num(f)
+        lang = lang_map[f] if f in lang_map else 'eng'
+        return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
+    except:
+        traceback.print_exc()
         
 def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}):
     global tmp
