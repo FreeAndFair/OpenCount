@@ -918,6 +918,15 @@ class SeparateImages(VerifyOverlays):
         self.remove_group(curgroup)
 
     def do_realign(self):
+        """ Calls the self.REALIGN_CALLBACK function with the (ordered) list
+        of imgpaths of the currently-displayed group, and expects one
+        of the following return values:
+            'okay' -- The overlays should re-compute the min/max overlays
+                      of the current group with the old imgpaths.
+            lst IMGPATHS -- Replace the group's list of imagepaths with
+                            the new IMGPATHS, and re-compute the min/max
+                            overlays with this.
+        """
         curgroup = self.get_current_group()
         result = self.realign_callback(curgroup.imgpaths)
         if result == 'okay':
