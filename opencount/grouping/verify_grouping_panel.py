@@ -10,7 +10,7 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import common
-from verify_overlays_new import VerifyOrFlagOverlays, VerifyOverlaysMultCats
+from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlays, VerifyOverlaysMultCats
 import digit_group_new
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
@@ -36,8 +36,6 @@ class VerifyGroupingMainPanel(wx.Panel):
         self.init_ui()
 
     def init_ui(self):
-        #self.verify_panel = VerifyOrFlagOverlays(self)
-        #self.verify_panel = VerifyBallotAttributs(self)
         self.verify_panel = VerifyBallotOverlaysMultCats(self)
         
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -74,7 +72,7 @@ class VerifyGroupingMainPanel(wx.Panel):
         self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
                                 patch2imgpath, digpatch2imgpath,
                                 ondone=self.on_verify_done, do_align=True, 
-                                verifypanelClass=VerifyBallotAttributes)
+                                verifypanelClass=VerifyBallotAttributesPanel)
         self.Layout()
 
     def stop(self):
@@ -318,6 +316,11 @@ class VerifyGroupingMainPanel(wx.Panel):
         pickle.dump(list(qballots), open(pathjoin(self.proj.projdir_path,
                                                   self.proj.grouping_quarantined), 'wb'))
 
+class VerifyBallotAttributesPanel(VerifyOrFlagOverlaysPanel):
+    def set_classes(self):
+        VerifyOrFlagOverlaysPanel.set_classes(self)
+        self.overlaypanelCls = VerifyBallotAttributes
+
 class VerifyBallotAttributes(VerifyOrFlagOverlays):
     def __init__(self, parent, *args, **kwargs):
         VerifyOrFlagOverlays.__init__(self, parent, *args, **kwargs)
@@ -367,9 +370,9 @@ class VerifyBallotAttributes(VerifyOrFlagOverlays):
 
     def onButton_quarantine(self, evt):
         curgroup = self.get_current_group()
-        VerifyOrFlagOverlays.onButton_quarantine(self, evt)
+        VerifyOrFlagOverlays.do_quarantine(self)
         # Also remove ballots from CURGROUP from every attribute
-        self.GetParent().GetParent().apply_quarantine(curgroup.imgpaths)
+        self.GetParent().GetParent().GetParent().apply_quarantine(curgroup.imgpaths)
         
 class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
     def start(self, proj, imgpath_cats, cat_exemplars, patch2imgpath,

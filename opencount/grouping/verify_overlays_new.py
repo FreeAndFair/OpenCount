@@ -15,24 +15,41 @@ import make_overlays
 import util
 import cluster_imgs
 
-class VerifyOverlaysMainPanel(wx.Panel):
+class ViewOverlaysPanel(ScrolledPanel):
+    """ Class that contains both a Header, a ViewOverlays, and a Footer. """
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+        ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        self.set_classes()
+        self.init_ui()
 
-        self.proj = None
-        self.stateP = None
+    def set_classes(self):
+        self.headerCls = wx.Panel
+        self.overlaypanelCls = ViewOverlays
+        self.footerCls = wx.Panel
 
-    def start(self, proj, stateP):
-        self.proj = proj
-        self.stateP = stateP
+    def init_ui(self):
+        self.header = self.headerCls(self)
+        self.overlaypanel = self.overlaypanelCls(self)
+        self.footer = self.footerCls(self)
 
-        self.verifyoverlays.start()
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.header, border=5, flag=wx.ALL)
+        self.sizer.Add(self.overlaypanel, border=5, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.footer, border=5, flag=wx.ALL)
 
-    def stop(self):
-        self.export_results()
+        self.SetSizer(self.sizer)
+        self.Layout()
+        self.SetupScrolling()
 
-    def export_results(self):
-        pass
+    def start(self, *args, **kwargs):
+        self.overlaypanel.start(*args, **kwargs)
+        self.Layout()
+        self.SetupScrolling()
+
+    def save_session(self, *args, **kwargs):
+        self.overlaypanel.save_session(*args, **kwargs)
+    def export_results(self, *args, **kwargs):
+        self.overlaypanel.export_results(*args, **kwargs)
 
 class ViewOverlays(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -167,6 +184,7 @@ class ViewOverlays(ScrolledPanel):
         self.maxOverlayImg.SetBitmap(max_bitmap)
         
         self.Layout()
+        self.SetupScrolling()
 
         return self.idx
 
@@ -260,15 +278,21 @@ class ViewOverlays(ScrolledPanel):
         if self.groups:
             self.select_group(idx)
 
-class SplitOverlays(ViewOverlays):
-    def __init__(self, parent, *args, **kwargs):
-        ViewOverlays.__init__(self, parent, *args, **kwargs)
+class SplitOverlaysPanel(ViewOverlaysPanel):
+    """ Class that contains both a Header, a SplitOverlays, and a Button
+    Toolbar Footer. """
+    def set_classes(self):
+        ViewOverlaysPanel.set_classes(self)
+        self.headerCls = wx.Panel
+        self.overlaypanelCls = SplitOverlays
+        self.footerCls = SplitOverlaysFooter
 
-        self.splitmode = 'kmeans'
-        
+class SplitOverlaysFooter(wx.Panel):
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+
+        self.init_ui()
     def init_ui(self):
-        ViewOverlays.init_ui(self)
-        
         btn_split = wx.Button(self, label="Split...")
         btn_split.Bind(wx.EVT_BUTTON, self.onButton_split)
         btn_setsplitmode = wx.Button(self, label="Set Split Mode...")
@@ -279,8 +303,23 @@ class SplitOverlays(ViewOverlays):
         self.btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_sizer.Add(sizer_split)
 
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+
         self.sizer.Add(self.btn_sizer, proportion=0, border=10, flag=wx.ALL)
+
+        self.SetSizer(self.sizer)
         self.Layout()
+
+    def onButton_split(self, evt):
+        self.GetParent().overlaypanel.do_split()
+    def onButton_setsplitmode(self, evt):
+        self.GetParent().overlaypanel.do_setsplitmode()
+
+class SplitOverlays(ViewOverlays):
+    def __init__(self, parent, *args, **kwargs):
+        ViewOverlays.__init__(self, parent, *args, **kwargs)
+
+        self.splitmode = 'kmeans'
 
     def start(self, imgpath_groups, do_align=False, bbs_map=None, stateP=None):
         """
@@ -299,14 +338,14 @@ class SplitOverlays(ViewOverlays):
                 self.add_group(group)
         self.select_group(0)
 
-    def onButton_split(self, evt):
+    def do_split(self):
         curgroup = self.get_current_group()
         groups = curgroup.split(mode=self.splitmode)
         for group in groups:
             self.add_group(group)
         self.remove_group(curgroup)
 
-    def onButton_setsplitmode(self, evt):
+    def do_setsplitmode(self):
         if not isinstance(self.get_current_group(), VerifyGroup):
             disabled = [ChooseSplitModeDialog.ID_RANKEDLIST]
         else:
@@ -330,27 +369,17 @@ class SplitOverlays(ViewOverlays):
             splitmode = 'kmediods'
         self.splitmode = splitmode
 
-class VerifyOverlays(SplitOverlays):
-    def __init__(self, parent, *args, **kwargs):
-        SplitOverlays.__init__(self, parent, *args, **kwargs)
+class VerifyOverlaysPanel(SplitOverlaysPanel):
+    """ Class that contains both a Header, a VerifyOverlays, and a Button
+    Toolbar Footer. """
+    def set_classes(self):
+        SplitOverlaysPanel.set_classes(self)
+        self.overlaypanelCls = VerifyOverlays
+        self.footerCls = VerifyOverlaysFooter
 
-        # dict self.EXEMPLAR_IMGPATHS: {str grouptag: [str exmpl_imgpath_i, ...]}
-        self.exemplar_imgpaths = {}
-        # self.RANKEDLIST_MAP: maps {str imgpath: (groupID_0, groupID_1, ...)}
-        self.rankedlist_map = {}
-        # self.FINISHED_GROUPS: maps {tag: [obj group_i, ...]}, where
-        # tag is the group that the user finalized on.
-        self.finished_groups = {}
-
-        # self.EXMPLIDX_SEL: The exemplaridx that the user has currently selected
-        self.exmplidx_sel = None
-
-        # self.ONDONE: A callback function to call when verifying is done.
-        self.ondone = None
-
+class VerifyOverlaysFooter(SplitOverlaysFooter):
     def init_ui(self):
-        SplitOverlays.init_ui(self)
-        
+        SplitOverlaysFooter.init_ui(self)
         btn_matches = wx.Button(self, label="Matches")
         btn_matches.Bind(wx.EVT_BUTTON, self.onButton_matches)
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")
@@ -379,6 +408,33 @@ class VerifyOverlays(SplitOverlays):
         self.sizer.Add(self.sizer_curlabel, proportion=0, flag=wx.ALIGN_CENTER)
 
         self.Layout()
+
+    def onButton_matches(self, evt):
+        self.GetParent().overlaypanel.do_matches()
+    def onButton_manual_relabel(self, evt):
+        self.GetParent().overlaypanel.do_manual_relabel()
+    def onButton_nextexmpl(self, evt):
+        self.GetParent().overlaypanel.do_nextexmpl()
+    def onButton_prevexmpl(self, evt):
+        self.GetParent().overlaypanel.do_prevexmpl()
+
+class VerifyOverlays(SplitOverlays):
+    def __init__(self, parent, *args, **kwargs):
+        SplitOverlays.__init__(self, parent, *args, **kwargs)
+
+        # dict self.EXEMPLAR_IMGPATHS: {str grouptag: [str exmpl_imgpath_i, ...]}
+        self.exemplar_imgpaths = {}
+        # self.RANKEDLIST_MAP: maps {str imgpath: (groupID_0, groupID_1, ...)}
+        self.rankedlist_map = {}
+        # self.FINISHED_GROUPS: maps {tag: [obj group_i, ...]}, where
+        # tag is the group that the user finalized on.
+        self.finished_groups = {}
+
+        # self.EXMPLIDX_SEL: The exemplaridx that the user has currently selected
+        self.exmplidx_sel = None
+
+        # self.ONDONE: A callback function to call when verifying is done.
+        self.ondone = None
 
     def start(self, imgpath_groups, group_exemplars, rlist_map, 
               do_align=False, bbs_map=None, ondone=None, auto_ondone=False,
@@ -489,9 +545,9 @@ class VerifyOverlays(SplitOverlays):
         self.exmplidx_sel = exmpl_idx
         self.exemplarImg.SetBitmap(exemplarImg_bitmap)
         self.txt_exemplarTag.SetLabel(str(grouptag))
-        self.txt_curexmplidx.SetLabel(str(exmpl_idx+1))
-        self.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
-        self.txt_curlabel.SetLabel(str(grouptag))
+        self.GetParent().footer.txt_curexmplidx.SetLabel(str(exmpl_idx+1))
+        self.GetParent().footer.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
+        self.GetParent().footer.txt_curlabel.SetLabel(str(grouptag))
         self.Layout()
 
     def handle_nomoregroups(self):
@@ -499,7 +555,10 @@ class VerifyOverlays(SplitOverlays):
         if self.auto_ondone:
             self.stop()
 
-    def onButton_matches(self, evt):
+    def do_matches(self):
+        """ Handles the scenario where the user says, "The current overlays
+        indeed match and look fine."
+        """
         curgroup = self.groups[self.idx]
         curtag = curgroup.tag
         self.finished_groups.setdefault(curtag, []).append(curgroup)
@@ -507,21 +566,42 @@ class VerifyOverlays(SplitOverlays):
         self.Layout()
         self.SetupScrolling()
 
-    def onButton_manual_relabel(self, evt):
+    def do_manual_relabel(self):
+        """ The user clicked the 'Manual Relabel this Group' """
         dlg = ManualRelabelDialog(self, self.possible_tags)
         status = dlg.ShowModal()
         if status == wx.CANCEL:
             return
         sel_tag = dlg.tag
         self.select_exmpl_group(sel_tag, self.get_current_group().exmpl_idx)
-    def onButton_nextexmpl(self, evt):
+    def do_nextexmpl(self):
+        """ The user wants to see the next exemplar patch. """
         curtag = self.get_current_group().tag
         nextidx = self.exmplidx_sel + 1
         self.select_exmpl_group(curtag, nextidx)
-    def onButton_prevexmpl(self, evt):
+    def do_prevexmpl(self):
+        """ The user wants to see the previous exemplar patch. """
         curtag = self.get_current_group().tag
         previdx = self.exmplidx_sel - 1
         self.select_exmpl_group(curtag, previdx)
+
+class VerifyOrFlagOverlaysPanel(VerifyOverlaysPanel):
+    """ Class that contains both a Header, a VerifyOrFlagOverlays, and a Button
+    Toolbar Footer. """
+    def set_classes(self):
+        VerifyOverlaysPanel.set_classes(self)
+        self.overlaypanelCls = VerifyOrFlagOverlays
+        self.footerCls = VerifyOrFlagOverlaysFooter
+
+class VerifyOrFlagOverlaysFooter(VerifyOverlaysFooter):
+    def init_ui(self):
+        VerifyOverlaysFooter.init_ui(self)
+        self.btn_quarantine = wx.Button(self, label="Quarantine")
+        self.btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
+        self.btn_sizer.Add(self.btn_quarantine)
+        self.Layout()
+    def onButton_quarantine(self, evt):
+        self.GetParent().overlaypanel.do_quarantine()
 
 class VerifyOrFlagOverlays(VerifyOverlays):
     """ A widget that lets you either verify overlays, or flag a group
@@ -532,13 +612,6 @@ class VerifyOrFlagOverlays(VerifyOverlays):
 
         # list self.QUARANTINED_GROUPS: List of [obj group_i, ...]
         self.quarantined_groups = None
-
-    def init_ui(self):
-        VerifyOverlays.init_ui(self)
-        
-        self.btn_quarantine = wx.Button(self, label="Quarantine")
-        self.btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
-        self.btn_sizer.Add(self.btn_quarantine)
 
     def start(self, *args, **kwargs):
         self.quarantined_groups = []
@@ -582,7 +655,8 @@ class VerifyOrFlagOverlays(VerifyOverlays):
         state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
         return state
 
-    def onButton_quarantine(self, evt):
+    def do_quarantine(self):
+        """ The user wants to quarantine the currently-displayed group. """
         curgroup = self.get_current_group()
         self.quarantined_groups.append(curgroup)
         self.remove_group(curgroup)
@@ -621,7 +695,7 @@ class VerifyOverlaysMultCats(wx.Panel):
             If True, then this will align all imgpatches when overlaying.
         """
         if verifypanelClass == None:
-            verifypanelClass = VerifyOverlays
+            verifypanelClass = VerifyOverlaysPanel
         categories = tuple(set(imgpath_cats.keys()))
         self.imgpath_cats = imgpath_cats
         self.cat_exemplars = cat_exemplars
@@ -680,6 +754,31 @@ class VerifyOverlaysMultCats(wx.Panel):
             if self.ondone:
                 self.ondone(self.verify_results_cat)
 
+class CheckImageEqualsPanel(VerifyOverlaysPanel):
+    """ Class that contains both a Header, a CheckImageEquals, and a Button
+    Toolbar Footer. """
+    def set_classes(self):
+        VerifyOverlaysPanel.set_classes(self)
+        self.overlaypanelCls = CheckImageEquals
+        self.footerCls = CheckImageEqualsFooter
+
+class CheckImageEqualsFooter(VerifyOverlaysFooter):
+    def init_ui(self):
+        VerifyOverlaysFooter.init_ui(self)
+        btn_no = wx.Button(self, label="Doesn't Match")
+        btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
+        
+        self.btn_sizer.Add(btn_no)
+
+        self.btn_manual_relabel.Hide()
+        self.sizer_exmpls.ShowItems(False)
+        self.sizer_curlabel.ShowItems(False)
+
+        self.Layout()
+
+    def onButton_no(self, evt):
+        self.GetParent().overlaypanel.do_no()
+
 class CheckImageEquals(VerifyOverlays):
     """ A widget that lets the user separate a set of images into two
     categories:
@@ -693,20 +792,6 @@ class CheckImageEquals(VerifyOverlays):
 
         self.cat_imgpath = None
         
-    def init_ui(self):
-        VerifyOverlays.init_ui(self)
-
-        btn_no = wx.Button(self, label="Doesn't Match")
-        btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
-        
-        self.btn_sizer.Add(btn_no)
-
-        self.btn_manual_relabel.Hide()
-        self.sizer_exmpls.ShowItems(False)
-        self.sizer_curlabel.ShowItems(False)
-
-        self.Layout()
-
     def start(self, imgpaths, cat_imgpath, do_align=False, bbs_map=None,
               ondone=None, stateP=None):
         """
@@ -738,7 +823,8 @@ class CheckImageEquals(VerifyOverlays):
         self.exemplarImg.SetBitmap(bitmap)
         self.Layout()
 
-    def onButton_no(self, evt):
+    def do_no(self):
+        """ The user says that the current group does NOT match category A. """
         curgroup = self.get_current_group()
         self.finished_groups.setdefault(self.TAG_NO, []).append(curgroup)
         self.remove_group(curgroup)
@@ -746,34 +832,45 @@ class CheckImageEquals(VerifyOverlays):
         self.export_results()
         self.Close()
 
-class SeparateImages(VerifyOverlays):
-    """ A widget that lets a user separate a set of images into different
-    categories, where the number of categories isn't known in advance.
-    """
-    TAG_UNIVERSAL = "TAG"
+class SeparateImagesPanel(VerifyOverlaysPanel):
+    """ Class that contains both a Header, a CheckImageEquals, and a Button
+    Toolbar Footer. """
+    def set_classes(self):
+        VerifyOverlaysPanel.set_classes(self)
+        self.overlaypanelCls = SeparateImages
+        self.footerCls = SeparateImagesFooter
 
-    def __init__(self, parent, *args, **kwargs):
-        VerifyOverlays.__init__(self, parent, *args, **kwargs)
-        
+class SeparateImagesFooter(VerifyOverlaysFooter):
     def init_ui(self):
-        VerifyOverlays.init_ui(self)
-
+        VerifyOverlaysFooter.init_ui(self)
         self.btn_explode_group = wx.Button(self, label="Explode this group.")
         self.btn_explode_group.Bind(wx.EVT_BUTTON, self.onButton_explode)
         self.btn_realign_imgs = wx.Button(self, label="Re-align images...")
         self.btn_realign_imgs.Bind(wx.EVT_BUTTON, self.onButton_realign)
 
         self.btn_sizer.AddMany([(self.btn_explode_group,), (self.btn_realign_imgs,)])
-        
+
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
-        self.sizer_diff.ShowItems(False)
-        self.sizer_attrpatch.ShowItems(False)
         self.btn_manual_relabel.Hide()
-        
         self.btn_realign_imgs.Hide()
 
         self.Layout()
+    def onButton_explode(self, evt):
+        self.GetParent().overlaypanel.do_explode()
+    def onButton_realign(self, evt):
+        self.GetParent().overlaypanel.do_realign()
+
+class SeparateImages(VerifyOverlays):
+    """ A widget that lets a user separate a set of images into different
+    categories, where the number of categories isn't known in advance.
+    """
+    TAG_UNIVERSAL = "TAG"
+
+    def init_ui(self):
+        VerifyOverlays.init_ui(self)
+        self.sizer_diff.ShowItems(False)
+        self.sizer_attrpatch.ShowItems(False)
 
     def start(self, imggroups, do_align=False, bbs_map=None,
               ondone=None, stateP=None, auto_ondone=False,
@@ -808,7 +905,7 @@ class SeparateImages(VerifyOverlays):
                     idx += 1
             self.ondone(verify_results)
 
-    def onButton_explode(self, evt):
+    def do_explode(self):
         """ Add each individual element of the current group into
         self.finished_groups in their own groups. Used if the user just
         'gives up' on a particularly bad group overlays.
@@ -820,7 +917,7 @@ class SeparateImages(VerifyOverlays):
         self.finished_groups.setdefault(self.TAG_UNIVERSAL, []).extend(newgroups)
         self.remove_group(curgroup)
 
-    def onButton_realign(self, evt):
+    def do_realign(self):
         curgroup = self.get_current_group()
         result = self.realign_callback(curgroup.imgpaths)
         if result == 'okay':
@@ -860,7 +957,7 @@ class SeparateImagesFrame(wx.Frame):
         self.callback = callback
         self.realign_callback = realign_callback
         
-        self.separatepanel = SeparateImages(self)
+        self.separatepanel = SeparateImagesPanel(self)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.separatepanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
@@ -1230,7 +1327,7 @@ def test_verifyoverlays():
 
             self.imggroups = imggroups
 
-            self.viewoverlays = VerifyOverlays(self)#ViewOverlays(self)
+            self.viewoverlays = VerifyOverlaysPanel(self)
 
             self.sizer = wx.BoxSizer(wx.VERTICAL)
             self.sizer.Add(self.viewoverlays, proportion=1, flag=wx.EXPAND)
@@ -1275,7 +1372,7 @@ def test_checkimgequal():
         def __init__(self, parent, imgpaths, catimgpath, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
-            self.chkimgequals = CheckImageEquals(self)
+            self.chkimgequals = CheckImageEqualsPanel(self)
 
             self.sizer = wx.BoxSizer(wx.VERTICAL)
             self.sizer.Add(self.chkimgequals, proportion=1, flag=wx.EXPAND)
@@ -1352,7 +1449,7 @@ def test_separateimages():
 
             self.altimg = altimg
 
-            self.separateimages = SeparateImages(self)
+            self.separateimages = SeparateImagesPanel(self)
 
             self.sizer = wx.BoxSizer(wx.VERTICAL)
             self.sizer.Add(self.separateimages, proportion=1, flag=wx.EXPAND)
@@ -1391,10 +1488,10 @@ def test_separateimages():
     app.MainLoop()
 
 def main():
-    #test_verifyoverlays()
+    test_verifyoverlays()
     #test_checkimgequal()
     #test_verifycategories()
-    test_separateimages()
+    #test_separateimages()
 
 if __name__ == '__main__':
     main()

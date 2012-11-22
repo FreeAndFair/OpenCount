@@ -140,7 +140,6 @@ class VerifyContestGrouping:
         # set of overlay'd contest patches.
         frame = grouping.verify_overlays_new.SeparateImagesFrame(None, res, self.on_verify_done,
                                                                  realign_callback=None)
-        
         frame.Maximize()
         frame.Show()
 

@@ -1047,7 +1047,7 @@ class VerifyOverlayFrame(wx.Frame):
         """
         wx.Frame.__init__(self, parent)
 
-        verifypanel = verify_overlays_new.CheckImageEquals(self)
+        verifypanel = verify_overlays_new.CheckImageEqualsPanel(self)
         verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=True)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
