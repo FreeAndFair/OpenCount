@@ -716,7 +716,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     if vendor:
         boxes = vendor.split_contest_to_targets(image, contest, targets)
     else:
-        boxes = Vendor.Vendor().split_contest_to_targets(image, contest, targets)
+        boxes = Vendor.Vendor(None).split_contest_to_targets(image, contest, targets)
 
     l,u,r,d = contest
     blocks = []
