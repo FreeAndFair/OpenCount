@@ -1,5 +1,9 @@
+import sys, os, time, pdb
+
 import cv
-import sys
+
+sys.path.append('..')
+import grouping.tempmatch as tempmatch
 
 """
 A script that decodes Sequoia-style barcodes into 01 bitstrings.
@@ -18,6 +22,36 @@ TODO:
     - Integration into Vendor interface
 """
 
+MARK_ON = "ON"
+MARK_OFF = "OFF"
+
+def decode(imgpath, Izero, Ione):
+    """ Assumes that IZERO, IONE are already smoothed.
+    Input:
+        str IMGPATH
+        IplImage IZERO: 
+        IplImage IONE: 
+    Output:
+        (list DECODINGS, bool ISFLIPPED, dict MARK_LOCS)
+    DECODINGS: [str decoding_i, ...]
+        If an error in decoding occured, then DECODINGS is None.
+    ISFLIPPED: True if the image is flipped, False o.w.
+    MARK_LOCS: maps {str ON/OFF: [(x1,y1,x2,y2), ...]}
+    """
+    I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Ismooth = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
+    isflip = False
+    decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
+    if decodings == None:
+        # Try flip
+        isflip = True
+        cv.Flip(Ismooth, Ismooth, flipMode=-1)
+        decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
+    if decodings == None:
+        # Give up.
+        return None, None, None
+    return decodings, isflip, mark_locs
+
 def crop(img, left, top, new_width, new_height):
     """Crops img, returns the region defined by (left, top, new_width,
     new_height)
@@ -33,178 +67,183 @@ def crop(img, left, top, new_width, new_height):
 
 def crop_rough_left(img):
     """Roughly crops the upper left barcode region."""
+    w_img, h_img = cv.GetSize(img)
     x_per = 0.0
-    #x2_per = 0.07917
     x2_per = 0.11
-    #y_per = 0.02604
     y_per = 0.02
     y2_per = 0.13542
-    width = int((x2_per - x_per) * img.width)
-    height = int((y2_per - y_per) * img.height)
-    return crop(img, int(x_per * img.width), int(y_per * img.height), width, height)
+    x1 = int(round(w_img * x_per))
+    y1 = int(round(h_img * y_per))
+    width = int(round(((x2_per - x_per) * w_img)))
+    height = int(round(((y2_per - y_per) * h_img)))
+    return crop(img, x1, y1, width, height), (x1,y1)
 
 def crop_rough_right(img):
     """Roughly crops the upper right barcode region."""
-    #x_per = 0.89167
+    w_img, h_img = cv.GetSize(img)
     x_per = 0.89
     x2_per = 1.0
     y_per = 0.02
     y2_per = 0.13542
-    width = int((x2_per - x_per) * img.width)
-    height = int((y2_per - y_per) * img.height)
-    return crop(img, int(x_per * img.width), int(y_per * img.height), width, height)
+    x1 = int(round(w_img * x_per))
+    y1 = int(round(h_img * y_per))
+    width = int(round(((x2_per - x_per) * w_img)))
+    height = int(round(((y2_per - y_per) * h_img)))
+    return crop(img, x1, y1, width, height), (x1,y1)
 
-def processImg(img, template_zero, template_one):
+def processImg(img, template_zero, template_one, imgpath):
     """ The pipeline for processing one image:
         1) crop out two rough barcode regions from the image
         2) run template matching against it with two templates with criteria,
            retrieving the best matches
         3) process matching result, transform into 01-bitstring
     """
-    rough_left_barcode = crop_rough_left(img)
-    rough_right_barcode = crop_rough_right(img)
-    cv.SaveImage("rough_left_barcode.png", rough_left_barcode)
-    cv.SaveImage("rough_right_barcode.png", rough_right_barcode)
+    rough_left_barcode, offsetLeft = crop_rough_left(img)
+    rough_right_barcode, offsetRight = crop_rough_right(img)
+    #cv.SaveImage("_rough_left_barcode.png", rough_left_barcode)
+    #cv.SaveImage("_rough_right_barcode.png", rough_right_barcode)
+    #cv.SaveImage("_template_zero.png", template_zero)
+    #cv.SaveImage("_template_one.png", template_one)
 
+    # LEFT_ZERO_BEST_LOCS: {int imgidx: [(x1,y1,x2,y2,score), ...]}
+    # Note: Both IMG and the templates have already been smoothed.
+    left_zero_best_locs = tempmatch.get_tempmatches(template_zero, [rough_left_barcode], 
+                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
+    left_one_best_locs = tempmatch.get_tempmatches(template_one, [rough_left_barcode], 
+                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
+    right_zero_best_locs = tempmatch.get_tempmatches(template_zero, [rough_right_barcode], 
+                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
+    right_one_best_locs = tempmatch.get_tempmatches(template_one, [rough_right_barcode],
+                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
+    
+    left_locs0, left_locs1 = postprocess_locs(left_zero_best_locs, left_one_best_locs)
+    right_locs0, right_locs1 = postprocess_locs(right_zero_best_locs, right_one_best_locs)
 
-    left_zero_best_locs = bestMatchedLocs(rough_left_barcode, template_zero)
-    left_one_best_locs = bestMatchedLocs(rough_left_barcode, template_one)
-    right_zero_best_locs = bestMatchedLocs(rough_right_barcode, template_zero)
-    right_one_best_locs = bestMatchedLocs(rough_right_barcode, template_one)
+    bit_string = [transformToBits((left_locs0, left_locs1), rough_left_barcode),
+                  transformToBits((right_locs0, right_locs1), rough_right_barcode)]
+    
+    if len(bit_string[0]) != 8 or len(bit_string[1]) != 8:
+        print "...Uh oh, bad bit string lengths {0} {1}".format(len(bit_string[0]), len(bit_string[1]))
+        return None, None
 
-    left_best_locs = postprocess_locs(left_zero_best_locs, left_one_best_locs)
-    right_best_locs = postprocess_locs(right_zero_best_locs, right_one_best_locs)
+    # Also correct the offsets from the crop done.
+    xOffL, yOffL = offsetLeft
+    xOffR, yOffR = offsetRight
+    off_tups = [(imgpath, (x1+xOffL, y1+yOffL, x2+xOffL, y2+yOffL), None) for (x1,y1,x2,y2,score) in left_locs0]
+    off_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), None) for (x1,y1,x2,y2,score) in right_locs0])
 
-    bit_string = [transformToBits(left_best_locs, rough_left_barcode),
-            transformToBits(right_best_locs, rough_right_barcode)]
+    on_tups = [(imgpath, (x1+xOffL,y1+yOffL,x2+xOffL,y2+yOffL), None) for (x1,y1,x2,y2,score) in left_locs1]
+    on_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), None) for (x1,y1,x2,y2,score) in right_locs1])
+    
+    marks_out = {MARK_ON: on_tups, MARK_OFF: off_tups}
 
-    return bit_string
+    return bit_string, marks_out
 
 def postprocess_locs(zero_locs, one_locs):
     """Post processing the locations:
         - sort them by height
-        - delete the potential false positive for the top bar
-        - ensure every loc's width is roughly the same
+        - check for a possible false positive (top bar)
     """
     zero_locs = sorted(zero_locs, key=lambda tup: tup[1])
     one_locs = sorted(one_locs, key=lambda tup: tup[1])
-
-    del(one_locs[0])
-
-    zero_locs = iterative_validate_width(zero_locs)
-    one_locs = iterative_validate_width(one_locs)
-
-    return [zero_locs, one_locs]
-
-def iterative_validate_width(locs):
-    for i in range(1, len(locs) - 1):
-        if abs(locs[i][0] - locs[i - 1][0]) > 10 and abs(locs[i][0] - locs[i + 1][0]) > 10:
-            del(locs[i])
-            return iterative_validate_width(locs)
-            
-    if len(locs) > 1 and abs(locs[0][0] - locs[1][0]) > 10:
-        del(locs[0])
-    if len(locs) > 1 and abs(locs[len(locs) - 1][0] - locs[len(locs) - 2][0]) > 10:
-        del(locs[len(locs) - 1])
-    return locs
-
+    return zero_locs, one_locs
 
 def transformToBits(best_locs, img):
     """Assumes best_locs are the correct locations (except that in one_locs,
     the loc with smallest height is a false positive, namely the top bar).
+    Also, the BEST_LOCS are sorted by height.
     """
     zero_locs = best_locs[0]
     one_locs = best_locs[1]
 
-    i = 0
-    j = 0
-    bit_string = ""
-
-    while i < len(zero_locs) and j < len(one_locs):
-        if zero_locs[i][1] < one_locs[j][1]:
-            bit_string = bit_string + '0'
-            i += 1
-        else:
-            bit_string = bit_string + '1'
-            j += 1
-
-    while i < len(zero_locs):
-        bit_string = bit_string + '0'
-        i += 1
-    while j < len(one_locs):
-        bit_string = bit_string + '1'
-        j += 1
+    zero_bits = ['0' for _ in zero_locs]
+    one_bits = ['1' for _ in one_locs]
+    # (Neat trick to interleave two sequences)
+    bit_string = "".join(filter(lambda x: x != None, sum(map(None, zero_bits, one_bits), ())))
 
     return bit_string
 
-def bestMatchedLocs(src_img, template):
-    """After finding a best location, marks the region which has the best
-    location as its upper left and is covered by a region of size of template
-    as absolutely irrelevant (-1). In addition, prevent locations with similar
-    height. Returns a list of best matched locations.
+def isimgext(f):
+    return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.jpeg', '.jpg', '.bmp')
+
+def rescale_img(I, w0, h0, w1, h1):
+    """ Rescales I from image with dimensions (w0,h0) to one with dimensions
+    (w1,h1).
     """
-    h_src = src_img.height
-    w_src = src_img.width
-    h_temp = template.height
-    w_temp = template.width
-    lastMaxVal = -1.0
-    threshold = 0.2
-    best_locs = []
-    threshold_reached = False
-    res_mat = cv.CreateMat(h_src - h_temp + 1, w_src - w_temp + 1, cv.CV_32F)
-    cv.MatchTemplate(src_img, template, res_mat, cv.CV_TM_CCOEFF_NORMED)
-
-    while len(best_locs) < 8 and not threshold_reached:
-        minVal, maxVal, minLoc, maxLoc = cv.MinMaxLoc(res_mat)
-        if len(best_locs) == 0 or abs(maxVal - lastMaxVal) < threshold:
-            if possible_duplicate(best_locs, maxLoc[1], 10):
-                fill(res_mat, maxLoc[0], w_temp, maxLoc[1], h_temp, -1.0)
-                continue
-            best_locs.append(maxLoc)
-            if len(best_locs) == 1:
-                lastMaxVal = maxVal
-        elif abs(maxVal - lastMaxVal) >= threshold:
-            threshold_reached = True
-            continue
-
-        fill(res_mat, maxLoc[0], w_temp, maxLoc[1], h_temp, -1.0)
-    return best_locs
-
-
-def possible_duplicate(locs, loc_h, min_dis=5):
-    """Judge if loc_h is within min_dis of any loc inside locs."""
-    for loc in locs:
-        if abs(loc[1] - loc_h) <= min_dis:
-            return True
-    return False
-
-def fill(res_mat, w, w_len, h, h_len, val):
-    reached = False
-    for x in range(1, w_len):
-        for y in range(1, h_len):
-            if w + x > res_mat.cols or h + y > res_mat.height:
-                continue
-            else:
-                if res_mat[h + y - 1, w + x - 1] == val:
-                    reached = True
-                    break
-                else:
-                    res_mat[h + y - 1, w + x - 1] = val
-        if reached:
-            break
-
+    w, h = cv.GetSize(I)
+    c = float(w0) / float(w1)
+    new_w, new_h = int(round(w / c)), int(round(h / c))
+    outImg = cv.CreateImage((new_w, new_h), I.depth, I.channels)
+    cv.Resize(I, outImg, cv.CV_INTER_CUBIC)
+    return outImg
 
 def main():
-    template_one_path = "template_one.png"
-    template_zero_path = "template_zero.png"
+    args = sys.argv[1:]
+    arg0 = args[0]
+    outdir = args[1]
+    if os.path.isdir(arg0):
+        imgpaths = []
+        for dirpath, dirnames, filenames in os.walk(arg0):
+            for imgname in [f for f in filenames if isimgext(f)]:
+                imgpaths.append(os.path.join(dirpath, imgname))
+    else:
+        imgpaths = [arg0]
 
-    if len(sys.argv) > 1:
-        img_paths = sys.argv[1:]
-        for img_path in img_paths:
-            print processImg(cv.LoadImageM(img_path,
-                cv.CV_LOAD_IMAGE_GRAYSCALE), cv.LoadImageM(template_zero_path,
-                    cv.CV_LOAD_IMAGE_GRAYSCALE),
-                cv.LoadImageM(template_one_path, cv.CV_LOAD_IMAGE_GRAYSCALE))
+    ORIG_IMG_W = 1968
+    ORIG_IMG_H = 3530
+
+    template_zero_path = "sequoia_template_zero_skinny.png"
+    template_one_path = "sequoia_template_one_skinny.png"
+
+    Izero = cv.LoadImage(template_zero_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Ione = cv.LoadImage(template_one_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+
+    # Rescale IZERO/IONE to match this dataset's image dimensions
+    exmpl_imgsize = cv.GetSize(cv.LoadImage(imgpaths[0]))
+    if exmpl_imgsize != (ORIG_IMG_W, ORIG_IMG_H):
+        print "...rescaling images..."
+        Izero = rescale_img(Izero, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
+        Ione = rescale_img(Ione, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
+
+    Izero = tempmatch.smooth(Izero, 3, 3, bordertype='const', val=255.0)
+    Ione = tempmatch.smooth(Ione, 3, 3, bordertype='const', val=255.0)
+
+    t = time.time()
+    err_imgpaths = []
+    for imgpath in imgpaths:
+        decodings, isflip, marklocs = decode(imgpath, Izero, Ione)
+        print "For imgpath {0}:".format(imgpath)
+        if decodings == None:
+            print "    ERROR"
+        else:
+            print "    {0} isflip={1}".format(decodings, isflip)
+        
+        if decodings == None: 
+            err_imgpaths.append(imgpath)
+            continue
+        # Output colorful image with interpretation displayed nicely
+        Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
+        if isflip:
+            cv.Flip(Icolor, Icolor, flipMode=-1)
+        for marktype, tups in marklocs.iteritems():
+            if marktype == MARK_ON:
+                color = cv.CV_RGB(0, 0, 255)
+            else:
+                color = cv.CV_RGB(255, 0, 0)
+            for (imgpath, (x1,y1,x2,y2), userdata) in tups:
+                cv.Rectangle(Icolor, (x1, y1), (x2, y2), color, thickness=2)
+        imgname = os.path.split(imgpath)[1]
+        outrootdir = os.path.join(outdir, imgname)
+        try: os.makedirs(outrootdir)
+        except: pass
+        outpath = os.path.join(outrootdir, "{0}_bbs.png".format(os.path.splitext(imgname)[0]))
+        cv.SaveImage(outpath, Icolor)
+
+    dur = time.time() - t
+    print "...Finished Decoding {0} images ({1} s).".format(len(imgpaths), dur)
+    print "    Avg. Time per Ballot: {0} s".format(dur / float(len(imgpaths)))
+    print "    Number of Errors: {0}".format(len(err_imgpaths))
+    print "Done."
 
 if __name__ == '__main__':
     main()
