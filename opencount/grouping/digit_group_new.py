@@ -89,7 +89,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
             y1, y2, x1, x2 = patchcoords[i]
             digpatchP = pathjoin(digitpatch_outdir, rp, "{0}_dig{1}_{2}.png".format(imgname, digit, i))
             entry.append([digit, (x1,y1,x2,y2), scores[i], digpatchP])
-            extract_jobs.append((imgpath, (x1,y1,x2,y2), digpatchP))
+            extract_jobs.append((imgpath, (x1,y1,x2,y2), digpatchP, img2flip[imgpath]))
             digpatch2imgpath[digpatchP] = (imgpath, i)
         row = (ocrstr, imgpath, entry)
         dresults[id] = row
@@ -114,12 +114,14 @@ def do_extract_digitpatches(jobs):
     partask.do_partask(extract_digitpatch, jobs, N=1)
 
 def extract_digitpatch(jobs, args):
-    for (imgpath, (x1,y1,x2,y2), outpath) in jobs:
+    for (imgpath, (x1,y1,x2,y2), outpath, isflip) in jobs:
         try:
             os.makedirs(os.path.split(outpath)[0])
         except:
             pass
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+        if isflip:
+            cv.Flip(I, I, flipMode=-1)
         cv.SetImageROI(I, tuple(map(int, (x1,y1,x2-x1, y2-y1))))
         cv.SaveImage(outpath, I)
     return True

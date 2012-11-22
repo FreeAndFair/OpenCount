@@ -1288,6 +1288,8 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
                                                proj.partitions_map), 'rb'))
     img2page = pickle.load(open(pathjoin(proj.projdir_path,
                                          proj.image_to_page), 'rb'))
+    img2flip = pickle.load(open(pathjoin(proj.projdir_path,
+                                         proj.image_to_flip), 'rb'))
     # Randomly choose NUM_EXMPLS ballots from the election
     num_ballots = len(bal2imgs)
     chosen_bids = set()
@@ -1311,7 +1313,7 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
         tasks.append((ballotid, imgpaths_ordered))
     return partask.do_partask(extract_digitbased_patches,
                               tasks,
-                              _args=(digit_attrtypes, proj),
+                              _args=(digit_attrtypes, proj, img2flip),
                               combfn=_my_combfn,
                               init={},
                               pass_idx=True,
@@ -1320,7 +1322,7 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
 def _my_combfn(results, subresults):
     return dict(results.items() + subresults.items())
 
-def extract_digitbased_patches(tasks, (digit_attrtypes, proj), idx):
+def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
     i = 0
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
     patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, int side)}
@@ -1328,6 +1330,8 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj), idx):
         for templateid, imgpaths in tasks:
             imgpath = imgpaths[side]
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            if img2flip[imgpath]:
+                cv.Flip(I, I, flipMode=-1)
             cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
             attrs_sorted = sorted(attrs)
             attrs_sortedstr = '_'.join(attrs_sorted)
