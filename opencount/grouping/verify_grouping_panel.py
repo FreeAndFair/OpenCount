@@ -10,7 +10,7 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import common
-from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlays, VerifyOverlaysMultCats
+from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
 import digit_group_new
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
@@ -320,6 +320,14 @@ class VerifyBallotAttributesPanel(VerifyOrFlagOverlaysPanel):
     def set_classes(self):
         VerifyOrFlagOverlaysPanel.set_classes(self)
         self.overlaypanelCls = VerifyBallotAttributes
+        self.footerCls = VerifyBallotAttributesFooter
+
+class VerifyBallotAttributesFooter(VerifyOrFlagOverlaysFooter):
+    def onButton_quarantine(self, evt):
+        curgroup = self.GetParent().overlaypanel.get_current_group()
+        self.GetParent().overlaypanel.do_quarantine()
+        # Also remove ballots from CURGROUP from every attribute
+        self.GetParent().GetParent().GetParent().apply_quarantine(curgroup.imgpaths)
 
 class VerifyBallotAttributes(VerifyOrFlagOverlays):
     def __init__(self, parent, *args, **kwargs):
@@ -368,12 +376,6 @@ class VerifyBallotAttributes(VerifyOrFlagOverlays):
             removeit = set(removeit)
             group.imgpaths = [imP for imP in group.imgpaths if imP not in removeit]
 
-    def onButton_quarantine(self, evt):
-        curgroup = self.get_current_group()
-        VerifyOrFlagOverlays.do_quarantine(self)
-        # Also remove ballots from CURGROUP from every attribute
-        self.GetParent().GetParent().GetParent().apply_quarantine(curgroup.imgpaths)
-        
 class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
     def start(self, proj, imgpath_cats, cat_exemplars, patch2imgpath,
               digpatch2imgpath, do_align=False,
@@ -424,8 +426,8 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
             # with IMGPATH as an element.
             for p in pages:
                 verifypanel = self.nb.GetPage(p)
-                verifypanel.remove_element_with(imgpath)
-                verifypanel.update_listbox()
+                verifypanel.overlaypanel.remove_element_with(imgpath)
+                verifypanel.overlaypanel.update_listbox()
 
     def on_cat_done(self, verify_results, quarantine_results):
         """ Called when a category is finished overlay verification.
