@@ -78,17 +78,22 @@ class SelectAttributesMasterPanel(wx.Panel):
             partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                          proj.partition_exmpls), 'rb'))
             # Randomly choose self.NUM_EXMPLS ballots from the election
-            num_ballots = len(b2imgs)
+            bal2partition = pickle.load(open(pathjoin(proj.projdir_path,
+                                                      proj.partitions_invmap), 'rb'))
+            candidate_balids = bal2partition.keys()
+            num_ballots = len(candidate_balids)
+            
             chosen_ballotids = set()
             if num_ballots <= self.NUM_EXMPLS:
-                chosen_ballotids = set(b2imgs.keys())
+                chosen_ballotids = set(candidate_balids)
             else:
                 _cnt = 0
                 UPPER = min(self.NUM_EXMPLS, num_ballots)
                 while _cnt < UPPER:
-                    bid = random.randrange(num_ballots)
-                    if bid not in chosen_ballotids:
-                        chosen_ballotids.add(bid)
+                    idx = random.randrange(num_ballots)
+                    balid = candidate_balids[idx]
+                    if balid not in chosen_ballotids:
+                        chosen_ballotids.add(balid)
                         _cnt += 1
             blanks = [] # list of [[path_page0, path_page1, ...], ...]
             for ballotid in chosen_ballotids:

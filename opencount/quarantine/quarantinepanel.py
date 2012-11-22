@@ -59,16 +59,14 @@ class MainPanel(wx.Panel):
         
         self.proj = proj
 
-        image_to_ballot = pickle.load(open(self.proj.image_to_ballot))
-        ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
+        image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        ballot_to_images = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))
 
-        #self.qfiles = sorted(list(set(sum([ballot_to_images[image_to_ballot[x]] for x in self.qfiles], []))))
         self.qfiles = []
         for ballotid in qballotids:
             imgpaths = ballot_to_images[ballotid]
-            imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-            self.qfiles.extend(imgpaths_ordered)
+            self.qfiles.extend(imgpaths)
         self.qfiles = sorted(list(set(self.qfiles)))
 
         self.count = 0
@@ -530,3 +528,26 @@ def get_quarantined_ballots(proj):
         lines = [int(l) for l in lines if l != '']
         qballotids.extend(lines)
     return list(set(qballotids))
+
+def get_discarded_ballots(proj):
+    discarded_balids = []
+    if os.path.exists(pathjoin(proj.projdir_path, proj.partition_discarded)):
+        discarded_balids.extend(pickle.load(open(pathjoin(proj.projdir_path,
+                                                          proj.partition_discarded), 'rb')))
+    if os.path.exists(proj.quarantine_internal):
+        # Bit hacky: Peer into QuarantinePanel's internal state
+        bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
+        # Recreate the qfiles data structure...
+        qballotids = list(sorted(get_quarantined_ballots(proj)))
+        qfiles  = []
+        for qballotid in qballotids:
+            qfiles.extend(bal2imgs[qballotid])
+        qfiles = sorted(list(set(qfiles)))
+        data, discardlist, attributes = pickle.load(open(proj.quarantine_internal, 'rb'))
+        for i, isDiscard in enumerate(discardlist):
+            if isDiscard:
+                imgpath = qfiles[i]
+                discarded_balids.append(img2bal[imgpath])
+        
+    return list(set(discarded_balids))

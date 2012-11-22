@@ -707,7 +707,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
     print 'ATTR: ', attrName, ': done'
     return results
 
-def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2flip,
+def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2flip, badballotids,
                    patchesH, grpmode_map, patchDir_root, stopped, proj, verbose=False, deleteall=True):
     """
     Input:
@@ -715,6 +715,7 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
                   {str imgpath: List of [(y1,y2,x1,x2), str attrtype, str attrval, str side]},
                 where 'side' is either 'front' or 'back'.
       dict GRPMODE_MAP: maps {attrtype: bool is_grp_per_partition}
+      list BADBALLOTIDS: List of quarantined/discarded ballot ids. 
       ballotD:
       patchDir_root: Root directory to store voted image attribute patches
       stopped:
@@ -741,8 +742,10 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                 in_bal2imgs[exmpl_bid] = imgpaths_ordered
         else:
-            # Run grouping on /every/ voted ballot
-            in_bal2imgs = bal2imgs
+            # Run grouping on /every/ voted ballot, minus quarantined/discarded ballots
+            in_bal2imgs = bal2imgs.copy()
+            for badballotid in badballotids:
+                in_bal2imgs.pop(badballotid)
         patchDestDir = patchDir_root + '-' + attrtype
         # list RESULT: [[ballotid, attrtype, outdict], ...]
         result = groupByAttr(in_bal2imgs,img2page,img2flip,attrtype, side, attrMap,

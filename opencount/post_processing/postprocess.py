@@ -10,7 +10,7 @@ import csv
 from os.path import join as pathjoin
 from util import encodepath
 import util
-from quarantine.quarantinepanel import get_quarantined_ballots
+from quarantine.quarantinepanel import get_quarantined_ballots, get_discarded_ballots
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -283,8 +283,12 @@ class ResultsPanel(ScrolledPanel):
         cvr.writerow(headerstr)
 
         full_cvr = []
+        discarded_balids = get_discarded_ballots(self.proj)
         print 'And now going up to', len(ballot_to_images)
         for i,(ballotid,images) in enumerate(ballot_to_images.items()):
+            # Ignore discarded ballots
+            if ballotid in discarded_balids:
+                continue
             if i%1000 == 0: print 'on', i
             #print "----"
             #print ballot
@@ -292,7 +296,9 @@ class ResultsPanel(ScrolledPanel):
             #print "----"
             # Store the cvr for the full ballot
             ballot_cvr = {}
-            images = sorted(images, key=lambda imP: img2page[imP])
+            # I don't think we need images to be sorted (problematic for 
+            # quarantined ballots)
+            #images = sorted(images, key=lambda imP: img2page[imP])
             for image in images:
                 if image in image_cvr:
                     #print 'imcvr', image_cvr[image]

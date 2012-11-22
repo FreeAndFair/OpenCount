@@ -14,7 +14,7 @@ GRP_PER_BALLOT = 0
 GRP_PER_PARTITION = 1 
 
 def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
-                   partition_exmpls, 
+                   partition_exmpls, badballotids,
                    img2page, img2flip, attrinfo, digitexemplars_map,
                    digitpatch_outdir, voteddir_root, digpatch2imgpath_outP,
                    mode=GRP_PER_PARTITION):
@@ -24,6 +24,8 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
         dict IMG2B:
         dict PARTITIONS_MAP:
         dict PARTITIONS_INVMAP:
+        dict PARTITIONS_EXMPLS:
+        list BADBALLOTIDS: List of quarantined/discarded ballot ids.
         dict IMG2PAGE:
         dict IMG2FLIP: maps {str imgpath: bool isflip}
         dict ATTRINFO: [x1,y1,x2,y2,attrtype,page,numdigits,digitdist]
@@ -49,6 +51,8 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
                 flip_map[imgpath] = img2flip[imgpath]
     else:
         for ballotID, imgpaths in b2imgs.iteritems():
+            if ballotID in badballotids:
+                continue
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             d_imgpaths.append(imgpaths_ordered[page])
         flip_map = img2flip

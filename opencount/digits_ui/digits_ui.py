@@ -1291,17 +1291,18 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
     img2flip = pickle.load(open(pathjoin(proj.projdir_path,
                                          proj.image_to_flip), 'rb'))
     # Randomly choose NUM_EXMPLS ballots from the election
-    num_ballots = len(bal2imgs)
+    candidate_balids = sum(partitions_map.values(), [])
+    num_ballots = len(candidate_balids)
     chosen_bids = set()
     if num_ballots <= NUM_EXMPLS:
-        chosen_bids = set(bal2imgs.keys())
+        chosen_bids = set(candidate_balids)
     else:
         _cnt = 0
-        ballot_ids = bal2imgs.keys()
         while _cnt < NUM_EXMPLS:
-            bid = random.randrange(num_ballots)
-            if bid not in chosen_bids:
-                chosen_bids.add(bid)
+            idx = random.randrange(num_ballots)
+            balid = candidate_balids[idx]
+            if balid not in chosen_bids:
+                chosen_bids.add(balid)
                 _cnt += 1
 
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,

@@ -157,13 +157,15 @@ class RunGroupingMainPanel(wx.Panel):
             for attrval, exmpls in multexemplars_map[attrtype].iteritems():
                 for (subpatchP, exmplpath, (x1,y1,x2,y2)) in exmpls:
                     patches.setdefault(exmplpath, []).append([(y1,y2,x1,x2), attrtype, attrval, side])
+        # Grab the quarantined/discarded ballot ids
+        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj)
         print "...Running Extract Attrvals..."
         patchDestDir_root = pathjoin(self.proj.projdir_path, 'grp_outpatches')
         t = time.time()
         stopped = lambda : False
         # dict RESULTS: {int ballotID: {str attrtype: dict outdict}}
         results = doGrouping.groupImagesMAP(b2imgs, partitions_map, partition_exmpls,
-                                            img2page, img2flip, patches, grpmode_map,
+                                            img2page, img2flip, badballotids, patches, grpmode_map,
                                             patchDestDir_root, stopped, self.proj)
         dur = time.time() - t
         print "...Finished Running Extract Attrvals ({0} s).".format(dur)
@@ -185,6 +187,8 @@ class RunGroupingMainPanel(wx.Panel):
                                              self.proj.image_to_flip), 'rb'))
         digitexemplars_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                        self.proj.digit_exemplars_map), 'rb'))
+        # Grab the quarantined/discarded ballot ids
+        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj)
         all_results = {} # maps {str attrtype: dict results}
         MODE = get_digitgroup_mode(self.proj)
         digitpatch_dir = pathjoin(self.proj.projdir_path, self.proj.digitpatch_dir)
@@ -201,6 +205,7 @@ class RunGroupingMainPanel(wx.Panel):
                             attrtypestr, attr['side'], attr['num_digits'], self.digitdist]
                 results = digit_group_new.do_digit_group(b2imgs, img2b, partitions_map,
                                                          partitions_invmap, partition_exmpls,
+                                                         badballotids,
                                                          img2page, img2flip, attrinfo,
                                                          digitexemplars_map, digitpatch_dir,
                                                          voteddir_root,
@@ -308,3 +313,18 @@ def get_digitgroup_mode(proj):
             return GRP_PER_PARTITION if attr['grp_per_partition'] else GRP_PER_BALLOT
     print "uhoh, shouldn't get here."
     raise Exception
+
+def get_quarantined_bals(proj):
+    """ Returns a list of all ballotids quarantined prior to grouping
+    (i.e. during Partitioning).
+    """
+    qbals = pickle.load(open(pathjoin(proj.projdir_path,
+                                      proj.partition_quarantined), 'rb'))
+    return list(set(qbals))
+def get_discarded_bals(proj):
+    """ Returns a list of all ballotids discarded prior to grouping 
+    (i.e. during Partitioning).
+    """
+    discarded_bals = pickle.load(open(pathjoin(proj.projdir_path,
+                                               proj.partition_discarded), 'rb'))
+    return list(set(discarded_bals))
