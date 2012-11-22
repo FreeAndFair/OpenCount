@@ -296,9 +296,6 @@ class ResultsPanel(ScrolledPanel):
             #print "----"
             # Store the cvr for the full ballot
             ballot_cvr = {}
-            # I don't think we need images to be sorted (problematic for 
-            # quarantined ballots)
-            #images = sorted(images, key=lambda imP: img2page[imP])
             for image in images:
                 if image in image_cvr:
                     #print 'imcvr', image_cvr[image]
