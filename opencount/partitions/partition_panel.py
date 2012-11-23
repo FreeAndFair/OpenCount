@@ -315,13 +315,15 @@ class PartitionPanel(ScrolledPanel):
                 rp = os.path.splitext(os.path.relpath(os.path.abspath(imgpath), os.path.abspath(self.proj.voteddir)))[0]
                 outpath = pathjoin(outrootdir, rp, "{0}_{1}.png".format(imgname, img_ctr[imgpath]))
                 img_ctr[imgpath] += 1
-                tag = (bc_val, userdata)
+                # use the loc as the ID, in case USERDATA isn't used
+                ID = (x1,y1,x2,y2) 
+                tag = (bc_val, userdata, ID)
                 isflip = flipmap[imgpath]
                 imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), isflip, outpath, tag))
                 i += 1
         print '...extracting...'
         t = time.time()
-        img2patch, patch2stuff = extract_patches.extract(imgpatches, do_threshold=35)
+        img2patch, patch2stuff = extract_patches.extract(imgpatches)
         dur = time.time() - t
         print '...done extracting ({0} s)...'.format(dur)
         cattag = 'BarcodeCategory'
@@ -329,7 +331,8 @@ class PartitionPanel(ScrolledPanel):
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         for bc_val, tups in verifypatch_bbs.iteritems():
             for (imgpath, (x1,y1,x2,y2), userdata) in tups:
-                patchpath = img2patch[(imgpath, (bc_val, userdata))]
+                id = (x1,y1,x2,y2)
+                patchpath = img2patch[(imgpath, (bc_val, userdata, id))]
                 imgcats.setdefault(cattag, {}).setdefault(bc_val, []).append(patchpath)
         callback = lambda verifyRes: self.on_verify_done(verifyRes, patch2stuff, flipmap, verifypatch_bbs)
         f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
@@ -348,7 +351,7 @@ class PartitionPanel(ScrolledPanel):
         for cat_tag, thedict in verify_results.iteritems():
             for bc_val, patchpaths in thedict.iteritems():
                 for patchpath in patchpaths:
-                    imgpath, bb, (bc_val_this, userdata) = patch2stuff[patchpath]
+                    imgpath, bb, (bc_val_this, userdata, id) = patch2stuff[patchpath]
                     verified_decodes.setdefault(bc_val, []).append((imgpath, bb, userdata))
         manual_labeled = {} # maps {str imgpath: str label}
         for imgpath, label in self.errs_corrected.iteritems():

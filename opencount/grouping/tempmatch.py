@@ -28,7 +28,7 @@ def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
     Output:
         dict {str IMGPATH: (x1, y1, float score)}.
     """
-    if type(A) == str:
+    if type(A) in (str, unicode):
         A_im = cv.LoadImage(A, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         A_im = A
@@ -38,8 +38,12 @@ def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
         A_im = smooth(A_im, xwinA, ywinA)
     w_A, h_A = cv.GetSize(A_im)
     results = {}
-    for imgpath in imgpaths:
-        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    for i, imgpath in enumerate(imgpaths):
+        if type(imgpath) in (str, unicode):
+            I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        else:
+            I = imgpath
+            imgpath = i
         if do_smooth in (SMOOTH_BOTH_BRD, SMOOTH_IMG_BRD):
             I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
         elif do_smooth in (SMOOTH_BOTH, SMOOTH_IMG):

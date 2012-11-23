@@ -1,4 +1,5 @@
 import sys, os, time, pdb
+from os.path import join as pathjoin
 
 import cv
 
@@ -9,37 +10,63 @@ import grouping.tempmatch as tempmatch
 A script that decodes Sequoia-style barcodes into 01 bitstrings.
 
 Usage:
-    python sequoia.py [List of Images]
+    python sequoia.py [image directory or image path]
 
 Assumptions:
-    - Intensity, sizes, and alignment of images are rougly the same within a
-      ballot.
+    - Intensity is are rougly the same within a ballot.
     - Two sample templates, one for 0 one for 1, have been cropped out
       manually.
-
-TODO:
-    - Overlay verification
-    - Integration into Vendor interface
+    - A symbol indicating the side is present. x
 """
+
+# Get this script's directory. Necessary to know this information
+# since the current working directory may not be the same as where
+# this script lives (which is important for loading resources like
+# imgs)
+try:
+    MYDIR = os.path.abspath(os.path.dirname(__file__))
+except NameError:
+    # This script is being run directly
+    MYDIR = os.path.abspath(sys.path[0])
+
+# Original Image Dimensions that the timing mark and side symbol example
+# patches were extracted from (used to allow rescaling of patches to
+# match current image resolution).
+ORIG_IMG_W = 1968
+ORIG_IMG_H = 3530
+
+ZERO_IMGPATH = pathjoin(MYDIR, "sequoia_template_zero_skinny.png")
+ONE_IMGPATH = pathjoin(MYDIR, "sequoia_template_one_skinny.png")
+SIDESYM_IMGPATH = pathjoin(MYDIR, "sequoia_side_symbol.png")
+
+LEFT = "L"
+RIGHT = "R"
 
 MARK_ON = "ON"
 MARK_OFF = "OFF"
 
-def decode(imgpath, Izero, Ione):
+def decode(imgpath, Izero, Ione, _imgpath=None):
     """ Assumes that IZERO, IONE are already smoothed.
     Input:
-        str IMGPATH
+        str/IplImage IMGPATH: If this is passed in as an IplImage, then
+            it is already smoothed, and _IMGPATH is the path to the image.
         IplImage IZERO: 
-        IplImage IONE: 
+        IplImage IONE:
     Output:
         (list DECODINGS, bool ISFLIPPED, dict MARK_LOCS)
     DECODINGS: [str decoding_i, ...]
         If an error in decoding occured, then DECODINGS is None.
     ISFLIPPED: True if the image is flipped, False o.w.
-    MARK_LOCS: maps {str ON/OFF: [(x1,y1,x2,y2), ...]}
+    MARK_LOCS: maps {str ON/OFF: [(imgpath, (x1,y1,x2,y2), left/right), ...]}
     """
-    I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    Ismooth = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
+    if type(imgpath) in (str, unicode):
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        Ismooth = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
+    else:
+        I = imgpath
+        Ismooth = imgpath
+        imgpath = _imgpath
+
     isflip = False
     decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
     if decodings == None:
@@ -51,6 +78,55 @@ def decode(imgpath, Izero, Ione):
         # Give up.
         return None, None, None
     return decodings, isflip, mark_locs
+
+def compute_side(I, Isidesym):
+    """ Sequoia ballots have the property that you can tell which side
+    the ballot is based on the location of ISIDESYM (a unique, distinctive
+    symbol). If ISIDESYM is found on the upper-right, then I is a front-side
+    image. If ISIDESYM is found on the upper-left, then I is a back-side image.
+
+    Finally, if ISIDESYM isn't on the image at all, then this is a single-sided
+    ballot (weird!). However, this means that COMPUTE_SIDE won't know if this
+    ballot upside-down or not.
+    Output:
+        (int SIDE, bool ISFLIP). 0 if it's a front, 1 if it's a back.
+    """
+    w_img, h_img = cv.GetSize(I)
+    x1_per = 0.0039
+    y1_per = 0.0026
+    x2_per = 0.9783
+    y2_per = 0.1205
+    x1 = int(round(x1_per * w_img))
+    y1 = int(round(y1_per * h_img))
+    x2 = int(round(x2_per * w_img))
+    y2 = int(round(y2_per * h_img))
+    w_sidesym, h_sidesym = cv.GetSize(Isidesym)
+    cv.SetImageROI(I, (x1,y1,x2-x1,y2-y1))
+    (x1_mat, y1_mat, score) = tempmatch.bestmatch(Isidesym, [I], do_smooth=tempmatch.SMOOTH_NONE)[0]
+    if score <= 0.83:
+        # It might be upside down?
+        cv.SetImageROI(I, (x1, h_img - y2, x2, h_img - y1))
+        (x1_mat, y1_mat, score) = tempmatch.bestmatch(Isidesym, [I], do_smooth=tempmatch.SMOOTH_NONE)[0]
+        cv.ResetImageROI(I)
+        x1_mat_frac = x1_mat / float(w_img)
+        if score <= 0.83:
+            # This must be a single-sided ballot?
+            return 0, None # Don't know the ISFLIP in this case.
+        elif x1_mat_frac >= 0.75:
+            return 1, True
+        elif x1_mat_frac <= 0.255:
+            return 0, True
+        else:
+            # Badness!
+            return None, None
+    cv.ResetImageROI(I)
+    x1_mat_frac = x1_mat / float(w_img)
+    if x1_mat_frac >= 0.75:
+        return 0, False
+    elif x1_mat_frac <= 0.255:
+        return 1, False
+    else:
+        return None, None
 
 def crop(img, left, top, new_width, new_height):
     """Crops img, returns the region defined by (left, top, new_width,
@@ -129,11 +205,11 @@ def processImg(img, template_zero, template_one, imgpath):
     # Also correct the offsets from the crop done.
     xOffL, yOffL = offsetLeft
     xOffR, yOffR = offsetRight
-    off_tups = [(imgpath, (x1+xOffL, y1+yOffL, x2+xOffL, y2+yOffL), None) for (x1,y1,x2,y2,score) in left_locs0]
-    off_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), None) for (x1,y1,x2,y2,score) in right_locs0])
+    off_tups = [(imgpath, (x1+xOffL, y1+yOffL, x2+xOffL, y2+yOffL), LEFT) for (x1,y1,x2,y2,score) in left_locs0]
+    off_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), RIGHT) for (x1,y1,x2,y2,score) in right_locs0])
 
-    on_tups = [(imgpath, (x1+xOffL,y1+yOffL,x2+xOffL,y2+yOffL), None) for (x1,y1,x2,y2,score) in left_locs1]
-    on_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), None) for (x1,y1,x2,y2,score) in right_locs1])
+    on_tups = [(imgpath, (x1+xOffL,y1+yOffL,x2+xOffL,y2+yOffL), LEFT) for (x1,y1,x2,y2,score) in left_locs1]
+    on_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), RIGHT) for (x1,y1,x2,y2,score) in right_locs1])
     
     marks_out = {MARK_ON: on_tups, MARK_OFF: off_tups}
 
@@ -189,30 +265,42 @@ def main():
     else:
         imgpaths = [arg0]
 
-    ORIG_IMG_W = 1968
-    ORIG_IMG_H = 3530
-
     template_zero_path = "sequoia_template_zero_skinny.png"
     template_one_path = "sequoia_template_one_skinny.png"
+    sidesymbol_path = "sequoia_side_symbol.png"
 
     Izero = cv.LoadImage(template_zero_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
     Ione = cv.LoadImage(template_one_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Isidesym = cv.LoadImage(sidesymbol_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
 
-    # Rescale IZERO/IONE to match this dataset's image dimensions
+    # Rescale IZERO/IONE/ISIDESYM to match this dataset's image dimensions
     exmpl_imgsize = cv.GetSize(cv.LoadImage(imgpaths[0]))
     if exmpl_imgsize != (ORIG_IMG_W, ORIG_IMG_H):
         print "...rescaling images..."
         Izero = rescale_img(Izero, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
         Ione = rescale_img(Ione, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
+        Isidesym = rescale_img(Isidesym, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
 
     Izero = tempmatch.smooth(Izero, 3, 3, bordertype='const', val=255.0)
     Ione = tempmatch.smooth(Ione, 3, 3, bordertype='const', val=255.0)
+    Isidesym = tempmatch.smooth(Isidesym, 3, 3, bordertype='const', val=255.0)
 
     t = time.time()
     err_imgpaths = []
     for imgpath in imgpaths:
-        decodings, isflip, marklocs = decode(imgpath, Izero, Ione)
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        I = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
         print "For imgpath {0}:".format(imgpath)
+        side, flip = compute_side(I, Isidesym)
+        if side == None:
+            print "    COMPUTE_SIDE ERROR"
+            continue
+        else:
+            print "    side: {0} isflip={1}".format(side, flip)
+        if side == 1:
+            continue
+        decodings, isflip, marklocs = decode(I, Izero, Ione, _imgpath=imgpath)
+
         if decodings == None:
             print "    ERROR"
         else:
