@@ -717,12 +717,19 @@ this partition.")
         # Arbitrarily choose the first one Ballot from each partition
         for partition_idx, imgpaths_sides in enumerate(self.partitions):
             for imgpaths in imgpaths_sides:
-                imgpaths_exs.extend(imgpaths)
+                for side, imgpath in enumerate(imgpaths):
+                    # Only add imgpaths that have boxes
+                    if self.boxes[partition_idx][side]:
+                        imgpaths_exs.append(imgpath)
                 break
+        # Since the ordering of these dataStructs encode semantic meaning,
+        # and since I don't want to pass in an empty contest to InferContests
+        # (it crashes), I have to manually remove all empty-pages from IMGPATHS_EXS
+        # and TARGETS
         # Let i=target #, j=ballot style, k=contest idx:
         targets = [] # list of [[[box_ijk, ...], [box_ijk+1, ...], ...], ...]
         for partition_idx, boxes_sides in self.boxes.iteritems():
-            for boxes in boxes_sides:
+            for side, boxes in enumerate(boxes_sides):
                 style_boxes = [] # [[contest_i, ...], ...]
                 for box in boxes:
                     # InferContests throws out the pre-determined contest
@@ -730,8 +737,9 @@ this partition.")
                     # 'contest'
                     if type(box) == TargetBox:
                         style_boxes.append([(box.x1, box.y1, box.x2, box.y2)])
-                targets.append(style_boxes)
-        #bboxes = dict(zip(imgpaths, group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)))
+                if style_boxes:
+                    targets.append(style_boxes)
+
         # CONTEST_RESULTS: [[box_i, ...], ...], each subtuple_i is for imgpath_i.
         contest_results = group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)
         # 1.) Update my self.BOXES
