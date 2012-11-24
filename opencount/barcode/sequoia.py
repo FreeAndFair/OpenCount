@@ -53,7 +53,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
         IplImage IZERO: 
         IplImage IONE:
     Output:
-        (list DECODINGS, bool ISFLIPPED, dict MARK_LOCS)
+        (list DECODINGS, bool ISFLIPPED, dict MARK_LOCS, bool isBack)
     DECODINGS: [str decoding_i, ...]
         If an error in decoding occured, then DECODINGS is None.
     ISFLIPPED: True if the image is flipped, False o.w.
@@ -69,16 +69,47 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
 
     isflip = False
     decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
-    if decodings == None:
+    isbackside, flipback = is_backside(decodings, mark_locs)
+    if isbackside:
+        print "...detected backside..."
+        return decodings, isflip, mark_locs, True
+    elif decodings == None:
         # Try flip
         isflip = True
         cv.Flip(Ismooth, Ismooth, flipMode=-1)
         decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
     if decodings == None:
         # Give up.
-        return None, None, None
+        return None, None, None, None
     print 'For imgpath {0}: {1}'.format(imgpath, decodings)
-    return decodings, isflip, mark_locs
+    return decodings, isflip, mark_locs, False
+
+def is_backside(decodings, mark_locs):
+    """ Applies Sequoia-specific knowledge. A backside ballot side has
+    the following 'barcode' values (assume right-side-up):
+        UpperLeft: "0"
+        UpperRight: ""    (Just a black bar)
+        LowerLeft: "0"
+        LowerRight: "0"
+
+    Note: This doesn't detect empty backsides.
+    
+    Output: 
+        bool isBack, bool isFlip
+    """
+    if len(decodings[1]) == 0:
+        # Possibly up-right backside.
+        if len(decodings[0]) == 1 and decodings[0] == "0":
+            return True, False
+        else:
+            return False, None
+    elif len(decodings[0]) == 1 and len(decodings[1]) == 1:
+        # Possibly upside-down back-side.
+        if decodings[0] == '0' and decodings[1] == '0':
+            return True, True
+        else:
+            return False, None
+    return False, None
 
 def compute_side(I, Isidesym):
     """ Sequoia ballots have the property that you can tell which side
@@ -175,6 +206,13 @@ def processImg(img, template_zero, template_one, imgpath):
         2) run template matching against it with two templates with criteria,
            retrieving the best matches
         3) process matching result, transform into 01-bitstring
+    Note: Only the front-side has a full barcodes on the UL/UR corners.
+    The back-side, however, has "0", "" on the top, and "0", "0" on the
+    bottom. We can leverage this information. 
+    Output:
+        list DECODINGS, dict MARKS_OUT.
+    list DECODINGS: [str decoding_upperLeft, str decoding_upperRight]
+    dict MARKS_OUT: maps {MARK_ON/MARK_OFF: [(imgpath, (x1,y1,x2,y2), LEFT/RIGHT), ...]}
     """
     rough_left_barcode, offsetLeft = crop_rough_left(img)
     rough_right_barcode, offsetRight = crop_rough_right(img)
@@ -197,13 +235,9 @@ def processImg(img, template_zero, template_one, imgpath):
     left_locs0, left_locs1 = postprocess_locs(left_zero_best_locs, left_one_best_locs)
     right_locs0, right_locs1 = postprocess_locs(right_zero_best_locs, right_one_best_locs)
 
-    bit_string = [transformToBits((left_locs0, left_locs1), rough_left_barcode),
-                  transformToBits((right_locs0, right_locs1), rough_right_barcode)]
+    decodings = [transformToBits((left_locs0, left_locs1), rough_left_barcode),
+                 transformToBits((right_locs0, right_locs1), rough_right_barcode)]
     
-    if len(bit_string[0]) != 8 or len(bit_string[1]) != 8:
-        print "...Uh oh, bad bit string lengths {0} {1}".format(len(bit_string[0]), len(bit_string[1]))
-        return None, None
-
     # Also correct the offsets from the crop done.
     xOffL, yOffL = offsetLeft
     xOffR, yOffR = offsetRight
@@ -215,7 +249,7 @@ def processImg(img, template_zero, template_one, imgpath):
     
     marks_out = {MARK_ON: on_tups, MARK_OFF: off_tups}
 
-    return bit_string, marks_out
+    return decodings, marks_out
 
 def postprocess_locs(zero_locs, one_locs):
     """Post processing the locations:
@@ -293,16 +327,10 @@ def main():
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         I = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
         print "For imgpath {0}:".format(imgpath)
-        side, flip, issingle = compute_side(I, Isidesym)
-        if side == None:
-            print "    COMPUTE_SIDE ERROR"
+        decodings, isflip, marklocs, isback = decode(I, Izero, Ione, _imgpath=imgpath)
+        if isback:
+            print "    Detected backside."
             continue
-        else:
-            print "    side: {0} isflip={1}".format(side, flip)
-        if side == 1:
-            continue
-        decodings, isflip, marklocs = decode(I, Izero, Ione, _imgpath=imgpath)
-
         if decodings == None:
             print "    ERROR"
         else:
