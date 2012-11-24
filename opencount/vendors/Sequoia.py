@@ -14,6 +14,12 @@ import grouping.partask as partask, grouping.tempmatch as tempmatch
 
 from Vendor import Vendor
 
+"""
+For some reason, decoding error'd on this:
+/media/data1/audits2012_straight/santacruz/votedballots/1ST DISTRICT/POLLS/10281_POLLS/POLLS_10281_00024-0.png
+"""
+
+
 class SequoiaVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
@@ -28,7 +34,7 @@ class SequoiaVendor(Vendor):
                                                                            init=({}, {}, [], {}),
                                                                            manager=manager,
                                                                            pass_queue=queue,
-                                                                           N=1)
+                                                                           N=None)
         # BACKSMAP: maps {int ballotID: [imgpath_i, ...]}
         self.backsmap = backsmap
         return (flipmap, mark_bbs_map, err_imgpaths)
@@ -67,7 +73,13 @@ class SequoiaVendor(Vendor):
             imginfo_map[imgpath] = imginfo
         for imgpath, decoding in manual_labeled.iteritems():
             img2decoding[imgpath] = decoding
-            imginfo_map[imgpath] = get_imginfo(decoding)
+            info = get_imginfo(decoding)
+            # TODO: Only supports double-sided elections.
+            if decoding[0] == "0" and decoding[1] == "":
+                info['page'] = 1
+            else:
+                info['page'] = 0
+            imginfo_map[imgpath] = info
         for ballotid, backimgpaths in self.backsmap.iteritems():
             for imgpath in backimgpaths:
                 # IMGPATH is a back-side image.

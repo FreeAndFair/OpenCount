@@ -71,7 +71,6 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
     isbackside, flipback = is_backside(decodings, mark_locs)
     if isbackside:
-        print "...detected backside..."
         return decodings, isflip, mark_locs, True
     elif decodings == None:
         # Try flip
@@ -81,7 +80,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     if decodings == None:
         # Give up.
         return None, None, None, None
-    print 'For imgpath {0}: {1}'.format(imgpath, decodings)
+    #print 'For imgpath {0}: {1}'.format(imgpath, decodings)
     return decodings, isflip, mark_locs, False
 
 def is_backside(decodings, mark_locs):
