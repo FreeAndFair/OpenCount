@@ -196,7 +196,9 @@ class SelectTargetsMainPanel(wx.Panel):
                                    "group_{0}_side_{1}.csv".format(group_idx, side))
                 csvpaths.append(outpath)
                 writer = csv.DictWriter(open(outpath, 'wb'), fields)
-
+                # Make sure that TARGET_LOCS_MAP at least has something for this 
+                # (To help out target extraction)
+                target_locs_map.setdefault(group_idx, {}).setdefault(side, [])
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
                 box_assocs = self.compute_box_ids(boxes)
                 # TODO: For now, just grab one exemplar image from this group

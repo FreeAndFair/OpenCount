@@ -655,7 +655,6 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     print "Creating blank ballots; go up to", len(group_to_ballots)
     print group_to_ballots
     for i,(groupID, ballotIDs) in enumerate(group_to_ballots.iteritems()):
-        print i
         bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Create 'blank ballots'. This might not work so well...
         exmpl_id = group_exmpls[groupID][0]
