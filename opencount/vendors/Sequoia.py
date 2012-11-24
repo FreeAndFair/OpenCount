@@ -19,18 +19,18 @@ class SequoiaVendor(Vendor):
         self.proj = proj
 
     def decode_ballots(self, ballots, manager=None, queue=None):
-        flipmap, mark_bbs_map, err_imgpaths = partask.do_partask(_decode_ballots,
-                                                                 ballots,
-                                                                 _args=(sequoia.ZERO_IMGPATH,
-                                                                        sequoia.ONE_IMGPATH,
-                                                                        sequoia.SIDESYM_IMGPATH),
-                                                                 combfn=_combfn,
-                                                                 init=({}, {}, []),
-                                                                 manager=manager,
-                                                                 pass_queue=queue,
-                                                                 N=None)
-        self.flipmap = flipmap # Save this for partition_ballots later
-        self.err_imgpaths = set(err_imgpaths)
+        flipmap, mark_bbs_map, err_imgpaths, backsmap = partask.do_partask(_decode_ballots,
+                                                                           ballots,
+                                                                           _args=(sequoia.ZERO_IMGPATH,
+                                                                                  sequoia.ONE_IMGPATH,
+                                                                                  sequoia.SIDESYM_IMGPATH),
+                                                                           combfn=_combfn,
+                                                                           init=({}, {}, [], {}),
+                                                                           manager=manager,
+                                                                           pass_queue=queue,
+                                                                           N=1)
+        # BACKSMAP: maps {int ballotID: [(imgpath, isflip), ...]}
+        self.backsmap = backsmap
         return (flipmap, mark_bbs_map, err_imgpaths)
 
     def partition_ballots(self, verified_results, manual_labeled):
@@ -68,12 +68,12 @@ class SequoiaVendor(Vendor):
         for imgpath, decoding in manual_labeled.iteritems():
             img2decoding[imgpath] = decoding
             imginfo_map[imgpath] = get_imginfo(decoding)
-        for imgpath in self.flipmap:
-            if imgpath not in self.err_imgpaths and imgpath not in decodings_tmp:
+        for ballotid, backimgpaths in self.backsmap.iteritems():
+            for imgpath in backimgpaths:
                 # IMGPATH is a back-side image.
                 imginfo = {'page': 1}
                 imginfo_map[imgpath] = imginfo
-                img2decoding[imgpath] = "0"  # Signal for backside"
+                img2decoding[imgpath] = "BACK"  # Signal for backside"
 
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
@@ -109,14 +109,15 @@ def get_imginfo(decodings):
     return {}
 
 def _combfn(a, b):
-    flipmap_a, mark_bbs_map_a, errs_imgpaths_a = a
-    flipmap_b, mark_bbs_map_b, errs_imgpaths_b = b
+    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, backsmap_a = a
+    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, backsmap_b = b
     flipmap_out = dict(flipmap_a.items() + flipmap_b.items())
     mark_bbs_map_out = mark_bbs_map_a
     for marktype, tups in mark_bbs_map_b.iteritems():
         mark_bbs_map_out.setdefault(marktype, []).extend(tups)
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
-    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out)
+    backs_map_out = dict(backsmap_a.items() + backsmap_b.items())
+    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, backs_map_out)
 
 def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path), queue=None):
     """
@@ -153,31 +154,88 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
         Itemp1 = tempmatch.smooth(Itemp1, 3, 3, bordertype='const', val=255.0)
         Isidesym = tempmatch.smooth(Isidesym, 3, 3, bordertype='const', val=255.0)
 
+        backs_map = {} # maps {int ballotid: [imgpath_i, ...]}
         for ballotid, imgpaths in ballots.iteritems():
-            for imgpath in imgpaths:
-                I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-                Ismooth = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
-                side, flip = sequoia.compute_side(Ismooth, Isidesym)
-                if side == None:
-                    err_imgpaths.append(imgpath)
-                    if queue: 
-                        queue.put(True)
-                    continue
-                elif side == 1:
-                    flipmap[imgpath] = flip
-                    if queue:
-                        queue.put(True)
-                    continue
-                decodings, isflip, mark_locs = sequoia.decode(Ismooth, Itemp0, Itemp1, _imgpath=imgpath)
+            # 1.) First, separate front-sides from back-sides
+            # FRONTS: [(imgpath, I, flip), ...]
+            # BACKS: [(imgpath, flip), ...]
+            fronts, backs = [], []
+            # TOOD: Assumes that ballots have been scanned in pairs (i.e.
+            # front/back pairs). Can only handle ballot sizes of multiples of 2.
+            # Assumes that the ballot pairs are ordered (but that front/back is
+            # unknown).
+            for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
+                I0 = tempmatch.smooth(cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE),
+                                      3, 3, bordertype='const', val=255.0)
+                I1 = tempmatch.smooth(cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE),
+                                      3, 3, bordertype='const', val=255.0)
+                # Complication: We only know single-sided when given a
+                # front-side image of a single-sided ballot. Also, 
+                # the back-side of a single-sided ballot will return None
+                # for compute_side. Sigh.
+                side0, flip0, issingle0 = sequoia.compute_side(I0, Isidesym)
+                side1, flip1, issingle1 = sequoia.compute_side(I1, Isidesym)
+                if 'npp' in imgpath0 or 'npp' in imgpath1:
+                    print 'imgpath0: {0} side0={1} flip0={2} issingle0={3}'.format(imgpath0, side0, flip0, issingle0)
+                    print 'imgpath1: {0} side1={1} flip1={2} issingle1={3}'.format(imgpath1, side1, flip1, issingle1)
+                    pdb.set_trace()
+                if side0 == 0 and issingle0:
+                    if side1 == 0:
+                        # Danger: Inconsistency. 
+                        err_imgpaths.append(imgpath0)
+                        err_imgpaths.append(imgpath1)
+                    else:
+                        fronts.append((imgpath0, I0, flip0))
+                        backs.append(imgpath1)
+                        flipmap[imgpath1] = False # flip doesn't mattter, it's empty anyways.
+                elif side1 == 0 and issingle1:
+                    if side0 == 0:
+                        err_imgpaths.append(imgpath1)
+                        err_imgpaths.append(imgpath0)
+                    else:
+                        fronts.append((imgpath1, I1, flip1))
+                        backs.append(imgpath0)
+                        flipmap[imgpath0] = False
+                else:
+                    # Now that we've handled the annoying single-sided issue...
+                    if side0 == None:
+                        err_imgpaths.append(imgpath0)
+                    if side1 == None:
+                        err_imgpaths.append(imgpath1)
+                    if side0 == side1 and side0 != None and side1 != None:
+                        # Danger: Inconsistency
+                        err_imgpaths.extend((imgpath0, imgpath1))
+                        continue
+                    if side0 == 0:
+                        front = (imgpath0, I0, flip0)
+                        back = imgpath1
+                        flipmap[imgpath1] = flip1
+                    else:
+                        front = (imgpath1, I1, flip1)
+                        back = imgpath0
+                        flipmap[imgpath0] = flip0
+                    fronts.append(front)
+                    backs.append(back)
+
+            backs_map[ballotid] = backs
+            # 2.) Run barcode decoding on fronts
+            for (imgpath, I, flip) in fronts:
+                decodings, isflip, mark_locs = sequoia.decode(I, Itemp0, Itemp1, _imgpath=imgpath)
                 if decodings == None:
                     err_imgpaths.append(imgpath)
                 else:
                     flipmap[imgpath] = isflip
                     for marktype, tups in mark_locs.iteritems():
                         mark_bbs_map.setdefault(marktype, []).extend(tups)
-                if queue:
-                    queue.put(True)
-        return flipmap, mark_bbs_map, err_imgpaths
+                if queue: queue.put(True)
+        return flipmap, mark_bbs_map, err_imgpaths, backs_map
     except:
         traceback.print_exc()
         pdb.set_trace()
+
+def by_n_gen(seq, n):
+    i = 0
+    while i < len(seq):
+        toreturn = seq[i:i+n]
+        yield toreturn
+        i += n

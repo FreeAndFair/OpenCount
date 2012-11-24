@@ -77,6 +77,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     if decodings == None:
         # Give up.
         return None, None, None
+    print 'For imgpath {0}: {1}'.format(imgpath, decodings)
     return decodings, isflip, mark_locs
 
 def compute_side(I, Isidesym):
@@ -89,7 +90,7 @@ def compute_side(I, Isidesym):
     ballot (weird!). However, this means that COMPUTE_SIDE won't know if this
     ballot upside-down or not.
     Output:
-        (int SIDE, bool ISFLIP). 0 if it's a front, 1 if it's a back.
+        (int SIDE, bool ISFLIP, flag isSingleSided). 0 if it's a front, 1 if it's a back.
     """
     w_img, h_img = cv.GetSize(I)
     x1_per = 0.0039
@@ -110,23 +111,24 @@ def compute_side(I, Isidesym):
         cv.ResetImageROI(I)
         x1_mat_frac = x1_mat / float(w_img)
         if score <= 0.83:
-            # This must be a single-sided ballot?
-            return 0, None # Don't know the ISFLIP in this case.
+            # Couldn't find SIDESYM at all. This might be the backside
+            # of a single-sided ballot?
+            return None, None, True # Don't know the ISFLIP in this case.
         elif x1_mat_frac >= 0.75:
-            return 1, True
+            return 1, True, False
         elif x1_mat_frac <= 0.255:
-            return 0, True
+            return 0, True, False
         else:
             # Badness!
-            return None, None
+            return None, None, None
     cv.ResetImageROI(I)
     x1_mat_frac = x1_mat / float(w_img)
     if x1_mat_frac >= 0.75:
-        return 0, False
+        return 0, False, False
     elif x1_mat_frac <= 0.255:
-        return 1, False
+        return 1, False, False
     else:
-        return None, None
+        return None, None, None
 
 def crop(img, left, top, new_width, new_height):
     """Crops img, returns the region defined by (left, top, new_width,
@@ -219,25 +221,25 @@ def postprocess_locs(zero_locs, one_locs):
     """Post processing the locations:
         - sort them by height
         - check for a possible false positive (top bar)
+    Input:
+        ZERO_LOCS, ONE_LOCS: [(x1, y1, x2, y2, score), ...]
     """
     zero_locs = sorted(zero_locs, key=lambda tup: tup[1])
     one_locs = sorted(one_locs, key=lambda tup: tup[1])
     return zero_locs, one_locs
 
 def transformToBits(best_locs, img):
-    """Assumes best_locs are the correct locations (except that in one_locs,
-    the loc with smallest height is a false positive, namely the top bar).
+    """Assumes best_locs are the correct locations. 
     Also, the BEST_LOCS are sorted by height.
     """
-    zero_locs = best_locs[0]
-    one_locs = best_locs[1]
+    # ZERO_LOCS, ONE_LOCS: [(x1,y1,x2,y2,score), ...]
+    zero_locs, one_locs = best_locs
 
-    zero_bits = ['0' for _ in zero_locs]
-    one_bits = ['1' for _ in one_locs]
-    # (Neat trick to interleave two sequences)
-    bit_string = "".join(filter(lambda x: x != None, sum(map(None, zero_bits, one_bits), ())))
-
-    return bit_string
+    zero_bits = [('0', y1) for (x1,y1,x2,y2,score) in zero_locs]
+    one_bits = [('1', y1) for (x1,y1,x2,y2,score) in one_locs]
+    # sort by y1
+    bits = [val for (val, y1) in sorted(zero_bits+one_bits, key=lambda t: t[1])]
+    return ''.join(bits)
 
 def isimgext(f):
     return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.jpeg', '.jpg', '.bmp')
@@ -291,7 +293,7 @@ def main():
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         I = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
         print "For imgpath {0}:".format(imgpath)
-        side, flip = compute_side(I, Isidesym)
+        side, flip, issingle = compute_side(I, Isidesym)
         if side == None:
             print "    COMPUTE_SIDE ERROR"
             continue
