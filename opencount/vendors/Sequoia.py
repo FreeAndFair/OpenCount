@@ -162,8 +162,27 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
         backsmap = {} # maps {ballotid: [backpath_i, ...]}
         for ballotid, imgpaths in ballots.iteritems():
             fronts, backs = [], []
-            for imgpath in imgpaths:
-                I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
+                I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD)
+                side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD)
+                if side0 == None and side1 == None:
+                    
+                elif side0 == None or side1 == None:
+                    # 
+                    
+                if side == None:
+                    if sequoia.is_empty_image(I):
+                        
+                    pass
+                elif side == 1:
+                    backs.append(imgpath)
+                    flipmap[imgpath] = isflip
+                else:
+                    decodings, _, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpathimgpath)
+                    cv.ResetImageROI(I)
+                    
                 decodings, isflip, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpath=imgpath)
                 cv.ResetImageROI(I)
                 if isback:
