@@ -67,7 +67,7 @@ def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
         if jobid and wx.App.IsMainLoopRunning():    
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
 
-    print 'results:', results
+    #print 'results:', results
     return results
 
 def _do_bestmatch(imgpaths, (A_str, img2flip, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
