@@ -357,35 +357,6 @@ def is_quarantined(project, path):
     f.close()
     return False
 
-def get_attrtype_possiblevals(proj, attrtype):
-    """ Returns the possible-values a given attrtype can take (i.e.
-    for attrtype 'party', this should return something like
-    ('democratic', 'republican', etc.).
-    Input:
-        obj proj
-        str attrtype:
-    Output:
-        list [str attrval_i, ...]
-    """
-    attrvals = []
-    if not is_digitbased(proj, attrtype):
-        for dirpath, dirnames, filenames in os.walk(proj.patch_loc_dir):
-            for csvname in [f for f in filenames if f.lower().endswith('.csv')]:
-                f = open(os.path.join(dirpath, csvname), 'rb')
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row['attr_type'] == attrtype:
-                        attrvals.append(row['attr_val'])
-    else:
-        for dirname in os.listdir(os.path.join(proj.projdir_path,
-                                               proj.digit_exemplars_outdir)):
-            digit = dirname.split("_")[0]
-            attrvals.append(digit)
-    if not attrvals:
-        print "Uhoh, couldn't find any attrvals for attrtype:", attrtype
-        pdb.set_trace()
-    return attrvals
-
 def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
     """ Given a grouplabel, return both the attrtype of the grouplabel
     and the attrval. Assumes the newer grouplabel_record interface.
@@ -526,83 +497,6 @@ def get_imagepaths(dir):
         results.append([pathjoin(dirpath, imname) 
                         for imname in filter(is_img_ext, filenames)])
     return results
-
-def importPatches(project):
-    """
-    Reads in all .csv files in precinct_locations/, and returns
-    them as:
-      {str temppath: [(y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i), ...]}
-    Output:
-      A dict that contains all attribute types for all blank ballots,
-      of the form:
-        {str temppath: [(y1,y2,x1,x2),grouplabel_i,side_i,is_digitbased_i,is_tabulationonly_i), ...]}
-    """
-    if not project or not project.patch_loc_dir:
-        return
-    def is_csvfile(p):
-        return os.path.splitext(p)[1].lower() == '.csv'
-    fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
-              'attr_type', 'attr_val', 'side', 'is_digitbased', 'is_tabulationonly')
-    boxes = {}
-    for dirpath, dirnames, filenames in os.walk(project.patch_loc_dir):
-        for csvfilepath in [f for f in filenames if is_csvfile(f)]:
-            try:
-                csvfile = open(os.path.join(dirpath, csvfilepath), 'rb')
-                dictreader = csv.DictReader(csvfile)
-                for row in dictreader:
-                    imgpath = os.path.abspath(row['imgpath'])
-                    id = int(row['id'])
-                    if id == DUMMY_ROW_ID:
-                        boxes.setdefault(imgpath, [])
-                        continue
-                    x1 = int(row['x'])
-                    y1 = int(row['y'])
-                    x2 = x1 + int(row['width'])
-                    y2 = y1 + int(row['height'])
-                    side = int(row['side'])
-                    is_digitbased = row['is_digitbased']
-                    is_tabulationonly = row['is_tabulationonly']
-                    if not(boxes.has_key(imgpath)):
-                        boxes[imgpath]=[]
-                    # Currently, we don't create an exemplar attrpatch
-                    # for flipped/wrong-imgorder. For now, just fake it.
-                    # QUESTION: Do we have to merge attrboxes if they're
-                    # at the same location? (I.e. multi-attr boxes)
-                    for flip in (0,1):
-                        for imgorder in (0,1):
-                            grouplabel = make_grouplabel((row['attr_type'],row['attr_val']),
-                                                         ('flip',flip),
-                                                         ('imageorder', imgorder))
-                            boxes[imgpath].append(((y1, y2, x1, x2), 
-                                                   grouplabel,
-                                                   side, is_digitbased, is_tabulationonly))
-            except IOError as e:
-                print "Unable to open file: {0}".format(csvfilepath)
-    return boxes
-
-def create_grouplabel_record(proj, attrtypes):
-    """ Creates a canonical ordering for all grouplabels, to be used
-    for the rest of the OpenCount pipeline. This is purely for performance
-    reasons, so that I can store indices in data structures, rather than
-    data like frozenset([('party', 'democrat'), ('imageorder', 0), ('flip', 1)]).
-    Input:
-        obj proj:
-        list attrtypes: [str attrtype_i, ...]
-    Output:
-        A list of frozensets.
-    """
-    outlist = []
-    for attrtype in attrtypes:
-        for possibleval in get_attrtype_possiblevals(proj, attrtype):
-            if is_digitbased(proj, attrtype):
-                outlist.append(make_grouplabel(('digit', possibleval)))
-            else:
-                for imgorder in (0, 1):  # TODO: Generalize to N-sides
-                    for flip in (0, 1):
-                        outlist.append(frozenset(((attrtype, possibleval),
-                                                 ('imageorder', imgorder),
-                                                 ('flip', flip))))
-    return outlist
 
 def save_grouplabel_record(proj, grouplabel_record):
     outP = pathjoin(proj.projdir_path, proj.grouplabels_record)

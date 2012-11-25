@@ -81,6 +81,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
 
     for (imgpath, ocrstr, imgpatches, patchcoords, scores) in pm_results:
         ballotid = img2b[imgpath]
+        # Recreate directory structure
         rp = os.path.relpath(os.path.abspath(imgpath), os.path.abspath(voteddir_root))
 
         imgname = os.path.splitext(os.path.split(imgpath)[1])[0]

@@ -18,6 +18,9 @@ import view_overlays, verify_overlays
 import grouping.group_attrs as group_attrs
 import grouping.partask as partask
 
+# Global CTR used to ensure unique filenames for outpatches.
+CTR = 0
+
 class SelectAttributesMasterPanel(wx.Panel):
     """ Panel meant to be directly integrated with OpenCount. """
     def __init__(self, parent, *args, **kwargs):
@@ -145,18 +148,13 @@ class SelectAttributesMasterPanel(wx.Panel):
         return True
 
     def export_results(self):
-        """ Saves the attribute labelling results to .csv files to
-        proj.patch_loc_dir. Also, computes multiple exemplars. Also
+        """ Computes multiple exemplars. Also
         saves the attribute labelling results to proj.partition_attrmap.
         """
         if not self.boxes:
             return
         self.save_boxes()
         print "...Exporting Select Attributes Results..."
-        try:
-            os.makedirs(self.project.patch_loc_dir)
-        except:
-            pass
         img2b = pickle.load(open(self.project.image_to_ballot, 'rb'))
         partition_attrmap = {} # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
                                #                          attrval, page, is_digitbased, is_tabulationonly], ...]
@@ -170,12 +168,6 @@ class SelectAttributesMasterPanel(wx.Panel):
         for imgpath, info in self.boxes.iteritems():
             ballotid = img2b[imgpath]
             partitionID = partitions_invmap[ballotid]
-            imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
-            outpath = pathjoin(self.project.patch_loc_dir,
-                               "{0}_patchlocs.csv".format(imgname))
-            f = open(outpath, 'w')
-            writer = csv.DictWriter(f, header)
-            util_gui._dictwriter_writeheader(f, header)
             attrs_list = [] # [[imP,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly],...]
             for ((x1, y1, x2, y2), attrtype, attrval, patchpath, subpatchP) in info:
                 attrside = common.get_attr_prop(self.project, attrtype, 'side')
@@ -191,11 +183,8 @@ class SelectAttributesMasterPanel(wx.Panel):
                        "is_tabulationonly": istabonly}
                 attrs_list.append([imgpath, x1, y1, x2-x1,y2-y1, attrtype, attrval,
                                    attrside, isdigitbased, istabonly])
-                writer.writerow(row)
                 uid += 1
-            f.close()
             partition_attrmap.setdefault(partitionID, []).extend(attrs_list)
-        print partition_attrmap
         pickle.dump(partition_attrmap, open(pathjoin(self.project.projdir_path,
                                                      self.project.partition_attrmap), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
@@ -520,6 +509,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         #for _, (_, _, score) in results.iteritems():
         #    scores.append(score)
         #hist, edges = np.histogram(scores)
+        global CTR
         for regionpath, (x, y, score) in results.iteritems():
             if score < self.TM_THRESHOLD:
                 continue
@@ -527,7 +517,10 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             cv.SetImageROI(I,(x, y, w, h))
             imgname = os.path.split(regionpath)[1]
             imgname_noext = os.path.splitext(imgname)[0]
-            outname = "{0}_{1}.png".format(imgname_noext, self.GetParent().GetParent().attr)
+            outname = "{0}_{1}_{2}.png".format(imgname_noext, self.GetParent().GetParent().attr, CTR)
+            # Use a global incrementing CTR to avoid problems if two different
+            # ballots have the same imagename. 
+            CTR += 1
             outrootdir = os.path.join(self.GetParent().GetParent().outdir0, self.GetParent().GetParent().attr)
             try:
                 os.makedirs(outrootdir)
@@ -802,6 +795,7 @@ def extract_attr_patches(blanks, (proj, img2flip)):
                     # patchP: if outdir is: 'labelattrs_patchesdir',
                     # imgpath is: '/media/data1/election/blanks/foo/1.png',
                     # proj.templatesdir is: '/media/data1/election/blanks/
+                    # Recreate directory structure.
                     tmp = proj.voteddir
                     if not tmp.endswith('/'):
                         tmp += '/'

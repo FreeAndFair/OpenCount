@@ -14,12 +14,6 @@ import grouping.partask as partask, grouping.tempmatch as tempmatch
 
 from Vendor import Vendor
 
-"""
-For some reason, decoding error'd on this:
-/media/data1/audits2012_straight/santacruz/votedballots/1ST DISTRICT/POLLS/10281_POLLS/POLLS_10281_00024-0.png
-"""
-
-
 class SequoiaVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj

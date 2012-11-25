@@ -198,7 +198,12 @@ class PartitionPanel(ScrolledPanel):
                 self.queue = progress_queue
                 self.tlisten = tlisten
             def run(self):
+                t = time.time()
+                print "...Running Decoding ({0} ballots)...".format(len(self.b2imgs))
                 flipmap, verifypatch_bbs, err_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
+                dur = time.time() - t
+                print "...Done Decoding Ballots ({0} s).".format(dur)
+                print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
                 wx.CallAfter(self.callback, flipmap, verifypatch_bbs, err_imgpaths)
                 self.tlisten.stop()
@@ -247,7 +252,7 @@ class PartitionPanel(ScrolledPanel):
             dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
             list ERR_IMGPATHS:
         """
-        print "...Partitioning Done..."
+        print "...Decoding Done!"
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
 
         if err_imgpaths:
@@ -326,6 +331,7 @@ class PartitionPanel(ScrolledPanel):
         img2patch, patch2stuff = extract_patches.extract(imgpatches)
         dur = time.time() - t
         print '...done extracting ({0} s)...'.format(dur)
+        print "    Avg. Time Per Image:", dur / float(len(imgpatches))
         cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
