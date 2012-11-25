@@ -49,7 +49,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     """ Assumes that IZERO, IONE are already smoothed.
     Input:
         str/IplImage IMGPATH: If this is passed in as an IplImage, then
-            it is already smoothed, and _IMGPATH is the path to the image.
+            _IMGPATH is the image path.
         IplImage IZERO: 
         IplImage IONE:
     Output:
@@ -62,22 +62,20 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     """
     if type(imgpath) in (str, unicode):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        Ismooth = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
     else:
         I = imgpath
-        Ismooth = imgpath
         imgpath = _imgpath
 
     isflip = False
-    decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
+    decodings, mark_locs = processImg(I, Izero, Ione, imgpath)
     isbackside, flipback = is_backside(decodings, mark_locs)
     if isbackside:
         return decodings, isflip, mark_locs, True
     elif decodings == None:
         # Try flip
         isflip = True
-        cv.Flip(Ismooth, Ismooth, flipMode=-1)
-        decodings, mark_locs = processImg(Ismooth, Izero, Ione, imgpath)
+        cv.Flip(I, I, flipMode=-1)
+        decodings, mark_locs = processImg(I, Izero, Ione, imgpath)
     if decodings == None:
         # Give up.
         return None, None, None, None
@@ -123,12 +121,14 @@ def processImg(img, template_zero, template_one, imgpath):
     w_patch, h_patch = int(round(w_img * w_fact)), int(round(h_img * h_fact))
     x_off, y_off = 0, 10
     cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
-    decodings_left, zero_locs_left, one_locs_left = decode_patch(img, template_zero, template_one, imgpath)
+    patchLeft = tempmatch.smooth(img, 3, 3, bordertype='const', val=255.0)
+    decodings_left, zero_locs_left, one_locs_left = decode_patch(patchLeft, template_zero, template_one, imgpath)
     cv.ResetImageROI(img)
     marks_out_left = create_marks_dict(zero_locs_left, one_locs_left, x_off, y_off, imgpath, LEFT)
     x_off = int(round(w_img - w_patch))
     cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
-    decodings_rht, zero_locs_rht, one_locs_rht = decode_patch(img, template_zero, template_one, imgpath)
+    patchRight = tempmatch.smooth(img, 3, 3, bordertype='const', val=255.0)
+    decodings_rht, zero_locs_rht, one_locs_rht = decode_patch(patchRight, template_zero, template_one, imgpath)
     cv.ResetImageROI(img)
     marks_out_rht = create_marks_dict(zero_locs_rht, one_locs_rht, x_off, y_off, imgpath, RIGHT)
 
@@ -254,7 +254,6 @@ def main():
     err_imgpaths = []
     for imgpath in imgpaths:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        I = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
         print "For imgpath {0}:".format(imgpath)
         if do_profile:
             cProfile.runctx('decode(I, Izero, Ione, _imgpath=imgpath)', 

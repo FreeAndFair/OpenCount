@@ -163,8 +163,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
         for ballotid, imgpaths in ballots.iteritems():
             fronts, backs = [], []
             for imgpath in imgpaths:
-                I = tempmatch.smooth(cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE),
-                                     3, 3, bordertype='const', val=255.0)
+                I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
                 decodings, isflip, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpath=imgpath)
                 cv.ResetImageROI(I)
                 if isback:
@@ -204,5 +203,6 @@ def by_n_gen(seq, n):
         i += n
 
 def is_empty_image(I):
+    """ Estimate if this image is an entirely-white page. """
     w, h = cv.GetSize(I)
     return (cv.Sum(I) / (float(w)*h)) >= 240.0
