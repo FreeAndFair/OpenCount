@@ -1364,9 +1364,13 @@ def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
 @pdb_on_crash
-def final_grouping(ballots, giventargets, paths, languages):
+def final_grouping(ballots, giventargets, paths, langs):
     lookup = dict((x,i) for i,x in enumerate(paths))
-    languages = dict((lookup[k],v) for k,v in languages.items())
+    if langs:
+        languages = dict((idx, langs[imP]) for imP, idx in lookup.iteritems())
+    else:
+        languages = {}
+    #languages = dict((lookup[k],v) for k,v in langs.items())
     print "RUNNING FINAL GROUPING"
     #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)

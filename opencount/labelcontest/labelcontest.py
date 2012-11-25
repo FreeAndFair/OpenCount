@@ -7,7 +7,10 @@ from os.path import join as pathjoin
 from sets import Set
 from PIL import Image, ImageDraw
 import csv
-import pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 import re
 import pdb
 
@@ -55,7 +58,6 @@ class LabelContest(wx.Panel):
         group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                  self.proj.group_exmpls), 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        print b2imgs.keys()
 
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
@@ -79,7 +81,7 @@ class LabelContest(wx.Panel):
                 # TODO this may crash when multi-sided ballots have errors
                 #self.groupedtargets.append([])
                 continue
-            # Grab an arbitrary exemplar image from this groupn
+            # Grab an arbitrary exemplar image from this group
             imgpaths = b2imgs[group_exmpls[groupID][0]]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             for side, contests in contests_sides.iteritems():
@@ -411,32 +413,37 @@ class LabelContest(wx.Panel):
         self.Show()
 
     def load_languages(self):
-        if not os.path.exists(self.proj.patch_loc_dir): return {}
-        mapping = {'english': 'eng', 'spanish': 'spa', 'esp': 'spa', 'korean': 'kor', 'chi': 'chi_sim', 'chinese': 'chi_sim', 'vietnamese': 'vie'}
-        result = {}
-        blankballot_attrlocs = os.listdir(self.proj.patch_loc_dir)
-        util.sort_nicely(blankballot_attrlocs)
-        for f in blankballot_attrlocs:
-            #print "AND I GET", f, f[-4:]
-            if f[-4:] == '.csv':
-                #print 'test', f
-                take = 0
-                for i,row in enumerate(csv.reader(open(os.path.join(self.proj.patch_loc_dir, f)))):
-                    if i == 0:
-                        if 'attr_type' in row:
-                            take = row.index('attr_type')
-                        else:
-                            break
-                    else:
-                        if row[take].lower() == 'language' or row[take].lower() == 'lang':
-                            language = row[take+1].lower()
-                            #print 'found with lang', language
-                            if language in mapping:
-                                language = mapping[language] 
-                            result[row[0]] = language
-                            break
+        """ Returns a mapping from imgpath -> language. """
+        def get_language(d):
+            tries = ('language', 'lang', 'Language', 'Lang')
+            for thing in tries:
+                if thing in d:
+                    return d[thing]
+            return None
+        bal2grp = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                            self.proj.ballot_to_group), 'rb'))
+        grp2bals = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                            self.proj.group_to_ballots), 'rb'))
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        # GROUP2INFO: {int groupID: {attrtype: attrval}}
+        group2info = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                               self.proj.group_infomap), 'rb'))
+        lang2tesseract = {'english': 'eng', 'eng': 'eng', 'en': 'eng',
+                          'spanish': 'spa', 'span': 'spa', 'esp': 'spa', 
+                          'korean': 'kor', 'kor': 'kor', 
+                          'chi': 'chi_sim', 'chinese': 'chi_sim', 
+                          'vietnamese': 'vie'}
+        result = {} # {str imgpath: str language}
+        for groupid, infodict in group2info.iteritems():
+            found_language = get_language(infodict)
+            cur_language = lang2tesseract.get(found_language, None)
+            if cur_language != None:
+                ballotids = grp2bals[groupid]
+                for ballotid in ballotids:
+                    imgpaths = bal2imgs[ballotid]
+                    for imgpath in imgpaths:
+                        result[imgpath] = cur_language
         return result
-        
 
     def compute_equivs(self, x):
         self.has_equiv_classes = True
@@ -898,6 +905,9 @@ class LabelContest(wx.Panel):
         We may need to update the candidate order, since the contest might
         have randomized candidate ordering.
         """
+        if len(self.groupedtargets[self.templatenum]) == 0:
+            # No contests, so skip it
+            return
         print "SAVING", self.templatenum, self.count
         try:
             self.text_title.GetValue()
