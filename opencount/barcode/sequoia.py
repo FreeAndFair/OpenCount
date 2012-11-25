@@ -243,7 +243,7 @@ def processImg(img, template_zero, template_one, imgpath):
 
     return (decodings_left, decodings_rht), marks_out
 
-def decode_patch(I, Izero, Ione, imgpath, T=0.9):
+def decode_patch(I, Izero, Ione, imgpath, T=0.87):
     """ Given a rough region around a barcode, return the decoding.
     Input:
         IplImage I: rough patch around one barcode.
@@ -257,9 +257,9 @@ def decode_patch(I, Izero, Ione, imgpath, T=0.9):
     # LEFT_ZERO_BEST_LOCS: {int imgidx: [(x1,y1,x2,y2,score), ...]}
     # Note: Both IMG and the templates have already been smoothed.
     zero_best_locs = tempmatch.get_tempmatches(Izero, [I], 
-                                          do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
+                                               do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
     one_best_locs = tempmatch.get_tempmatches(Ione, [I], 
-                                          do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
+                                              do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
     locs0, locs1 = postprocess_locs(zero_best_locs, one_best_locs)
 
     return transformToBits(locs0, locs1, I), locs0, locs1
