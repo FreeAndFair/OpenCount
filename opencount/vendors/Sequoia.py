@@ -166,6 +166,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                 I = tempmatch.smooth(cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE),
                                      3, 3, bordertype='const', val=255.0)
                 decodings, isflip, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpath=imgpath)
+                cv.ResetImageROI(I)
                 if isback:
                     # Guess that this must be a backside.
                     flipmap[imgpath] = isflip
@@ -173,24 +174,21 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                 elif decodings[0] == '' and decodings[1] == '':
                     # This /might/ be an empty backside...don't throw
                     # it into ERR_IMGPATHS just yet.
-                    # TOOD: Perhaps do an 'is_empty_image' check, that basically
-                    # checks if I is >90% white pixels. If so, then with high
-                    # guarantee I is just an empty backside. If not, then this
-                    # is something we should throw into err_imgpaths.
                     if is_empty_image(I):
                         print "...detected EMPTY back side..."
                         backs.append(imgpath)
-                        flipmap[imgpath] = True # Whatever, doesn't matter.
+                        flipmap[imgpath] = False # Whatever, doesn't matter.
                     else:
                         err_imgpaths.add(imgpath)
-                elif len(decodings[0]) != 8 and len(decodings[1]) != 8:
+                elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
                     err_imgpaths.add(imgpath)
                 else:
                     flipmap[imgpath] = isflip
                     for marktype, tups in mark_locs.iteritems():
                         mark_bbs_map.setdefault(marktype, []).extend(tups)
                     fronts.append(imgpath)
-                if queue: queue.put(True)
+                if queue: 
+                    queue.put(True)
             backsmap[ballotid] = backs
 
         return flipmap, mark_bbs_map, list(err_imgpaths), backsmap
@@ -206,5 +204,5 @@ def by_n_gen(seq, n):
         i += n
 
 def is_empty_image(I):
-    # TODO: IMPLEMENT ME
-    return True
+    w, h = cv.GetSize(I)
+    return (cv.Sum(I) / (float(w)*h)) >= 240.0

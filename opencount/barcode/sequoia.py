@@ -1,4 +1,4 @@
-import sys, os, time, pdb
+import sys, os, time, pdb, cProfile
 from os.path import join as pathjoin
 
 import cv
@@ -58,6 +58,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
         If an error in decoding occured, then DECODINGS is None.
     ISFLIPPED: True if the image is flipped, False o.w.
     MARK_LOCS: maps {str ON/OFF: [(imgpath, (x1,y1,x2,y2), left/right), ...]}
+    ISBACK: True if we detect that this is the backside of a ballot.
     """
     if type(imgpath) in (str, unicode):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -96,108 +97,12 @@ def is_backside(decodings, mark_locs):
     Output: 
         bool isBack, bool isFlip
     """
-    if len(decodings[1]) == 0:
+    if decodings[0] == "0" and decodings[1] == "":
         # Possibly up-right backside.
-        if len(decodings[0]) == 1 and decodings[0] == "0":
-            return True, False
-        else:
-            return False, None
-    elif len(decodings[0]) == 1 and len(decodings[1]) == 1:
-        # Possibly upside-down back-side.
-        if decodings[0] == '0' and decodings[1] == '0':
-            return True, True
-        else:
-            return False, None
+        return True, False
+    elif decodings[0] == "0" and decodings[1] == "0":
+        return True, True
     return False, None
-
-def compute_side(I, Isidesym):
-    """ Sequoia ballots have the property that you can tell which side
-    the ballot is based on the location of ISIDESYM (a unique, distinctive
-    symbol). If ISIDESYM is found on the upper-right, then I is a front-side
-    image. If ISIDESYM is found on the upper-left, then I is a back-side image.
-
-    Finally, if ISIDESYM isn't on the image at all, then this is a single-sided
-    ballot (weird!). However, this means that COMPUTE_SIDE won't know if this
-    ballot upside-down or not.
-    Output:
-        (int SIDE, bool ISFLIP, flag isSingleSided). 0 if it's a front, 1 if it's a back.
-    """
-    w_img, h_img = cv.GetSize(I)
-    x1_per = 0.0039
-    y1_per = 0.0026
-    x2_per = 0.9783
-    y2_per = 0.1205
-    x1 = int(round(x1_per * w_img))
-    y1 = int(round(y1_per * h_img))
-    x2 = int(round(x2_per * w_img))
-    y2 = int(round(y2_per * h_img))
-    w_sidesym, h_sidesym = cv.GetSize(Isidesym)
-    cv.SetImageROI(I, (x1,y1,x2-x1,y2-y1))
-    (x1_mat, y1_mat, score) = tempmatch.bestmatch(Isidesym, [I], do_smooth=tempmatch.SMOOTH_NONE)[0]
-    if score <= 0.83:
-        # It might be upside down?
-        cv.SetImageROI(I, (x1, h_img - y2, x2, h_img - y1))
-        (x1_mat, y1_mat, score) = tempmatch.bestmatch(Isidesym, [I], do_smooth=tempmatch.SMOOTH_NONE)[0]
-        cv.ResetImageROI(I)
-        x1_mat_frac = x1_mat / float(w_img)
-        if score <= 0.83:
-            # Couldn't find SIDESYM at all. This might be the backside
-            # of a single-sided ballot?
-            return None, None, True # Don't know the ISFLIP in this case.
-        elif x1_mat_frac >= 0.75:
-            return 1, True, False
-        elif x1_mat_frac <= 0.255:
-            return 0, True, False
-        else:
-            # Badness!
-            return None, None, None
-    cv.ResetImageROI(I)
-    x1_mat_frac = x1_mat / float(w_img)
-    if x1_mat_frac >= 0.75:
-        return 0, False, False
-    elif x1_mat_frac <= 0.255:
-        return 1, False, False
-    else:
-        return None, None, None
-
-def crop(img, left, top, new_width, new_height):
-    """Crops img, returns the region defined by (left, top, new_width,
-    new_height)
-    """
-    if left + new_width > img.width:
-        new_width = img.width - left
-
-    cropped = cv.CreateImage((new_width, new_height), cv.IPL_DEPTH_8U, img.channels)
-    src_region = cv.GetSubRect(img, (left, top, new_width, new_height))
-
-    cv.Copy(src_region, cropped)
-    return cropped
-
-def crop_rough_left(img):
-    """Roughly crops the upper left barcode region."""
-    w_img, h_img = cv.GetSize(img)
-    x_per = 0.0
-    x2_per = 0.11
-    y_per = 0.02
-    y2_per = 0.13542
-    x1 = int(round(w_img * x_per))
-    y1 = int(round(h_img * y_per))
-    width = int(round(((x2_per - x_per) * w_img)))
-    height = int(round(((y2_per - y_per) * h_img)))
-    return crop(img, x1, y1, width, height), (x1,y1)
-
-def crop_rough_right(img):
-    """Roughly crops the upper right barcode region."""
-    w_img, h_img = cv.GetSize(img)
-    x_per = 0.89
-    x2_per = 1.0
-    y_per = 0.02
-    y2_per = 0.13542
-    x1 = int(round(w_img * x_per))
-    y1 = int(round(h_img * y_per))
-    width = int(round(((x2_per - x_per) * w_img)))
-    height = int(round(((y2_per - y_per) * h_img)))
-    return crop(img, x1, y1, width, height), (x1,y1)
 
 def processImg(img, template_zero, template_one, imgpath):
     """ The pipeline for processing one image:
@@ -213,42 +118,63 @@ def processImg(img, template_zero, template_one, imgpath):
     list DECODINGS: [str decoding_upperLeft, str decoding_upperRight]
     dict MARKS_OUT: maps {MARK_ON/MARK_OFF: [(imgpath, (x1,y1,x2,y2), LEFT/RIGHT), ...]}
     """
-    rough_left_barcode, offsetLeft = crop_rough_left(img)
-    rough_right_barcode, offsetRight = crop_rough_right(img)
-    #cv.SaveImage("_rough_left_barcode.png", rough_left_barcode)
-    #cv.SaveImage("_rough_right_barcode.png", rough_right_barcode)
-    #cv.SaveImage("_template_zero.png", template_zero)
-    #cv.SaveImage("_template_one.png", template_one)
+    w_img, h_img = cv.GetSize(img)
+    w_fact, h_fact = 0.15, 0.20
+    w_patch, h_patch = int(round(w_img * w_fact)), int(round(h_img * h_fact))
+    x_off, y_off = 0, 10
+    cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
+    decodings_left, zero_locs_left, one_locs_left = decode_patch(img, template_zero, template_one, imgpath)
+    cv.ResetImageROI(img)
+    marks_out_left = create_marks_dict(zero_locs_left, one_locs_left, x_off, y_off, imgpath, LEFT)
+    x_off = int(round(w_img - w_patch))
+    cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
+    decodings_rht, zero_locs_rht, one_locs_rht = decode_patch(img, template_zero, template_one, imgpath)
+    cv.ResetImageROI(img)
+    marks_out_rht = create_marks_dict(zero_locs_rht, one_locs_rht, x_off, y_off, imgpath, RIGHT)
 
+    marks_out = marks_out_left
+    for markval, tups in marks_out_rht.iteritems():
+        marks_out.setdefault(markval, []).extend(tups)
+
+    return (decodings_left, decodings_rht), marks_out
+
+def decode_patch(I, Izero, Ione, imgpath, T=0.9):
+    """ Given a rough region around a barcode, return the decoding.
+    Input:
+        IplImage I: rough patch around one barcode.
+        IplImage IZERO:
+        IplImage IONE:
+        str IMGPATH:
+    Output:
+        (str DECODING, list ZERO_LOCS, list ONE_LOCS).
+    list ZERO_LOCS, ONE_LOCS: [(x1,y1,x2,y2), ...]
+    """
     # LEFT_ZERO_BEST_LOCS: {int imgidx: [(x1,y1,x2,y2,score), ...]}
     # Note: Both IMG and the templates have already been smoothed.
-    left_zero_best_locs = tempmatch.get_tempmatches(template_zero, [rough_left_barcode], 
-                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
-    left_one_best_locs = tempmatch.get_tempmatches(template_one, [rough_left_barcode], 
-                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
-    right_zero_best_locs = tempmatch.get_tempmatches(template_zero, [rough_right_barcode], 
-                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
-    right_one_best_locs = tempmatch.get_tempmatches(template_one, [rough_right_barcode],
-                                           do_smooth=tempmatch.SMOOTH_NONE, T=0.9)[0]
-    
-    left_locs0, left_locs1 = postprocess_locs(left_zero_best_locs, left_one_best_locs)
-    right_locs0, right_locs1 = postprocess_locs(right_zero_best_locs, right_one_best_locs)
+    zero_best_locs = tempmatch.get_tempmatches(Izero, [I], 
+                                          do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
+    one_best_locs = tempmatch.get_tempmatches(Ione, [I], 
+                                          do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
+    locs0, locs1 = postprocess_locs(zero_best_locs, one_best_locs)
 
-    decodings = [transformToBits((left_locs0, left_locs1), rough_left_barcode),
-                 transformToBits((right_locs0, right_locs1), rough_right_barcode)]
-    
-    # Also correct the offsets from the crop done.
-    xOffL, yOffL = offsetLeft
-    xOffR, yOffR = offsetRight
-    off_tups = [(imgpath, (x1+xOffL, y1+yOffL, x2+xOffL, y2+yOffL), LEFT) for (x1,y1,x2,y2,score) in left_locs0]
-    off_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), RIGHT) for (x1,y1,x2,y2,score) in right_locs0])
+    return transformToBits(locs0, locs1, I), locs0, locs1
 
-    on_tups = [(imgpath, (x1+xOffL,y1+yOffL,x2+xOffL,y2+yOffL), LEFT) for (x1,y1,x2,y2,score) in left_locs1]
-    on_tups.extend([(imgpath, (x1+xOffR, y1+yOffR, x2+xOffR, y2+yOffR), RIGHT) for (x1,y1,x2,y2,score) in right_locs1])
-    
-    marks_out = {MARK_ON: on_tups, MARK_OFF: off_tups}
-
-    return decodings, marks_out
+def create_marks_dict(zero_bbs, one_bbs, x_off, y_off, imgpath, side):
+    """
+    Input:
+        list ZERO_BBS, ONE_BBS: [(x1,y1,x2,y2,score), ...]
+        int X_OFF, Y_OFF:
+    Output:
+        dict MARKS_OUT. {MARK_ON/MARK_OFF: [(imgpath, (x1,y1,x2,y2), LEFT/RIGHT), ...]}
+    """
+    marks_out = {}
+    for (x1,y1,x2,y2,score) in zero_bbs:
+        bb_correct = (x1 + x_off, y1 + y_off, x2 + x_off, y2 + y_off)
+        marks_out.setdefault(MARK_OFF, []).append((imgpath, bb_correct, side))
+    for (x1,y1,x2,y2,score) in one_bbs:
+        bb_correct = (x1 + x_off, y1 + y_off, x2 + x_off, y2 + y_off)
+        marks_out.setdefault(MARK_ON, []).append((imgpath, bb_correct, side))
+    return marks_out
 
 def postprocess_locs(zero_locs, one_locs):
     """Post processing the locations:
@@ -261,12 +187,11 @@ def postprocess_locs(zero_locs, one_locs):
     one_locs = sorted(one_locs, key=lambda tup: tup[1])
     return zero_locs, one_locs
 
-def transformToBits(best_locs, img):
+def transformToBits(zero_locs, one_locs, img):
     """Assumes best_locs are the correct locations. 
     Also, the BEST_LOCS are sorted by height.
     """
     # ZERO_LOCS, ONE_LOCS: [(x1,y1,x2,y2,score), ...]
-    zero_locs, one_locs = best_locs
 
     zero_bits = [('0', y1) for (x1,y1,x2,y2,score) in zero_locs]
     one_bits = [('1', y1) for (x1,y1,x2,y2,score) in one_locs]
@@ -291,7 +216,12 @@ def rescale_img(I, w0, h0, w1, h1):
 def main():
     args = sys.argv[1:]
     arg0 = args[0]
-    outdir = args[1]
+    do_display_output = True if 'display' in args else False
+    if do_display_output:
+        outdir = args[-1]
+    else:
+        outdir = None
+    do_profile = True if 'profile' in args else False
     if os.path.isdir(arg0):
         imgpaths = []
         for dirpath, dirnames, filenames in os.walk(arg0):
@@ -326,6 +256,10 @@ def main():
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         I = tempmatch.smooth(I, 3, 3, bordertype='const', val=255.0)
         print "For imgpath {0}:".format(imgpath)
+        if do_profile:
+            cProfile.runctx('decode(I, Izero, Ione, _imgpath=imgpath)', 
+                            {}, {'decode': decode, 'I': I, 'Izero': Izero, 'Ione': Ione, 'imgpath': imgpath})
+            return
         decodings, isflip, marklocs, isback = decode(I, Izero, Ione, _imgpath=imgpath)
         if isback:
             print "    Detected backside."
@@ -337,6 +271,8 @@ def main():
         
         if decodings == None: 
             err_imgpaths.append(imgpath)
+            continue
+        if not do_display_output:
             continue
         # Output colorful image with interpretation displayed nicely
         Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
@@ -358,7 +294,7 @@ def main():
 
     dur = time.time() - t
     print "...Finished Decoding {0} images ({1} s).".format(len(imgpaths), dur)
-    print "    Avg. Time per Ballot: {0} s".format(dur / float(len(imgpaths)))
+    print "    Avg. Time per Image: {0} s".format(dur / float(len(imgpaths)))
     print "    Number of Errors: {0}".format(len(err_imgpaths))
     print "Done."
 
