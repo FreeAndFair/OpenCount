@@ -362,7 +362,10 @@ class PartitionPanel(ScrolledPanel):
         manual_labeled = {} # maps {str imgpath: str label}
         for imgpath, label in self.errs_corrected.iteritems():
             if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
-                manual_labeled[imgpath] = label
+                # TODO: Officially document (or modify textentry widget) 
+                # that commas separate barcode values
+                decoding = tuple([s.strip() for s in label.split(",")])
+                manual_labeled[imgpath] = decoding
         print "...generating partitions..."
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)

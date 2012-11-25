@@ -37,7 +37,7 @@ class SequoiaVendor(Vendor):
         """
         Input:
             dict VERIFIED_RESULTS: maps {markval, [(imgpath, (x1,y1,x2,y2), userdata), ...]}
-            dict MANUAL_LABELED: maps {imgpath: [str decoding_i, ...]}
+            dict MANUAL_LABELED: maps {imgpath: [decoding_left, decoding_right]}
         Note: imgpaths not in VERIFIED_RESULTS but in FLIPMAP are back sides.
         Output:
             (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
@@ -66,20 +66,24 @@ class SequoiaVendor(Vendor):
             imginfo['page'] = 0
             imginfo_map[imgpath] = imginfo
         for imgpath, decoding in manual_labeled.iteritems():
-            img2decoding[imgpath] = decoding
-            info = get_imginfo(decoding)
+            # TODO: Introduce a non-hacky way to manually indicate that
+            # an image is a back-side, rather than entering in "0,".
             # TODO: Only supports double-sided elections.
             if decoding[0] == "0" and decoding[1] == "":
+                decoding = ("BACK", "BACK")
+                info = get_imginfo(decoding)
                 info['page'] = 1
             else:
+                info = get_imginfo(decoding)
                 info['page'] = 0
+            img2decoding[imgpath] = decoding
             imginfo_map[imgpath] = info
         for ballotid, backimgpaths in self.backsmap.iteritems():
             for imgpath in backimgpaths:
                 # IMGPATH is a back-side image.
                 imginfo = {'page': 1}
                 imginfo_map[imgpath] = imginfo
-                img2decoding[imgpath] = "BACK"  # Signal for backside"
+                img2decoding[imgpath] = ("BACK", "BACK")  # Signal for backside"
 
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
@@ -92,15 +96,15 @@ class SequoiaVendor(Vendor):
                 continue
             imgpaths = bal2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
-            decodings_ordered = tuple([img2decoding[imP] for imP in imgpaths_ordered])
-            partitionid = decoding2partition.get(decodings_ordered, None)
+            # Only the front-page has barcode information
+            decoding = img2decoding[imgpaths_ordered[0]]
+            partitionid = decoding2partition.get(decoding, None)
             if partitionid == None:
-                decoding2partition[decodings_ordered] = curPartitionID
+                decoding2partition[decoding] = curPartitionID
                 partitionid = curPartitionID
                 curPartitionID += 1
             partitions.setdefault(partitionid, []).append(ballotid)
             history.add(ballotid)
-        
         return partitions, img2decoding, imginfo_map
 
     def __repr__(self):
