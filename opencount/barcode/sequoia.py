@@ -149,11 +149,11 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
         # Try to search for the column of black-rects to infer flipped
         cv.SetImageROI(I, (0, 10, w_patch, h_patch))
         x, y, scTop = tempmatch.bestmatch(IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        if scTop >= 0.9:
+        if scTop >= 0.89:
             return 0, False
         cv.SetImageROI(I, (0, h_img - h_patch, w_patch, h_patch))
         x, y, scBot = tempmatch.bestmatch(IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        if scBot >= 0.9:
+        if scBot >= 0.89:
             return 0, True
     # At this point, this is /probably/ an empty page, or something
     # funky is going on.
@@ -377,7 +377,7 @@ def main():
         print "For imgpath {0}:".format(imgpath)
         side, isflip = get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE)
         if side == None:
-            print "    ERROR"
+            print "    ERROR GET_SIDE"
             err_imgpaths.append(imgpath)
             continue
         elif side == 1:
@@ -388,7 +388,7 @@ def main():
             cv.Flip(I, I, flipMode=-1)
         decodings, marklocs = decode(I, Izero, Ione, _imgpath=imgpath)
         if decodings == None:
-            print "    ERROR"
+            print "    ERROR DECODE"
             err_imgpaths.append(imgpath)
             continue
         else:

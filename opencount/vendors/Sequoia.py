@@ -145,7 +145,11 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
         err_imgpaths = set()
         Itemp0 = cv.LoadImage(template_path_zero, cv.CV_LOAD_IMAGE_GRAYSCALE)
         Itemp1 = cv.LoadImage(template_path_one, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        Isidesym = cv.LoadImage(sidesym_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        IsymA = cv.LoadImage(sequoia.SYMA_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        IsymB = cv.LoadImage(sequoia.SYMB_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        IsymC = cv.LoadImage(sequoia.SYMC_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        IsymD = cv.LoadImage(sequoia.SYMD_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        IsymE = cv.LoadImage(sequoia.SYME_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
         # Rescale to current image resolution
         exmpl_imgsize = cv.GetSize(cv.LoadImage(ballots.values()[0][0], cv.CV_LOAD_IMAGE_UNCHANGED))
         if exmpl_imgsize != (sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H):
@@ -154,57 +158,88 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                                          exmpl_imgsize[0], exmpl_imgsize[1])
             Itemp1 = sequoia.rescale_img(Itemp1, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
                                          exmpl_imgsize[0], exmpl_imgsize[1])
-            Isidesym = sequoia.rescale_img(Isidesym, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                         exmpl_imgsize[0], exmpl_imgsize[1])
+            IsymA = sequoia.rescale_img(IsymA, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                        exmpl_imgsize[0], exmpl_imgsize[1])
+            IsymB = sequoia.rescale_img(IsymB, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                        exmpl_imgsize[0], exmpl_imgsize[1])
+            IsymC = sequoia.rescale_img(IsymC, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                        exmpl_imgsize[0], exmpl_imgsize[1])
+            IsymD = sequoia.rescale_img(IsymD, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                        exmpl_imgsize[0], exmpl_imgsize[1])
+            IsymE = sequoia.rescale_img(IsymE, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                        exmpl_imgsize[0], exmpl_imgsize[1])
+
         Itemp0 = tempmatch.smooth(Itemp0, 3, 3, bordertype='const', val=255.0)
         Itemp1 = tempmatch.smooth(Itemp1, 3, 3, bordertype='const', val=255.0)
-        Isidesym = tempmatch.smooth(Isidesym, 3, 3, bordertype='const', val=255.0)
+        IsymA = tempmatch.smooth(IsymA, 3, 3, bordertype='const', val=255.0)
+        IsymB = tempmatch.smooth(IsymB, 3, 3, bordertype='const', val=255.0)
+        IsymC = tempmatch.smooth(IsymC, 3, 3, bordertype='const', val=255.0)
+        IsymD = tempmatch.smooth(IsymD, 3, 3, bordertype='const', val=255.0)
+        IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
         backsmap = {} # maps {ballotid: [backpath_i, ...]}
         for ballotid, imgpaths in ballots.iteritems():
             fronts, backs = [], []
             for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
                 I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
                 I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
-                side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD)
-                side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD)
+                side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
+                side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD, IsymE)
                 if side0 == None and side1 == None:
-                    
-                elif side0 == None or side1 == None:
-                    # 
-                    
-                if side == None:
-                    if sequoia.is_empty_image(I):
-                        
-                    pass
-                elif side == 1:
-                    backs.append(imgpath)
-                    flipmap[imgpath] = isflip
+                    # Something crazy happened, run!
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
+                    if queue:
+                        queue.put(True)
+                    print "Craziness here, run!"
+                    continue
+                if side0 != None:
+                    flipmap[imgpath0] = isflip0
+                if side1 != None:
+                    flipmap[imgpath1] = isflip1
+                frontside = None
+                if side0 == 0:
+                    Ifront = I0
+                    frontside = 0
+                    imP_front = imgpath0
+                    cv.ResetImageROI(Ifront)
+                    if isflip0:
+                        cv.Flip(Ifront, Ifront, flipMode=-1)
                 else:
-                    decodings, _, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpathimgpath)
-                    cv.ResetImageROI(I)
-                    
-                decodings, isflip, mark_locs, isback = sequoia.decode(I, Itemp0, Itemp1, _imgpath=imgpath)
-                cv.ResetImageROI(I)
-                if isback:
-                    # Guess that this must be a backside.
-                    flipmap[imgpath] = isflip
-                    backs.append(imgpath)
-                elif decodings[0] == '' and decodings[1] == '':
-                    # This /might/ be an empty backside...don't throw
-                    # it into ERR_IMGPATHS just yet.
-                    if is_empty_image(I):
-                        print "...detected EMPTY back side..."
-                        backs.append(imgpath)
-                        flipmap[imgpath] = False # Whatever, doesn't matter.
-                    else:
-                        err_imgpaths.add(imgpath)
+                    Ifront = I1
+                    frontside = 1
+                    imP_front = imgpath1
+                    cv.ResetImageROI(Ifront)
+                    if isflip1:
+                        cv.Flip(Ifront, Ifront, flipMode=-1)
+                decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imP_front)
+                cv.ResetImageROI(Ifront)
+                if decodings == None:
+                    # Something crazy happened.
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
+                    if queue:
+                        queue.put(True)
+                    print "Craziness here, decodings == None"
+                    continue
                 elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
-                    err_imgpaths.add(imgpath)
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
                 else:
-                    flipmap[imgpath] = isflip
+                    if frontside == 0 and side1 == None:
+                        # imgpath1 must be an empty backside.
+                        backs.append(imgpath1)
+                        flipmap[imgpath1] = False # Anything is fine
+                    elif frontside == 1 and side0 == None:
+                        # imgpath 0 must be an empty backside.
+                        backs.append(imgpath0)
+                        flipmap[imgpath0] = False
+                    elif frontside == 0:
+                        backs.append(imgpath1)
+                    elif frontside == 1:
+                        backs.append(imgpath0)
                     for marktype, tups in mark_locs.iteritems():
                         mark_bbs_map.setdefault(marktype, []).extend(tups)
-                    fronts.append(imgpath)
+                    fronts.append(imgpath0)
                 if queue: 
                     queue.put(True)
             backsmap[ballotid] = backs
@@ -220,8 +255,3 @@ def by_n_gen(seq, n):
         toreturn = seq[i:i+n]
         yield toreturn
         i += n
-
-def is_empty_image(I):
-    """ Estimate if this image is an entirely-white page. """
-    w, h = cv.GetSize(I)
-    return (cv.Sum(I) / (float(w)*h)) >= 240.0
