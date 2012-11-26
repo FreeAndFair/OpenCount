@@ -187,6 +187,7 @@ class SelectTargetsMainPanel(wx.Panel):
         #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
         #     box := [x1, y1, width, height, id, contest_id]
         target_locs_map = {}
+        lonely_targets_map = {} # maps {int i: {int side: [TargetBox_i, ...]}}
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         for i, boxes_sides in self.seltargets_panel.boxes.iteritems():
             group_idx = self.i2groupid[i]
@@ -200,8 +201,10 @@ class SelectTargetsMainPanel(wx.Panel):
                 # (To help out target extraction)
                 target_locs_map.setdefault(group_idx, {}).setdefault(side, [])
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
-                box_assocs = self.compute_box_ids(boxes)
-                # TODO: For now, just grab one exemplar image from this group
+                # LONELY_TARGETS: list [TargetBox_i, ...]
+                box_assocs, lonely_targets = self.compute_box_ids(boxes)
+                lonely_targets_map.setdefault(i, {}).setdefault(side, []).extend(lonely_targets)
+                # For now, just grab one exemplar image from this group
                 imgpath = self.seltargets_panel.partitions[i][0][side]
                 rows_contests = [] 
                 rows_targets = []
@@ -241,6 +244,24 @@ class SelectTargetsMainPanel(wx.Panel):
         pickle.dump(target_locs_map, open(pathjoin(self.proj.projdir_path,
                                                    self.proj.target_locs_map), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        # Warn User about lonely targets.
+        # TODO: Help the user out more for dealing with this case.
+        _lst = []
+        cnt = 0
+        for i, targs_sidesMap in lonely_targets_map.iteritems():
+            for side, targets in targs_sidesMap.iteritems():
+                if targets:
+                    print "...On Partition {0}, side {1}, there were {2} \
+Lonely Targets - please check them out, or else they'll get ignored by \
+LabelContests.".format(i, side, len(targets))
+                    _lst.append("Partition={0} Side={1}".format(i, side))
+                    cnt += len(targets)
+        if _lst:
+            dlg = wx.MessageDialog(self, message="Warning - there were {0} \
+targets that were not enclosed in a contest. Please check them out, otherwise \
+they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
+                                   style=wx.OK)
+            dlg.ShowModal()
 
     def compute_box_ids(self, boxes):
         """ Given a list of Boxes, some of which are Targets, others
@@ -253,24 +274,30 @@ class SelectTargetsMainPanel(wx.Panel):
         """
         def containing_box(box, boxes):
             """ Returns the box in BOXES that contains BOX. """
+            w, h = box.width, box.height
+            # Allow some slack when checking which targets are contained by a contest
+            slack_fact = 0.1
+            xEps = int(round(w*slack_fact))
+            yEps = int(round(h*slack_fact))
             for i, otherbox in enumerate(boxes):
-                if (box.x1 >= otherbox.x1 and box.y1 >= otherbox.y1
-                        and box.x2 <= otherbox.x2 and box.y2 <= otherbox.y2):
+                if ((box.x1+xEps) >= otherbox.x1 and (box.y1+yEps) >= otherbox.y1
+                        and (box.x2-xEps) <= otherbox.x2 and (box.y2-yEps) <= otherbox.y2):
                     return i, otherbox
             return None, None
         assocs = {}
         contests = [b for b in boxes if isinstance(b, ContestBox)]
         targets = [b for b in boxes if isinstance(b, TargetBox)]
+        lonely_targets = []
         for t in targets:
             id, c = containing_box(t, contests)
             if id == None:
                 print "Warning", t, "is not contained in any box."
-                continue
-            if id in assocs:
+                lonely_targets.append(t)
+            elif id in assocs:
                 assocs[id][1].append(t)
             else:
                 assocs[id] = [c, [t]]
-        return assocs
+        return assocs, lonely_targets
 
     def onButton_getimgpath(self, evt):
         S = self.seltargets_panel
@@ -1481,7 +1508,7 @@ class TargetBox(Box):
         if self.is_sel:
             return ("Yellow", 3)
         else:
-            return ("Green", 2)
+            return ("Green", 1)
     def copy(self):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
 class ContestBox(Box):
@@ -1499,7 +1526,7 @@ class ContestBox(Box):
         if self.is_sel:
             return ("Yellow", 5)
         else:
-            return ("Blue", 5)
+            return ("Blue", 2)
     def copy(self):
         return ContestBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
     
