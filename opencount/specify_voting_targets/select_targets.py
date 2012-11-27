@@ -189,6 +189,7 @@ class SelectTargetsMainPanel(wx.Panel):
         target_locs_map = {}
         lonely_targets_map = {} # maps {int i: {int side: [TargetBox_i, ...]}}
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
+        imgsize = None # Assumes all voted ballots are the same dimensions
         for i, boxes_sides in self.seltargets_panel.boxes.iteritems():
             group_idx = self.i2groupid[i]
             csvpaths = []
@@ -206,33 +207,54 @@ class SelectTargetsMainPanel(wx.Panel):
                 lonely_targets_map.setdefault(i, {}).setdefault(side, []).extend(lonely_targets)
                 # For now, just grab one exemplar image from this group
                 imgpath = self.seltargets_panel.partitions[i][0][side]
-                rows_contests = [] 
+                if imgsize == None:
+                    imgsize = cv.GetSize(cv.LoadImage(imgpath))
+                rows_contests = []
                 rows_targets = []
                 id_c, id_t = 0, 0
                 for contest_id, (contestbox, targetboxes) in box_assocs.iteritems():
+                    x1_out, y1_out = contestbox.x1, contestbox.y1
+                    w_out, h_out = contestbox.width, contestbox.height
+                    # Make sure contest doesn't extend outside image.
+                    x1_out = max(x1_out, 0)
+                    y1_out = max(y1_out, 0)
+                    if (x1_out + w_out) >= imgsize[0]:
+                        w_out = imgsize[0] - x1_out - 1
+                    if (y1_out + h_out) >= imgsize[0]:
+                        h_out = imgsize[1] - y1_out - 1
                     rowC = {'imgpath': imgpath, 'id': id_c,
-                            'x': contestbox.x1, 'y': contestbox.y1,
-                            'width': contestbox.x2-contestbox.x1,
-                            'height': contestbox.y2-contestbox.y1,
+                            'x': x1_out, 'y': y1_out,
+                            'width': w_out,
+                            'height': h_out,
                             'label': '', 'is_contest': 1, 
                             'contest_id': contest_id}
                     rows_contests.append(rowC)
-                    cbox = [contestbox.x1, contestbox.y1,
-                            contestbox.x2 - contestbox.x1,
-                            contestbox.y2 - contestbox.y1,
-                            id_c, contest_id]
+                    cbox = [x1_out, y1_out, w_out, h_out, id_c, contest_id]
                     curcontest = [] # list [contestbox, targetbox_i, ...]
                     curcontest.append(cbox)
                     id_c += 1
                     for box in targetboxes:
+                        # Note: Ensure that all exported targets have the same dimensions,
+                        # or risk breaking SetThreshold!
+                        w, h = self.seltargets_panel.boxsize
+                        x1_out, y1_out = box.x1, box.y1
+                        # Don't let target extend outside the image
+                        if (x1_out + w) >= imgsize[0]:
+                            x1_out -= ((x1_out + w) - imgsize[0] + 1)
+                        if (y1_out + h) >= imgsize[1]:
+                            y1_out -= ((y1_out + h) - imgsize[1] + 1)
+                        x1_out = max(x1_out, 0)
+                        y1_out = max(y1_out, 0)
+                        # Note: This doesn't necessarily guarantee that T
+                        # is inside img bbox - however, since targets are
+                        # small w.r.t image, this will always work.
                         rowT = {'imgpath': imgpath, 'id': id_t,
-                               'x': box.x1, 'y': box.y1,
-                               'width': box.x2-box.x1, 'height': box.y2-box.y1,
+                               'x': x1_out, 'y': y1_out,
+                               'width': w, 'height': h,
                                'label': '', 'is_contest': 0,
                                'contest_id': contest_id}
                         rows_targets.append(rowT)
-                        tbox = [box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1,
-                                id_t, contest_id]
+                        tbox = [x1_out, y1_out, w, h, id_t, contest_id]
                         curcontest.append(tbox)
                         id_t += 1
                     target_locs_map.setdefault(group_idx, {}).setdefault(side, []).append(curcontest)

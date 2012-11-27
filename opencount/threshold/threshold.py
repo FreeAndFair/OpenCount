@@ -1,4 +1,4 @@
-import pdb
+import pdb, traceback
 import sys
 import random
 import math
@@ -156,7 +156,11 @@ class GridShow(wx.ScrolledWindow):
         pos = (0, i*self.targeth/self.numcols+offset)
 
         #print "DRAW IMG", pilimg, pos, i
-        img = wx.StaticBitmap(self, -1, pil2wxb(pilimg), pos=pos)
+        try:
+            img = wx.StaticBitmap(self, -1, pil2wxb(pilimg), pos=pos)
+        except:
+            traceback.print_exc()
+            pdb.set_trace()
         #img.SetToolTip(wx.ToolTip(str(weight)))
         def call(im, jp, ii):
             def domark(x): 
