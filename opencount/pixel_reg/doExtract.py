@@ -383,7 +383,7 @@ def convertImagesWorkerMAP(job):
     #  output for targets, output for quarantine info, output for extracted
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
     wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
-    print "START"
+    #print "START"
     try:
         (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
         t0=time.clock();
@@ -407,7 +407,7 @@ def convertImagesWorkerMAP(job):
                 balImg = sh.fastFlip(balImg)
             balImL.append(balImg)
 
-        print 'load bal: ', time.clock()-t0
+        #print 'load bal: ', time.clock()-t0
         # check if ballot is flipped
         t0=time.clock();
 
@@ -423,7 +423,7 @@ def convertImagesWorkerMAP(job):
     except Exception as e:
         traceback.print_exc()
         raise e
-    print "DONE"
+    #print "DONE"
 
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=False):
     """ Called by both single and multi-page elections. Performs
@@ -662,7 +662,6 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
         blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
         for ballotid in ballotIDs:
-            print 'on bid', ballotid
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]

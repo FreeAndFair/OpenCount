@@ -1,4 +1,4 @@
-import sys, os, traceback, pdb, threading, multiprocessing, math, array
+import sys, os, traceback, pdb, threading, multiprocessing, math, array, time
 try:
     import cPickle as pickle
 except:
@@ -6,6 +6,7 @@ except:
 from os.path import join as pathjoin
 
 import wx
+import cv
 from wx.lib.pubsub import Publisher
 
 sys.path.append('..')
@@ -77,12 +78,19 @@ class RunThread(threading.Thread):
                                              self.proj.image_to_flip), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
+        totalTime = time.time()
+        time_doExtract = time.time()
+        print "...starting doExtract..."
         res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                         target_locs_map, group_exmpls,
                                         self.proj.extracted_dir,
                                         self.proj.extracted_metadata,
                                         self.proj.ballot_metadata,
                                         self.proj.quarantined)
+        dur_doExtract = time.time() - time_doExtract
+        print "...Finished doExtract ({0} s)...".format(dur_doExtract)
+        print "...Doing post-target-extraction work..."
+        time_post = time.time()
         try:
             os.makedirs(self.proj.extracted_dir)
         except:
@@ -92,19 +100,19 @@ class RunThread(threading.Thread):
         dirList = [x for x in dirList if util.is_image_ext(x)]
         # This will always be a common prefix. 
         # Just add it to there once. Code will be faster.
-        dirList = [x for x in dirList]
         
         #quarantined = set([util.encodepath(x[:-1]) for x in open(self.proj.quarantined)])
         quarantined = set([])
 
-        dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
+        #dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
-        print "Doing a zip"
+        print "...Doing a zip..."
 
         total = len(dirList)
         manager = multiprocessing.Manager()
         queue = manager.Queue()
+        time_doandgetAvg = time.time()
         start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
         tmp = []  # TMP: [[imgpath, float avg_intensity], ...]
         i = 0
@@ -113,10 +121,11 @@ class RunThread(threading.Thread):
             tmp.append(result)
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             i += 1
-        
+        dur_doandgetAvg = time.time() - time_doandgetAvg
+        print "...Finished doandgetAvg ({0} s)...".format(dur_doandgetAvg)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
-        print "Doing a find-longest-prefix thing"
-
+        print "...Starting a find-longest-prefix thing..."
+        time_longestPrefix = time.time()
         fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
         fulllst = [(x,int(y)) for x,y in fulllst]
         
@@ -136,8 +145,13 @@ class RunThread(threading.Thread):
 
         l = len(prefix)
         prefix = pathjoin(self.proj.extracted_dir,prefix)
-
+        
+        dur_longestPrefix = time.time() - time_longestPrefix
         open(self.proj.classified+".prefix", "w").write(prefix)
+        print "...Finished find-longest-prefix ({0} s).".format(dur_longestPrefix)
+
+        print "...Starting classifiedWrite..."
+        time_classifiedWrite = time.time()
         out = open(self.proj.classified, "w")
         offsets = array.array('L')
         sofar = 0
@@ -150,14 +164,36 @@ class RunThread(threading.Thread):
         out.close()
 
         offsets.tofile(open(self.proj.classified+".index", "w"))
+        dur_classifiedWrite = time.time() - time_classifiedWrite
+        print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
 
-        print 'done'
-        
+        print "...Starting imageFileMake..."
+        time_imageFileMake = time.time()
         threshold.imageFile.makeOneFile(self.proj.extracted_dir, 
                                         fulllst, self.proj.extractedfile)
+        dur_imageFileMake = time.time() - time_imageFileMake
+        print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 
         wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+        
+        dur_post = time.time() - time_post
+        print "...Finished post-target-extraction work ({0} s).".format(dur_post)
+        dur_totalTime = time.time() - totalTime
+        
+        print "...Finished Target Extraction. ({0} s).".format(dur_totalTime)
+        frac = (dur_doExtract / dur_totalTime) * 100
+        print "    doExtract: {0:.3f}%  |  {1:.3f} s".format(frac, dur_doExtract)
+        frac = (dur_post / dur_totalTime) * 100
+        print "    post-work: {0:.3f}%  |  {1:.3f} s".format(frac, dur_post)
+        frac = (dur_doandgetAvg / dur_post) * 100
+        print "        doandgetAvg: {0:.3f}%  {1:.3f} s".format(frac, dur_doandgetAvg)
+        frac = (dur_longestPrefix / dur_post) * 100
+        print "        longestPrefix: {0:.3f}%  |  {1:.3f} s".format(frac, dur_longestPrefix)
+        frac = (dur_classifiedWrite / dur_post) * 100
+        print "        classifiedWrite: {0:.3f}%  |  {1:.3f} s".format(frac, dur_classifiedWrite)
+        frac = (dur_imageFileMake / dur_post) * 100
+        print "        imageFileMake: {0:.3f}%   |  {1:.3f} s".format(frac, dur_imageFileMake)
 
 def start_doandgetAvg(queue, rootdir, dirList):
     p = multiprocessing.Process(target=spawn_jobs, args=(queue, rootdir, dirList))
@@ -165,8 +201,12 @@ def start_doandgetAvg(queue, rootdir, dirList):
 
 def doandgetAvgs(imgnames, rootdir, queue):
     for imgname in imgnames:
-        data = shared.standardImread(pathjoin(rootdir, imgname), flatten=True)
-        result = 256 * (float(sum(map(sum, data)))) / (data.size)
+        imgpath = pathjoin(rootdir, imgname)
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        w, h = cv.GetSize(I)
+        result = cv.Sum(I)[0] / float(w*h)
+        #data = shared.standardImread(pathjoin(rootdir, imgname), flatten=True)
+        #result = 256 * (float(sum(map(sum, data)))) / (data.size)
         queue.put((imgname, result))
     return 0
 
