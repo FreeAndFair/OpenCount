@@ -164,6 +164,7 @@ class Project(object):
                      'group_exmpls': 'group_exmpls.p',
                      'group_targets_map': 'group_targets_map.p',
                      'infer_bounding_boxes': False,
+                     'targetextract_quarantined': 'targetextract_quarantined.p',
                      'ocr_tmp_dir': pathjoin(projdir_path, 'ocr_tmp_dir'),
                      'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
                      'contest_text': pathjoin(projdir_path, 'contest_text.csv'),

@@ -86,7 +86,8 @@ class RunThread(threading.Thread):
                                         self.proj.extracted_dir,
                                         self.proj.extracted_metadata,
                                         self.proj.ballot_metadata,
-                                        self.proj.quarantined)
+                                        pathjoin(self.proj.projdir_path,
+                                                 self.proj.targetextract_quarantined))
         dur_doExtract = time.time() - time_doExtract
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
         print "...Doing post-target-extraction work..."

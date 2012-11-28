@@ -4,7 +4,7 @@ from scipy import misc,ndimage
 from scipy.stats import chi2
 import shared as sh
 from imagesAlign import *
-import cProfile, traceback
+import cProfile, traceback, time
 import csv
 import os
 import string
@@ -244,7 +244,7 @@ def findOutliers(Errs,thr,N):
     return qFlag
 
 
-def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, img2bal, imageMetaDir=[] ):
+def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, imageMetaDir=[] ):
 
     # Algorithm.
     # Pick percentage p,e.g., .1%
@@ -279,8 +279,10 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, img2bal, ima
     # found within diffList - thus, we have to add them in and
     # add dummy values
     for votedpath in img2bal:
-        voted_abspath = os.path.abspath(votedpath)
-        enc_path = encodepath(voted_abspath)
+        #voted_abspath = os.path.abspath(votedpath)
+        #enc_path = encodepath(voted_abspath)
+        # I don't think we have to abspath it anymore...
+        enc_path = encodepath(votedpath)
         if enc_path not in ballot2targets:
             ballot2targets[enc_path] = []
 
@@ -294,9 +296,9 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, img2bal, ima
     Errs=[];K=0
 
     for K in range(len(jobs)):
-        # job := [tplL_i, bbsL_i, balL_i, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDira_i]
+        # job := [tplL_i, tplFlips, bbsL_i, balL_i, balL_flips, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDir_i]
         job=jobs[K]
-        balL=job[2]
+        balL=job[3]
         for balP in balL:
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
@@ -370,12 +372,8 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantineCvr, project, img2bal, ima
 
     qFiles=list(set(qFiles))
 
-    print qFiles
-    print quarantineCvr
-    f = open(quarantineCvr, "a")
-    for each in qFiles:
-        f.write(str(each)+"\n")
-    
+    print "...Quarantined {0} files during TargetExtraction...".format(len(qFiles))
+    pickle.dump(qFiles, open(quarantined_outP, 'wb'))
 
 def convertImagesWorkerMAP(job):
     # match to front-back
@@ -608,7 +606,7 @@ def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targ
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls,
                     targetDir, targetMetaDir, imageMetaDir,
-                    quarantineCvr, stopped=None):
+                    targetextract_quarantined, stopped=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
         dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
@@ -622,7 +620,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         str TARGETDIR: Dir to store extracted target patches
         str TARGETMETADIR: Dir to store metadata for each target
         str IMAGEMETADIR: Dir to store metadata for each ballot
-        str QUARANTINECVR:
+        str TARGETEXTRACT_QUARANTINED: 
         fn STOPPED: Intended to be used as a way to cancel the extraction,
             i.e. returns True if we should.
     Output:
@@ -671,8 +669,12 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             
     worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped)
     if worked:
-        # do quarantineCheckMAP?
-        pass
+        # Quarantine any ballots with large error
+        t = time.time()
+        print "...Starting quarantineCheckMAP..."
+        quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b,imageMetaDir=imageMetaDir)
+        dur = time.time() - t
+        print "...Finished quarantineCheckMAP ({0} s).".format(dur)
     return worked
 
             

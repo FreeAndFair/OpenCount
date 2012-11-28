@@ -519,6 +519,10 @@ def get_quarantined_ballots(proj):
         grouping_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
                                                          proj.grouping_quarantined), 'rb'))
         qballotids.extend(grouping_quarantined)
+    if os.path.exists(pathjoin(proj.projdir_path, proj.targetextract_quarantined)):
+        targextract_quarantined = pickle.load(open(pathjoin(proj.projdir_path,
+                                                            proj.targetextract_quarantined), 'rb'))
+        qballotids.extend(targextract_quarantined)
     if os.path.exists(proj.quarantined):
         lines = open(proj.quarantined, 'r').read().split("\n")
         lines = [int(l) for l in lines if l != '']
