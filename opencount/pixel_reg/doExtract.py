@@ -379,11 +379,12 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
-    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
+    if wx.App.IsMainLoopRunning():
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
     #print "START"
     try:
-        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir) = job
+        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
         t0=time.clock();
 
         # need to load the template images
@@ -418,12 +419,13 @@ def convertImagesWorkerMAP(job):
             flipped = balL_flips[side]
             writeMAP(extractTargetsRegions(balImg, tplImg, bbs, balP=balP), targetDir, targetDiffDir, 
                      targetMetaDir, imageMetaDir, balP, tplImgPath, flipped)
+        queue.put(True)
     except Exception as e:
         traceback.print_exc()
         raise e
     #print "DONE"
 
-def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=False):
+def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, queue, verbose=False):
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
@@ -432,7 +434,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
         str imageMetaDir: Directory to store metadata for each Ballot,
             such as ballotpath, path to each extracted target, assoc'd
             blank ballot, isflipped.
-        list jobs: [[tmppaths_i, bbs_i, imgpaths_i, targetDir_i, targetDiffDir_i, imageMetaDir_i], ...]
+        list jobs: [[tmppaths_i, bbs_i, imgpaths_i, targetDir_i, targetDiffDir_i, imageMetaDir_i, queue], ...]
         stopped:
     """
     targetDiffDir=targetDir+'_diffs'
@@ -463,20 +465,33 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
         print 'using ', nProc, ' processes'
         pool=mp.Pool(processes=nProc)
 
+        '''
         it = [False]
         def imdone(x):
             it[0] = True
             print "I AM DONE NOW!"
+        '''
             
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
-        print "GOING UP TO", len(jobs)
-        pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
+        num_jobs = len(jobs)
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", num_jobs)
+        print "GOING UP TO", num_jobs
+        #pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
+        pool.map_async(convertImagesWorkerMAP, jobs)
+        cnt = 0
+        while cnt < num_jobs:
+            val = queue.get(block=True)
+            if val == True:
+                if wx.App.IsMainLoopRunning():
+                    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                cnt += 1
+        '''
         while not it[0]:
             if stopped():
                 pool.terminate()
                 return False
             time.sleep(.1)
-
+        '''
         pool.close()
         pool.join()
 
@@ -634,9 +649,11 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             for contest in contests:
                 cbox, tboxes = contest[0], contest[1:]
                 for tbox in tboxes:
-                    x1 = tbox[0]
+                    # TODO: Temporary hack to re-run target extract
+                    # on SantaCruz, without re-doing SelectTargets
+                    x1 = tbox[0] #+ 43
                     y1 = tbox[1]
-                    x2 = tbox[0] + tbox[2]
+                    x2 = tbox[0] + tbox[2] #- 28
                     y2 = tbox[1] + tbox[3]
                     id = tbox[4]
                     bb = np.array([y1, y2, x1, x2, id])
@@ -647,11 +664,12 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     if stopped == None:
         stopped = lambda : False
     targetDiffDir = targetDir + '_diffs'
-    # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir, targetMetaDir, imgMetaDir], ...]
+    # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir, targetMetaDir, imgMetaDir, queue], ...]
     jobs = []
     # 1.) Create jobs
+    manager = mp.Manager()
+    queue = manager.Queue()
     print "Creating blank ballots; go up to", len(group_to_ballots)
-    print group_to_ballots
     for i,(groupID, ballotIDs) in enumerate(group_to_ballots.iteritems()):
         bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Create 'blank ballots'. This might not work so well...
@@ -664,10 +682,10 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
             job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
-                   targetDir, targetDiffDir, targetMetaDir, imageMetaDir]
+                   targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue]
             jobs.append(job)
             
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped)
+    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, queue)
     if worked:
         # Quarantine any ballots with large error
         t = time.time()

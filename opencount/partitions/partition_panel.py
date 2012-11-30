@@ -473,7 +473,7 @@ class LabelOrDiscardPanel(label_imgs.LabelPanel):
             self.quar_imgpaths.add(curimgpath)
         elif self.radio_discard.GetValue():
             self.discard_imgpaths.add(curimgpath)
-        self.imgflips[imgpath] = self.chkbox_isflip.GetValue()
+        self.imgflips[curimgpath] = self.chkbox_isflip.GetValue()
         return label_imgs.LabelPanel.add_label(self, imgpath, label)
 
     def display_img(self, *args, **kwargs):

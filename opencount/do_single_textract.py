@@ -1,5 +1,6 @@
-import sys, os, pdb, time, traceback, csv
+import sys, os, pdb, time, traceback, csv, Queue
 import cPickle as pickle
+import numpy as np
 
 from os.path import join as pathjoin
 
@@ -47,61 +48,67 @@ def main():
         votedpath = args[1]
         outdir = args[2]
     
-    bal2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p'), 'rb'))
-    tpl2imgs = pickle.load(open(pathjoin(projdir, 'template_to_images.p'), 'rb'))
-    img2bal = pickle.load(open(pathjoin(projdir, 'image_to_ballot.p'), 'rb'))
-
-    fh=open(pathjoin(projdir, 'grouping_results.csv'))
-    dreader=csv.DictReader(fh)
-    bal2tpl={}
-    print "Now load quarantined data"
-    if os.path.exists(pathjoin(projdir, 'quarantined.csv')):
-        qfile = open(pathjoin(projdir, 'quarantined.csv'), 'r')
-        qfiles = set([f.strip() for f in qfile.readlines()])
-        qfile.close()
-    else:
-        qfiles = set()
-    print "Now process them all"
-    for row in dreader:
-        sample = os.path.abspath(row['samplepath'])
-        if sample not in qfiles:
-            bal2tpl[sample]=row['templatepath']
-    fh.close()
-
-    csvPattern = pathjoin(projdir, 'target_locations', '%s_targetlocs.csv')
-
     t_imgs = pathjoin(outdir, 'extracted')
     t_diff = pathjoin(outdir, 'extracted_diff')
     t_meta = pathjoin(outdir, 'extracted_metadata')
     b_meta = pathjoin(outdir, 'ballot_metadata')
+    try: os.makedirs(t_imgs)
+    except: pass
+    try: os.makedirs(t_diff)
+    except: pass
+    try: os.makedirs(t_meta)
+    except: pass
+    try: os.makedirs(b_meta)
+    except: pass
 
-    try:
-        os.makedirs(t_imgs)
-    except:
-        pass
-    try:
-        os.makedirs(t_diff)
-    except:
-        pass
-    try:
-        os.makedirs(t_meta)
-    except:
-        pass
-    try:
-        os.makedirs(b_meta)
-    except:
-        pass
+    bal2group = pickle.load(open(pathjoin(projdir, 'ballot_to_group.p'), 'rb'))
+    group2bals = pickle.load(open(pathjoin(projdir, 'group_to_ballots.p'), 'rb'))
+    b2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p'), 'rb'))
+    img2b = pickle.load(open(pathjoin(projdir, 'image_to_ballot.p'), 'rb'))
+    img2page = pickle.load(open(pathjoin(projdir, 'image_to_page.p'), 'rb'))
+    img2flip = pickle.load(open(pathjoin(projdir, 'image_to_flip.p'), 'rb'))
+    target_locs_map = pickle.load(open(pathjoin(projdir, 'target_locs_map.p'), 'rb'))
+    group_exmpls = pickle.load(open(pathjoin(projdir, 'group_exmpls.p'), 'rb'))
     
     # 0.) Set up job
     jobs = []
-    tplP = bal2tpl[os.path.abspath(votedpath)]
-    csvP = csvPattern % os.path.splitext(os.path.split(tplP)[1])[0]
-    bbsL = [shared.csv2bbs(csvP)]
-    tplL = [tplP]
-    balL = bal2imgs[os.path.abspath(votedpath)]
-    voteddir_root = '/media/data1/audits_2012/yolo/votedballots/'
-    jobs.append([tplL, bbsL, balL, t_imgs, t_imgs+"_diff", t_meta, b_meta])
+    ballotid = img2b[votedpath]
+    groupID = bal2group[ballotid]
     
+    def get_bbs(groupID, target_locs_map):
+        bbs_sides = []
+        boxes_sides = target_locs_map[groupID]
+        for side, contests in sorted(boxes_sides.iteritems(), key=lambda t: t[0]):
+            bbs = np.empty((0, 5))
+            for contest in contests:
+                cbox, tboxes = contest[0], contest[1:]
+                for tbox in tboxes:
+                    # TODO: Temporary hack to re-run target extract
+                    # on SantaCruz, without re-doing SelectTargets
+                    x1 = tbox[0] + 43
+                    y1 = tbox[1]
+                    x2 = tbox[0] + tbox[2] - 28
+                    y2 = tbox[1] + tbox[3]
+                    id = tbox[4]
+                    bb = np.array([y1, y2, x1, x2, id])
+                    bbs = np.vstack((bbs, bb))
+            bbs_sides.append(bbs)
+        return bbs_sides
+
+    bbs = get_bbs(groupID, target_locs_map)
+    # 1.a.) Create 'blank ballots'. This might not work so well...
+    exmpl_id = group_exmpls[groupID][0]
+    blankpaths = b2imgs[exmpl_id]
+    blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+    blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+
+    imgpaths = b2imgs[ballotid]
+    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+    imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
+    job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
+           t_imgs, t_diff, t_meta, b_meta, Queue.Queue()]
+    jobs.append(job)
+
     '''
     res = doExtract.convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal,
                                            csvPattern, 

@@ -25,11 +25,18 @@ class TargetExtractPanel(wx.Panel):
     def init_ui(self):
         btn_run = wx.Button(self, label="Run Target Extraction...")
         btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
+        txt = wx.StaticText(self, label="...Or, if you've already run Target \
+Extraction, but you just want to create the Image File:")
+        btn_createImageFile = wx.Button(self, label="Only create Image File...")
+        btn_createImageFile.Bind(wx.EVT_BUTTON, self.onButton_createImageFile)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(btn_run)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(btn_sizer)
+        self.sizer.Add((0, 50))
+        self.sizer.Add(txt)
+        self.sizer.Add(btn_createImageFile)
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -45,14 +52,16 @@ class TargetExtractPanel(wx.Panel):
         t = RunThread(self.proj)
         t.start()
 
-        def fn1():
-            try:
-                return len(os.listdir(self.proj.ballot_metadata))
-            except:
-                return 0
-        fns = [fn1, None, None, None, None, None]
+        gauge = util.MyGauge(self, 5, tofile=self.proj.timing_runtarget,
+                             ondone=self.on_targetextract_done, thread=t)
+        gauge.Show()
 
-        gauge = util.MyGauge(self, 5, funs=fns, tofile=self.proj.timing_runtarget,
+    def onButton_createImageFile(self, evt):
+        self.Disable()
+        t = RunThread(self.proj, skip_extract=True)
+        t.start()
+
+        gauge = util.MyGauge(self, 4, tofile=self.proj.timing_runtarget,
                              ondone=self.on_targetextract_done, thread=t)
         gauge.Show()
 
@@ -61,9 +70,10 @@ class TargetExtractPanel(wx.Panel):
         self.Enable()
 
 class RunThread(threading.Thread):
-    def __init__(self, proj, *args, **kwargs):
+    def __init__(self, proj, skip_extract=False, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.proj = proj
+        self.skip_extract = skip_extract
 
     def run(self):
         group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -81,13 +91,17 @@ class RunThread(threading.Thread):
         totalTime = time.time()
         time_doExtract = time.time()
         print "...starting doExtract..."
-        res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
-                                        target_locs_map, group_exmpls,
-                                        self.proj.extracted_dir,
-                                        self.proj.extracted_metadata,
-                                        self.proj.ballot_metadata,
-                                        pathjoin(self.proj.projdir_path,
-                                                 self.proj.targetextract_quarantined))
+        if not self.skip_extract:
+            res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
+                                            target_locs_map, group_exmpls,
+                                            self.proj.extracted_dir,
+                                            self.proj.extracted_metadata,
+                                            self.proj.ballot_metadata,
+                                            pathjoin(self.proj.projdir_path,
+                                                     self.proj.targetextract_quarantined))
+        else:
+            res = True
+            print "    (skip_extract was True - not running doExtract)"
         dur_doExtract = time.time() - time_doExtract
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
         print "...Doing post-target-extraction work..."

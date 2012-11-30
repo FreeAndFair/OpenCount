@@ -70,6 +70,9 @@ class GridShow(wx.ScrolledWindow):
 
     def lightBox(self, i, evt=None):
         # Which target we clicked on
+        _t = time()
+        print "...Starting LightBox..."
+
         i = i+evt.GetPositionTuple()[0]/self.targetw
 
         pan = wx.Panel(self.parent, size=self.parent.thesize, pos=(0,0))
@@ -77,6 +80,10 @@ class GridShow(wx.ScrolledWindow):
         ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
 
         before = Image.open(ballotpath).convert("RGB")
+
+        dur = time() - _t
+        print "    Phase 1: {0} s".format(dur)
+        _t = time()
 
         f = pathjoin(self.proj.ballot_metadata, encodepath(ballotpath))
         dat = pickle.load(open(f))
@@ -96,17 +103,39 @@ class GridShow(wx.ScrolledWindow):
 
         targetname = os.path.split(targetpath)[-1]
 
+        dur = time() - _t
+        print "    Phase 2: {0} s".format(dur)
+        _t = time()
+
         indexs = []
-        for each in self.sample_to_targets(encodepath(ballotpath)):
+        other_stuff = [] 
+        targetpaths = self.sample_to_targets(encodepath(ballotpath))
+        for ind, (p, _) in enumerate(self.enumerateOverFullList()):
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
-            ind = next(i for i,(p,_) in enumerate(self.enumerateOverFullList()) if each in p)
-            n = os.path.split(each)[-1][:-4]
-            dat = pickle.load(open(os.path.join(self.proj.extracted_metadata,n)))
-            locs = dat['bbox']
-            indexs.append(([a/fact for a in locs], ind))
-            color = (0,255,0) if each == targetname else (0, 0, 200)
+            pname = os.path.split(p)[-1]
+            if pname in targetpaths:
+                n = os.path.split(p)[-1][:-4]
+                dat = pickle.load(open(os.path.join(self.proj.extracted_metadata, n)))
+                locs = dat['bbox']
+                indexs.append(([a / fact for a in locs], ind))
+                other_stuff.append((ind, n, locs, pname))
+
+        print "    Phase 3: {0} s".format(time() - _t)
+        _t = time()
+
+        #for each in self.sample_to_targets(encodepath(ballotpath)):
+        for (ind, n, locs, pname) in other_stuff:
+            # Note to self:
+            # when adding target-adjustment from here, you need to some how map
+            # targetID name -> index in the list to find if it is 'wrong' or not.
+            #ind = next(i for i,(p,_) in enumerate(self.enumerateOverFullList()) if each in p)
+            #n = os.path.split(each)[-1][:-4]
+            #dat = pickle.load(open(os.path.join(self.proj.extracted_metadata,n)))
+            #locs = dat['bbox']
+            #indexs.append(([a/fact for a in locs], ind))
+            color = (0,255,0) if pname == targetname else (0, 0, 200)
             draw.rectangle(((locs[2])/fact-1, (locs[0])/fact-1, 
                             (locs[3])/fact+1, (locs[1])/fact+1),
                            outline=color)
@@ -119,6 +148,8 @@ class GridShow(wx.ScrolledWindow):
                                 (locs[3])/fact, (locs[1])/fact),
                                fill=(255, 0, 0))
                 
+        print "    Phase 4: {0} s".format(time() - _t)
+        _t = time()
 
         img = wx.StaticBitmap(pan, -1, pil2wxb(Image.blend(before, temp, .5)))
 
