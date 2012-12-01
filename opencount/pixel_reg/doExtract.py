@@ -185,10 +185,12 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     imgname = os.path.splitext(os.path.split(balP)[1])[0]
 
     relpath_root = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voted_rootdir))
-    targetout_rootdir = os.path.join(targetDir, relpath_root, imgname, "page{0}".format(page))
-    targetmetaout_rootdir = os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page))
-    targetdiffout_rootdir = os.path.join(targetDiffDir, relpath_root, imgname, "page{0}".format(page))
-    imgmetaout_rootdir = os.path.join(imageMetaDir, relpath_root, imgname, "page{0}".format(page))
+    relpath_root = os.path.normpath(relpath_root)
+    targetout_rootdir = os.path.normpath(os.path.join(targetDir, relpath_root, imgname, "page{0}".format(page)))
+    targetmetaout_rootdir = os.path.normpath(os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page)))
+    targetdiffout_rootdir = os.path.normpath(os.path.join(targetDiffDir, relpath_root, imgname, "page{0}".format(page)))
+    imgmetaout_rootdir = os.path.normpath(os.path.join(imageMetaDir, relpath_root, imgname, "page{0}".format(page)))
+    
     try: os.makedirs(targetout_rootdir)
     except: pass
     try: os.makedirs(targetmetaout_rootdir)
@@ -229,7 +231,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     #toWrite["bbox_errs"]=str(bbox_errs);
     pickle.dump(toWrite, open(imgmeta_outpath, "w"))
     result_queue.put([avg_intensities, balP, page, targetout_rootdir, 
-                      targetmetaout_rootdir, targetdiffout_rootdir, imgmetaout_rootdir])
+                      targetmetaout_rootdir, targetdiffout_rootdir, imgmeta_outpath])
 
 def debugWorker(job):
     (Iref, bbs, fIn, destDir, extractedMeta, contestMeta, f1) = job
@@ -271,8 +273,11 @@ def findOutliers(Errs,thr,N):
     return qFlag
 
 
-def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, voteddir_root, imageMetaDir=[] ):
-
+def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targets, imageMetaDir=[] ):
+    """
+    Input:
+        dict BAL2TARGETS: maps {int ballotid: {int page: [targetdir, targetmetadir, diffdir, imgmetapath]}}
+    """
     # Algorithm.
     # Pick percentage p,e.g., .1%
     # Set D to range(x)
@@ -284,20 +289,6 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, voteddir_
     print 'done. now computing quarantine info.'
     # identify outliers and quarantine if necessary
 
-    ballot2targets={} # maps {imgstr: str targetdiff_path}
-    # create Hash
-    cnt = 0
-    for dirpath, dirnames, filenames in os.walk(targetDiffDir):
-        for f1 in filenames:
-            # Recall: diff_filenames are {imgname}.{uid}.npy
-            if fnmatch.fnmatch(f1,'*npy'):
-                (f2,ext2)=os.path.splitext(f1)
-                (f3,ext3)=os.path.splitext(f2)
-                f1_path = pathjoin(dirpath, f1)
-                f3_path = pathjoin(dirpath, f3)
-                ballot2targets.setdefault(f3_path, []).append(f1_path)
-                cnt += 1
-
     print 'Done w/ hash.'
     if wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
@@ -306,23 +297,26 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, voteddir_
     ErrHash={}
     JobHash={}
     Errs=[];K=0
-
+    
     for K in range(len(jobs)):
         # job := [tplL_i, tplFlips, bbsL_i, balL_i, balL_flips, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDir_i]
         job=jobs[K]
         balL=job[3]
-        for balP in balL:
+        for side, balP in enumerate(balL):
+            ballotid = img2bal[balP]
+            try:
+                _, _, diffdir, imgmetapath = bal2targets[ballotid][side]
+            except:
+                traceback.print_exc()
+                pdb.set_trace()
+            diffpaths = [pathjoin(diffdir, f) for f in os.listdir(diffdir)]
+            if not diffpaths:
+                # means this side had no targets - skip it
+                continue
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
-            try:
-                imgname = os.path.splitext(os.path.split(balP)[1])[0]
-                relpath = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voteddir_root))
-                thepath = pathjoin(targetDiffDir, relpath, imgname)
-                targList=ballot2targets[thepath]
-            except Exception as e:
-                print e
-                pdb.set_trace()
-            for f1 in targList:
+            for f1 in diffpaths:
+                # Recall: difname is {imgname}.{uid}.npy
                 (f2,npext)=os.path.splitext(f1)
                 (foo,idx)=os.path.splitext(f2)
                 idx=eval(idx[1:])
@@ -339,11 +333,7 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, voteddir_
                 k1='default'
             else:
                 # TODO: MUST READ IN TEMPLATE SIDE FROM RESULT FILE                
-                imgname = os.path.splitext(os.path.split(balP)[1])[0]
-                relpath = os.path.relpath(os.path.abspath(balP), os.path.abspath(imageMetaDir))
-                meta_path = pathjoin(imageMetaDir, relpath, "{0}_meta.p".format(imgname))
-                #meta=pickle.load(open(pathjoin(imageMetaDir,encodepath(balP)),'rb'))
-                meta = pickle.load(open(meta_path, 'rb'))
+                meta = pickle.load(open(imgmetapath, 'rb'))
                 k1=str(meta['template'])
     
             if ErrHash.has_key(k1):
@@ -444,7 +434,7 @@ def convertImagesWorkerMAP(job):
         raise e
     #print "DONE"
 
-def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, queue, result_queue, verbose=False):
+def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal, stopped, queue, result_queue, verbose=False):
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
@@ -469,8 +459,8 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
     create_dirs(imageMetaDir)
 
     nProc=sh.numProcs()
-    nProc = 1
-    num_jobs = len(jobs)
+    #nProc = 1
+    num_jobs = len(img2bal)
     
     if nProc < 2:
         print 'using only 1 processes'
@@ -497,7 +487,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
         #pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
         pool.map_async(convertImagesWorkerMAP, jobs)
         cnt = 0
-        while cnt < num_jobs:
+        while cnt < len(jobs):
             val = queue.get(block=True)
             if val == True:
                 if wx.App.IsMainLoopRunning():
@@ -508,44 +498,18 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped
 
     cnt = 0
     avg_intensities = [] # [(path, float avg_intensity), ...]
+    bal2targets = {} # maps {int ballotid: {int page: [targetsdir, targetmetadir, diffmetadir, imgmetadir]}}
     while cnt < num_jobs:
-        tups = result_queue.get(block=True)
-        avg_intensities.extend(tups)
+        (avg_intensities_cur, balP, page, target_rootdir,
+         targetmeta_rootdir, targetdiff_rootdir, imgmeta_rootdir) = result_queue.get(block=True)
+        avg_intensities.extend(avg_intensities_cur)
+        ballotid = img2bal[balP]
+        print "...finished ballotid {0}".format(ballotid)
+        bal2targets.setdefault(ballotid, {})[page] = (target_rootdir, targetmeta_rootdir,
+                                                      targetdiff_rootdir, imgmeta_rootdir)
         cnt += 1
-
     print 'done.'
-    return avg_intensities
-
-def convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern,
-                           targetDir, targetMetaDir, imageMetaDir, 
-                           quarantineCvr, stopped, project, 
-                           verbose=False):
-    """ Starts the target-extraction routines. Preps some input, and then
-    calls convertImagesMasterMAP. For single-page elections.
-    """
-    targetDiffDir=targetDir+'_diffs'
-
-    qfile = open(quarantineCvr, 'r')
-    qfiles = set([f.strip() for f in qfile.readlines()])
-
-    print "...Prepping jobs"
-    t = time.time()
-    jobs = []
-    for k in bal2imgs.keys():
-        if k not in qfiles:
-            tplP = bal2tpl[k]
-            csvP = csvPattern % get_filename(tplP, NO_EXT=True)
-            bbsL = [sh.csv2bbs(csvP)]
-            tplL = [tplP]
-            balL = bal2imgs[k]
-            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-    dur = time.time() - t
-    print "...finished Prepping jobs. ({0} s).".format(dur)
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir,
-                                    jobs, stopped, verbose=verbose)
-    if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
-    return worked
+    return avg_intensities, bal2targets
 
 def fix_ballot_order(balL, proj=None, bal2page=None):
     """ Using ballot_to_page, correct the image ordering (i.e. 'side0',
@@ -573,68 +537,8 @@ def fix_ballot_order(balL, proj=None, bal2page=None):
     assert None not in out
     return out
 
-def convertImagesMultiMAP_makejobs(args):
-    (keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project, qfiles, verbose) = args
-    #print map(type, args)
-    targetDiffDir=targetDir+'_diffs'
-    jobs = []
-    print 'going up to', len(keyset)
-    for i, k in enumerate(keyset):
-        if i%100 == 0: 
-            print 'on image', i
-        if k not in qfiles:
-            baltpl = bal2tpl[k]
-            #try:
-            tplL=tpl2imgs[baltpl]
-            #except Exception as e:
-            #    print e
-            #    pdb.set_trace()
-            balL=bal2imgs[k]
-            # correct ordering in balL, via ballot_to_page
-            balL = fix_ballot_order(balL, project)
-            bbsL=[]
-            for tplP in tplL:
-                csvP=csvPattern % get_filename(tplP, NO_EXT=True)
-                bbsL.append(sh.csv2bbs(csvP));
-
-            jobs.append([tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir])
-    return jobs
-
 def hack_stopped():
     return False
-    
-def convertImagesMultiMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, stopped, project,verbose=False):
-    targetDiffDir=targetDir+'_diffs'
-
-    qfile = open(quarantineCvr, 'r')
-    qfiles = set([f.strip() for f in qfile.readlines()])
-
-    num = sh.numProcs()
-    alljobs = bal2imgs.keys()
-
-    tomap = [[] for _ in range(num)]
-    i = 0
-    for each in alljobs:
-        tomap[i].append(each)
-        i += 1
-        i %= num
-    
-    print 'have tomap', map(len, tomap)
-    jobs = [(keyset, bal2imgs, tpl2imgs, bal2tpl, csvPattern, targetDir, targetMetaDir, imageMetaDir, quarantineCvr, hack_stopped, project, qfiles, verbose) for keyset in tomap]
-    print 'have jobs'
-
-    pool = mp.Pool(processes=num)
-    print 'start map to generate jobs'
-    jobs = pool.map(convertImagesMultiMAP_makejobs, jobs)
-    pool.close()
-    pool.join()
-    jobs = [x for y in jobs for x in y]
-    print 'start real convert map'
-
-    worked = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, verbose=verbose)
-    if worked:
-        quarantineCheckMAP(jobs,targetDiffDir,quarantineCvr,project, img2bal, imageMetaDir=imageMetaDir)
-    return worked
 
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls,
@@ -704,15 +608,15 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                    targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue]
             jobs.append(job)
             
-    avg_intensities = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, stopped, queue, result_queue)
+    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue)
     if avg_intensities:
         # Quarantine any ballots with large error
         t = time.time()
         print "...Starting quarantineCheckMAP..."
-        quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, voted_rootdir, imageMetaDir=imageMetaDir)
+        quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, bal2targets, imageMetaDir=imageMetaDir)
         dur = time.time() - t
         print "...Finished quarantineCheckMAP ({0} s).".format(dur)
-    return avg_intensities
+    return avg_intensities, bal2targets
 
             
 

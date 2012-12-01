@@ -180,6 +180,7 @@ class Project(object):
                      'threshold_internal': pathjoin(projdir_path, 'threshold_internal.p'),
                      'sample_flipped': pathjoin(projdir_path, 'sample_flipped'),
                      'extractedfile': pathjoin(projdir_path, 'extractedfile'),
+                     'ballot_to_targets': 'ballot_to_targets.p',
                      'targets_result': pathjoin(projdir_path, 'targets_result.csv'),
                      'ballot_to_images': pathjoin(projdir_path, 'ballot_to_images.p'),
                      'image_to_ballot': pathjoin(projdir_path, 'image_to_ballot.p'),

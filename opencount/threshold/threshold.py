@@ -62,18 +62,29 @@ class GridShow(wx.ScrolledWindow):
             yield tuple(d)
 
     def target_to_sample(self, targetpath):
-        imgname = os.path.splitext(os.path.split(targetpath)[1])[0]
-        relpath = os.path.relpath(os.path.abspath(targetpath), os.path.abspath(self.proj.voteddir))
-        ballotmeta_path = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
-        #return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['ballot']
-        return pickle.load(open(ballotmeta_path, 'rb'))['ballot']
+        # Has to be a bit hackier, since I don't want to construct in-memory
+        # data-structs linear in the # of voting targets...
+        # Recall: targetname is {imgname}.{uid}.png
+        # Note: To save space, TARGETPATH must be joined with self.PREFIX
+        targetpath_full = self.prefix + targetpath
+        targetname = os.path.splitext(os.path.split(targetpath_full)[1])[0]
+        imgname = targetname.split('.')[0]
+        # (also removes the 'pageN/' off of the targetpath_full)
+        rootdir = os.path.split(os.path.split(os.path.split(targetpath_full)[0])[0])[0]
+        relpath = os.path.normpath(os.path.relpath(os.path.abspath(rootdir),
+                                                   os.path.abspath(self.proj.extracted_dir)))
+        ballotpath = os.path.normpath(pathjoin(self.proj.voteddir, relpath, imgname+".png"))
+        page = self.img2page[ballotpath]
+        ballotid = self.img2bal[ballotpath]
+
+        _,_,_, imgmeta_path = self.bal2targets[ballotid][page]
+        return pickle.load(open(imgmeta_path, 'rb'))['ballot']
 
     def sample_to_targets(self, ballotpath):
-        imgname = os.path.splitext(os.path.split(ballotpath)[1])[0]
-        relpath = os.path.relpath(os.path.abspath(os.path.split(ballotpath)[0]), os.path.abspath(self.proj.voteddir))
-        ballotmeta_path = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
-        #return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['targets']
-        return pickle.load(ballotmeta_path, 'rb')['targets']
+        page = self.img2page[ballotpath]
+        ballotid = self.img2bal[ballotpath]
+        _, _, _, imgmeta_path = self.bal2targets[ballotid][page]
+        return pickle.load(open(imgmeta_path, 'rb'))['targets']
 
     def lightBox(self, i, evt=None):
         # Which target we clicked on
@@ -92,11 +103,7 @@ class GridShow(wx.ScrolledWindow):
         print "    Phase 1: {0} s".format(dur)
         _t = time()
 
-        relpath = os.path.relpath(os.path.abspath(os.path.split(ballotpath)[0]), os.path.abspath(self.proj.voteddir))
-        imgname = os.path.splitext(os.path.split(ballotpath)[1])[0]
-        f = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
-        dat = pickle.load(open(f))
-        doflip = dat['flipped']
+        doflip = self.img2flip[ballotpath]
         if doflip:
             before = before.rotate(180)
 
@@ -110,7 +117,8 @@ class GridShow(wx.ScrolledWindow):
         temp = before.copy()
         draw = ImageDraw.Draw(temp)
 
-        targetname = os.path.split(targetpath)[-1]
+        targetname = os.path.split(self.prefix+targetpath)[-1]
+        ballotid = self.img2bal[ballotpath]
 
         dur = time() - _t
         print "    Phase 2: {0} s".format(dur)
@@ -120,30 +128,31 @@ class GridShow(wx.ScrolledWindow):
         other_stuff = [] 
         
         targetpaths = self.sample_to_targets(ballotpath)
+        page = self.img2page[ballotpath]
+        _,targetmeta_dir,_,_ = self.bal2targets[ballotid][page]
         for ind, (p, _) in enumerate(self.enumerateOverFullList()):
             # P is path to a target image
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
             pname = os.path.split(p)[-1]
-            if pname in targetpaths:
+            #if pname in targetpaths:
+            if p in targetpaths:
                 # Recall: targetname is {imgname}.{uid}.png
                 #         metaname is {imgname}.{uid}
-                _, uid = pname.split(".")
-                relpath = os.path.relpath(os.path.abspath(os.path.split(p)[0]), os.path.abspath(self.proj.voteddir))
-                targetmeta_path = pathjoin(self.proj.extracted_metadata, relpath, "{0}.{1}".format(imgname, uid))
-                #n = os.path.split(p)[-1][:-4]
-                #dat = pickle.load(open(os.path.join(self.proj.extracted_metadata, n)))
+                imgname, uid, ext = pname.split(".")
+                metaname = "{0}.{1}".format(imgname, uid)
+                targetmeta_path = pathjoin(targetmeta_dir, metaname)
                 dat = pickle.load(open(targetmeta_path, 'rb'))
                 locs = dat['bbox']
                 indexs.append(([a / fact for a in locs], ind))
-                other_stuff.append((ind, n, locs, pname))
+                other_stuff.append((ind, locs, pname))
 
         print "    Phase 3: {0} s".format(time() - _t)
         _t = time()
 
         #for each in self.sample_to_targets(encodepath(ballotpath)):
-        for (ind, n, locs, pname) in other_stuff:
+        for (ind, locs, pname) in other_stuff:
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
@@ -405,6 +414,13 @@ class GridShow(wx.ScrolledWindow):
 
         self.proj = proj
         self.proj.addCloseEvent(self.dosave)
+        self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
+        self.img2page = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
+        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_flip), 'rb'))
+        self.bal2targets = pickle.load(open(pathjoin(proj.projdir_path, proj.ballot_to_targets), 'rb'))
+
+        self.prefix = open(self.proj.classified+".prefix").read()
+        
         self.parent = parent
 
         self.quarantined = []
@@ -690,10 +706,10 @@ class GridShow(wx.ScrolledWindow):
 
         for i,(t,_) in enumerate(self.enumerateOverFullList()):
             if i in filled:
-                f.write(os.path.split(t)[1]+", 1\n")
+                f.write(t+", 1\n")
         for i,(t,_) in enumerate(self.enumerateOverFullList()):
             if i in unfilled:
-                f.write(os.path.split(t)[1]+", 0\n")
+                f.write(t+", 0\n")
         f.close()
 
         pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets, self.lastpos), open(self.proj.threshold_internal, "w"))
@@ -737,6 +753,7 @@ class ThresholdPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         tabOne = GridShow(self, self.proj)
+
         self.tabOne = tabOne
 
         top = wx.BoxSizer(wx.HORIZONTAL)

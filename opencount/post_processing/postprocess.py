@@ -201,53 +201,57 @@ class ResultsPanel(ScrolledPanel):
         # Hold the CVR results for a single image.
         image_cvr = {}
 
-        print 'Counting up to', len(os.listdir(self.proj.ballot_metadata))
+        #print 'Counting up to', len(os.listdir(self.proj.ballot_metadata))
+        #for i,ballot in enumerate(os.listdir(self.proj.ballot_metadata)):
+        i = 0
+        for dirpath, dirnames, filenames in os.walk(self.proj.ballot_metadata):
+            for f in filenames:
+                meta = pickle.load(open(os.path.join(dirpath, f), 'rb'))
+                if i%1000 == 0:
+                    print 'On ballot', i
+                # meta['ballot'] is a voted imgpath, not an int ballotID
+                ballotid = image_to_ballot[meta['ballot']]
+                votedpaths = ballot_to_images[ballotid]
+                votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
 
-        for i,ballot in enumerate(os.listdir(self.proj.ballot_metadata)):
-            if i%1000 == 0:
-                print 'On ballot', i
-            meta = pickle.load(open(os.path.join(self.proj.ballot_metadata,ballot)))
-            # meta['ballot'] is a voted imgpath, not an int ballotID
-            ballotid = image_to_ballot[meta['ballot']]
-            votedpaths = ballot_to_images[ballotid]
-            votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
-            
-            #votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
-            bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
-            # If any of the sides is quarantined, skip it
-            if True in bools: continue
+                #votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
+                bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
+                # If any of the sides is quarantined, skip it
+                if True in bools: continue
 
-            print 'bal', meta['ballot']
-            template = meta['template']
-            print 'template', template
-            targets = meta['targets']
-            print targets
-            voted = {}
-            for target in targets:
-                targetid = int(target.split(".")[1])
-                print 'targetid', targetid
-                try:
-                    contest = templatemap[template][targetid]
-                except:
-                    traceback.print_exc()
-                    pdb.set_trace()
-                print 'contest', contest
-                if contest not in voted: voted[contest] = []
-                voted[contest].append((targetid, target in isvoted))
-                print 'so', target in isvoted
-                print 'total', voted
-                
+                #print 'bal', meta['ballot']
+                template = meta['template']
+                #print 'template', template
+                targets = meta['targets']
+                #print targets
+                voted = {}
 
-            #print 'voted a', voted
-            voted = dict((a,sorted(b)) for a,b in voted.items())
-            #for k,v in voted.items():
-            #    print k, v
-            #    print k, order[template,k]
-    
-            voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
-            print "Results for ballot", meta['ballot']
-            print voted
-            image_cvr[meta['ballot']] = voted
+                for target in targets:
+                    targetid = int(target.split(".")[1])
+                    #print 'targetid', targetid
+                    try:
+                        contest = templatemap[template][targetid]
+                    except:
+                        traceback.print_exc()
+                        pdb.set_trace()
+                    #print 'contest', contest
+                    if contest not in voted: voted[contest] = []
+                    voted[contest].append((targetid, target in isvoted))
+                    #print 'so', target in isvoted
+                    #print 'total', voted
+
+
+                #print 'voted a', voted
+                voted = dict((a,sorted(b)) for a,b in voted.items())
+                #for k,v in voted.items():
+                #    print k, v
+                #    print k, order[template,k]
+
+                voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
+                print "Results for ballot", meta['ballot']
+                print voted
+                image_cvr[meta['ballot']] = voted
+                i += 1
     
         print 'Now going through the ballots'
         # Now process the quarantined files

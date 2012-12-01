@@ -92,7 +92,7 @@ class RunThread(threading.Thread):
         time_doExtract = time.time()
         print "...starting doExtract..."
         if not self.skip_extract:
-            avg_intensities = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
+            avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                                           target_locs_map, group_exmpls,
                                                           self.proj.extracted_dir,
                                                           self.proj.extracted_metadata,
@@ -101,10 +101,14 @@ class RunThread(threading.Thread):
                                                                    self.proj.targetextract_quarantined),
                                                         self.proj.voteddir)
             pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
-                                                       'targetextract_avg_intensities.p'), 'rb'))
+                                                       'targetextract_avg_intensities.p'), 'wb'))
+            pickle.dump(bal2targets, open(pathjoin(self.proj.projdir_path,
+                                                   self.proj.ballot_to_targets), 'wb'))
         else:
             avg_intensities = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                         'targetextract_avg_intensities.p'), 'rb'))
+            bal2targets = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                    self.proj.ballot_to_targets), 'rb'))
             print "    (skip_extract was True - not running doExtract)"
         dur_doExtract = time.time() - time_doExtract
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
@@ -156,7 +160,7 @@ class RunThread(threading.Thread):
                 prefix = new
 
         l = len(prefix)
-        prefix = pathjoin(self.proj.extracted_dir,prefix)
+        #prefix = pathjoin(self.proj.extracted_dir,prefix)
         
         dur_longestPrefix = time.time() - time_longestPrefix
         open(self.proj.classified+".prefix", "w").write(prefix)
@@ -181,7 +185,8 @@ class RunThread(threading.Thread):
 
         print "...Starting imageFileMake..."
         time_imageFileMake = time.time()
-        threshold.imageFile.makeOneFile(self.proj.extracted_dir, 
+
+        threshold.imageFile.makeOneFile('',
                                         fulllst, self.proj.extractedfile)
         dur_imageFileMake = time.time() - time_imageFileMake
         print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
@@ -198,8 +203,6 @@ class RunThread(threading.Thread):
         print "    doExtract: {0:.3f}%  |  {1:.3f} s".format(frac, dur_doExtract)
         frac = (dur_post / dur_totalTime) * 100
         print "    post-work: {0:.3f}%  |  {1:.3f} s".format(frac, dur_post)
-        frac = (dur_doandgetAvg / dur_post) * 100
-        print "        doandgetAvg: {0:.3f}%  {1:.3f} s".format(frac, dur_doandgetAvg)
         frac = (dur_longestPrefix / dur_post) * 100
         print "        longestPrefix: {0:.3f}%  |  {1:.3f} s".format(frac, dur_longestPrefix)
         frac = (dur_classifiedWrite / dur_post) * 100
