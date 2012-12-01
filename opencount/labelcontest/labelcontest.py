@@ -65,6 +65,9 @@ class LabelContest(wx.Panel):
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
 
+        self.flipped = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.image_to_flip), 'rb'))
+
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
         # where:
         #   groupedtargets[a][b][c] is the ID and location of target C in contest B of template A
@@ -134,6 +137,12 @@ class LabelContest(wx.Panel):
                 slist = sorted(lst, key=lambda x: (cols[x[0][2]], x[0][3]))
 
                 self.groupedtargets.append(slist)
+
+    def maybe_flip(self, path):
+        img = Image.open(path).convert("RGB")
+        if self.flipped[path]:
+            img = img.rotate(180)
+        return img
 
 
     def reset_panel(self):
@@ -471,6 +480,7 @@ class LabelContest(wx.Panel):
             ballots, groups = group_given_contests(self.proj.ocr_tmp_dir, 
                                                    self.dirList, targets, 
                                                    self.boxes, 
+                                                   self.flipped,
                                                    vendor,
                                                    languages)
             self.grouping_cached = ballots
@@ -503,6 +513,8 @@ class LabelContest(wx.Panel):
                     print 'mapping', mapping
                     print 'contest bboxes', contestbboxes
                     print 'targetlist', targetlist
+                    print "OH NO SOMETHING WENT WRONG"
+                    pdb.set_trace()
                     raise Exception("OH NO SOMETHING WENT WRONG")
                 #print 'w', w
                 #print 'contest', targetlist[0][1], 'corresponds to', contestbboxes[w[0]]
@@ -790,7 +802,7 @@ class LabelContest(wx.Panel):
             return
 
         # Save the image corresponding to this template
-        self.imgo = Image.open(self.dirList[self.templatenum]).convert("RGB")
+        self.imgo = self.maybe_flip(self.dirList[self.templatenum])
         
         for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
@@ -815,7 +827,7 @@ class LabelContest(wx.Panel):
         Make the template image correspond to how it should.
         Color the current selected contest, as well as the ones we've seen so far.
         """
-        img = Image.open(self.dirList[self.templatenum]).convert("RGB")
+        img = self.maybe_flip(self.dirList[self.templatenum])
 
         dr = ImageDraw.Draw(img)
 

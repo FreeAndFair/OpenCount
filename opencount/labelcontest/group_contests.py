@@ -32,6 +32,8 @@ do_save = True
 do_test = True
 export = True
 
+flipped = {}
+
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
     pilimg.putdata([item for sublist in img for item in sublist])
@@ -40,6 +42,8 @@ def num2pil(img):
 def load_pil(path):
     pilimg = Image.open(path)
     pilimg = pilimg.convert("L")
+    if flipped != {} and flipped[path]:
+        pilimf = pilimg.rotate(180)
     return pilimg
 
 def load_num(path="", pilimg=None):
@@ -1262,9 +1266,12 @@ def merge_contests(ballot_data, fulltargets):
             equal_uniq = list(set(equal))
             #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
-            new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in list(set(equal))], merged))
+            if len(equal_uniq) == 2:
+                pdb.set_trace()
+            new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in equal_uniq], merged))
         new_data.append(new_ballot)
     #print new_data
+    pdb.set_trace()
     return new_data
 
 def do_extend(args):
@@ -1327,7 +1334,7 @@ def find_contests(t, paths, giventargets):
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
     #args = [x for x in args if 'vbm-57' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = pool.map(extract_contest, args)
+    ballots = map(extract_contest, args)
     pool.close()
     pool.join()
     #ballots = map(extract_contest, args)
@@ -1344,12 +1351,13 @@ def group_given_contests_map(arg):
     except:
         traceback.print_exc()
         
-def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}):
-    global tmp
+def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map = {}):
+    global tmp, flipped
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
     #print lang_map
     if t[-1] != '/': t += '/'
+    flipped = flip
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
@@ -1360,7 +1368,7 @@ def group_given_contests(t, paths, giventargets, contests, vendor, lang_map = {}
     pool.close()
     pool.join()
     #ballots = map(group_given_contests_map, args)
-    #print "WORKING ON", ballots
+    print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
 @pdb_on_crash
