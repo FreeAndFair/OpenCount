@@ -263,9 +263,10 @@ class GridShow(wx.ScrolledWindow):
             self.quarantined.append(ballotpath)
         #for each in self.sample_to_targets(encodepath(ballotpath)):
         for each in self.sample_to_targets(ballotpath):
-            if each in self.classified_lookup:
+            each_minusprefix = each[len(self.prefix):]
+            if each_minusprefix in self.classified_lookup:
                 #print 'A'
-                self.markQuarantineSingle(self.classified_lookup[each])
+                self.markQuarantineSingle(self.classified_lookup[each_minusprefix])
             #for j,line in enumerate(open(self.proj.classified)):
             #    if each == line.split('\0')[0]:
             #        self.markQuarantineSingle(j)

@@ -380,9 +380,10 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
             qFiles.append(jList[qFlag[i]])
 
     qFiles=list(set(qFiles))
+    qBallotIds = list(set([img2bal[imP] for imP in qFiles]))
 
-    print "...Quarantined {0} files during TargetExtraction...".format(len(qFiles))
-    pickle.dump(qFiles, open(quarantined_outP, 'wb'))
+    print "...Quarantined {0} ballots during TargetExtraction...".format(len(qBallotIds))
+    pickle.dump(qBallotIds, open(quarantined_outP, 'wb'))
 
 def convertImagesWorkerMAP(job):
     # match to front-back
