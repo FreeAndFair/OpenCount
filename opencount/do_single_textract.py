@@ -36,6 +36,8 @@ Or, as a super-simple shortcut, the following is equivalent:
 
 This will do target extraction on yolo_s2_074-020.png, and dump it to bad_out/.
 """
+def isimgext(f):
+    return os.path.splitext(f)[1].lower() in ('.jpg', '.png', '.jpeg')
 
 def main():
     args = sys.argv[1:]
@@ -46,6 +48,14 @@ def main():
     else:
         projdir = args[0]
         votedpath = args[1]
+        if isimgext(votedpath):
+            imgpaths = [votedpath]
+        else:
+            imgpaths = []
+            for dirpath, dirnames, filenames in os.walk(votedpath):
+                for imgname in [f for f in filenames if isimgext(f)]:
+                    imgpaths.append(os.path.join(dirpath, imgname))
+            
         outdir = args[2]
     
     t_imgs = pathjoin(outdir, 'extracted')
@@ -72,9 +82,6 @@ def main():
     
     # 0.) Set up job
     jobs = []
-    ballotid = img2b[votedpath]
-    groupID = bal2group[ballotid]
-    
     def get_bbs(groupID, target_locs_map):
         bbs_sides = []
         boxes_sides = target_locs_map[groupID]
@@ -95,19 +102,23 @@ def main():
             bbs_sides.append(bbs)
         return bbs_sides
 
-    bbs = get_bbs(groupID, target_locs_map)
-    # 1.a.) Create 'blank ballots'. This might not work so well...
-    exmpl_id = group_exmpls[groupID][0]
-    blankpaths = b2imgs[exmpl_id]
-    blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
-    blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+    for votedpath in imgpaths:
+        ballotid = img2b[votedpath]
+        groupID = bal2group[ballotid]
 
-    imgpaths = b2imgs[ballotid]
-    imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-    imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-    job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
-           t_imgs, t_diff, t_meta, b_meta, Queue.Queue()]
-    jobs.append(job)
+        bbs = get_bbs(groupID, target_locs_map)
+        # 1.a.) Create 'blank ballots'. This might not work so well...
+        exmpl_id = group_exmpls[groupID][0]
+        blankpaths = b2imgs[exmpl_id]
+        blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+        blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+
+        imgpaths = b2imgs[ballotid]
+        imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+        imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
+        job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
+               t_imgs, t_diff, t_meta, b_meta, Queue.Queue(), Queue.Queue()]
+        jobs.append(job)
 
     '''
     res = doExtract.convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal,
@@ -117,7 +128,8 @@ def main():
                                            lambda: False,
                                            None)
     '''
-    doExtract.convertImagesWorkerMAP(jobs[0])
+    for job in jobs:
+        doExtract.convertImagesWorkerMAP(job)
     
 if __name__ == '__main__':
     main()

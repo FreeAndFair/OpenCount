@@ -92,15 +92,19 @@ class RunThread(threading.Thread):
         time_doExtract = time.time()
         print "...starting doExtract..."
         if not self.skip_extract:
-            res = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
-                                            target_locs_map, group_exmpls,
-                                            self.proj.extracted_dir,
-                                            self.proj.extracted_metadata,
-                                            self.proj.ballot_metadata,
-                                            pathjoin(self.proj.projdir_path,
-                                                     self.proj.targetextract_quarantined))
+            avg_intensities = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
+                                                          target_locs_map, group_exmpls,
+                                                          self.proj.extracted_dir,
+                                                          self.proj.extracted_metadata,
+                                                          self.proj.ballot_metadata,
+                                                          pathjoin(self.proj.projdir_path,
+                                                                   self.proj.targetextract_quarantined),
+                                                        self.proj.voteddir)
+            pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
+                                                       'targetextract_avg_intensities.p'), 'rb'))
         else:
-            res = True
+            avg_intensities = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                        'targetextract_avg_intensities.p'), 'rb'))
             print "    (skip_extract was True - not running doExtract)"
         dur_doExtract = time.time() - time_doExtract
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
@@ -128,16 +132,9 @@ class RunThread(threading.Thread):
         manager = multiprocessing.Manager()
         queue = manager.Queue()
         time_doandgetAvg = time.time()
-        start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
+        #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
         tmp = []  # TMP: [[imgpath, float avg_intensity], ...]
-        i = 0
-        while i < total:
-            result = queue.get()
-            tmp.append(result)
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
-            i += 1
-        dur_doandgetAvg = time.time() - time_doandgetAvg
-        print "...Finished doandgetAvg ({0} s)...".format(dur_doandgetAvg)
+        tmp = avg_intensities
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "...Starting a find-longest-prefix thing..."
         time_longestPrefix = time.time()

@@ -60,13 +60,20 @@ class GridShow(wx.ScrolledWindow):
             d = line[:-1].split('\0') 
             d[0] = prefix+d[0]
             yield tuple(d)
-    
-    def target_to_sample(self, target):
-        ballot = target.split(".")[0]
-        return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['ballot']
 
-    def sample_to_targets(self, ballot):
-        return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['targets']
+    def target_to_sample(self, targetpath):
+        imgname = os.path.splitext(os.path.split(targetpath)[1])[0]
+        relpath = os.path.relpath(os.path.abspath(targetpath), os.path.abspath(self.proj.voteddir))
+        ballotmeta_path = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
+        #return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['ballot']
+        return pickle.load(open(ballotmeta_path, 'rb'))['ballot']
+
+    def sample_to_targets(self, ballotpath):
+        imgname = os.path.splitext(os.path.split(ballotpath)[1])[0]
+        relpath = os.path.relpath(os.path.abspath(os.path.split(ballotpath)[0]), os.path.abspath(self.proj.voteddir))
+        ballotmeta_path = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
+        #return pickle.load(open(pathjoin(self.proj.ballot_metadata, ballot)))['targets']
+        return pickle.load(ballotmeta_path, 'rb')['targets']
 
     def lightBox(self, i, evt=None):
         # Which target we clicked on
@@ -77,7 +84,7 @@ class GridShow(wx.ScrolledWindow):
 
         pan = wx.Panel(self.parent, size=self.parent.thesize, pos=(0,0))
         targetpath = self.lookupFullList(i)[0]
-        ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
+        ballotpath = self.target_to_sample(targetpath)
 
         before = Image.open(ballotpath).convert("RGB")
 
@@ -85,7 +92,9 @@ class GridShow(wx.ScrolledWindow):
         print "    Phase 1: {0} s".format(dur)
         _t = time()
 
-        f = pathjoin(self.proj.ballot_metadata, encodepath(ballotpath))
+        relpath = os.path.relpath(os.path.abspath(os.path.split(ballotpath)[0]), os.path.abspath(self.proj.voteddir))
+        imgname = os.path.splitext(os.path.split(ballotpath)[1])[0]
+        f = pathjoin(self.proj.ballot_metadata, relpath, "{0}_meta.p".format(imgname))
         dat = pickle.load(open(f))
         doflip = dat['flipped']
         if doflip:
@@ -109,15 +118,23 @@ class GridShow(wx.ScrolledWindow):
 
         indexs = []
         other_stuff = [] 
-        targetpaths = self.sample_to_targets(encodepath(ballotpath))
+        
+        targetpaths = self.sample_to_targets(ballotpath)
         for ind, (p, _) in enumerate(self.enumerateOverFullList()):
+            # P is path to a target image
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
             pname = os.path.split(p)[-1]
             if pname in targetpaths:
-                n = os.path.split(p)[-1][:-4]
-                dat = pickle.load(open(os.path.join(self.proj.extracted_metadata, n)))
+                # Recall: targetname is {imgname}.{uid}.png
+                #         metaname is {imgname}.{uid}
+                _, uid = pname.split(".")
+                relpath = os.path.relpath(os.path.abspath(os.path.split(p)[0]), os.path.abspath(self.proj.voteddir))
+                targetmeta_path = pathjoin(self.proj.extracted_metadata, relpath, "{0}.{1}".format(imgname, uid))
+                #n = os.path.split(p)[-1][:-4]
+                #dat = pickle.load(open(os.path.join(self.proj.extracted_metadata, n)))
+                dat = pickle.load(open(targetmeta_path, 'rb'))
                 locs = dat['bbox']
                 indexs.append(([a / fact for a in locs], ind))
                 other_stuff.append((ind, n, locs, pname))
@@ -232,10 +249,11 @@ class GridShow(wx.ScrolledWindow):
 
     def markQuarantine(self, i):
         targetpath = self.lookupFullList(i)[0]
-        ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
+        ballotpath = self.target_to_sample(targetpath)
         if ballotpath not in self.quarantined:
             self.quarantined.append(ballotpath)
-        for each in self.sample_to_targets(encodepath(ballotpath)):
+        #for each in self.sample_to_targets(encodepath(ballotpath)):
+        for each in self.sample_to_targets(ballotpath):
             if each in self.classified_lookup:
                 #print 'A'
                 self.markQuarantineSingle(self.classified_lookup[each])
@@ -401,9 +419,10 @@ class GridShow(wx.ScrolledWindow):
         """
 
         path = self.proj.extracted_dir
-        for each in os.listdir(path):
-            if is_image_ext(each):
-                self.basetargetw, self.basetargeth = Image.open(pathjoin(path,each)).size
+        for dirpath, dirnames, filenames in os.walk(path):
+            for imgname in [f for f in filenames if is_image_ext(f)]:
+                imgpath = pathjoin(dirpath, imgname)
+                self.basetargetw, self.basetargeth = Image.open(imgpath).size
                 break
 
         self.targetResize = 1
@@ -684,7 +703,7 @@ class GridShow(wx.ScrolledWindow):
         for each in self.quarantined:
             if type(each) == type(0):
                 targetpath = self.lookupFullList(each)[0]
-                ballotpath = self.target_to_sample(os.path.split(targetpath)[-1][:-4])
+                ballotpath = self.target_to_sample(targetpath)
                 ballotid = img2bal[ballotpath]
                 out.write(str(ballotid)+"\n")
             else:
