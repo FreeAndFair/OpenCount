@@ -90,13 +90,15 @@ def align(groupid, dat):
 
     translated_images = []
     for contest in zip(*translations):
-        print 'new'
         c_res = []
+        """
+        print 'new'
         arr = np.zeros((3,3))
         for _,H in contest:
             arr += H
         arr /= len(contest)
         print arr
+        """
         for img,H in contest:
             translated = imagesAlign.imtransform(np.copy(img), H, fillval=np.nan)
             align_res = np.nan_to_num(translated)
@@ -130,7 +132,7 @@ class VerifyContestGrouping:
 
         print "Go up to", len(self.processgroups)
 
-        res = map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups[:])))))
+        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups[:])))))
         res = [x for y in res for x in y]
         
         print len(res), map(len,res)

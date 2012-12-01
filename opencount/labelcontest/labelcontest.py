@@ -210,19 +210,7 @@ class LabelContest(wx.Panel):
         button2.Bind(wx.EVT_BUTTON, lambda x: self.doadd(1))
         button22 = wx.Button(self, label='Next Unfilled Contest')
         button1.Bind(wx.EVT_BUTTON, lambda x: self.doadd(-1))
-        def nextunfilled(x):
-            # Get the unfilled contests.
-            aftertext = [x[0] for x in self.text.items() if x[1] == []]
-            # Get their actual order on the screen, not the internal order.
-            aftertext = [(t,self.contest_order[t].index(c)) for t,c in aftertext]
-            # Remove the ones before the current target.
-            aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
-            # Pick the first.
-            temp,cont = min(aftertext)
-            if temp != self.templatenum:
-                self.nexttemplate(temp-self.templatenum)
-            self.doadd(cont)
-        button22.Bind(wx.EVT_BUTTON, nextunfilled)
+        button22.Bind(wx.EVT_BUTTON, self.nextunfilled)
 
         textbox.Add(self.textarea)
         textbox.Add(button1)
@@ -974,44 +962,44 @@ class LabelContest(wx.Panel):
         print text
         
         if any(x in y for x in cur for y in self.equivs):
-            print 'yes'
+            #print 'yes'
             # Find the equivilance class
             eqclass = []
             for i,each in enumerate(self.equivs_processed):
                 if any(x in cur for x in each):
                     eqclass = each
                     break
-            print 'diff', eqclass
+            #print 'diff', eqclass
             # Get the different one
             for continuation in eqclass:
-                print 'WORKING ON CONT', continuation
+                #print 'WORKING ON CONT', continuation
                 continuation = self.continued_contest(continuation)
                 
-                print 'assign to', continuation
+                #print 'assign to', continuation
                 index = 0
                 each_in_dict = [x for x in continuation if x in self.reorder[set_repr]][0]
-                print 'lookup', set_repr, each_in_dict
-                print self.reorder[set_repr]
+                #print 'lookup', set_repr, each_in_dict
+                #print self.reorder[set_repr]
                 reorder = self.reorder[set_repr][each_in_dict]
-                print 'new reorder', reorder
+                #print 'new reorder', reorder
                 twiceadjusted = {}
                 for i,t in enumerate(adjusted):
                     print i, [y for x,y in reorder if x == i]
                     twiceadjusted[[y for x,y in reorder if x == i][0]] = t
-                print 'setting', each, twiceadjusted
+                #print 'setting', each, twiceadjusted
                 newtext = [text[x[1]] for x in sorted(twiceadjusted.items())]
-                print 'is now', newtext
+                #print 'is now', newtext
 
 
                 for each in sorted(continuation):
                     size = len(self.groupedtargets[each[0]][self.contest_order[each[0]].index(each[1])])
-                    print 'assign', size, 'of them starting from', index, ':', [title]+newtext[index:index+size]
+                    #print 'assign', size, 'of them starting from', index, ':', [title]+newtext[index:index+size]
                     self.text[each] = [title]+newtext[index:index+size]
                     self.voteupto[each] = self.voteupto[self.currentcontests[self.count]]
 
                     index += size
             
-        print 'txtnow', self.text
+        #print 'txtnow', self.text
         return
 
         if removeit:
@@ -1113,7 +1101,7 @@ class LabelContest(wx.Panel):
             if self.focusIsOn == -1:
                 # Focus is on the title
                 if all([x.GetValue() != '' for x in self.text_targets]):
-                    wx.CallAfter(self.doadd, 1)
+                    wx.CallAfter(self.nextunfilled)
                 else:
                     self.text_targets[0].SetFocus()
             elif self.focusIsOn < len(self.text_targets)-1:
@@ -1197,6 +1185,20 @@ class LabelContest(wx.Panel):
         self.imagebox.set_scale(scale)
         self.imagebox.Refresh()
         
+
+    def nextunfilled(self, x=None):
+        # Get the unfilled contests.
+        aftertext = [x[0] for x in self.text.items() if x[1] == []]
+        # Get their actual order on the screen, not the internal order.
+        aftertext = [(t,self.contest_order[t].index(c)) for t,c in aftertext]
+        # Remove the ones before the current target.
+        aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
+        # Pick the first.
+        temp,cont = min(aftertext)
+        if temp != self.templatenum:
+            print 'skip to', temp-self.templatenum
+            self.nexttemplate(temp-self.templatenum)
+        self.doadd(cont)
 
     def doadd(self, ctby, dosave=True):
         """
