@@ -400,7 +400,7 @@ def to_graph(lines, width, height, minsize, giventargets):
     lines = [x for x in lines if x[1][2]-x[1][0] > width/10 or x[1][3]-x[1][1] > height/30]
     print "THERE ARE END", len(lines)
 
-    #lines = extend_to_line(lines, width, height)
+    lines = extend_to_line(lines, width, height)
 
     new_lines = []
     for k,line in lines:
