@@ -209,7 +209,10 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
         targetoutname = imgname+"."+str(int(uid))+".png"
         targetoutpath = pathjoin(targetout_rootdir, targetoutname)
         targets.append(targetoutpath)
-        avg_intensity = int(255*np.sum(img) / float(img.shape[0]*img.shape[1]))
+        #avg_intensity = int(255*np.sum(img) / float(img.shape[0]*img.shape[1]))
+        # TODO: SantaCruz - specific HACK
+        _INTEREST = img[:, 15:img.shape[1]-20]
+        avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
         avg_intensities.append((targetoutpath, avg_intensity))
         sh.imsave(targetoutpath, img)
 
@@ -381,9 +384,12 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
 
     qFiles=list(set(qFiles))
     qBallotIds = list(set([img2bal[imP] for imP in qFiles]))
+    #qBallotIds = [1, 3]  # TODO: TEST
 
     print "...Quarantined {0} ballots during TargetExtraction...".format(len(qBallotIds))
     pickle.dump(qBallotIds, open(quarantined_outP, 'wb'))
+
+    return qBallotIds
 
 def convertImagesWorkerMAP(job):
     # match to front-back
@@ -449,10 +455,14 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal
     """
     targetDiffDir=targetDir+'_diffs'
 
+    print "...removing previous Target Extract results..."
+    _t = time.time()
     if os.path.exists(targetDir): shutil.rmtree(targetDir)
     if os.path.exists(targetDiffDir): shutil.rmtree(targetDiffDir)
     if os.path.exists(targetMetaDir): shutil.rmtree(targetMetaDir)
     if os.path.exists(imageMetaDir): shutil.rmtree(imageMetaDir)
+    dur = time.time() - _t
+    print "...Finished removing previous Target Extract results ({0} s).".format(dur)
 
     create_dirs(targetDir)
     create_dirs(targetDiffDir)
@@ -500,12 +510,13 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal
     cnt = 0
     avg_intensities = [] # [(path, float avg_intensity), ...]
     bal2targets = {} # maps {int ballotid: {int page: [targetsdir, targetmetadir, diffmetadir, imgmetadir]}}
+    
     while cnt < num_jobs:
         (avg_intensities_cur, balP, page, target_rootdir,
          targetmeta_rootdir, targetdiff_rootdir, imgmeta_rootdir) = result_queue.get(block=True)
         avg_intensities.extend(avg_intensities_cur)
         ballotid = img2bal[balP]
-        print "...finished ballotid {0}".format(ballotid)
+        #print "...finished ballotid {0}".format(ballotid)
         bal2targets.setdefault(ballotid, {})[page] = (target_rootdir, targetmeta_rootdir,
                                                       targetdiff_rootdir, imgmeta_rootdir)
         cnt += 1
@@ -542,7 +553,7 @@ def hack_stopped():
     return False
 
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
-                    group_exmpls,
+                    group_exmpls, bad_ballotids,
                     targetDir, targetMetaDir, imageMetaDir,
                     targetextract_quarantined, voted_rootdir, stopped=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
@@ -555,6 +566,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         dict TARGET_LOCS_MAP: maps {int groupID: {int page: [[cbox_i, tbox_i, ...], ...]}},
             where each box_i := [x1, y1, w, h, id, contest_id]
         dict GROUP_EXMPLS: maps {int groupID: [int ballotID_i, ...]}
+        list BAD_BALLOTIDS: BallotIDs that were either previous quarantined or discarded.
         str TARGETDIR: Dir to store extracted target patches
         str TARGETMETADIR: Dir to store metadata for each target
         str IMAGEMETADIR: Dir to store metadata for each ballot
@@ -602,6 +614,8 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
         blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
         for ballotid in ballotIDs:
+            if ballotid in bad_ballotids:
+                continue
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
@@ -614,10 +628,32 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         # Quarantine any ballots with large error
         t = time.time()
         print "...Starting quarantineCheckMAP..."
-        quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, bal2targets, imageMetaDir=imageMetaDir)
+        qballotids = quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, bal2targets, imageMetaDir=imageMetaDir)
+        # Remove all quarantined ballots from AVG_INTENSITIES, BAL2TARGETS
+        def is_quarantined(targetpath, voteddir, extractdir, qballotids, img2b):
+            votedimgpath = target_to_image(targetpath, voteddir, extractdir)
+            ballotid = img2b[votedimgpath]
+            #if ballotid in qballotids:
+            #    print "    CAUGHT QBALLOTID", ballotid
+            return ballotid in qballotids
+            
+        avg_intensities = [tup for tup in avg_intensities if not is_quarantined(tup[0], voted_rootdir, targetDir, qballotids, img2b)]
+        for qballotid in qballotids:
+            bal2targets.pop(qballotid)
         dur = time.time() - t
         print "...Finished quarantineCheckMAP ({0} s).".format(dur)
     return avg_intensities, bal2targets
 
-            
+def target_to_image(targetpath, voteddir, extracteddir):
+    # Recall: TARGETNAME is {imgname}.{uid}.png
+    #     TARGETPATH: {extractdir}/{ballotdirstruct}/{imgname}/{pageN}/TARGETNAME
+    relpath = os.path.relpath(os.path.abspath(targetpath), os.path.abspath(extracteddir))
+    rootdir, targetname = os.path.split(relpath)
+    rootdir = os.path.split(os.path.split(rootdir)[0])[0] # peel off {imgname},{pageN}
+    targetname_noext = os.path.splitext(targetname)[0]
+    splitted = targetname_noext.split('.')
+    uid = splitted[-1]
+    votedname = ''.join(splitted[:-1]) # Account for additional possible dots '.'
+    votedimgpath = os.path.join(voteddir, rootdir, votedname+'.png')
+    return votedimgpath
 

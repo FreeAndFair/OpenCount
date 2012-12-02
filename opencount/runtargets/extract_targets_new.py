@@ -1,4 +1,4 @@
-import sys, os, traceback, pdb, threading, multiprocessing, math, array, time
+import sys, os, traceback, pdb, threading, multiprocessing, math, array, time, shutil
 try:
     import cPickle as pickle
 except:
@@ -15,6 +15,7 @@ import util
 import threshold.imageFile
 import pixel_reg.doExtract as doExtract
 import pixel_reg.shared as shared
+import quarantine.quarantinepanel as quarantinepanel
 
 class TargetExtractPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -48,6 +49,13 @@ Extraction, but you just want to create the Image File:")
 
     def onButton_run(self, evt):
         self.Disable()
+
+        # First, remove all files
+        if os.path.exists(self.proj.extracted_dir): shutil.rmtree(self.proj.extracted_dir)
+        if os.path.exists(self.proj.extracted_metadata): shutil.rmtree(self.proj.extracted_metadata)
+        if os.path.exists(self.proj.ballot_metadata): shutil.rmtree(self.proj.ballot_metadata)
+        if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.targetextract_quarantined)):
+            os.remove(pathjoin(self.proj.projdir_path, self.proj.targetextract_quarantined))
 
         t = RunThread(self.proj)
         t.start()
@@ -92,18 +100,24 @@ class RunThread(threading.Thread):
         time_doExtract = time.time()
         print "...starting doExtract..."
         if not self.skip_extract:
+            qballotids = quarantinepanel.get_quarantined_ballots(self.proj)
+            discarded_ballotids = quarantinepanel.get_discarded_ballots(self.proj)
+            bad_ballotids = list(set(qballotids + discarded_ballotids))
             avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
-                                                          target_locs_map, group_exmpls,
-                                                          self.proj.extracted_dir,
-                                                          self.proj.extracted_metadata,
-                                                          self.proj.ballot_metadata,
-                                                          pathjoin(self.proj.projdir_path,
-                                                                   self.proj.targetextract_quarantined),
-                                                        self.proj.voteddir)
+                                                                     target_locs_map, group_exmpls,
+                                                                     bad_ballotids,
+                                                                     self.proj.extracted_dir,
+                                                                     self.proj.extracted_metadata,
+                                                                     self.proj.ballot_metadata,
+                                                                     pathjoin(self.proj.projdir_path,
+                                                                              self.proj.targetextract_quarantined),
+                                                                     self.proj.voteddir)
             pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
-                                                       'targetextract_avg_intensities.p'), 'wb'))
+                                                       'targetextract_avg_intensities.p'), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
             pickle.dump(bal2targets, open(pathjoin(self.proj.projdir_path,
-                                                   self.proj.ballot_to_targets), 'wb'))
+                                                   self.proj.ballot_to_targets), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
         else:
             avg_intensities = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                         'targetextract_avg_intensities.p'), 'rb'))
@@ -118,28 +132,20 @@ class RunThread(threading.Thread):
             os.makedirs(self.proj.extracted_dir)
         except:
             pass
-        dirList = os.listdir(self.proj.extracted_dir)
 
-        dirList = [x for x in dirList if util.is_image_ext(x)]
         # This will always be a common prefix. 
         # Just add it to there once. Code will be faster.
         
-        #quarantined = set([util.encodepath(x[:-1]) for x in open(self.proj.quarantined)])
-        quarantined = set([])
-
-        #dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
-
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "...Doing a zip..."
 
-        total = len(dirList)
+        total = len(bal2targets)
         manager = multiprocessing.Manager()
         queue = manager.Queue()
         time_doandgetAvg = time.time()
         #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
-        tmp = []  # TMP: [[imgpath, float avg_intensity], ...]
-        tmp = avg_intensities
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        tmp = avg_intensities # TMP: [[imgpath, float avg_intensity], ...]
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
         print "...Starting a find-longest-prefix thing..."
         time_longestPrefix = time.time()
         fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
