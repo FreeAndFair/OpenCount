@@ -220,7 +220,7 @@ class SelectTargetsMainPanel(wx.Panel):
                     y1_out = max(y1_out, 0)
                     if (x1_out + w_out) >= imgsize[0]:
                         w_out = imgsize[0] - x1_out - 1
-                    if (y1_out + h_out) >= imgsize[0]:
+                    if (y1_out + h_out) >= imgsize[1]:
                         h_out = imgsize[1] - y1_out - 1
                     rowC = {'imgpath': imgpath, 'id': id_c,
                             'x': x1_out, 'y': y1_out,
