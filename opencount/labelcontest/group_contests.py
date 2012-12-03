@@ -43,7 +43,7 @@ def load_pil(path):
     pilimg = Image.open(path)
     pilimg = pilimg.convert("L")
     if flipped != {} and flipped[path]:
-        pilimf = pilimg.rotate(180)
+        pilimf = pilimg.transpose(Image.ROTATE_180)
     return pilimg
 
 def load_num(path="", pilimg=None):
