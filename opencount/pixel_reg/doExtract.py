@@ -96,7 +96,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     t0=time.clock()
-    H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='translation', rszFac=0.1)
+    H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='rigid', rszFac=0.25)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
@@ -441,7 +441,10 @@ def convertImagesWorkerMAP(job):
         raise e
     #print "DONE"
 
-def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal, stopped, queue, result_queue, verbose=False):
+def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, 
+                           img2bal, stopped, queue, result_queue,
+                           num_imgs2process,
+                           verbose=False):
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
@@ -471,7 +474,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal
 
     nProc=sh.numProcs()
     #nProc = 1
-    num_jobs = len(img2bal)
+    num_jobs = len(jobs)
     
     if nProc < 2:
         print 'using only 1 processes'
@@ -507,11 +510,13 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2bal
         pool.close()
         pool.join()
 
+    print "    (Finished processing targetextract jobs)"
+
     cnt = 0
     avg_intensities = [] # [(path, float avg_intensity), ...]
     bal2targets = {} # maps {int ballotid: {int page: [targetsdir, targetmetadir, diffmetadir, imgmetadir]}}
-    
-    while cnt < num_jobs:
+
+    while cnt < num_imgs2process:
         (avg_intensities_cur, balP, page, target_rootdir,
          targetmeta_rootdir, targetdiff_rootdir, imgmeta_rootdir) = result_queue.get(block=True)
         avg_intensities.extend(avg_intensities_cur)
@@ -605,6 +610,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     manager = mp.Manager()
     queue = manager.Queue()
     result_queue = manager.Queue()
+    imgcount = 0
     print "Creating blank ballots; go up to", len(group_to_ballots)
     for i,(groupID, ballotIDs) in enumerate(group_to_ballots.iteritems()):
         bbs = get_bbs(groupID, target_locs_map)
@@ -622,8 +628,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
                    targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue]
             jobs.append(job)
+            imgcount += len(imgpaths_ordered)
             
-    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue)
+    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue, imgcount)
     if avg_intensities:
         # Quarantine any ballots with large error
         t = time.time()
