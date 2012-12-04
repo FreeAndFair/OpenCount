@@ -564,7 +564,7 @@ class ImageManipulate(wx.Panel):
         then the view will be shifted such that the point demarcated by
         'center' is at the center of the screen.
         Input:
-            obj img: Either a scipy image, or a string pointing to an img.
+            obj img: Either a scipy or PIL image.
             float scale: A float from >=0.0, i.e. scale=2.0 means zoom in
                          200%, scale=0.5 means zoom out.
             tuple center: A tuple (x,y). If not given, then default to
@@ -573,7 +573,8 @@ class ImageManipulate(wx.Panel):
         if not img:
             img = np.ones((300,300))
             img *= 200
-        img = np.array(img)
+        if type(img) != type(np.array(1)):
+            img = np.array(img)
         self.scale = scale
         self.img = img
         self._dirty = True

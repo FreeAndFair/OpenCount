@@ -567,7 +567,7 @@ class LabelContest(wx.Panel):
             if self.text[k]:
                 groupedtext[k] = [self.text[k][0]]+t
             
-        print did_multibox
+        #print did_multibox
 
         # We want to figure out which contests are "equal"
         #  so that when we tally votes we report them together.
@@ -596,7 +596,7 @@ class LabelContest(wx.Panel):
         mapping = {}
         for num,group in enumerate(equal):
             for item in group:
-                print "ITEM", item
+                #print "ITEM", item
                 mapping[item] = num
                 ids = []
                 for each in self.continued_contest(item):
@@ -825,7 +825,8 @@ class LabelContest(wx.Panel):
         Make the template image correspond to how it should.
         Color the current selected contest, as well as the ones we've seen so far.
         """
-        img = self.maybe_flip(self.dirList[self.templatenum])
+        #return
+        img = self.imgo.copy()
 
         dr = ImageDraw.Draw(img)
 
@@ -928,15 +929,15 @@ class LabelContest(wx.Panel):
         
 
 
-        print "EQUAL ARE", self.equivs
+        #print "EQUAL ARE", self.equivs
 
         cur = self.currentcontests[self.count]
-        print 'This contest is', cur
+        #print 'This contest is', cur
         cur = self.continued_contest(cur)
 
         print 'and now it is', cur
         
-        print 'txt', self.text
+        #print 'txt', self.text
 
         if self.text[cur[0]] == []: return
 
@@ -1118,7 +1119,7 @@ class LabelContest(wx.Panel):
                 # Focus is on a target
                 self.text_targets[self.focusIsOn+1].SetFocus()
             else:
-                wx.CallAfter(self.doadd, 1)
+                wx.CallAfter(self.nextunfilled)
 
         self.text_title.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None, -1))
 
@@ -1197,6 +1198,8 @@ class LabelContest(wx.Panel):
         
 
     def nextunfilled(self, x=None):
+        print "NEXTUNFILLED"
+
         # Get the unfilled contests.
         aftertext = [x[0] for x in self.text.items() if x[1] == []]
         # Get their actual order on the screen, not the internal order.

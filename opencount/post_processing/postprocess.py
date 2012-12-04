@@ -28,11 +28,13 @@ class ResultsPanel(ScrolledPanel):
         # 0.) Grab all quarantined ballots
         self.qballotids = sorted(get_quarantined_ballots(proj))
         bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+                    
         self.qvotedpaths = []
         for ballotid in self.qballotids:
             votedpaths = bal2imgs[ballotid]
             self.qvotedpaths.extend(votedpaths)
-        self.qvotedpaths = list(set(self.qvotedpaths))
+        self.qvotedpaths = set(self.qvotedpaths)
+
         self.set_results()
 
     def set_results(self):
@@ -118,6 +120,7 @@ class ResultsPanel(ScrolledPanel):
                                              self.proj.image_to_page), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
+        pdb.set_trace()
         for groupID, contests_sides in target_locs_map.iteritems():
             
             exmpl_id = group_exmpls[groupID][0]
@@ -452,8 +455,6 @@ class ResultsPanel(ScrolledPanel):
         return result
 
     def tally_by_precinct_and_mode_hack(self, cvr):
-        quar = self.qvotedpaths
-
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
 
