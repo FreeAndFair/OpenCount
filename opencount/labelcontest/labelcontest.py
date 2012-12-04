@@ -158,17 +158,13 @@ class LabelContest(wx.Panel):
 
     firstTime = True
 
-    def start(self, img2flip, sz=None):
+    def start(self, sz=None):
         """
         Set everything up to display.
-        Input:
-            dict IMG2FLIP: maps {str imgpath: bool isflipped}
         """
         if not self.firstTime: return
 
         self.firstTime = False
-
-        self.img2flip = img2flip
 
         print "SET UP", sz
         self.thesize = sz
@@ -362,6 +358,7 @@ class LabelContest(wx.Panel):
                         print a
     
             ids_in_new_group = [self.mapping[x] for x in boxes_in_new_group]
+            print 'verify here'
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [ids_in_new_group], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
 
             return
@@ -663,6 +660,7 @@ class LabelContest(wx.Panel):
                         traceback.print_exc()
                         pdb.set_trace()
                 self.boxes.append(boxes)
+            print self.boxes
             return
 
         self.boxes = []
@@ -851,7 +849,7 @@ class LabelContest(wx.Panel):
         bothcontests = self.continued_contest(self.currentcontests[self.count])
         if len(bothcontests) > 1:
             nextbox = [x for x in bothcontests if x != self.currentcontests[self.count]][0]
-            dr.rectangle(self.boxes[nextbox[0]][nextbox[1]], fill=(0,0,200))
+            dr.rectangle(self.boxes[nextbox[0]][self.contest_order[nextbox[0]].index(nextbox[1])], fill=(0,0,200))
 
         new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
         self.templatebox.img.SetBitmap(new_template)
@@ -909,6 +907,7 @@ class LabelContest(wx.Panel):
             # No contests, so skip it
             return
         print "SAVING", self.templatenum, self.count
+        print self.currentcontests
         try:
             self.text_title.GetValue()
         except:
@@ -935,7 +934,6 @@ class LabelContest(wx.Panel):
         print 'This contest is', cur
         cur = self.continued_contest(cur)
 
-        # TODO: SORT ME
         print 'and now it is', cur
         
         print 'txt', self.text
@@ -1003,7 +1001,7 @@ class LabelContest(wx.Panel):
                 #print 'is now', newtext
 
 
-                for each in sorted(continuation):
+                for each in sorted(continuation, key=lambda x: self.contest_order[x[0]].index(x[1])):
                     size = len(self.groupedtargets[each[0]][self.contest_order[each[0]].index(each[1])])
                     #print 'assign', size, 'of them starting from', index, ':', [title]+newtext[index:index+size]
                     self.text[each] = [title]+newtext[index:index+size]

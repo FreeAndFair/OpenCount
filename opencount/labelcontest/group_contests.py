@@ -42,8 +42,10 @@ def num2pil(img):
 def load_pil(path):
     pilimg = Image.open(path)
     pilimg = pilimg.convert("L")
+    print 'loading', path
+    print 'isflipped', flipped
     if flipped != {} and flipped[path]:
-        pilimf = pilimg.transpose(Image.ROTATE_180)
+        pilimg = pilimg.transpose(Image.ROTATE_180)
     return pilimg
 
 def load_num(path="", pilimg=None):
@@ -1266,12 +1268,9 @@ def merge_contests(ballot_data, fulltargets):
             equal_uniq = list(set(equal))
             #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
-            if len(equal_uniq) == 2:
-                pdb.set_trace()
             new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in equal_uniq], merged))
         new_data.append(new_ballot)
     #print new_data
-    pdb.set_trace()
     return new_data
 
 def do_extend(args):
@@ -1334,7 +1333,7 @@ def find_contests(t, paths, giventargets):
     #args = [x for x in args if x[0] == "santacruz/DNPP_VBM/DNPP_VBM_00015-0.png"]
     #args = [x for x in args if 'vbm-57' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
     pool.close()
     pool.join()
     #ballots = map(extract_contest, args)
