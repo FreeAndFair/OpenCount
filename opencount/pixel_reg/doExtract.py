@@ -209,10 +209,10 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
         targetoutname = imgname+"."+str(int(uid))+".png"
         targetoutpath = pathjoin(targetout_rootdir, targetoutname)
         targets.append(targetoutpath)
-        #avg_intensity = int(255*np.sum(img) / float(img.shape[0]*img.shape[1]))
-        # TODO: SantaCruz - specific HACK
-        _INTEREST = img[:, 15:img.shape[1]-20]
-        avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
+        avg_intensity = int(255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1])))
+        # SantaCruz - specific HACK
+        #_INTEREST = img[:, 15:img.shape[1]-20]
+        #avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
         avg_intensities.append((targetoutpath, avg_intensity))
         sh.imsave(targetoutpath, img)
 
@@ -591,9 +591,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                 for tbox in tboxes:
                     # TODO: Temporary hack to re-run target extract
                     # on SantaCruz, without re-doing SelectTargets
-                    x1 = tbox[0] + 43
+                    x1 = tbox[0] #+ 43              # Santa Cruz Hack
                     y1 = tbox[1]
-                    x2 = tbox[0] + tbox[2] - 28
+                    x2 = tbox[0] + tbox[2] #- 28    # Santa Cruz Hack
                     y2 = tbox[1] + tbox[3]
                     id = tbox[4]
                     bb = np.array([y1, y2, x1, x2, id])
