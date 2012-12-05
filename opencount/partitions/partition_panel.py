@@ -190,9 +190,19 @@ class PartitionPanel(ScrolledPanel):
         btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_run,)])
+
+        msg = textwrap.fill("Would you like to skip barcode overlay \
+verification? This tends to be computationally time-consuming, not \
+very helpful for certain vendors (e.g. Hart), and unnecessary to \
+repeat.", 100)
+        txt_skipHelp = wx.StaticText(self, label=msg)
+        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification?")
         
+        sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
+        sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.AddMany([(self.sizer_stats,), (btn_sizer,)])
+        self.sizer.AddMany([(self.sizer_stats,), (btn_sizer,), ((50, 50),), (sizer_skipVerify,)])
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
@@ -282,6 +292,7 @@ class PartitionPanel(ScrolledPanel):
 
         vendor_obj = self.proj.vendor_obj
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+
         manager = multiprocessing.Manager()
         progress_queue = manager.Queue()
         tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
@@ -348,6 +359,11 @@ class PartitionPanel(ScrolledPanel):
             dict FLIPMAP: maps {str imgpath: bool isflip}
             dict VERIFYPATCH_BBS: maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
         """
+        if self.chkbox_skip_verify.GetValue():
+            print "...Skipping Barcode Overlay Verification..."
+            self.on_verify_done(None, None, flipmap, verifypatch_bbs, skipVerify=True)
+            return
+        
         # 1.) Extract all patches to an outdir
         imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
@@ -395,7 +411,7 @@ class PartitionPanel(ScrolledPanel):
         f.Maximize()
         f.Show()
 
-    def on_verify_done(self, verify_results, patch2stuff, flipmap, verifypatch_bbs):
+    def on_verify_done(self, verify_results, patch2stuff, flipmap, verifypatch_bbs, skipVerify=False):
         """ Receives the (corrected) results from VerifyOverlays.
         Input:
         dict VERIFY_RESULTS: {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -404,11 +420,14 @@ class PartitionPanel(ScrolledPanel):
         """
         print "...barcode patch verification done!"
         verified_decodes = {} # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
-        for cat_tag, thedict in verify_results.iteritems():
-            for bc_val, patchpaths in thedict.iteritems():
-                for patchpath in patchpaths:
-                    imgpath, bb, (bc_val_this, userdata, id) = patch2stuff[patchpath]
-                    verified_decodes.setdefault(bc_val, []).append((imgpath, bb, userdata))
+        if skipVerify:
+            verified_decodes = verifypatch_bbs
+        else:
+            for cat_tag, thedict in verify_results.iteritems():
+                for bc_val, patchpaths in thedict.iteritems():
+                    for patchpath in patchpaths:
+                        imgpath, bb, (bc_val_this, userdata, id) = patch2stuff[patchpath]
+                        verified_decodes.setdefault(bc_val, []).append((imgpath, bb, userdata))
         manual_labeled = {} # maps {str imgpath: str label}
         for imgpath, label in self.errs_corrected.iteritems():
             if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
@@ -695,7 +714,7 @@ class BadPagesDialog(wx.Dialog):
         sizer2.Add(btn_ok, flag=wx.ALIGN_CENTER)
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_treatNormal,), (sizer2,)])
+        btn_sizer.AddMany([(btn_treatNormal,), ((50,0),), (sizer2,)])
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.AddMany([(txt,), (btn_sizer,)])
