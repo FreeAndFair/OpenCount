@@ -85,6 +85,10 @@ class HartVendor(Vendor):
             imginfo = hart.get_info([decoding])
             imginfo_map[imgpath] = imginfo
             tag = (imginfo['precinct'], imginfo['language'], imginfo['party'])
+            if self.proj.num_pages == 1:
+                # Additionally separate by page for single-sided, just in
+                # case multiple pages are present in the ballot scans
+                tag += (imginfo['page'],)
             partitionid = attrs2partitionID.get(tag, None)
             if partitionid == None:
                 partitionid = curPartitionID

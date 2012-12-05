@@ -59,20 +59,28 @@ class PartitionMainPanel(wx.Panel):
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         curPartID = 0
-        # 1.) First, build up partitions_map, partitions_invmap
+
+        # 1.) Build up partitions_map, partitions_invmap
+        # Note: self.partitionpanel.partitioning may have partitions
+        # with either no ballotids, or ballotids that are all quarantined/discarded.
+        # Take care to detect these cases.
         for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
             if not ballotIDs:
                 continue
+            atLeastOne = False
             for ballotID in ballotIDs:
                 if ballotID in self.partitionpanel.quarantined_bals or ballotID in self.partitionpanel.discarded_bals:
                     continue
-                partitions_map.setdefault(curPartID, []).append(ballotID)
-                partitions_invmap[ballotID] = curPartID
                 imgpaths = b2imgs[ballotID]
                 for imgpath in imgpaths:
-                    image_to_page[imgpath] = self.partitionpanel.imginfo[imgpath]['page']
+                    atLeastOne = True
+                    page = self.partitionpanel.imginfo[imgpath]['page']
+                    image_to_page[imgpath] = page
                     image_to_flip[imgpath] = self.partitionpanel.flipmap[imgpath]
-            curPartID += 1
+                partitions_map.setdefault(curPartID, []).append(ballotID)
+                partitions_invmap[ballotID] = curPartID
+            if atLeastOne:
+                curPartID += 1
         # 2.) Grab NUM_EXMPLS number of exemplars from each partition
         for partitionID, ballotIDs in partitions_map.iteritems():
             exmpls = set()
@@ -402,6 +410,64 @@ Adding to separate partitions...".format(len(bad_ballotids))
             self.partitioning[curPartId] = [badballotid]
             curPartId += 1
 
+        # Also, for single-sided elections, quarantine any ballots which
+        # has a very-rare page. NOTE: Commenting out this check, since
+        # it might be best to just partition also by page for single-sided.
+        '''
+        if self.proj.num_pages == 1:
+            page_counter = util.Counter() # keeps track of page# occurrences
+            # 0.) Initialize page count PAGE_COUNTER
+            for partitionID, ballotIDs in self.partitioning.iteritems():
+                for ballotID in ballotIDs:
+                    if ballotID in self.quarantined_bals or ballotID in self.discarded_bals:
+                        continue
+                    imgpaths = bal2imgs[ballotID]
+                    for imgpath in imgpaths:
+                        page = self.imginfo[imgpath]['page']
+                        page_counter[page] += 1
+            def is_anomalous_page(page, page_stats, T=0.02):
+                """ Reject pages that rarely occur """
+                if page not in page_stats:
+                    return True
+                elif page_stats[page] <= T:
+                    return True
+                return False
+            # 0.a.) Compute page statistics
+            page_stats = {} # maps {page: float percentage}
+            total_count = sum(page_counter.values())
+            for pagenum, count in page_counter.iteritems():
+                page_stats[pagenum] = count / float(total_count)
+            print page_stats
+            pdb.set_trace()
+            # 1.) Perform anomaly detection
+            anom_cnt = 0
+            for partitionid, ballotids in self.partitioning.iteritems():
+                for ballotid in ballotids:
+                    if ballotID in self.quarantined_bals or ballotID in self.discarded_bals:
+                        continue
+                    imgpaths = bal2imgs[ballotid]
+                    flagit = False
+                    for imgpath in imgpaths:
+                        page = self.imginfo[imgpath]['page']
+                        if is_anomalous_page(page, page_stats):
+                            flagit = True
+                            anom_cnt += 1
+                            break
+                    if flagit:
+                        self.quarantine_ballot(ballotid)
+            print "    Detected {0} anomalous ballots (weird page number)".format(anom_cnt)
+        '''
+        # 2.) Finally, remove all quarantined/discarded ballotids from
+        # self.PARTITIONING.
+        bad_ballotids = self.quarantined_bals.union(self.discarded_bals)
+        for partitionid, ballotids in self.partitioning.iteritems():
+            i = 0
+            while i < len(ballotids):
+                ballotid = ballotids[i]
+                if ballotid in bad_ballotids:
+                    ballotids.pop(i)
+                else:
+                    i += 1
         # Export results.
         self.GetParent().export_results()
 
