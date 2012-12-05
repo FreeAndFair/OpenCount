@@ -486,7 +486,8 @@ class VerifyOverlays(SplitOverlays):
             for tag, groups in self.finished_groups.iteritems():
                 for group in groups:
                     verify_results.setdefault(tag, []).extend(group.imgpaths)
-            self.ondone(verify_results)
+            #self.ondone(verify_results)
+            wx.CallAfter(self.ondone, verify_results)
 
     def restore_session(self):
         try:
@@ -626,7 +627,8 @@ class VerifyOrFlagOverlays(VerifyOverlays):
             quarantined_results = []
             for group in self.quarantined_groups:
                 quarantined_results.extend(group.imgpaths)
-            self.ondone(verify_results, quarantined_results)
+            #self.ondone(verify_results, quarantined_results)
+            wx.CallAfter(self.ondone, verify_results, quarantined_results)
 
     def restore_session(self):
         try:
@@ -752,7 +754,8 @@ class VerifyOverlaysMultCats(wx.Panel):
             print "We're done verifying all categories!"
             self.Disable()
             if self.ondone:
-                self.ondone(self.verify_results_cat)
+                #self.ondone(self.verify_results_cat)
+                wx.CallAfter(self.ondone, self.verify_results_cat)
 
 class CheckImageEqualsPanel(VerifyOverlaysPanel):
     """ Class that contains both a Header, a CheckImageEquals, and a Button
@@ -903,7 +906,8 @@ class SeparateImages(VerifyOverlays):
                 for group in groups:
                     verify_results[idx] = group.imgpaths
                     idx += 1
-            self.ondone(verify_results)
+            #self.ondone(verify_results)
+            wx.CallAfter(self.ondone, verify_results)
 
     def do_explode(self):
         """ Add each individual element of the current group into
@@ -990,7 +994,7 @@ class SeparateImagesFrame(wx.Frame):
         out = []
         for tag, imgpaths in results.iteritems():
             out.append(imgpaths)
-        self.callback(out)
+        wx.CallAfter(self.callback, out)
         self.Close()
 
 class Group(object):

@@ -141,6 +141,7 @@ class Project(object):
                      'voteddir': '',
                      'is_multipage': False,
                      'num_pages': None,
+                     'is_varnum_pages': None,
                      'vendor_obj': None,
                      'partition_exmpls': 'partition_exmpls.p',
                      'partitions_map': 'partitions_map.p',

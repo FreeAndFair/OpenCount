@@ -218,6 +218,8 @@ match the regular expressions.".format(imgpath)
             self.project.is_multipage = False
         # 5.) Set project.num_pages
         self.project.num_pages = int(self.numpages_txtctrl.GetValue())
+        # 6.) Set project.is_varnum_pages
+        self.project.is_varnum_pages = self.varnumpages_chkbox.GetValue()
         # 6.) Set project.vendor_obj
         self.project.vendor_obj = VENDOR_CLASSES[self.vendor_dropdown.GetStringSelection().lower()](self.project)
         
