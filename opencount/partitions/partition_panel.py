@@ -54,11 +54,22 @@ class PartitionMainPanel(wx.Panel):
         partitions_map = {} 
         partitions_invmap = {}
         partition_exmpls = {}
+        # Note: IMAGE_TO_PAGE will normalize the pages s.t. they start
+        # from 0, and increase by 1. 
         image_to_page = {} # maps {str imgpath: int side}
         image_to_flip = {} # maps {str imgpath: bool isflip}
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         curPartID = 0
+
+        # 0.) Record all pages outputted by the decoder, in order to
+        # normalize the pages to start at 0.
+        pages_set = set()
+        for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
+            pages_set.add(imginfo['page'])
+        pages_norm_map = {} # maps {int decoderPage: int normPage}
+        for i, decoderPage in enumerate(sorted(pages_set)):
+            pages_norm_map[decoderPage] = i
 
         # 1.) Build up partitions_map, partitions_invmap
         # Note: self.partitionpanel.partitioning may have partitions
@@ -74,8 +85,8 @@ class PartitionMainPanel(wx.Panel):
                 imgpaths = b2imgs[ballotID]
                 for imgpath in imgpaths:
                     atLeastOne = True
-                    page = self.partitionpanel.imginfo[imgpath]['page']
-                    image_to_page[imgpath] = page
+                    decoderPage = self.partitionpanel.imginfo[imgpath]['page']
+                    image_to_page[imgpath] = pages_norm_map[decoderPage]
                     image_to_flip[imgpath] = self.partitionpanel.flipmap[imgpath]
                 partitions_map.setdefault(curPartID, []).append(ballotID)
                 partitions_invmap[ballotID] = curPartID
