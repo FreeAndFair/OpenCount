@@ -64,37 +64,43 @@ class PartitionMainPanel(wx.Panel):
 
         # 0.) Record all pages outputted by the decoder, in order to
         # normalize the pages to start at 0.
-        pages_set = set()
+        pages_counter = util.Counter()
         for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
-            pages_set.add(imginfo['page'])
+            pages_counter[imginfo['page']] += 1
         pages_norm_map = {} # maps {int decoderPage: int normPage}
-        for i, decoderPage in enumerate(sorted(pages_set)):
+        for i, decoderPage in enumerate(sorted(pages_counter.keys())):
             pages_norm_map[decoderPage] = i
 
-        if not self.proj.is_varnum_pages and self.proj.num_pages == 1 and len(pages_set) != self.proj.num_pages:
-            print "...Uhoh, detected {0} pages, but election specifies {1} pages.".format(len(pages_set), self.proj.num_pages)
-            msg = textwrap.fill("Warning: The user specified \
+        # 1.) Perform a few sanity checks if this is a single-sided 
+        #     election. 
+        if not self.proj.is_varnum_pages and self.proj.num_pages == 1 and len(pages_norm_map) != self.proj.num_pages:
+            print "...Uhoh, detected {0} pages, but election specifies {1} pages.".format(len(pages_norm_map), self.proj.num_pages)
+            msg = "Warning: The user specified \
 that this is a {0}-sided election. However, OpenCount just detected that {1} \
-sides are present. \n What should OpenCount do?".format(self.proj.num_pages, len(pages_set)),
-                                70)
-            dlg = BadPagesDialog(self, msg=msg)
+sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
+            for decoderPage in pages_norm_map.keys():
+                msg += "    Page {0}: {1} images".format(decoderPage, pages_counter[decoderPage])
+                msg += "\n"
+            msg += "What should OpenCount do?"
+            dlg = BadPagesDialog(self, msg, pages_counter)
             status = dlg.ShowModal()
-            #status = BadPagesDialog.ID_TREATNORMAL
             if status == BadPagesDialog.ID_TREATNORMAL:
                 # map everything to the 0 page
                 for decoderPage in pages_norm_map.keys()[:]:
                     pages_norm_map[decoderPage] = 0
-            elif status in (BadPagesDialog.ID_QUARANTINE, BadPagesDialog.ID_DISCARD):
-                handleballot = self.partitionpanel.quarantine_ballot if status == BadPagesDialog.ID_QUARANTINE else self.partitionpanel.discard_ballot
+            else:
+                keepDecoderPage = sorted(pages_norm_map.keys())[dlg.keep_page]
+                pages_norm_map[keepDecoderPage] = 0
+                doQuarantine = dlg.do_quarantine
+                handleballot = self.partitionpanel.quarantine_ballot if doQuarantine else self.partitionpanel.discard_ballot
                 for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
                     decoderPage = imginfo['page']
-                    normPage = pages_norm_map[decoderPage]
-                    if normPage >= 1:
+                    if decoderPage != keepDecoderPage:
+                        if doQuarantine:
+                            print "...quarantining ballot {0}".format(img2b[imgpath])
+                        else:
+                            print "...discarding ballot {0}".format(img2b[imgpath])
                         handleballot(img2b[imgpath])
-            else:
-                print "...How did we get here?"
-                wx.MessageDialog(self, message="Well, this is unexpected.").ShowModal()
-                return
                         
         # 1.) Build up partitions_map, partitions_invmap
         # Note: self.partitionpanel.partitioning may have partitions
@@ -651,33 +657,55 @@ class LabelDialog(wx.Dialog):
 
 class BadPagesDialog(wx.Dialog):
     ID_TREATNORMAL = 42
-    ID_QUARANTINE = 43
-    ID_DISCARD = 44
+    ID_KEEPONE = 43
 
-    def __init__(self, parent, msg, *args, **kwargs):
+    def __init__(self, parent, msg, page_counter, *args, **kwargs):
         wx.Dialog.__init__(self, parent, title="User action required.", size=(700, 200), *args, **kwargs)
+
+        self.keep_page = None
+        self.do_quarantine = None
         
         txt = wx.StaticText(self, label=msg)
-        
+
         btn_treatNormal = wx.Button(self, label="Treat all ballots as separate pages")
         btn_treatNormal.Bind(wx.EVT_BUTTON, self.onButton_treatNormal)
-        btn_quarantine = wx.Button(self, label="Quarantine the 'other' ballots.")
-        btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
-        btn_discard = wx.Button(self, label="Discard the 'other' ballots.")
-        btn_discard.Bind(wx.EVT_BUTTON, self.onButton_discard)
+
+        txt_choose = wx.StaticText(self, label="Or, process only one side:")
+        choices = []
+        for page in sorted(page_counter):
+            cnt = page_counter[page]
+            choices.append("Page {0} -- {1} images".format(page, cnt))
+        self.cb_pages = wx.ComboBox(self, choices=choices, style=wx.CB_READONLY)
+
+        sizer_choose = wx.BoxSizer(wx.VERTICAL)
+
+        sizer_choose.AddMany([(txt_choose,), (self.cb_pages,)])
         
+        txt_others = wx.StaticText(self, label="And do the following to the other sides:")
+        self.rb_quarantine = wx.RadioButton(self, label="Quarantine the other sides", style=wx.RB_GROUP)
+        self.rb_discard = wx.RadioButton(self, label="Discard the other sides")
+
+        sizer_others = wx.BoxSizer(wx.VERTICAL)
+        sizer_others.AddMany([(txt_others,), (self.rb_quarantine,), (self.rb_discard,)])
+
+        sizer2 = wx.BoxSizer(wx.HORIZONTAL)
+        sizer2.AddMany([(sizer_choose,), (sizer_others)])
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        sizer2.Add(btn_ok, flag=wx.ALIGN_CENTER)
+
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_treatNormal,), (btn_quarantine,), (btn_discard,)])
+        btn_sizer.AddMany([(btn_treatNormal,), (sizer2,)])
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.AddMany([(txt,), (btn_sizer,)])
 
         self.SetSizer(sizer)
-        self.Layout()
+        self.Fit()
 
     def onButton_treatNormal(self, evt):
         self.EndModal(self.ID_TREATNORMAL)
-    def onButton_quarantine(self, evt):
-        self.EndModal(self.ID_QUARANTINE)
-    def onButton_discard(self, evt):
-        self.EndModal(self.ID_DISCARD)
+    def onButton_ok(self, evt):
+        self.keep_page = self.cb_pages.GetSelection()
+        self.do_quarantine = True if self.rb_quarantine.GetValue() else False
+        self.EndModal(self.ID_KEEPONE)
