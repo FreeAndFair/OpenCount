@@ -13,6 +13,8 @@ except:
     import pickle
 import re
 import pdb
+import numpy as np
+import scipy.misc
 
 from group_contests import final_grouping, extend_multibox, intersect, group_given_contests
 from verifycontestgrouping import VerifyContestGrouping
@@ -142,7 +144,7 @@ class LabelContest(wx.Panel):
         img = Image.open(path).convert("RGB")
         if self.flipped[path]:
             img = img.rotate(180)
-        return img
+        return np.array(img)
 
 
     def reset_panel(self):
@@ -651,7 +653,7 @@ class LabelContest(wx.Panel):
 
             self.boxes = []
             for i,(ballot,order) in enumerate(zip(res,correctorder)):
-                print i
+                #print i
                 boxes = []
                 for o in order:
                     try:
@@ -660,7 +662,7 @@ class LabelContest(wx.Panel):
                         traceback.print_exc()
                         pdb.set_trace()
                 self.boxes.append(boxes)
-            print self.boxes
+            #print self.boxes
             return
 
         self.boxes = []
@@ -801,6 +803,9 @@ class LabelContest(wx.Panel):
 
         # Save the image corresponding to this template
         self.imgo = self.maybe_flip(self.dirList[self.templatenum])
+        self.imgo_resize = scipy.misc.imresize(self.imgo,(500, 303))
+        self.imgo_resizefactor_x = float(self.imgo.shape[0])/self.imgo_resize.shape[0]
+        self.imgo_resizefactor_y = float(self.imgo.shape[1])/self.imgo_resize.shape[1]
         
         for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
@@ -826,36 +831,59 @@ class LabelContest(wx.Panel):
         Color the current selected contest, as well as the ones we've seen so far.
         """
         #return
-        img = self.imgo.copy()
+        img = np.array(self.imgo_resize)
 
-        dr = ImageDraw.Draw(img)
+        def fix(z):
+            l,u,r,d = z
+            return (l/self.imgo_resizefactor_x,
+                    u/self.imgo_resizefactor_y,
+                    r/self.imgo_resizefactor_x,
+                    d/self.imgo_resizefactor_y)
 
         #print self.currentcontests
         #print sorted(self.text.keys())
         c = 0
-        for box in self.boxes[self.templatenum]:
-            print c
-            print self.currentcontests[c]
-            print self.currentcontests[c] in self.text
+        for l,u,r,d in self.boxes[self.templatenum]:
+            l,u,r,d = fix((l,u,r,d))
+            #print c
+            #print self.currentcontests[c]
+            #print self.currentcontests[c] in self.text
             if c == self.count:
                 pass
             elif self.text[self.currentcontests[c]] != []:
-                dr.rectangle(box, fill=(0,200,0))
+                img[u:d, l:r] *= .5
+                img[u:d, l:r] += np.array([0, 200, 0])*.5#dr.rectangle(box, fill=(0,200,0))
             else:
-                dr.rectangle(box, fill=(200,0,0))
+                img[u:d, l:r] *= .5
+                img[u:d, l:r] += np.array([200, 0, 0])*.5#dr.rectangle(box, fill=(200,0,0))
 
             c += 1
         # Redraw the yellow on the current so it goes on top of everything else
-        dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
+        l,u,r,d = fix(self.boxes[self.templatenum][self.count])
+        #dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
+        img[u:d, l:r] = self.imgo_resize[u:d, l:r]
+        img[u:d, l:r] *= .5
+        img[u:d, l:r] += np.array([200, 200, 0])*.5
+
         bothcontests = self.continued_contest(self.currentcontests[self.count])
         if len(bothcontests) > 1:
             nextbox = [x for x in bothcontests if x != self.currentcontests[self.count]][0]
-            dr.rectangle(self.boxes[nextbox[0]][self.contest_order[nextbox[0]].index(nextbox[1])], fill=(0,0,200))
+            l,u,r,d = fix(self.boxes[nextbox[0]][self.contest_order[nextbox[0]].index(nextbox[1])])
+            #dr.rectangle(, fill=(0,0,200))
+            img[u:d, l:r] = self.imgo_resize[u:d, l:r]
+            img[u:d, l:r] *= .5
+            img[u:d, l:r] += np.array([0, 0, 200])*.5
 
-        new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
-        self.templatebox.img.SetBitmap(new_template)
+        #new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
+            
+        image = wx.EmptyImage(303, 500)
+        image.SetData(img.tostring())
+        wxBitmap = image.ConvertToBitmap()
+
+        self.templatebox.img.SetBitmap(wxBitmap)
         
-        SCALE = float(self.imgo.size[1])/500
+        SCALE = float(self.imgo.shape[0])/500
+        print "SCALE", SCALE
         # Switch to selected contest.
         @util.pdb_on_crash
         def foo(x):
@@ -908,7 +936,7 @@ class LabelContest(wx.Panel):
             # No contests, so skip it
             return
         print "SAVING", self.templatenum, self.count
-        print self.currentcontests
+        #print self.currentcontests
         try:
             self.text_title.GetValue()
         except:
@@ -935,7 +963,7 @@ class LabelContest(wx.Panel):
         #print 'This contest is', cur
         cur = self.continued_contest(cur)
 
-        print 'and now it is', cur
+        #print 'and now it is', cur
         
         #print 'txt', self.text
 
@@ -955,7 +983,7 @@ class LabelContest(wx.Panel):
 
         text = [self.text[x][1:] if self.text[x] != [] else ['']*len(self.groupedtargets[x[0]][self.contest_order[x[0]].index(x[1])]) for x in cur]
         text = sum(text, [])
-        print 'this', text
+        #print 'this', text
 
         cur_in_dict = [x for x in cur if x in self.reorder_inverse][0]
         set_repr = self.reorder_inverse[cur_in_dict]
@@ -1092,23 +1120,26 @@ class LabelContest(wx.Panel):
             # Put a little blue box over where we're entering text
             self.focusIsOn = i
             def doDraw(img):
-                mine = img.copy()
-                size = img.size
-                dr = ImageDraw.Draw(mine)
+                mine = np.array(img)
                                       
-                box = self.crop[self.currentcontests[self.count]][1]
-                print box
-                dr.rectangle(box, fill=(0,250,0))
+                l,u,r,d = self.crop[self.currentcontests[self.count]][1]
+                #print box
+                #dr.rectangle(box, fill=(0,250,0))
+                # TODO to get performance, only draw the contest bounding box once
+                mine[u:d, l:r] *= .85
+                mine[u:d, l:r] += np.array([250, 250, 0])*.15
                 if where != None:
                     # Extract the coords, ignore the IDs
-                    todraw = where[2:]
-                    print todraw
-                    dr.rectangle(todraw, fill=(0,0,250))
-                return Image.blend(mine, img, .85)
+                    l,u,r,d = where[2:]
+                    mine[u:d, l:r] -= np.array([250, 250, 0])*.15
+                    mine[u:d, l:r] *= .85
+                    mine[u:d, l:r] += np.array([0, 0, 250])*.15
+                    #print todraw
+                return mine#Image.blend(mine, img, .85)
             self.changeFocusImage(applyfn=doDraw)
 
         def enterPushed(it):
-            print self.focusIsOn
+            #print self.focusIsOn
             if self.focusIsOn == -1:
                 # Focus is on the title
                 if all([x.GetValue() != '' for x in self.text_targets]):
@@ -1117,9 +1148,11 @@ class LabelContest(wx.Panel):
                     self.text_targets[0].SetFocus()
             elif self.focusIsOn < len(self.text_targets)-1:
                 # Focus is on a target
-                self.text_targets[self.focusIsOn+1].SetFocus()
+                if self.text_targets[self.focusIsOn] != '':
+                    self.text_targets[self.focusIsOn+1].SetFocus()
             else:
-                wx.CallAfter(self.nextunfilled)
+                if self.text_targets[self.focusIsOn] != '':
+                    wx.CallAfter(self.nextunfilled)
 
         self.text_title.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None, -1))
 
@@ -1177,7 +1210,7 @@ class LabelContest(wx.Panel):
 
 
     def changeFocusImage(self, move=False, applyfn=None):
-        it = self.imgo#self.crop[self.currentcontests[self.count]][0]
+        it = self.imgo
         if applyfn != None:
             it = applyfn(it)
         if not move:
@@ -1198,20 +1231,19 @@ class LabelContest(wx.Panel):
         
 
     def nextunfilled(self, x=None):
-        print "NEXTUNFILLED"
-
         # Get the unfilled contests.
         aftertext = [x[0] for x in self.text.items() if x[1] == []]
         # Get their actual order on the screen, not the internal order.
         aftertext = [(t,self.contest_order[t].index(c)) for t,c in aftertext]
-        # Remove the ones before the current target.
+        # Remove the ones before the current contest.
         aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
         # Pick the first.
         temp,cont = min(aftertext)
         if temp != self.templatenum:
             print 'skip to', temp-self.templatenum
             self.nexttemplate(temp-self.templatenum)
-        self.doadd(cont)
+        
+        self.doadd(cont-self.count)
 
     def doadd(self, ctby, dosave=True):
         """
