@@ -570,7 +570,7 @@ class ImageManipulate(wx.Panel):
             tuple center: A tuple (x,y). If not given, then default to
                           the center of the img.
         """
-        if not img:
+        if img == None:
             img = np.ones((300,300))
             img *= 200
         if type(img) != type(np.array(1)):

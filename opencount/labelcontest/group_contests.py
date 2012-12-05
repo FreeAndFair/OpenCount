@@ -28,9 +28,9 @@ def pdb_on_crash(f):
 
 black = 200
 
-do_save = True
-do_test = True
-export = True
+do_save = False
+do_test = False
+export = False
 
 flipped = {}
 
@@ -42,8 +42,8 @@ def num2pil(img):
 def load_pil(path):
     pilimg = Image.open(path)
     pilimg = pilimg.convert("L")
-    print 'loading', path
-    print 'isflipped', flipped
+    #print 'loading', path
+    #print 'isflipped', flipped
     if flipped != {} and flipped[path]:
         pilimg = pilimg.transpose(Image.ROTATE_180)
     return pilimg
