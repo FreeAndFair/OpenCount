@@ -396,8 +396,6 @@ def convertImagesWorkerMAP(job):
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
-    if wx.App.IsMainLoopRunning():
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
     #print "START"
     try:
         (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue) = job
@@ -438,7 +436,7 @@ def convertImagesWorkerMAP(job):
         queue.put(True)
     except Exception as e:
         traceback.print_exc()
-        raise e
+        queue.put(e.message)
     #print "DONE"
 
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, 
@@ -506,6 +504,10 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
             if val == True:
                 if wx.App.IsMainLoopRunning():
                     wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                cnt += 1
+            elif type(val) in (str, unicode):
+                # Something went wrong!
+                print "    WARNING: detected a failed extract job {0}.".format(cnt)
                 cnt += 1
         pool.close()
         pool.join()
