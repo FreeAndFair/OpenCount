@@ -79,6 +79,9 @@ def main():
     img2flip = pickle.load(open(pathjoin(projdir, 'image_to_flip.p'), 'rb'))
     target_locs_map = pickle.load(open(pathjoin(projdir, 'target_locs_map.p'), 'rb'))
     group_exmpls = pickle.load(open(pathjoin(projdir, 'group_exmpls.p'), 'rb'))
+
+    proj = pickle.load(open(pathjoin(projdir, 'proj.p'), 'rb'))
+    voteddir_root = proj.voteddir
     
     # 0.) Set up job
     jobs = []
@@ -117,7 +120,7 @@ def main():
         imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
         imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
         job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
-               t_imgs, t_diff, t_meta, b_meta, Queue.Queue(), Queue.Queue()]
+               t_imgs, t_diff, t_meta, b_meta, voteddir_root, Queue.Queue(), Queue.Queue()]
         jobs.append(job)
 
     '''
