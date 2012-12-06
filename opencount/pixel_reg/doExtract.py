@@ -25,6 +25,7 @@ def extractTargets(I,Iref,bbs,verbose=False):
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs);
     t0=time.clock();
+    
     IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
@@ -84,6 +85,15 @@ def bbsInCell(bbs,i1,i2,j1,j2):
 
     return bbOut
 
+def cropout_stuff(I, top, bot, left, right):
+    h, w = I.shape
+    x1 = int(round(left*w))
+    y1 = int(round(top*h))
+    x2 = int(round(w - (right*w)))
+    y2 = int(round(h - (bot*h)))
+    Inew = I[y1:y2, x1:x2]
+    return np.copy(Inew)
+
 def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     """ Given an image I (voted) and a ref image Iref (blank), extracts
     boundingboxes given by BBS from I, performing local image alignment
@@ -95,12 +105,18 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     # 0.) Mask out targets on Iref, coarsely-align I to Iref.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
+    IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
+    Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
+
     t0=time.clock()
-    H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='rigid', rszFac=0.25)
+    #H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='rigid', rszFac=0.25)
+    H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
     pFac=7
+
+    I1 = imtransform(I, H1)
 
     # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
     #     then extract bb.
@@ -591,7 +607,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             for contest in contests:
                 cbox, tboxes = contest[0], contest[1:]
                 for tbox in tboxes:
-                    # TODO: Temporary hack to re-run target extract
+                    # TODO: HACK to re-run target extract
                     # on SantaCruz, without re-doing SelectTargets
                     x1 = tbox[0] #+ 43              # Santa Cruz Hack
                     y1 = tbox[1]
