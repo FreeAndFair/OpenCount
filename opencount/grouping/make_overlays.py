@@ -1,3 +1,4 @@
+import multiprocessing
 from PIL import Image, ImageChops, ImageOps
 from time import clock
 import numpy as np
@@ -8,8 +9,95 @@ import random
 import pdb, traceback
 
 sys.path.append('..')
+import grouping.partask as partask
 from pixel_reg.imagesAlign import imagesAlign
 
+def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, type='rigid',
+                  minArea=np.power(2, 16), bbs_map=None, numProcs=None):
+    """ A parallel-wrapper for minmax_cv_v2. 
+    Note: For some reason, this is ~10X slower than just calling minmax_cv
+    and doing it in a single process. Not sure why...
+    """
+    if numProcs == None:
+        numProcs = multiprocessing.cpu_count()
+    if numProcs == 1:
+        return minmax_cv(imgpaths, do_align=do_align, rszFac=rszFac, type=type,
+                         minArea=minArea, bbs_map=bbs_map)
+    imgpaths = imgpaths[:]
+    Iref_imP = imgpaths.pop()
+    Imin_str, Imax_str, size = partask.do_partask(_minmax_cv_v2_wrapper, 
+                                                  imgpaths,
+                                                  _args=(Iref_imP, do_align, rszFac, type, minArea, bbs_map),
+                                                  init=(None, None, None),
+                                                  combfn=_minmax_combfn,
+                                                  N=numProcs)
+    return str2iplimage(Imin_str, size), str2iplimage(Imax_str, size)
+
+def _minmax_combfn(a, b):
+    # Unfortunately, things passed to multiprocessing must be pickle'able,
+    # but IplImages are /not/ pickle'able. So, I must turn the IplImage into
+    # its string (via .tostring()), then re-morph it back into IplImage. 
+    IminA_str, ImaxA_str, size = a
+    IminB_str, ImaxB_str, size = b
+    IminB = str2iplimage(IminB_str, size)
+    ImaxB = str2iplimage(ImaxB_str, size)
+    if IminA_str == None:
+        return IminB.tostring(), ImaxB.tostring(), size
+    IminA = str2iplimage(IminA_str, size)
+    ImaxA = str2iplimage(ImaxA_str, size)
+    cv.Min(IminA, IminB, IminB)
+    cv.Max(ImaxA, ImaxB, ImaxB)
+    return IminB.tostring(), ImaxB.tostring(), size
+
+def str2iplimage(A_str, size):
+    A = cv.CreateImageHeader(size, cv.IPL_DEPTH_8U, 1)
+    cv.SetData(A, A_str)
+    return A
+
+def _minmax_cv_v2_wrapper(imgpaths, *args, **kwargs):
+    return minmax_cv_v2(imgpaths, *args, **kwargs)
+def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, type='rigid',
+                 minArea=np.power(2, 16), bbs_map=None):
+    """ Computes the overlays of IMGPATHS, but uses the IREF_IMP as the
+    reference image to align against, if DO_ALIGN is True. Mainly a 
+    function written for the parallel version (minmax_cv is still fine for
+    single-process use).
+    """
+    bbs_map = {} if bbs_map == None else bbs_map
+    if do_align:
+        Iref = cv.LoadImage(Iref_imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        bbRef = bbs_map.get(Iref_imP, None)
+        if bbRef:
+            coords = tuple(map(int, (bbRef[0], bbRef[1], bbRef[2]-bbRef[0], bbRef[3]-bbRef[1])))
+            cv.SetImageROI(Iref)
+    else:
+        Iref = None
+    # 0.) Prep first image
+    imgpath0 = imgpaths[0]
+    Imin = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    bb0 = bbs_map.get(imgpath0, None)
+    if bb0:
+        coords = tuple(map(int, (bb0[0], bb0[1], bb0[2]-bb0[0], bb0[3]-bb0[1])))
+        cv.SetImageROI(Imin)
+    Imax = cv.CloneImage(Imin)
+    Iref_np = (iplimage2np(cv.CloneImage(Iref)) / 255.0) if do_align else None
+    for imgpath in imgpaths[1:]:
+        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        bb = bbs_map.get(imgpath, None)
+        if bb:
+            bb = tuple(map(int, bb))
+            cv.SetImageROI(I, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1]))
+        Iout = matchsize(I, Imax)
+        if do_align:
+            tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
+            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
+            Ireg *= 255.0
+            Ireg = Ireg.astype('uint8')
+            Iout = np2iplimage(Ireg)
+        cv.Max(Iout, Imax, Imax)
+        cv.Min(Iout, Imin, Imin)
+    return Imin.tostring(), Imax.tostring(), cv.GetSize(Imin)
+            
 def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
               minArea=np.power(2, 16), bbs_map=None):
     """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is

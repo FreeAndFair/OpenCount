@@ -1015,8 +1015,19 @@ class Group(object):
             IplImage minimg, IplImage maximg.
         """
         if not self.overlay_min or force:
-            minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
-                                                     rszFac=0.75, bbs_map=bbs_map)
+            print "...Computing Min/Max Overlays for {0} images...".format(len(self.imgpaths))
+            t = time.time()
+            #minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
+            #                                         rszFac=0.75, bbs_map=bbs_map)
+            # NOTE: calling with numProcs>1 actually slows things down. 
+            #       The slowdown might be due to all the .tostring()'ing
+            #       I have to do to deal with IplImages not being
+            #       pickle'able. Might just have to use nparrays (which
+            #       are pickle'able.
+            minimg, maximg = make_overlays.minmax_cv_par(self.imgpaths, do_align=self.do_align,
+                                                         rszFac=0.75, bbs_map=bbs_map, numProcs=1)
+            dur = time.time() - t
+            print "...Finished Computing Min/Max Overlays ({0} s).".format(dur)
             self.overlay_min = minimg
             self.overlay_max = maximg
         return self.overlay_min, self.overlay_max
