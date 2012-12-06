@@ -18,6 +18,11 @@ import fnmatch
 import shutil
 from random import random
 
+# Consider only the middle of the "Fill in the Arrow" voting targets
+# that Sequoia-style (e.g. SantaCruz) has. This is present because I
+# don't want to re-do select targets.
+HACK_SANTACRUZ = False
+
 def extractTargets(I,Iref,bbs,verbose=False):
     ''' Perform local alignment around each target, then crop out target  '''
     # Note: Currently only used in debugWorker. See extractTargetsRegions
@@ -225,10 +230,13 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
         targetoutname = imgname+"."+str(int(uid))+".png"
         targetoutpath = pathjoin(targetout_rootdir, targetoutname)
         targets.append(targetoutpath)
-        avg_intensity = int(255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1])))
-        # SantaCruz - specific HACK
-        #_INTEREST = img[:, 15:img.shape[1]-20]
-        #avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
+        img = np.nan_to_num(img)
+        if not HACK_SANTACRUZ:
+            avg_intensity = int(255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1])))
+        else:
+            # SantaCruz - specific HACK
+            _INTEREST = img[:, 15:img.shape[1]-20]
+            avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
         avg_intensities.append((targetoutpath, avg_intensity))
         sh.imsave(targetoutpath, img)
 
@@ -607,12 +615,14 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             for contest in contests:
                 cbox, tboxes = contest[0], contest[1:]
                 for tbox in tboxes:
-                    # TODO: HACK to re-run target extract
-                    # on SantaCruz, without re-doing SelectTargets
-                    x1 = tbox[0] #+ 43              # Santa Cruz Hack
+                    x1 = tbox[0]
                     y1 = tbox[1]
-                    x2 = tbox[0] + tbox[2] #- 28    # Santa Cruz Hack
+                    x2 = tbox[0] + tbox[2]
                     y2 = tbox[1] + tbox[3]
+                    if HACK_SANTACRUZ:
+                        x1 += 43
+                        x2 -= 28
+
                     id = tbox[4]
                     bb = np.array([y1, y2, x1, x2, id])
                     bbs = np.vstack((bbs, bb))
