@@ -120,7 +120,6 @@ class ResultsPanel(ScrolledPanel):
                                              self.proj.image_to_page), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
-        pdb.set_trace()
         for groupID, contests_sides in target_locs_map.iteritems():
             
             exmpl_id = group_exmpls[groupID][0]
@@ -139,6 +138,10 @@ class ResultsPanel(ScrolledPanel):
                             # contest, and the other box is in the map.
                             glob = localid_to_globalid[(exmpl_imgP, tbox[5])]
                             thismap[tbox[4]] = glob
+                        else:
+                            print 'error:', (exmpl_imgP, tbox[5]), 'not in id map'
+                            pdb.set_trace()
+                            pass
                 if thismap == {}:
                     # Means that 'template' has no contests/targets on it
                     # (i.e. it's a totally-blank page), so, skip it.
