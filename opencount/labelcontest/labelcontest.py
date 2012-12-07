@@ -1238,6 +1238,8 @@ class LabelContest(wx.Panel):
         # Remove the ones before the current contest.
         aftertext = [x for x in aftertext if x > (self.templatenum, self.count)]
         # Pick the first.
+        if len(aftertext) == 0: return
+
         temp,cont = min(aftertext)
         if temp != self.templatenum:
             print 'skip to', temp-self.templatenum
