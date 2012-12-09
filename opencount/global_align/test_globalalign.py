@@ -97,7 +97,7 @@ def do_aligning(imgpaths, outdir, idx):
         os.makedirs(ref_dir)
     except: pass
 
-    Iref_imgname = os.path.split(imgpaths[0])[1]
+    Iref_imgname = os.path.split(Iref_imgP)[1]
     scipy.misc.imsave(os.path.join(ref_dir, Iref_imgname), Iref)
 
     for imgpath, H, Ireg_crop, err in Iouts:
@@ -162,8 +162,6 @@ def main():
             do_aligning(imgpaths_per_dir[:], outdir_sub, idx)
     else:
         for imgpaths in imgpaths_per_dir:
-            
-            
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
             outdir_sub = os.path.join(outdir, parentdir)
             for idx in xrange(len(imgpaths)):
