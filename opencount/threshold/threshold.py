@@ -6,9 +6,9 @@ import cStringIO
 import wx
 import os
 from os.path import join as pathjoin
-from util import get_filename, create_dirs, is_image_ext, encodepath
+from util import get_filename, create_dirs, is_image_ext, encodepath, pil2wxb, wxb2pil, MyGauge
 from PIL import Image, ImageDraw
-from util import pil2wxb, wxb2pil, MyGauge
+import util
 from time import time
 import imageFile
 from wx.lib.pubsub import Publisher
@@ -28,6 +28,7 @@ class GridShow(wx.ScrolledWindow):
     basejpgs = {}
     images = {}
     numcols = 20
+    preloaded_fulllist = None
 
     def lookupFullList(self, i):
         return self.classified_file[i]
@@ -54,12 +55,27 @@ class GridShow(wx.ScrolledWindow):
                     return each
         raise RuntimeError("NOT FOUND INDEX " + str(i))
 
-    def enumerateOverFullList(self):
-        prefix = open(self.proj.classified+".prefix").read()
-        for line in open(self.proj.classified):
-            d = line[:-1].split('\0') 
-            d[0] = prefix+d[0]
-            yield tuple(d)
+    def enumerateOverFullList(self, force=False):
+        if self.preloaded_fulllist:
+            print 'case a'
+            for each in self.preloaded_fulllist:
+                yield each
+        elif not force:
+            print 'case b'
+            it = self.enumerateOverFullList(True)
+            first = next(it)
+            if len(str(first))*self.numberOfTargets < (1<<30):
+                self.preloaded_fulllist = [first]
+                self.preloaded_fulllist.extend(it)
+                for each in self.preloaded_fulllist:
+                    yield each
+        else:
+            print 'case c'
+            prefix = open(self.proj.classified+".prefix").read()
+            for line in open(self.proj.classified):
+                d = line[:-1].split('\0') 
+                d[0] = prefix+d[0]
+                yield tuple(d)
 
     def target_to_sample(self, targetpath):
         # Has to be a bit hackier, since I don't want to construct in-memory
@@ -77,15 +93,22 @@ class GridShow(wx.ScrolledWindow):
         page = self.img2page[ballotpath]
         ballotid = self.img2bal[ballotpath]
 
-        _,_,_, imgmeta_path = self.bal2targets[ballotid][page]
-        return pickle.load(open(imgmeta_path, 'rb'))['ballot']
+        z=self.get_meta(ballotid, page)['ballot']
+        return z
+
+    def get_meta(self, ballotid, page):
+        if page not in self.bal2targets[ballotid]:
+            _,_,_, imgmeta_path = self.bal2targets[ballotid].values()[0]
+        else:
+            _,_,_, imgmeta_path = self.bal2targets[ballotid][page]
+        return pickle.load(open(imgmeta_path, 'rb'))
 
     def sample_to_targets(self, ballotpath):
         page = self.img2page[ballotpath]
         ballotid = self.img2bal[ballotpath]
-        _, _, _, imgmeta_path = self.bal2targets[ballotid][page]
-        return pickle.load(open(imgmeta_path, 'rb'))['targets']
+        return self.get_meta(ballotid, page)['targets']
 
+    @util.pdb_on_crash
     def lightBox(self, i, evt=None):
         # Which target we clicked on
         _t = time()
@@ -93,9 +116,17 @@ class GridShow(wx.ScrolledWindow):
 
         i = i+evt.GetPositionTuple()[0]/self.targetw
 
-        pan = wx.Panel(self.parent, size=self.parent.thesize, pos=(0,0))
         targetpath = self.lookupFullList(i)[0]
-        ballotpath = self.target_to_sample(targetpath)
+        try:
+            ballotpath = self.target_to_sample(targetpath)
+        except:
+            dlg = wx.MessageDialog(self, message="Oh no. We couldn't open this ballot for some reason ...", style=wx.ID_OK)
+            dlg.ShowModal()
+
+            return
+
+
+        pan = wx.Panel(self.parent, size=self.parent.thesize, pos=(0,0))
 
         before = Image.open(ballotpath).convert("RGB")
 
@@ -129,7 +160,11 @@ class GridShow(wx.ScrolledWindow):
         
         targetpaths = self.sample_to_targets(ballotpath)
         page = self.img2page[ballotpath]
-        _,targetmeta_dir,_,_ = self.bal2targets[ballotid][page]
+        if page in self.bal2targets[ballotid]:
+            _,targetmeta_dir,_,_ = self.bal2targets[ballotid][page]
+        else:
+            _,targetmeta_dir,_,_ = self.bal2targets[ballotid].values()[0]
+            
         for ind, (p, _) in enumerate(self.enumerateOverFullList()):
             # P is path to a target image
             # Note to self:
@@ -181,13 +216,10 @@ class GridShow(wx.ScrolledWindow):
 
         def markwrong(evt):
             x,y = evt.GetPositionTuple()
-            print "click at", (x,y)
-            print indexs
             for (u,d,l,r),index in indexs:
                 if l <= x <= r and u <= y <= d:
                     print "IS", index
                     self.markWrong(index)
-            print evt
 
         img.Bind(wx.EVT_LEFT_DOWN, markwrong)
         def remove(x):
@@ -197,8 +229,10 @@ class GridShow(wx.ScrolledWindow):
         def lines(x):
             if len(x) < 60: return x
             return x[:60]+"\n"+lines(x[60:])
-            
-        wx.StaticText(pan, label="Ballot image:\n"+lines(ballotpath)+"\n\nTarget image:\n"+lines(targetpath)+ifflipped, 
+
+        
+        templatepath = self.get_meta(self.img2bal[ballotpath], None)['template']
+        wx.StaticText(pan, label="Ballot image:\n"+lines(ballotpath)+"\n\nTemplate image:\n"+lines(templatepath)+"\n\nTarget image:\n"+lines(targetpath)+ifflipped, 
                       pos=(before.size[0],before.size[1]/3))
 
         b = wx.Button(pan, label="Back", pos=(before.size[0], 2*before.size[1]/3))
@@ -256,9 +290,10 @@ class GridShow(wx.ScrolledWindow):
         self.images[i] = img
         return img
 
-    def markQuarantine(self, i):
-        targetpath = self.lookupFullList(i)[0]
-        ballotpath = self.target_to_sample(targetpath)
+    def markQuarantine(self, i, ballotpath=None):
+        if ballotpath == None:
+            targetpath = self.lookupFullList(i)[0]
+            ballotpath = self.target_to_sample(targetpath)
         if ballotpath not in self.quarantined:
             self.quarantined.append(ballotpath)
         #for each in self.sample_to_targets(encodepath(ballotpath)):
@@ -429,6 +464,7 @@ class GridShow(wx.ScrolledWindow):
         self.parent = parent
 
         self.quarantined = []
+
         self.quarantined_targets = []
 
     def reset_panel(self):
@@ -441,10 +477,13 @@ class GridShow(wx.ScrolledWindow):
 
         path = self.proj.extracted_dir
         for dirpath, dirnames, filenames in os.walk(path):
-            for imgname in [f for f in filenames if is_image_ext(f)]:
+            done = False
+            for imgname in (f for f in filenames if is_image_ext(f)):
                 imgpath = pathjoin(dirpath, imgname)
                 self.basetargetw, self.basetargeth = Image.open(imgpath).size
+                done = True
                 break
+            if done: break
 
         self.targetResize = 1
 
@@ -609,6 +648,7 @@ class GridShow(wx.ScrolledWindow):
                 else:
                     self.threshold, self.wrong, self.quarantined, self.quarantined_targets, pos = data
                     self.onScroll(pos)
+
         else:
             newthresh, bound = self.findBoundry()
             self.onScroll(bound)
@@ -627,7 +667,6 @@ class GridShow(wx.ScrolledWindow):
             del self.images[each]
         print
 
-
     def onScroll(self, pos=None, evtpos=None):
         if evtpos != None:
             print "SET FROM", evtpos
@@ -642,6 +681,8 @@ class GridShow(wx.ScrolledWindow):
         high = min(pos+self.numcols*self.numrows+GAP,self.numberOfTargets)
 
         self.clear_unused(low, high)
+
+        qt = set(self.quarantined_targets)
 
         # Draw the images from low to high.
         print "Drawing from", low, "to", high
@@ -659,11 +700,9 @@ class GridShow(wx.ScrolledWindow):
             # Want to be able to modify this but not the base
             self.jpgs[i] = jpg.copy()
             self.basejpgs[i] = jpg
-
             self.addimg(i)
-
             for j in range(self.numcols):
-                if i+j in self.quarantined_targets:
+                if i+j in qt:
                     self.markQuarantine(i+j)
 
         # This could get very slow on big elections with lots of wrong marks
