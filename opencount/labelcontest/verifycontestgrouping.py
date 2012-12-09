@@ -16,7 +16,7 @@ import multiprocessing as mp
 def merge_and_align(dat):
     i, group = dat
     print i
-    return merge(align(i, group))
+    return [merge(align(i,group))]#[merge(align(i, group[x:x+10])) for x in range(0,len(group),100)]
 
 def translate(name):
     return "tmp/"+os.path.abspath(name).replace("/","~")
@@ -36,7 +36,7 @@ def merge(args):
             pos += img.shape[0]
         scipy.misc.imsave(name, M)
         res.append(name)
-    return [res]
+    return res
 
 def make_norm(I, Iref):
     Inorm = np.zeros(Iref.shape)
@@ -132,7 +132,7 @@ class VerifyContestGrouping:
 
         print "Go up to", len(self.processgroups)
 
-        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups[:])))))
+        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
         res = [x for y in res for x in y]
         
         print len(res), map(len,res)

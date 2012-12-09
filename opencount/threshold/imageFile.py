@@ -2,6 +2,8 @@ import os
 from PIL import Image
 from wx.lib.pubsub import Publisher
 import wx
+import numpy as np
+import util
 
 def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
@@ -45,13 +47,46 @@ class ImageFile:
 
     def readRawBytes(self, imagenum, count):
         self.infile.seek(self.size*imagenum)
-        return [ord(x) for x in self.infile.read(self.size*count)]
+        return np.fromstring(self.infile.read(self.size*count), dtype='uint8')
+        #return [ord(x) for x in self.infile.read(self.size*count)]
 
+    @util.pdb_on_crash
     def readManyImages(self, imagenum, numcols, width, height, curwidth, curheight):
+        imagetypes = self.imtype[imagenum:imagenum+numcols]
+        # Three bytes for colored images, one byte otherwise
+        types = [3 if x == "B" else 1 for x in imagetypes]
+        if not all(x == types[0] for x in types):
+            return readManyImages2(imagenum, numcols, width, height, curwidth, curheight)
+        toread = sum(types)
+
+        data = self.readRawBytes(self.offsets[imagenum], toread)
+
+        
+        if types[0] == 'A': # single chanel
+            fixed = np.concatenate([data[j:j+self.size].reshape((height,width)) for j in range(0,data.shape[0],self.size)], axis=1)
+            jpg = Image.fromarray(fixed)
+            tomerge = jpg,jpg,jpg
+        else:
+            tomerge = []
+            for start in range(3):
+                fixed = np.concatenate([data[j+start:j+self.size*3:3].reshape((height,width)) for j in range(0,data.shape[0],self.size*3)], axis=1)
+                jpg = Image.fromarray(fixed)
+                tomerge.append(jpg)
+            tomerge = tuple(tomerge)
+
+        realnumcols = (fixed.shape[0]*fixed.shape[1])/(width*height)
+        jpg = Image.merge('RGB', tomerge)
+        #print jpg
+        jpg = jpg.resize((curwidth*realnumcols, curheight))
+        #print jpg
+        return jpg
+
+    def readManyImages2(self, imagenum, numcols, width, height, curwidth, curheight):
         imagetypes = self.imtype[imagenum:imagenum+numcols]
         # Three bytes for colored images, one byte otherwise
         toread = sum([3 if x == "B" else 1 for x in imagetypes])
         data = self.readRawBytes(self.offsets[imagenum], toread)
+
         expanded = []
         j = 0
         i = 0
@@ -63,15 +98,17 @@ class ImageFile:
                 expanded.append((data[i],data[i+1],data[i+2]))
                 i += 3
             j += 1
-                
+        
         size = width*height
         fixed = []
         for row in range(height):
             for q in range(numcols):
                 fixed += expanded[q*size+row*width:q*size+row*width+width]
+
         #print fixed
         realnumcols = len(fixed)/(width*height)
         jpg = Image.new("RGBA", (width*realnumcols,height))
+        print jpg
         jpg.putdata(fixed)
         jpg = jpg.resize((curwidth*realnumcols, curheight))
         return jpg
