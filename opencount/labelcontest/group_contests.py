@@ -1350,7 +1350,7 @@ def find_contests(t, paths, giventargets):
     ballots = pool.map(extract_contest, args)
     pool.close()
     pool.join()
-    return
+    return ballots
     #print "RETURNING", ballots
     reverse = sorted(enumerate(paths), key=lambda x: x[1])
     for i in range(0,len(reverse),4):
