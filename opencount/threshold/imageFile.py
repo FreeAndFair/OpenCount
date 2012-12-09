@@ -62,7 +62,7 @@ class ImageFile:
         data = self.readRawBytes(self.offsets[imagenum], toread)
 
         
-        if types[0] == 'A': # single chanel
+        if imagetypes[0] == 'A': # single chanel
             fixed = np.concatenate([data[j:j+self.size].reshape((height,width)) for j in range(0,data.shape[0],self.size)], axis=1)
             jpg = Image.fromarray(fixed)
             tomerge = jpg,jpg,jpg
