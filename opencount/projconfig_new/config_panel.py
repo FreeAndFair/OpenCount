@@ -196,10 +196,28 @@ match the regular expressions.".format(imgpath)
                                    regexShr=self.regexShr_txtctrl.GetValue(),
                                    regexDiff=self.regexDiff_txtctrl.GetValue(),
                                    is_alternating=self.alternate_chkbox.GetValue())
-        for id, imgpaths in enumerate(by_ballots):
-            ballot_to_images[id] = imgpaths
-            for imgpath in imgpaths:
-                image_to_ballot[imgpath] = id
+        curballotid = 0
+        weirdballots = []
+        for imgpaths in by_ballots:
+            if not self.varnumpages_chkbox.GetValue() and len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
+                # Ballot has too many/few sides.
+                print "Warning -- found Ballot with {0} sides, yet project \
+specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()))
+                weirdballots.append(imgpaths)
+            else:
+                ballot_to_images[curballotid] = imgpaths
+                for imgpath in imgpaths:
+                    image_to_ballot[imgpath] = curballotid
+                curballotid += 1
+        print "Detected {0} weird ballots with too many/few sides.".format(len(weirdballots))
+        if weirdballots:
+            dlg = wx.MessageDialog(self, message="Warning: OpenCount detected {0} ballots \
+that had too many/few sides. The project specified that there are {1} \
+sides for each ballot. These ballots will be discarded from the \
+election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), self.numpages_txtctrl.GetValue()),
+                                   style=wx.OK)
+            dlg.ShowModal()
+        pickle.dump(weirdballots, open(pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
         pickle.dump(ballot_to_images, open(self.project.ballot_to_images, 'wb'), pickle.HIGHEST_PROTOCOL)
         pickle.dump(image_to_ballot, open(self.project.image_to_ballot, 'wb'), pickle.HIGHEST_PROTOCOL)
         # 2.) Set project.voteddir
@@ -217,7 +235,10 @@ match the regular expressions.".format(imgpath)
         else:
             self.project.is_multipage = False
         # 5.) Set project.num_pages
-        self.project.num_pages = int(self.numpages_txtctrl.GetValue())
+        if not self.varnumpages_chkbox.GetValue():
+            self.project.num_pages = int(self.numpages_txtctrl.GetValue())
+        else:
+            self.project.num_pages = None
         # 6.) Set project.is_varnum_pages
         self.project.is_varnum_pages = self.varnumpages_chkbox.GetValue()
         # 6.) Set project.vendor_obj
