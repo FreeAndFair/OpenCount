@@ -444,7 +444,7 @@ def groupImagesWorkerMAP(job):
         #(ballotid, imgpaths, attrName, bb, attrinfo, attr2pat,scale) = job
         # Note: In blankballot-less pipeline, IMGPATHS is always a list of
         # one element - the imgpath that is the correct side for ATTRTYPE.
-        (ballotid, imgpaths, attrtype, bb, attr2pat, isflip, scale, patchDestDir) = job
+        (ballotid, imgpaths, attrtype, bb, attr2pat, isflip, scale, patchDestDir, queue) = job
 
         # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
         patchTuples = createPatchTuplesMAP(imgpaths,attr2pat,bb,flip=isflip)
@@ -506,13 +506,13 @@ def groupImagesWorkerMAP(job):
         IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 15))
         Ireg = np.nan_to_num(IO[1])
         # RESULT: [[int ballotid, attrtype, dict outdict], ...]
+
         result = doWriteMAP(finalOrder, Ireg, IO[2], attrtype, patchDestDir, ballotid, bestExemplarIdx)
-        groupImagesWorkerMAP.queue.put(result)
-        
+        queue.put(result)
     except Exception as e:
         print 'AAAHH'
         traceback.print_exc()
-        groupImagesWorkerMAP.queue.put(e.message)
+        queue.put(e.message)
         raise e
 
 def listAttributes(patchesH):
@@ -607,9 +607,6 @@ def estimateScale(attr2pat,img2flip,superRegion,rszFac,stopped):
     #scale = 0.95
     return scale
 
-def groupImagesWorkerMAP_init(queue):
-    groupImagesWorkerMAP.queue = queue
-
 def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap, 
                 patchDestDir, stopped, proj, verbose=False, deleteall=True):
     """
@@ -663,8 +660,9 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
     nProc=sh.numProcs()
     #nProc = 1
 
-    queue = mp.Queue()
-    pool = mp.Pool(processes=nProc, initializer=groupImagesWorkerMAP_init, initargs=[queue])
+    manager = mp.Manager()
+    queue = manager.Queue()
+    pool = mp.Pool(processes=nProc)
 
     jobs = []
     for ballotid in bal2imgs.keys():
@@ -673,17 +671,15 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         imgpath_in = imgpaths_ordered[side]
         isflip = img2flip[imgpath_in]
         jobs.append([ballotid, [imgpath_in], attrName, superRegion, attr2pat, isflip, scale,
-                     patchDestDir])
+                     patchDestDir, queue])
 
-    print len(jobs)
-    pdb.set_trace()
+    print "Number of jobs:", len(jobs)
     # 3.) Perform jobs.
     if nProc < 2:
         # default behavior for non multiproc machines
         for job in jobs:
             if stopped():
                 return False
-            groupImagesWorkerMAP.queue = queue
             groupImagesWorkerMAP(job)
     else:
         print 'using ', nProc, ' processes'
@@ -702,7 +698,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
 
         print "HERE"
         pool.close()
-        #pool.join()
+        pool.join()
 
     print "GOT HERE."
     # list RESULTS: [[int ballotid, attrtype, dict outdict], ...]
@@ -713,7 +709,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         if type(res) in (str, unicode):
             print "OH NO, badness happened."
         else:
-            results.append(queue.get())
+            results.append(res)
         cnt += 1
         print 'cnt: ', cnt
         
