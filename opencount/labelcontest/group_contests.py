@@ -1345,7 +1345,7 @@ def find_contests(t, paths, giventargets):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
-    args = [x for x in args if '_511/' in x[0] and 'bal_0' in x[0]]
+    #args = [x for x in args if '_511/' in x[0] and 'bal_0' in x[0]]
     pool = mp.Pool(mp.cpu_count())
     ballots = pool.map(extract_contest, args)
     pool.close()
