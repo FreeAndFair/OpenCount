@@ -510,7 +510,9 @@ def groupImagesWorkerMAP(job):
         groupImagesWorkerMAP.queue.put(result)
         
     except Exception as e:
+        print 'AAAHH'
         traceback.print_exc()
+        groupImagesWorkerMAP.queue.put(e.message)
         raise e
 
 def listAttributes(patchesH):
@@ -673,6 +675,8 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         jobs.append([ballotid, [imgpath_in], attrName, superRegion, attr2pat, isflip, scale,
                      patchDestDir])
 
+    print len(jobs)
+    pdb.set_trace()
     # 3.) Perform jobs.
     if nProc < 2:
         # default behavior for non multiproc machines
@@ -686,22 +690,32 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         it = [False]
         def imdone(x):
             it[0] = True
-            print "I AM DONE NOW!"
+            print "I AM DONE NOW! WOW"
         pool.map_async(groupImagesWorkerMAP,jobs, callback=lambda x: imdone(it))
 
         while not it[0]:
             if stopped():
+                print '    UHOH, stopped'
                 pool.terminate()
                 return False
             time.sleep(.1)
 
+        print "HERE"
         pool.close()
-        pool.join()
+        #pool.join()
 
+    print "GOT HERE."
     # list RESULTS: [[int ballotid, attrtype, dict outdict], ...]
     results = []
-    while len(results) < len(jobs):
-        results.append(queue.get())
+    cnt = 0
+    while cnt < len(jobs):
+        res = queue.get()
+        if type(res) in (str, unicode):
+            print "OH NO, badness happened."
+        else:
+            results.append(queue.get())
+        cnt += 1
+        print 'cnt: ', cnt
         
     # TODO: quarantine on grouping errors. For now, just let alignment check handle it
     print 'ATTR: ', attrName, ': done'
@@ -733,9 +747,11 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
     results = {} 
     for attrtype in attrMap.keys():
         side = attrMap[attrtype].values()[0][1]
+        print "...Running Grouping on Attribute {0}, side {1}...".format(attrtype, side)
         in_bal2imgs = {}
         if grpmode_map[attrtype]:
             # Run grouping only on one ballot per partition
+            print "...Running grouping on only one ballot per partition..."
             for partitionid, ballotids in partition_exmpls.iteritems():
                 exmpl_bid = ballotids[0]
                 imgpaths = bal2imgs[exmpl_bid]
@@ -743,6 +759,7 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
                 in_bal2imgs[exmpl_bid] = imgpaths_ordered
         else:
             # Run grouping on /every/ voted ballot, minus quarantined/discarded ballots
+            print "...Running grouping on every ballot..."
             in_bal2imgs = bal2imgs.copy()
             for badballotid in badballotids:
                 in_bal2imgs.pop(badballotid)
