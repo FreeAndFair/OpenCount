@@ -1332,6 +1332,7 @@ def find_contests(t, paths, giventargets):
     #paths = paths[80:400]
     #giventargets = giventargets[80:400]
 
+    """
     giventargets += giventargets
     giventargets += giventargets
     npaths = list(paths)
@@ -1339,6 +1340,7 @@ def find_contests(t, paths, giventargets):
     npaths += [x.replace("bal_0", "bal_2") if os.path.exists(x.replace("bal_0", "bal_2")) else x for x in paths]
     npaths += [x.replace("bal_0", "bal_3") if os.path.exists(x.replace("bal_0", "bal_3")) else x for x in paths]
     paths = npaths
+    """
     if t[-1] != '/': t += '/'
     tmp = t
     if not os.path.exists(tmp):
