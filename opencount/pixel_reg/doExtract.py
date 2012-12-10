@@ -17,6 +17,7 @@ import pickle
 import fnmatch
 import shutil
 from random import random
+import scipy.ndimage
 
 # Consider only the middle of the "Fill in the Arrow" voting targets
 # that Sequoia-style (e.g. SantaCruz) has. This is present because I
@@ -99,6 +100,27 @@ def cropout_stuff(I, top, bot, left, right):
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
 
+def correctH(I, H0):
+    T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
+    T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
+    H=np.dot(np.dot(T0,H0),T1)
+    return H
+
+def align_strong(I, Iref, scales=(0.1, 0.15, 0.2, 0.25, 0.3)):
+    """ Ad-hoc alignment strategy: try a range of scales, and choose
+    the alignment that minimizes the error.
+    """
+    H_best, Ireg_best, err_best = None, None, None
+    scale_best = None
+    for scale in scales:
+        H, Ireg, err = imagesAlign(I, Iref, fillval=1, type='rigid', rszFac=scale)
+        if err_best == None or err < err_best:
+            H_best = H
+            Ireg_best = Ireg
+            err_best = err
+            scale_best = scale
+    return H_best, Ireg_best, err_best
+
 def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     """ Given an image I (voted) and a ref image Iref (blank), extracts
     boundingboxes given by BBS from I, performing local image alignment
@@ -116,12 +138,33 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     t0=time.clock()
     #H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='rigid', rszFac=0.25)
     H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
+    #H1, I1, err = align_strong(Icrop, IrefM_crop)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
     pFac=7
 
+    '''
+    if '_077.png' in balP:
+        misc.imsave("_Iorig.png", I)
+        misc.imsave("_IrefOrig.png", Iref)
+        _I1 = np.nan_to_num(I1)
+        _IrefM_crop = np.nan_to_num(IrefM_crop)
+        misc.imsave("_Icrop.png", Icrop)
+        misc.imsave("_IrefM_crop.png", _IrefM_crop)
+        misc.imsave("_I1pre.png", _I1)
+    '''
+    
+    #Hc = correctH(Icrop, H1)
+    #rot = Hc[:2, :2]
+    #trans = Hc[:2, 2]
+    #trans_np = (-trans[1], -trans[0])
+    #I1 = scipy.ndimage.interpolation.affine_transform(I, rot, trans_np)
     I1 = imtransform(I, H1)
+
+    #if '_077.png' in balP:
+    #    _f = np.nan_to_num(I1)
+    #    misc.imsave("_I1post.png", _f)
 
     # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
     #     then extract bb.
@@ -131,8 +174,15 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
         I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
+        #if '_077.png' in balP:
+        #    misc.imsave("_Ipatch.png", I_patch)
+        #    _f = np.nan_to_num(IrefM_patch)
+        #    misc.imsave("_IrefMpatch2.png", _f)
         H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
                                         rszFac=rszFac, type='rigid', minArea=np.power(2, 18))
+        #if '_077.png' in balP:
+        #    misc.imsave("_I1patchpost.png", I1_patch)
+        #    pdb.set_trace()
         targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
         # 2.) Unwind transformation to get the global location of TARG
         rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
@@ -620,8 +670,8 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                     x2 = tbox[0] + tbox[2]
                     y2 = tbox[1] + tbox[3]
                     if HACK_SANTACRUZ:
-                        x1 += 43
-                        x2 -= 28
+                        x1 += 33
+                        x2 -= 23
 
                     id = tbox[4]
                     bb = np.array([y1, y2, x1, x2, id])

@@ -95,9 +95,9 @@ def main():
                 for tbox in tboxes:
                     # TODO: Temporary hack to re-run target extract
                     # on SantaCruz, without re-doing SelectTargets
-                    x1 = tbox[0] + 43
+                    x1 = tbox[0] + 33
                     y1 = tbox[1]
-                    x2 = tbox[0] + tbox[2] - 28
+                    x2 = tbox[0] + tbox[2] - 23
                     y2 = tbox[1] + tbox[3]
                     id = tbox[4]
                     bb = np.array([y1, y2, x1, x2, id])
