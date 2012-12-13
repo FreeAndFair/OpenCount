@@ -254,8 +254,9 @@ class ResultsPanel(ScrolledPanel):
                 #    print k, order[template,k]
 
                 voted = dict([(id,processContest(template,id,lst)) for id,lst in voted.items()])
-                print "Results for ballot", meta['ballot']
-                print voted
+                #if 'yolo_s4_062-072' in meta['ballot']:
+                #    print "Results for ballot", meta['ballot']
+                #    print voted
                 image_cvr[meta['ballot']] = voted
                 i += 1
     

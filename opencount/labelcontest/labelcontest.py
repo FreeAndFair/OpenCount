@@ -293,7 +293,8 @@ class LabelContest(wx.Panel):
         button6 = wx.Button(self, label="Compute Equiv Classes")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
-        
+
+        @util.pdb_on_crash
         def addmultibox(x):
             orders = []
             for bid in range(len(self.grouping_cached)):
@@ -301,9 +302,9 @@ class LabelContest(wx.Panel):
                 for cid in range(len(self.grouping_cached[bid])-1):
                     print (bid,cid)
                     print self.multiboxcontests
-                    if any((bid,cid) in mult for mult in self.multiboxcontests):
+                    if any((bid,self.contest_order[bid][cid+1]) in mult for mult in self.multiboxcontests):
                         continue
-                    if any((bid,cid+1) in mult for mult in self.multiboxcontests):
+                    if any((bid,self.contest_order[bid][cid+1]) in mult for mult in self.multiboxcontests):
                         continue
                     m1 = self.mapping_inverse[(bid,self.contest_order[bid][cid])]
                     m2 = self.mapping_inverse[(bid,self.contest_order[bid][cid+1])]
@@ -311,6 +312,7 @@ class LabelContest(wx.Panel):
                 orders.append(order)
             print "ORDS", orders
             print "inv", self.mapping_inverse
+            if any(any((self.templatenum, self.contest_order[self.templatenum][self.count+x]) in y for y in self.multiboxcontests) for x in range(2)): return
             extension, newgroup = extend_multibox(self.grouping_cached,
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count])],
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
