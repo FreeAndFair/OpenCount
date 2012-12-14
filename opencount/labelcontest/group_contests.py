@@ -97,8 +97,8 @@ def load_threshold(image):
     dat = [[0 if x else 255 for x in y] for y in dat]
     if do_save:
         # TODO: This assumes that the dir 'tmp/' exists.
-        load_pil(image).save("tmp/%s-a.png"%image.split("/")[1])
-        num2pil(dat).save("tmp/%s-b.png"%image.split("/")[1])
+        load_pil(image).save(tmp+"/%s-a.png"%image.split("/")[1])
+        num2pil(dat).save(tmp+"/%s-b.png"%image.split("/")[1])
     return dat
 
 def find_lines(data):
