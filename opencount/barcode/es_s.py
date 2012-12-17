@@ -26,7 +26,6 @@ def decode_patch(original_image, original_mark, expected_bits):
 
     mark_w,mark_h = cv.GetSize(original_mark)
     scaling = float(resized_mark_height)/mark_h
-    #print "scaling: %s" % str(scaling)
     w = int(round(mark_w * scaling))
     h = int(round(mark_h * scaling))
     resized_mark = cv.CreateImage((w, h), 8, 1)
@@ -44,6 +43,7 @@ def decode_patch(original_image, original_mark, expected_bits):
     cv.MatchTemplate(resized_image, resized_mark, match_mat, cv.CV_TM_CCOEFF_NORMED)
     cv.ResetImageROI(original_image)
 
+    # find all possible match locations
     best_column = 0
     most_matches = 0
     possible = []
@@ -53,7 +53,6 @@ def decode_patch(original_image, original_mark, expected_bits):
             if match_mat[y,x] > 0.6:
                 possible.append((y,x))
                 column_matches += 1
-        #print x/scaling, column_matches
         if column_matches > most_matches:
             most_matches = column_matches
             best_column = x
@@ -62,6 +61,7 @@ def decode_patch(original_image, original_mark, expected_bits):
     if not f1:
         return (None, None)
 
+    # filter match locations
     last_location = f1[0]
     last_max = match_mat[f1[0][0], f1[0][1]]
     locations = []
@@ -78,11 +78,10 @@ def decode_patch(original_image, original_mark, expected_bits):
             last_location = p
     locations.append(last_location)
     locations = locations[1:-1]
-    #for l in locations:
-    #    print int(round(l[1]/scaling)), int(round(l[0]/scaling))
     if len(locations) != expected_bits:
         return (None, None)
 
+    # detect mark to the right of the timing marks
     y0, x0 = locations[0]
     thresh = 0
     black = 0
@@ -109,27 +108,11 @@ def decode_patch(original_image, original_mark, expected_bits):
             for x1 in range(x_start, x_end):
                 for y1 in range(y, y+h):
                     total_intensity += resized_image[y1, x1]
-            #print 255*w*h, total_intensity, 255 * 0.98 * w * h
             if total_intensity < 255 * 0.99 * w * h:
                 return (None, None)
         mark_location = tuple([int(round(z/scaling)) for z in resized_locations])
         bit_locations.setdefault(digit, []).append(mark_location)
     return bitstring, bit_locations
-
-
-def search_around(mat, y_center, x_center, vert, horz):
-    max_match = 0
-    max_coord = (0, 0)
-    for y in range(y_center - vert, y_center + vert):
-        for x in range(x_center - horz, x_center + horz):
-            match = mat[y, x]
-            #print "%s, %s: %s" % (y, x, match)
-            if match > max_match:
-                max_match = match
-                max_coord = (y, x)
-    if max_match > 0.3:
-        return max_coord
-    return None
 
 def decode(imgpath, mark, bits):
     """
@@ -154,7 +137,7 @@ def decode(imgpath, mark, bits):
         tmp = cv.CreateImage((w,h), img.depth, img.channels)
         cv.Flip(img, tmp, flipMode=-1)
         img = tmp
-        #bitstring, bit_locations = decode_patch(img, mark, bits)
+        bitstring, bit_locations = decode_patch(img, mark, bits)
     return bitstring, is_flipped, bit_locations
 
 def build_bitstrings(img_bit_locations, expected_bits):
@@ -203,15 +186,15 @@ def main():
     print "%s\t%s\t%s" % (imgpath, is_flipped, bitstring)
     print "Time/ballot: %s" % str((time.time() - start)/trials)
 
-    #print "\nTesting build_bitstrings():"
-    #img_bc_temp = {}
-    #if not bit_locations:
-    #    return None
-    #for bit_value, tups in bit_locations.iteritems():
-    #    for (x1, y1, x2, y2) in tups:
-    #        img_bc_temp.setdefault(imgpath, []).append((bit_value, y1))
-    #img_decoded_map = build_bitstrings(img_bc_temp, bits)
-    #print img_decoded_map
+    print "\nTesting build_bitstrings():"
+    img_bc_temp = {}
+    if not bit_locations:
+        return None
+    for bit_value, tups in bit_locations.iteritems():
+        for (x1, y1, x2, y2) in tups:
+            img_bc_temp.setdefault(imgpath, []).append((bit_value, y1))
+    img_decoded_map = build_bitstrings(img_bc_temp, bits)
+    print img_decoded_map
 
 
 if __name__ == '__main__':
