@@ -25,7 +25,7 @@ except NameError:
     MYDIR = os.path.abspath(sys.path[0])
 
 MARK = pathjoin(MYDIR, 'ess_mark.png')
-bits = 41
+bits = 36
 
 class ESSVendor(Vendor):
     def __init__(self, proj):
