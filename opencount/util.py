@@ -1,15 +1,13 @@
-import sys, time, math, time, datetime, pdb, re
+import time, math, datetime, re
 import wx
 from wx.lib.pubsub import Publisher
 import numpy as np
-import scipy
 import Image
 import cv
 from specify_voting_targets import util_gui
 import os
 from os.path import join as pathjoin
 import hashlib
-import pickle
 from operator import itemgetter
 from heapq import nlargest
 from itertools import repeat, ifilter
@@ -391,8 +389,6 @@ def create_dirs(*dirs):
 # http://wiki.wxpython.org/WorkingWithImages
 
 # Tested with wxPython 2.3.4.2 and PIL 1.1.3.
-import wx
-from PIL import Image             # PIL module. Only if you use the PIL library.
 
 def wxb2pil( myBitmap ) :
     return WxImageToPilImage( WxBitmapToWxImage( myBitmap ) )

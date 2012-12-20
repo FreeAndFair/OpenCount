@@ -1,4 +1,4 @@
-import sys, optparse
+import optparse
 from os.path import join as pathjoin
 
 def totaltime(filename):

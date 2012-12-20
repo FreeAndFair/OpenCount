@@ -1,27 +1,24 @@
-import os, sys, csv, time, optparse, threading, shutil, re, traceback
-import time
-import pdb, multiprocessing, logging, pickle
+import os, time, optparse, threading, shutil, re, traceback
+import pdb, pickle
 from xml.etree.ElementTree import Element, ElementTree
 from os.path import join as pathjoin
 # test
-import wx, Image, cv
+import wx, cv
 from wx.lib.pubsub import Publisher
 
-import sanitycheck, util
+import util
 import specify_voting_targets.find_targets_wizard as find_targets_wizard
 import specify_voting_targets.util_gui as util_gui
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.sanity_check as sanity_check
 import pre_processing.straighten_ballots as straighten_ballots
 import grouping.common as common
-import grouping.label_attributes as label_attributes
 
 from tab_wrap import tab_wrap
 from threshold.threshold import ThresholdPanel
 from labelcontest.labelcontest import LabelContest
 from runtargets.runtargets import RunTargets
-from grouping.define_attributes import DefineAttributesPanel, AttributeBox
-from grouping.label_attributes import LabelAttributesPanel, GroupAttrsFrame
+from grouping.define_attributes import DefineAttributesPanel
 from grouping.select_attributes import SelectAttributesMasterPanel
 from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.verify_grouping import GroupingMasterPanel

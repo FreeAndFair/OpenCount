@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback, csv
+import os, sys, csv
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -7,10 +7,8 @@ except ImportError as e:
 from os.path import join as pathjoin
 
 import wx
-from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
-from tab_wrap import tab_wrap
 from projconfig_new.project_panel import ProjectPanel, Project
 from projconfig_new.config_panel import ConfigPanel
 from partitions.partition_panel import PartitionMainPanel

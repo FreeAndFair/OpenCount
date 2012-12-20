@@ -1,10 +1,9 @@
-import sys, os, pdb, time, traceback, csv, Queue
+import sys, os, Queue
 import cPickle as pickle
 import numpy as np
 
 from os.path import join as pathjoin
 
-import pixel_reg.shared as shared
 import pixel_reg.doExtract as doExtract
 
 """

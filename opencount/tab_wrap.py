@@ -1,4 +1,3 @@
-import time
 import wx
 
 def tab_wrap(towrap):
