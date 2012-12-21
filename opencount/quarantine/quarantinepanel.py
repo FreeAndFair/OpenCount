@@ -162,8 +162,8 @@ class MainPanel(wx.Panel):
         self.middle_col.Add(self.input_area)
 
         self.discard = wx.CheckBox(self, -1, label="Discard image.")
+
         self.middle_col.Add((1,20))
-        
         self.middle_col.Add(self.discard)
         self.middle_col.Add((1,50))
 
@@ -339,6 +339,7 @@ ballot images exist, so, no need to save contest data."
         collected.append(self.labeltext.index(self.title_order[self.contest_title.GetSelection()]))
         for a,b in self.candidates:
             collected.append(b.GetValue())
+        if len(self.data[self.curballot]) == 0: return
         self.data[self.curballot][self.count] = collected
         self.discardlist[self.curballot] = self.discard.GetValue()
         for i, txtinput in enumerate(self.attributes_text):
@@ -367,6 +368,7 @@ ballot images exist, so, no need to save contest data."
         self.candidates = []
 
     def restore_contest_data(self):
+        if len(self.data[self.curballot]) == 0: return
         dat = self.data[self.curballot][self.count]
         if dat == None: return
         for i,yesno in enumerate(dat[1:]):
@@ -413,6 +415,7 @@ ballot images exist, so, no need to save contest data."
         self.reset_contests()
         self.count = which
 
+        if len(self.data[self.curballot]) == 0: return
         if self.data[self.curballot][self.count] != []:
             self.show_contest(self.data[self.curballot][self.count][0], force=True)
         else:
@@ -424,10 +427,12 @@ ballot images exist, so, no need to save contest data."
         
 
     def remove_contest(self, x=None):
+        """
         if len(self.data[self.curballot]) == 1:
             dlg = wx.MessageDialog(self, message="You can not remove the only contest from a ballot.", style=wx.OK)
             dlg.ShowModal()
             return
+        """
 
         self.reset_contests()
         bdata = self.data[self.curballot]
