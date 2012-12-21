@@ -128,7 +128,8 @@ class RunThread(threading.Thread):
     
         csvPattern = pathjoin(self.proj.target_locs_dir,'%s_targetlocs.csv')
 
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", count)
         print "Start loading groupings results"
         fh=open(self.proj.grouping_results)
         dreader=csv.DictReader(fh)
@@ -195,7 +196,8 @@ class RunThread(threading.Thread):
 
         dirList = [x for x in dirList if os.path.split(x)[1][:os.path.split(x)[1].index(".")] not in quarantined]
 
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "Doing a zip"
 
         total = len(dirList)
@@ -207,10 +209,12 @@ class RunThread(threading.Thread):
         while i < total:
             result = queue.get()
             tmp.append(result)
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
             i += 1
         
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         print "Doing a find-longest-prefix thing"
 
         fulllst = sorted(tmp, key=lambda x: x[1])
@@ -251,8 +255,9 @@ class RunThread(threading.Thread):
         threshold.imageFile.makeOneFile(self.proj.extracted_dir, 
                                         fulllst, self.proj.extractedfile)
 
-        wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
 def start_doandgetAvg(queue, rootdir, dirList):
     p = multiprocessing.Process(target=spawn_jobs, args=(queue, rootdir, dirList))

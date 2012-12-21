@@ -13,7 +13,8 @@ def makeOneFile(prefix, src, dst):
     out = open(dst, "wb")
     tout = open(dst+".type", "wb")
     for each,score in src:
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
         #if i%100 == 0:
         #    print i
         img = Image.open(os.path.join(prefix, each))
