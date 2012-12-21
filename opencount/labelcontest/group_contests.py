@@ -1404,7 +1404,10 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
 @pdb_on_crash
-def final_grouping(ballots, giventargets, paths, langs):
+def final_grouping(ballots, giventargets, paths, langs, t=None):
+    global tmp
+    if t != None:
+        tmp = t
     lookup = dict((x,i) for i,x in enumerate(paths))
     if langs:
         languages = dict((idx, langs[imP]) for imP, idx in lookup.iteritems())

@@ -13,13 +13,15 @@ import numpy as np
 import scipy.misc
 import multiprocessing as mp
 
+TMP = "tmp/"
+
 def merge_and_align(dat):
     i, group = dat
     print i
     return [merge(align(i,group))]#[merge(align(i, group[x:x+10])) for x in range(0,len(group),100)]
 
 def translate(name):
-    return "tmp/"+os.path.abspath(name).replace("/","~")
+    return os.path.join(TMP,os.path.abspath(name).replace("/","~"))
 
 
 @pdb_on_crash
@@ -113,7 +115,9 @@ def align(groupid, dat):
 class VerifyContestGrouping:
     def __init__(self, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
         #print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests)
+        global TMP
         self.callback = callback
+        TMP = ocrdir
 
         self.ocrdir = ocrdir
         self.dirList = dirList
@@ -132,7 +136,7 @@ class VerifyContestGrouping:
 
         print "Go up to", len(self.processgroups)
 
-        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
+        res = map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
         res = [x for y in res for x in y]
         
         print len(res), map(len,res)
@@ -212,7 +216,7 @@ class VerifyContestGrouping:
         return orderedpaths
 
     def translate(self, name):
-        return "tmp/"+os.path.abspath(name).replace("/","~")
+        return os.path.join(TMP,os.path.abspath(name).replace("/","~"))
             
             
 
