@@ -1,9 +1,5 @@
-import os, sys
+import sys
 sys.path.append('../')
-
-import wx, Image
-import numpy as np
-import scipy, scipy.misc
 
 import shared
 

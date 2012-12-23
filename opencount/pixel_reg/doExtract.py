@@ -1,23 +1,14 @@
 from os.path import join as pathjoin
-from PIL import Image
-from scipy import misc,ndimage
-from scipy.stats import chi2
 import shared as sh
 from imagesAlign import *
-import cProfile, traceback, time
-import csv
+import traceback, time
 import os
-import string
-import sys
 import multiprocessing as mp
 from wx.lib.pubsub import Publisher
 import wx
-from util import get_filename, create_dirs, is_image_ext, encodepath
+from util import create_dirs
 import pickle
-import fnmatch
 import shutil
-from random import random
-import scipy.ndimage
 
 # Consider only the middle of the "Fill in the Arrow" voting targets
 # that Sequoia-style (e.g. SantaCruz) has. This is present because I

@@ -1,6 +1,5 @@
-import sys, os, pdb, traceback, time
-import cv, numpy as np, scipy.misc
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+import sys
+import numpy as np, scipy.misc
 sys.path.append('..')
 
 import shared

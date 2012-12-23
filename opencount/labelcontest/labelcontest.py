@@ -1,18 +1,15 @@
-import random, pdb, traceback
-import math
-import cStringIO
+import pdb, traceback
 import wx, wx.lib.scrolledpanel, wx.lib.intctrl
 import os, sys
 from os.path import join as pathjoin
 from sets import Set
-from PIL import Image, ImageDraw
+from PIL import Image
 import csv
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 import re
-import pdb
 import numpy as np
 import scipy.misc
 
@@ -20,7 +17,7 @@ from group_contests import final_grouping, extend_multibox, intersect, group_giv
 from verifycontestgrouping import VerifyContestGrouping
 
 sys.path.append('..')
-from util import ImageManipulate, pil2wxb
+from util import ImageManipulate
 import util
 
 from wx.lib.pubsub import Publisher

@@ -1,16 +1,9 @@
 import multiprocessing as mp
-import pdb, os, traceback
 import numpy as np
-import cv, cv2
-import csv
-import string
-import math
 import imagesAlign as lk
 import shared as sh
 import time
 import distance_transform
-from scipy import misc
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 import wx
 from wx.lib.pubsub import Publisher
 

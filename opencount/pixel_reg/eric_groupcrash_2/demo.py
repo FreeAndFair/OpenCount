@@ -1,8 +1,6 @@
-import sys, os, pickle, pdb
-import scipy, scipy.misc
+import sys, pickle
 sys.path.append('..')
 sys.path.append('../..')
-import util
 import doGrouping
 
 errdict = '_errdict_0'

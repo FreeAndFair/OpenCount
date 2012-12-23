@@ -1,8 +1,7 @@
 import pdb
 import cv
 import numpy as np
-from scipy import misc
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+from matplotlib.pyplot import show, imshow, figure
 
 I=np.round(np.load('debug_I.npy')*255.)/255.
 patch=np.round(np.load('debug_patch.npy')*255.)/255.

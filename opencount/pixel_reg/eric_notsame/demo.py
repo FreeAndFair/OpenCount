@@ -1,7 +1,5 @@
-import sys, os
+import sys
 import scipy, scipy.misc
-import pdb
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 sys.path.append('..')
 import shared

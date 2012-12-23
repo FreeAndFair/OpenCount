@@ -1,6 +1,5 @@
 from imagesAlign import *
 from shared import *
-import cProfile
 
 def gridAlign(I,Iref,r,fac1=1.5,fac2=.5,vCells=3,hCells=5,verbose=False):
     ''' Description of code

@@ -2,8 +2,7 @@ import shared as sh
 import part_match as pm
 import os
 import numpy as np
-import pdb
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+from matplotlib.pyplot import show, imshow, figure, title
 
 ballotDir = '../../test-ballots/small_orange/339_100/'
 digitDir = '../../test-ballots/small_orange/digit-source/'

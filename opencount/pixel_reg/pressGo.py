@@ -1,7 +1,6 @@
 from scipy import misc,ndimage
 from shared import *
 from imagesAlign import *
-import cProfile
 import csv
 import os
 import string

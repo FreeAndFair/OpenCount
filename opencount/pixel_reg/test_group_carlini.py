@@ -2,8 +2,7 @@ import imagesAlign as lk
 import shared as sh
 import os
 import numpy as np
-import pdb
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+from matplotlib.pyplot import show, imshow, figure, title
 
 # load patch
 img_dir = '../../test-ballots/carlini/'

@@ -1,16 +1,14 @@
 import numpy as np
 import scipy.misc as misc
-import math, os, traceback
+import math, traceback
 try:
     import cPickle as pickle
 except ImportError as e:
     import pickle
-import pdb
 import time
 import cv
 import shared as sh
 from scipy.ndimage import gaussian_filter
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 
 def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False, minArea=None):
     """ Aligns I to IREF.

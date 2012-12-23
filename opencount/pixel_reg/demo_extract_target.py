@@ -1,6 +1,5 @@
 from scipy import misc
 from imagesAlign import *
-import cProfile
 import csv
 import os
 import string

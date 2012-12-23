@@ -1,4 +1,4 @@
-import sys, os, pickle, pdb
+import sys, pickle
 import scipy, scipy.misc
 sys.path.append('..')
 import imagesAlign

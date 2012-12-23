@@ -1,10 +1,9 @@
 import wx
-import sys, pdb
-from PIL import Image
+import sys
 import os
 
 sys.path.append("..")
-from util import pil2wxb, pdb_on_crash
+from util import pdb_on_crash
 import grouping.view_overlays
 import grouping.common
 import pixel_reg.imagesAlign as imagesAlign

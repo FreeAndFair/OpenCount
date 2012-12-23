@@ -1,19 +1,15 @@
 from os.path import join as pathjoin
-from PIL import Image
-from scipy import misc,ndimage
+from scipy import misc
 import shared as sh
 from imagesAlign import *
-import cProfile
 import cv
-import csv, traceback, os, string, sys, shutil, time, random
+import traceback, os, shutil, time
 import multiprocessing as mp
-from wx.lib.pubsub import Publisher
-import wx
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
-from util import get_filename, encodepath
+from util import encodepath
 
 def doWrite(finalOrder, Ip, err, attrName, patchDir, metaDir, origfullpath):
     fullpath = encodepath(origfullpath)

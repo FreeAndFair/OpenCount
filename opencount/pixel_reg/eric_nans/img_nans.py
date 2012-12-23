@@ -1,8 +1,5 @@
-import sys, os, pickle, pdb, wx, time
-from os.path import join as pathjoin
-import scipy, scipy.misc
-import numpy as np
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+import sys
+from matplotlib.pyplot import show, imshow
 
 sys.path.append('../')
 

@@ -1,5 +1,4 @@
-import os, optparse
-import numpy, scipy, Image
+import optparse
 import doExtract
 from os.path import join as pathjoin
 

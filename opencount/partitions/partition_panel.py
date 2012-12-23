@@ -1,4 +1,4 @@
-import sys, os, pdb, traceback, threading, multiprocessing, Queue, time, textwrap
+import sys, os, threading, multiprocessing, Queue, time, textwrap
 try:
     import cPickle as pickle
 except:
@@ -13,7 +13,6 @@ sys.path.append('..')
 
 import extract_patches
 import util
-import barcode.partition_imgs as partition_imgs
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
 

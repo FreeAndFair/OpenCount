@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import pdb, os, traceback
+import traceback
 import numpy as np
 import cv
 import csv
@@ -7,7 +7,6 @@ import string
 import math
 import imagesAlign as lk
 from scipy import misc
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
 from wx.lib.pubsub import Publisher
 
 MAX_PRECINCT_PATCH_DIM=800

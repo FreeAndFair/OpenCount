@@ -1,6 +1,4 @@
-import cv, os, pdb
-import numpy as np
-from matplotlib.pyplot import show, imshow, figure, title, colorbar, savefig, annotate
+import cv, os
 
 '''
  imgsize: (height,width) aka (rows, cols)

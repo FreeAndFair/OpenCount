@@ -1,6 +1,5 @@
 from scipy import misc
 from imagesAlign import *
-import cProfile
 
 # convert to double
 I=misc.imread('lena_t.jpg')/255.0;
