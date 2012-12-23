@@ -1,8 +1,6 @@
-import wx, pdb
+import wx
 import wx.lib.scrolledpanel
-from wx.lib.pubsub import Publisher
 from util import ImageManipulate
-import PIL
 from PIL import Image
 import csv
 import os

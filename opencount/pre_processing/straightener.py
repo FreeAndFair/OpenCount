@@ -1,4 +1,4 @@
-import string, cv, math, os, time, numpy, lineDetect, pdb
+import cv, math, os, time, numpy, lineDetect
 import argparse
 
 ROT_WINDOW = 2

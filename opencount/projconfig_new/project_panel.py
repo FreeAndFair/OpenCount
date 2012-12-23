@@ -1,8 +1,8 @@
-import sys, os, re, pdb, traceback, shutil
+import os, re, shutil
 from os.path import join as pathjoin
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 import wx
 

@@ -1,5 +1,4 @@
 import wx, pdb, traceback
-from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 import os
 try:
@@ -8,7 +7,6 @@ except:
     import pickle
 import csv
 from os.path import join as pathjoin
-from util import encodepath
 import util
 from quarantine.quarantinepanel import get_quarantined_ballots, get_discarded_ballots
 

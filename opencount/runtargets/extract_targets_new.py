@@ -1,7 +1,7 @@
-import sys, os, traceback, pdb, threading, multiprocessing, math, array, time, shutil
+import sys, os, threading, multiprocessing, math, array, time, shutil
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 from os.path import join as pathjoin
 
@@ -14,7 +14,6 @@ sys.path.append('..')
 import util
 import threshold.imageFile
 import pixel_reg.doExtract as doExtract
-import pixel_reg.shared as shared
 import quarantine.quarantinepanel as quarantinepanel
 
 class TargetExtractPanel(wx.Panel):

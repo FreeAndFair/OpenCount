@@ -1,8 +1,8 @@
-import os, sys, pdb, traceback, re
+import os, sys, pdb, re
 from os.path import join as pathjoin
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 import wx
 from wx.lib.pubsub import Publisher
@@ -11,7 +11,7 @@ import cv
 sys.path.append('..')
 
 import util
-from vendors import Hart, Diebold, ES_S, Sequoia
+from vendors import Hart, ES_S, Sequoia
 
 BALLOT_VENDORS = ("Hart", "es_s", "Sequoia")
 VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,

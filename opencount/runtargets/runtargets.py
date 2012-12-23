@@ -1,15 +1,10 @@
-import os, sys, multiprocessing, math
+import os, multiprocessing, math
 import threading
 import wx
-import PIL
-from PIL import Image
 from os.path import join as pathjoin
-import specify_voting_targets.util_widgets as widgets
 from wx.lib.pubsub import Publisher
-import time
 import threshold.imageFile
-from util import MyGauge, get_filename, create_dirs, is_image_ext, is_multipage
-import pdb
+from util import MyGauge, create_dirs, is_image_ext
 import array
 import csv
 import pickle
