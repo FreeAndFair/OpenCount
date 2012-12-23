@@ -6,7 +6,6 @@ import scipy.misc as misc
 import cv
 import sys
 import random
-import pdb, traceback
 
 sys.path.append('..')
 import grouping.partask as partask

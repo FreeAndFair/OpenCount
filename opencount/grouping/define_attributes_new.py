@@ -1,4 +1,4 @@
-import os, sys, pdb, traceback, re
+import sys
 try:
     import cPickle as pickle
 except:
@@ -10,7 +10,6 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
-import util
 import specify_voting_targets.select_targets as select_targets
 import grouping.common as common
 import grouping.cust_attrs as cust_attrs

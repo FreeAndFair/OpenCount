@@ -1,6 +1,6 @@
-import os, sys, pdb
+import os, sys
 
-import numpy as np, scipy, scipy.misc, scipy.ndimage, cv
+import numpy as np, scipy, scipy.misc
 
 sys.path.append('..')
 

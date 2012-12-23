@@ -1,15 +1,11 @@
 import sys, csv, copy, os, time, pickle
 sys.path.append('../')
 
-import wx, wx.animate, Image, cv2, wx.lib.inspection
-import numpy as np
+import wx
 from wx.lib.pubsub import Publisher
 from specify_voting_targets import find_targets_wizard as find_targets_wizard
-from specify_voting_targets import imageviewer as imageviewer
-from specify_voting_targets.imageviewer import BallotScreen as BallotScreen
 from specify_voting_targets.imageviewer import BallotViewer as BallotViewer
 from specify_voting_targets.imageviewer import WorldState as WorldState
-from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
 from specify_voting_targets.find_targets_wizard import MosaicPanel as MosaicPanel
 from specify_voting_targets import util_gui as util_gui
 from define_attributes import IBallotScreen as IBallotScreen

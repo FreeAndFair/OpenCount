@@ -1,7 +1,5 @@
-import sys, os, pdb, time, random, traceback
+import sys, pdb, random, traceback
 import numpy as np
-import scipy
-import scipy.stats.stats as stats
 import matplotlib.pyplot as plt
 
 sys.path.append('..')

@@ -1,4 +1,4 @@
-import sys, os, pdb, pickle, time, traceback
+import sys, os
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel as wxScrolledPanel
 

@@ -2,7 +2,6 @@ import os, sys, pdb, wx, threading, Queue, time, traceback
 from os.path import join as pathjoin
 from wx.lib.pubsub import Publisher
 import wx.lib.scrolledpanel
-from PIL import Image
 import scipy, cv
 import scipy.misc
 import csv
@@ -13,8 +12,6 @@ except ImportError as e:
     import pickle
 
 sys.path.append('..')
-from labelcontest.labelcontest import LabelContest
-import pixel_reg.shared as shared
 from specify_voting_targets import util_gui
 import common
 import util

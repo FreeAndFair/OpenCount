@@ -1,14 +1,13 @@
-import sys, os, pickle, pdb, wx, time, shutil, copy, random, traceback
+import sys, pickle, pdb, wx, time, copy, random
 from os.path import join as pathjoin
 import scipy, scipy.misc
 import numpy as np
 import cv
 
 sys.path.append('../')
-import common, util
+import common
 import verify_overlays
 import partask
-from specify_voting_targets import util_gui
 from pixel_reg import shared
 
 _i = 0

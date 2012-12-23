@@ -1,4 +1,4 @@
-import os, sys, traceback, pdb, csv, re
+import os, sys, pdb, csv, re
 try:
     import cPickle as pickle
 except:
@@ -7,9 +7,7 @@ except:
 from os.path import join as pathjoin
 
 import wx
-from wx.lib.scrolledpanel import ScrolledPanel
 
-import common
 from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
 import digit_group_new
 sys.path.append('..')

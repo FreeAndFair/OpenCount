@@ -1,29 +1,20 @@
-import sys, csv, copy, pdb, os, textwrap, traceback
-import threading, time
-import timeit
+import sys, pdb, os, textwrap, traceback
+import time
 sys.path.append('../')
 
-from util import MyGauge
-from specify_voting_targets import util_gui as util_gui
-from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
-import util, common, partmatch_fns, digit_group, label_imgs
+import common, partmatch_fns, digit_group, label_imgs
 
 from pixel_reg.imagesAlign import *
 import pixel_reg.shared as sh
-from pixel_reg.doGrouping import encodepath
 
 ####
 ## Import 3rd party libraries
 ####
 import wx
 import wx.lib.scrolledpanel as scrolled
-import Image
-import cv2
 import numpy as np
-import scipy
-from scipy import misc    
-import wx.lib.inspection
+from scipy import misc
 from wx.lib.pubsub import Publisher
 
 """

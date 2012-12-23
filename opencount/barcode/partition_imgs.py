@@ -1,4 +1,4 @@
-import os, sys, pdb, traceback, time, shutil, cProfile
+import os, sys, traceback, time, shutil, cProfile
 import cPickle as pickle    
 import cv
 

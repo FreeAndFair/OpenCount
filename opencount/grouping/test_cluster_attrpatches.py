@@ -1,8 +1,7 @@
-import sys, os, time, pdb, random
+import sys, os
 
 import scipy.misc
-from matplotlib.pyplot import show, imshow, figure
-import cluster_imgs, make_overlays
+import cluster_imgs
 
 def is_img_ext(p):
     return os.path.splitext(p.lower())[1] in ('.png', '.jpg', '.jpeg')

@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback
+import os, sys, time
 import numpy as np, scipy.misc as misc, cv
 
 sys.path.append('..')

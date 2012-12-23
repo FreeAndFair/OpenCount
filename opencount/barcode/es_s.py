@@ -1,6 +1,5 @@
-import sys, os, time
+import os, time
 import cv
-from collections import Counter
 
 def decode_patch(original_image, original_mark, expected_bits):
     """

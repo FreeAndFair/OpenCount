@@ -1,4 +1,4 @@
-import sys, os, csv, pdb, time, traceback
+import sys, os, pdb, time, traceback
 from os.path import join as pathjoin
 
 try:

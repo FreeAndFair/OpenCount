@@ -1,20 +1,14 @@
-import sys, csv, copy, pdb, os, re, shutil, math
+import sys, csv, pdb, os, shutil, math
 import threading, time
-import timeit
 sys.path.append('../')
 
 from util import MyGauge
 from specify_voting_targets import util_gui as util_gui
-from specify_voting_targets import imageviewer as imageviewer
 from specify_voting_targets.util_gui import *
 from verify_overlays import VerifyPanel
-import label_attributes, util, common, digit_group, cust_attrs
+import util, common, digit_group, cust_attrs
 
-from common import TABULATION_ONLY_ID, DIGIT_BASED_ID
-
-from pixel_reg.imagesAlign import *
-import pixel_reg.shared as sh
-from pixel_reg.doGrouping import  groupImagesMAP, encodepath
+from pixel_reg.doGrouping import groupImagesMAP
 
 ####
 ## Import 3rd party libraries

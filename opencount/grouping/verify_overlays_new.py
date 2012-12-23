@@ -1,4 +1,4 @@
-import os, sys, pdb, traceback, time
+import os, sys, traceback, time
 try:
     import cPickle as pickle
 except:
@@ -8,11 +8,9 @@ from os.path import join as pathjoin
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
-from wx.lib.pubsub import Publisher
 
 import cv, numpy as np, scipy, scipy.misc, Image
 import make_overlays
-import util
 import cluster_imgs
 
 class ViewOverlaysPanel(ScrolledPanel):

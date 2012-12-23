@@ -1,11 +1,10 @@
-import os, sys, pdb, time
+import os, sys, pdb
 try:
     import cPickle as pickle
 except:
     import pickle
 import wx, wx.lib.scrolledpanel
 sys.path.append('..')
-import util
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """

@@ -1,4 +1,4 @@
-import os, sys, traceback, pdb, time
+import sys, time
 try:
     import cPickle as pickle
 except:
@@ -7,7 +7,6 @@ except:
 from os.path import join as pathjoin
 
 import wx
-from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
 

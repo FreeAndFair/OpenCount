@@ -1,5 +1,5 @@
-import os, sys, time, pdb, traceback, threading, csv, random
-import cv, Image, numpy as np
+import os, sys, time, pdb, threading, random
+import cv, Image
 import wx
 
 try:

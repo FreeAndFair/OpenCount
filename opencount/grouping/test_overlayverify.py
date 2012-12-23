@@ -1,4 +1,4 @@
-import wx, os, pdb
+import wx, os
 from verify_overlays import VerifyPanel
 from common import GroupClass
 import common

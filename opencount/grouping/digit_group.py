@@ -1,4 +1,4 @@
-import sys, os, pdb, time, shutil, traceback
+import sys, os, pdb, time, shutil
 
 try:
     import cPickle as pickle
@@ -7,13 +7,11 @@ except ImportError as e:
     import pickle
 
 import scipy, scipy.misc
-import cv
 from os.path import join as pathjoin
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
 import pixel_reg.shared as sh
 import util, common, group_attrs
-from PIL import Image
 import grouping.partask as partask
 
 def do_digitocr_patches(bal2imgs, digitattrs, project, ignorelist=None,

@@ -1,4 +1,4 @@
-import sys, os, pdb
+import sys, os
 
 try:
     import cPickle as pickle

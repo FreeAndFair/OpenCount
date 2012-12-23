@@ -7,7 +7,6 @@ except ImportError as e:
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
-import wx.lib.inspection
 from wx.lib.pubsub import Publisher
 
 import numpy as np

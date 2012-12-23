@@ -1,11 +1,10 @@
-import sys, os, pdb, pickle, time
+import sys, os, time
 sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
 import scipy.cluster.vq
 import pylab, cv
 
-import specify_voting_targets.util_gui as util_gui
 import cluster_fns
 import pixel_reg.imagesAlign as imagesAlign
 
