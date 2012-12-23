@@ -1,6 +1,6 @@
-import os, sys, math, csv
+import os
 import util_gui
-from imageviewer import ImageViewer, BallotScreen, Autodetect_Confirm, Autodetect_Panel, WorldState
+from imageviewer import BallotScreen, Autodetect_Confirm, Autodetect_Panel, WorldState
 
 """
 UI intended for a user to denote all locations of voting targets, and

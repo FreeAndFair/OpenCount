@@ -1,5 +1,5 @@
 import sys, os, time, math, pdb, traceback, threading, Queue, copy
-import multiprocessing, csv, shutil
+import multiprocessing, csv
 try:
     import cPickle as pickle
 except ImportError:
@@ -14,7 +14,7 @@ from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import util_gui, util
-import grouping.partask as partask, grouping.tempmatch as tempmatch
+import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
 import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign

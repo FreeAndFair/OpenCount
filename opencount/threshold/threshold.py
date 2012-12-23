@@ -1,17 +1,13 @@
 import pdb, traceback
 import sys
-import random
-import math
-import cStringIO
 import wx
 import os
 from os.path import join as pathjoin
-from util import get_filename, create_dirs, is_image_ext, encodepath, pil2wxb, wxb2pil, MyGauge
+from util import is_image_ext, pil2wxb, MyGauge
 from PIL import Image, ImageDraw
 import util
 from time import time
 import imageFile
-from wx.lib.pubsub import Publisher
 import array
 import pickle
 

@@ -3,7 +3,6 @@ import pickle, datetime, pdb, Queue, multiprocessing
 import numpy as np
 import scipy
 import scipy.misc
-import scipy.ndimage
 import cv
 
 from os.path import join as pathjoin
@@ -11,9 +10,8 @@ import util_gui
 import util_widgets
 import util
 import grouptargets
-import time
 
-from imageviewer import BallotViewer, BallotScreen, BoundingBox, Autodetect_Panel, Autodetect_Confirm, WorldState
+from imageviewer import BallotViewer, BallotScreen, BoundingBox, WorldState
 from labelcontest.group_contests import find_contests
 
 """
@@ -26,11 +24,7 @@ all template images, using auto-detection.
 ####
 
 import wx
-import wx.animate
 import Image
-import cv2
-import numpy as np
-import wx.lib.inspection
 from wx.lib.pubsub import Publisher
     
 # Get this script's directory. Necessary to know this information

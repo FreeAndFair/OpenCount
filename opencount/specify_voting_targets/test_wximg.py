@@ -1,4 +1,4 @@
-import os, sys, time, pdb, traceback
+import sys, time
 
 import numpy as np, scipy.misc, cv
 import wx

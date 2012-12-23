@@ -1,8 +1,8 @@
-import sys, os, time, pdb, traceback
+import sys, pdb, traceback
 
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 
 import cv

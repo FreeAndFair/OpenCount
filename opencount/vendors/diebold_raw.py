@@ -1,4 +1,4 @@
-import os, sys, time, pdb
+import os, sys, time
 import cv
 
 def decode(imgpath, template="diebold-mark.jpg"):

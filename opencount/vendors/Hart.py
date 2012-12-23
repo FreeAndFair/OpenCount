@@ -1,13 +1,11 @@
-import os, sys, traceback, pdb
+import os, sys, traceback
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
 from os.path import join as pathjoin
 
 import cv
-import wx
-from wx.lib.pubsub import Publisher
 
 from Vendor import Vendor
 
@@ -15,7 +13,6 @@ sys.path.append('..')
 
 import barcode.hart as hart
 from grouping import partask
-import util
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where

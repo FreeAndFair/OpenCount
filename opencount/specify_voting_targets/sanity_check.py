@@ -1,9 +1,7 @@
-import os, sys, time, math, threading, Queue
+import os, time, math
 from optparse import OptionParser
-import util_gui
 import Image, cv
 import wx
-import util_widgets
 from wx.lib.pubsub import Publisher
 
 BIN_SIZE = 10000

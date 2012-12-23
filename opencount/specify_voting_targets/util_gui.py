@@ -1,7 +1,7 @@
-import os, sys, math, csv, random, pdb
+import os, math, csv, random
 try:
     import cPickle as pickle
-except ImportError as e:
+except ImportError:
     import pickle
 import scipy, cv
 import scipy.ndimage

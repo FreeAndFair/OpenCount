@@ -1,4 +1,4 @@
-import time, threading, sys, os, math, pdb, traceback
+import threading, sys, os, math
 sys.path.append('..')
 import grouping.common as common
 import wx

@@ -1,5 +1,3 @@
-from PIL import Image
-from random import randint
 import os
 import array
 
