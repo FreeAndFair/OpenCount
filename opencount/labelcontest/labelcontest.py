@@ -805,9 +805,12 @@ class LabelContest(wx.Panel):
 
         # Save the image corresponding to this template
         self.imgo = self.maybe_flip(self.dirList[self.templatenum])
-        self.imgo_resize = scipy.misc.imresize(self.imgo,(500, 303))
-        self.imgo_resizefactor_x = float(self.imgo.shape[0])/self.imgo_resize.shape[0]
-        self.imgo_resizefactor_y = float(self.imgo.shape[1])/self.imgo_resize.shape[1]
+        print 'qqq', self.imgo.shape
+        self.small_x_size = 303#self.imgo.shape[1]/4#303
+        self.small_y_size = 500#self.imgo.shape[0]/4#500
+        self.imgo_resize = scipy.misc.imresize(self.imgo,(self.small_y_size, self.small_x_size))
+        self.imgo_resizefactor_y = float(self.imgo.shape[0])/self.imgo_resize.shape[0]
+        self.imgo_resizefactor_x = float(self.imgo.shape[1])/self.imgo_resize.shape[1]
         
         for cid in self.contest_order[self.templatenum]:
             # Fill in the current contest keys to use to index in the hashtables.
@@ -878,7 +881,7 @@ class LabelContest(wx.Panel):
 
         #new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
             
-        image = wx.EmptyImage(303, 500)
+        image = wx.EmptyImage(self.small_x_size, self.small_y_size)
         image.SetData(img.tostring())
         wxBitmap = image.ConvertToBitmap()
 
