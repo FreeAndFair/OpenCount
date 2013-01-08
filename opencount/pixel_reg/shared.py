@@ -648,4 +648,4 @@ def remove_border_topleft(A):
     # i is the number of rows with all-black
     # j is the number of cols with all-black
     out[0:h-i, 0:w-j] = A[i:,j:]
-    return out
+    return out, i, j

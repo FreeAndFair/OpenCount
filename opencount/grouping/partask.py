@@ -1,4 +1,4 @@
-import multiprocessing, random, math
+import multiprocessing, random, math, traceback
 
 """
 A utility script/tool that handles performing an embarassingly
@@ -64,6 +64,9 @@ def do_partask(fn, jobs, _args=None, blocking=True,
     elif combfn == 'dict':
         combfn = combfn_dict
         init = {}
+    elif combfn == 'ignore':
+        combfn = combfn_ignore
+        init = True
         
     results = init
     while True:
@@ -73,6 +76,8 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         results = combfn(results, subresults)
     return results
 
+def combfn_ignore(res, subres):
+    return True
 def combfn_lst(res, subres):
     res.extend(subres)
     return res
@@ -96,6 +101,7 @@ _POOL_CLOSED = POOL_CLOSED()
 def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=None):
     def handle_result(result):
         queue.put(result)
+
     pool = multiprocessing.Pool()
     if N == None:
         n_procs = multiprocessing.cpu_count()

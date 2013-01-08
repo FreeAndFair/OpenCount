@@ -116,17 +116,19 @@ def do_extract_digitpatches(jobs):
         list JOBS: [[imgpath, (x1,y1,x2,y2), outpath], ...]
     """
     N = multiprocessing.cpu_count()
-    partask.do_partask(extract_digitpatch, jobs, N=1)
+    partask.do_partask(extract_digitpatch, jobs, combfn='ignore', N=N)
 
-def extract_digitpatch(jobs, args):
+def extract_digitpatch(jobs):
     for (imgpath, (x1,y1,x2,y2), outpath, isflip) in jobs:
         try:
             os.makedirs(os.path.split(outpath)[0])
         except:
             pass
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+
         if isflip:
             cv.Flip(I, I, flipMode=-1)
+
         cv.SetImageROI(I, tuple(map(int, (x1,y1,x2-x1, y2-y1))))
         cv.SaveImage(outpath, I)
     return True

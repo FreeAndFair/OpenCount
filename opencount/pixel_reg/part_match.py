@@ -359,7 +359,8 @@ def process_one(args):
     # voted ballot is upside down, then the padding is added to the 
     # top+left (after undoing the flip), which results in a large shift
     # which our algorithms aren't able to gracefully handle.
-    I1 = sh.remove_border_topleft(I1)
+    # ROWS, COLS is number of rows/cols removed from remove_border_topleft
+    I1, rows, cols = sh.remove_border_topleft(I1)
     #I1=sh.prepOpenCV(I1)
     E_i1 = 0.10  # factor to expand bbSearch by
     E_i2 = 0.33
@@ -398,13 +399,14 @@ def process_one(args):
     res = pm2(digit_hash,I1_patch,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
     #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
     # 1.) Remember to correct for E_i,E_j expansion factor from earlier,
-    #     and also to account for bbSearch offset.
+    #     the cropped-out black border (ROWS,COLS), and also to account 
+    #     for bbSearch offset.
     newbbs = []
     for bb in res[2]:
-        newbb0 = (max(0, bb[0]+bb_patch[0]),
-                  min(I1.shape[0]-1, bb[1]+bb_patch[0]),
-                  max(0, bb[2]+bb_patch[2]),
-                  min(I1.shape[1]-1, bb[3]+bb_patch[2]))
+        newbb0 = (max(0, bb[0]+bb_patch[0]+rows),
+                  min(I1.shape[0]-1, bb[1]+bb_patch[0]+rows),
+                  max(0, bb[2]+bb_patch[2]+cols),
+                  min(I1.shape[1]-1, bb[3]+bb_patch[2]+cols))
         newbbs.append(newbb0)
 
     if wx.App.IsMainLoopRunning():
