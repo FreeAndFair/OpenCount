@@ -520,7 +520,7 @@ digit.")
         exemplar_imgpath = self.PATCH_TMP
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = VerifyOverlayFrame(self, imgpaths, exemplar_imgpath, self.on_verifydone)
+        self.f = verify_overlays_new.CheckImageEqualsFrame(self, imgpaths, exemplar_imgpath, self.on_verifydone)
         self.f.Maximize()
         self.Disable()
         self.disable_cells()
@@ -1035,24 +1035,6 @@ class Box(object):
                  abs(y1_a - y1_b) <= h / 2.0) or
                 Box.is_overlap(box_a, box_b) or 
                 Box.is_overlap(box_b, box_a))
-
-class VerifyOverlayFrame(wx.Frame):
-    def __init__(self, parent, imgpaths, exemplar_imgpath, ondone):
-        """
-        Input:
-            list IMGPATHS: List of image paths
-            str EXEMPLAR_IMGPATH:
-            fn ONDONE:
-        """
-        wx.Frame.__init__(self, parent)
-
-        verifypanel = verify_overlays_new.CheckImageEqualsPanel(self)
-        verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=True)
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(verifypanel, proportion=1, flag=wx.EXPAND)
-        self.SetSizer(sizer)
-        self.Layout()
 
 class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple

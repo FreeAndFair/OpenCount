@@ -4,7 +4,6 @@ import os
 
 sys.path.append("..")
 from util import pdb_on_crash
-import grouping.view_overlays
 import grouping.common
 import pixel_reg.imagesAlign as imagesAlign
 import pixel_reg.shared as sh
@@ -140,7 +139,6 @@ class VerifyContestGrouping:
         
         print len(res), map(len,res)
         
-        #frame = grouping.view_overlays.ViewOverlaysFrame(None, res, ondone=self.on_verify_done)
         # TODO: Provide the 'realign_callback' function for realigning a
         # set of overlay'd contest patches. See the docstring for 
         #     verify_overlays_new.SeparateImages.do_realign

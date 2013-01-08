@@ -14,7 +14,7 @@ sys.path.append('..')
 import tempmatch, util, common
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.util_gui as util_gui
-import view_overlays, verify_overlays
+import verify_overlays_new
 import grouping.group_attrs as group_attrs
 import grouping.partask as partask
 
@@ -531,18 +531,17 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             outpaths.append(outpath)
             patch2img[outpath] = regionpath
         initgroups = [outpaths]
-        exemplarpaths = ['_selectattr_patch.png']
-        self._verifyframe = view_overlays.ViewOverlaysFrame(None, initgroups, 
-                                                            ondone=lambda groups: self.on_verifydone(groups, attrval, results, w, h, patch2img),
-                                                            exemplarpaths=exemplarpaths,
-                                                            verifymode=verify_overlays.VerifyPanel.MODE_YESNO)
+        exemplar_imP = '_selectattr_patch.png'
+        self._verifyframe = verify_overlays_new.CheckImageEqualsFrame(None, outpaths,
+                                                                      exemplar_imP,
+                                                                      ondone=lambda verify_results: self.on_verifydone(verify_results, attrval, results, w, h, patch2img))
         self._verifyframe.Show()
         self._verifyframe.Maximize()
 
-    def on_verifydone(self, groups, attrval, results, w, h, patch2img):
+    def on_verifydone(self, verify_results, attrval, results, w, h, patch2img):
         """ 
         Input:
-            list GROUPS: List of [[patchpath_i0, ...], [patchpath_i1, ...]].
+            list VERIFY_RESULTS: maps {tag: [imgpath_i, ...]}
             str ATTRVAL:
             dict RESULTS: maps {str imgpath: (x, y, float score)}
             int W, H: Size of patch
@@ -550,8 +549,8 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         """
         self._verifyframe.Close()
         self._verifyframe = None
-
-        subpatchpaths = groups[0]
+        # Add all TAG_YES groups
+        subpatchpaths = verify_results[verify_overlays_new.CheckImageEquals.TAG_YES]
         for subpatchpath in subpatchpaths:
             imgpath = patch2img[subpatchpath]
             (x, y, score) = results[imgpath]

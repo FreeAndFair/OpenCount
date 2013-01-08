@@ -6,7 +6,6 @@ import cv
 
 sys.path.append('../')
 import common
-import verify_overlays
 import partask
 from pixel_reg import shared
 
@@ -455,71 +454,3 @@ def inc_counter(ctr, k):
         ctr[k] = 1
     else:
         ctr[k] = ctr[k] + 1
-
-class TestFrame(wx.Frame):
-    def __init__(self, parent, groups, *args, **kwargs):
-        wx.Frame.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
-        self.groups = groups
-
-        self.panel = verify_overlays.VerifyPanel(self, verifymode=verify_overlays.VerifyPanel.MODE_YESNO2)
-        self.Show()
-        self.Maximize()
-        self.Fit()
-        
-        self.panel.start(groups, None, ondone=self.verify_done)
-        
-    def verify_done(self, results):
-        """ Called when the user finished verifying the auto-grouping of
-        attribute patches (for blank ballots).
-        results is a dict mapping:
-            {grouplabel: list of GroupClass objects}
-        The idea is that for each key-value pairing (k,v) in results, the
-        user has said that: "These blank ballots in 'v' all have the same
-        attribute value, since their overlays looked the same."
-        The next step is for the user to actually label these groups (instead
-        of labeling each individual blank ballot). The hope is that the
-        number of groups is much less than the number of blank ballots.
-        """
-        print "Verifying done."
-        num_elements = 0
-        for grouplabel,groups in results.iteritems():
-            cts = 0
-            for group in groups:
-                cts += len(group.elements)
-            print "grouplabel {0}, {1} elements, is_manual: {2}".format(grouplabel, cts, group.is_manual)
-            num_elements += cts
-        print "The idea: Each group contains images whose overlays \
-are the same. It might be the case that two groups could be merged \
-together."
-        if num_elements == 0:
-            reduction = 0
-        else:
-            reduction = len(sum(results.values(), [])) / float(num_elements)
-        
-        print "== Reduction in effort: ({0} / {1}) = {2}".format(len(sum(results.values(), [])),
-                                                                 num_elements,
-                                                                 reduction)
-def main():
-    args = sys.argv[1:]
-    rootdir = args[0]
-    attrdata = pickle.load(open(pathjoin(rootdir, 'ballot_attributes.p'), 'rb'))
-    #imgsize = (1460, 2100)
-    #imgsize = (1715, 2847)
-    #imgsize = (1459, 2099)    # alameda
-    #imgsize = (1968, 3530)    # napa
-    imgsize = (1280, 2104)    # marin
-    projdir_path = rootdir
-    tmp2imgs_path = pathjoin(rootdir, 'template_to_images.p')
-    groups = group_attributes(attrdata, imgsize, projdir_path, tmp2imgs_path)
-    for group in groups:
-        print group
-    
-    # Visualize results
-    app = wx.App(False)
-    frame = TestFrame(None, groups)
-    app.MainLoop()
-
-if __name__ == '__main__':
-    main()
-
