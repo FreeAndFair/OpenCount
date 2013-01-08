@@ -1,4 +1,4 @@
-import multiprocessing, random, math, traceback
+import multiprocessing, random, math
 
 """
 A utility script/tool that handles performing an embarassingly
