@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, time
 
 import numpy as np, scipy, scipy.misc
 
@@ -50,7 +50,7 @@ oc_badglobalalign), you can do:
 #       If you make your changes to 'global_align' when running your experiments,
 #       you won't have to change any of the other code. 
 
-def global_align(Iref, imgpaths):
+def global_align(Iref, imgpaths, rsz):
     """ Using IREF as a reference, aligns every image in IMGPATHS to IREF.
     Input:
         IplImage IREF: An OpenCV IplImage instance, i.e. the reference
@@ -65,12 +65,14 @@ def global_align(Iref, imgpaths):
     """
     Iouts = [] # [(imgpath, H, Ireg, err), ...]
     for imgpath in imgpaths:
+	t1 = time.time()
         I = shared.standardImread(imgpath, flatten=True)
-        Icrop = cropout_stuff(I, 0.2, 0.2, 0.2, 0.2)
-        H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
+        Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
+        H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=rsz)
 
         Ireg = np.nan_to_num(Ireg)
-        Iouts.append((imgpath, H, Ireg, err))
+        Iouts.append((imgpath, H, Ireg, err, rsz))
+	t2 = time.time()
     return Iouts
 
 def cropout_stuff(I, top, bot, left, right):
@@ -82,14 +84,14 @@ def cropout_stuff(I, top, bot, left, right):
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
 
-def do_aligning(imgpaths, outdir, idx):
+def do_aligning(imgpaths, outdir, idx, rsz):
     Iref_imgP = imgpaths.pop(idx)
     Iref_np = scipy.misc.imread(Iref_imgP, flatten=True)
     Iref = shared.standardImread(Iref_imgP, flatten=True)
 
-    Iref_crop = cropout_stuff(Iref, 0.2, 0.2, 0.2, 0.2)
+    Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
 
-    Iouts = global_align(Iref_crop, imgpaths)
+    Iouts = global_align(Iref_crop, imgpaths, rsz)
 
     ref_dir = os.path.join(outdir, 'ref')
 
@@ -100,8 +102,8 @@ def do_aligning(imgpaths, outdir, idx):
     Iref_imgname = os.path.split(Iref_imgP)[1]
     scipy.misc.imsave(os.path.join(ref_dir, Iref_imgname), Iref)
 
-    for imgpath, H, Ireg_crop, err in Iouts:
-        print "For imgpath {0}, err={1:.4f}, H:".format(imgpath, err)
+    for imgpath, H, Ireg_crop, err, rsz in Iouts:
+        print "For imgpath {0}, err={1:.4f}, rsz={2}, H:".format(imgpath, err, rsz)
         imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
         I = scipy.misc.imread(imgpath, flatten=True)
         Hc = correctH(Ireg_crop, H)
@@ -139,8 +141,8 @@ def correctH(I, H0):
     H=np.dot(np.dot(T0,H0),T1)
     return H
 
-def main():
-    args = sys.argv[1:]
+def start(args, rsz):
+    #args = sys.argv[1:]
     imgsdir = args[0]
     outdir = args[1]
     try:
@@ -159,7 +161,7 @@ def main():
         for imgpaths in imgpaths_per_dir:
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
             outdir_sub = os.path.join(outdir, parentdir, 'idx_{0}'.format(idx))
-            do_aligning(imgpaths_per_dir[:], outdir_sub, idx)
+            do_aligning(imgpaths_per_dir[:], outdir_sub, idx, rsz)
     else:
         for imgpaths in imgpaths_per_dir:
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
@@ -167,7 +169,7 @@ def main():
             for idx in xrange(len(imgpaths)):
                 print '...doing idx {0}...'.format(idx)
                 outdir_2 = os.path.join(outdir_sub, 'idx_{0}'.format(idx))
-                do_aligning(imgpaths[:], outdir_2, idx)
+                do_aligning(imgpaths[:], outdir_2, idx, rsz)
 
 if __name__ == '__main__':
-    main()
+    start(sys.argv[1:],0.15) # default rsz
