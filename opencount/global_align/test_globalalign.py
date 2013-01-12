@@ -50,6 +50,8 @@ oc_badglobalalign), you can do:
 #       If you make your changes to 'global_align' when running your experiments,
 #       you won't have to change any of the other code. 
 
+SAMPLE_SIZE = 5
+
 def global_align(Iref, imgpaths, rsz):
     """ Using IREF as a reference, aligns every image in IMGPATHS to IREF.
     Input:
@@ -63,16 +65,80 @@ def global_align(Iref, imgpaths, rsz):
         the discovered transformation matrix H, alignment error ERR, and
         the path to the ballot image IMGPATH.
     """
+    # TODO: Take the alignment errors to be normally distributed.
+    # If an error output is atleast two standard devs away from the mean,
+    # then recompute the alignment(different resize factors, sliding scale)
+    #
+    # Keep a running estimator for mean and standard deviations.
+    # Possible scenario: The first alignment produces an error(or first couple)
+    # at such a large scale it shifts the distribution mean. Perhaps consider,
+    # a first pass alignment, and store a mapping from image to alignment error,
+    # second pass we can determine which alignments need to be recomputed.
+	
     Iouts = [] # [(imgpath, H, Ireg, err), ...]
-    for imgpath in imgpaths:
+    sample_outs = {}
+    counter = 0    
+    mu = None
+    sigma = None
+    accum = 0
+    flag = False
+   
+    def align_simple(imgpath):
 	t1 = time.time()
-        I = shared.standardImread(imgpath, flatten=True)
+	I = shared.standardImread(imgpath, flatten=True)
         Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
         H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=rsz)
 
         Ireg = np.nan_to_num(Ireg)
         Iouts.append((imgpath, H, Ireg, err, rsz))
 	t2 = time.time()
+
+    def align_thorough(imgpath):
+	t1 = time.time()
+	I = shared.standardImread(imgpath, flatten=True)
+	Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
+	H, Iref, err = imagesAlign(Icrop, Iref, type='rigid', rszFac = 1.0)
+	Ireg = np.nan_to_num(Ireg)
+	Iouts.append((imgpath, H, Ireg, err, rsz))
+	t2 = time.time()
+    
+
+    for imgpath in imgpaths:
+	if counter < SAMPLE_SIZE:
+		t1 = time.time()
+		I = shared.standardImread(imgpath, flatten=True)
+		Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
+		H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=rsz)
+	        accum += err
+                sample_outs[imgpath] = err
+		counter += 1
+		print "On counter=", counter
+	else:
+		if flag == False:
+			mu = accum / float(SAMPLE_SIZE)
+			print "mu:", mu
+			accum2 = 0
+			errs = sample_outs.values()
+			print errs
+			for i in xrange(SAMPLE_SIZE):
+				accum2 += (errs[i] - mu)**2
+				sigma = accum2 * (1 / (SAMPLE_SIZE - 1))
+				print "sigma:", sigma
+		
+			lb = mu - 2*sigma
+			ub = mu + 2*sigma
+		
+			print "lb: ", lb
+			print "ub: ", ub	
+		
+			for x in sample_outs.iteritems():
+				if x.value() > ub or x.value() < lb:
+					align_thorough(x.key())
+				else:
+					align_simple(x.key())
+			flag = True
+		align_simple(imgpath)
+			
     return Iouts
 
 def cropout_stuff(I, top, bot, left, right):
