@@ -18,6 +18,7 @@ import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
 import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
+import global_align.global_align as global_align
 
 class SelectTargetsMainPanel(wx.Panel):
     GLOBALALIGN_JOBID = util.GaugeID("GlobalAlignJobId")
@@ -1655,20 +1656,6 @@ def bestmatch(A, B):
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
 
-def cropout_border(I, top, bot, left, right):
-    """ float TOP,BOT,LEFT,RIGHT are between [0.0, 1.0]. """
-    '''
-    h, w = I.shape
-    x1 = int(round(left*w))
-    y1 = int(round(top*h))
-    x2 = int(round(w - (right*w)))
-    y2 = int(round(h - (bot*h)))
-    Inew = I[y1:y2, x1:x2]
-    return np.copy(Inew)
-    '''
-    # TODO: Disable the cropping, due to adverse affects on Yolo
-    return I
-
 def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queue=None):
     """ 
     Input:
@@ -1686,25 +1673,20 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
     try:
         for idx, (partitionid, ballots) in enumerate(partitions):
             outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
-            try:
-                os.makedirs(outdir)
-            except:
-                pass
+            try: os.makedirs(outdir)
+            except: pass
             ballotRef = ballots[0]
-            # Remove 20% of image from each side. Helps with global alignment.
             Irefs = []
             for side, imP in enumerate(ballotRef):
                 I = shared.standardImread(imP, flatten=True)
                 if img2flip[imP]:
                     I = shared.fastFlip(I)
                 Irefs.append((imP, I))
-            #Irefs = [(imP, cropout_border(shared.standardImread(imP, flatten=True),0.2,0.2,0.2,0.2)) for imP in ballotRef]
             # 0.) First, handle the reference Ballot
             curBallot = []
             for side, (Iref_imP, Iref) in enumerate(Irefs):
                 outname = 'bal_{0}_side_{1}.png'.format(0, side)
                 outpath = pathjoin(outdir, outname)
-                #shutil.copy(Iref_imP, outpath)
                 scipy.misc.imsave(outpath, Iref)
                 curBallot.append(outpath)
             partitions_align[partitionid] = [curBallot]
@@ -1716,14 +1698,12 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                     I = shared.standardImread(imgpath, flatten=True)
                     if img2flip[imgpath]:
                         I = shared.fastFlip(I)
-                    Icrop = cropout_border(I, 0.2,0.2,0.2,0.2)
-                    H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
+                    H, Ireg, err = global_align.align_image(Iref, I)
                     outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
                     outpath = pathjoin(outdir, outname)
-                    Ireg = imagesAlign.imtransform(I, H)
-                    Ireg = np.nan_to_num(Ireg)
                     scipy.misc.imsave(outpath, Ireg)
                     curBallot.append(outpath)
+
                 partitions_align[partitionid].append(curBallot)
             if queue:
                 queue.put(True)
