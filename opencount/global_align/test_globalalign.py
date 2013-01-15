@@ -1,4 +1,4 @@
-import os, sys, time
+import os, sys
 
 import numpy as np, scipy, scipy.misc
 
@@ -50,9 +50,7 @@ oc_badglobalalign), you can do:
 #       If you make your changes to 'global_align' when running your experiments,
 #       you won't have to change any of the other code. 
 
-SAMPLE_SIZE = 5
-
-def global_align(Iref, imgpaths, rsz):
+def global_align(Iref, imgpaths):
     """ Using IREF as a reference, aligns every image in IMGPATHS to IREF.
     Input:
         IplImage IREF: An OpenCV IplImage instance, i.e. the reference
@@ -65,80 +63,14 @@ def global_align(Iref, imgpaths, rsz):
         the discovered transformation matrix H, alignment error ERR, and
         the path to the ballot image IMGPATH.
     """
-    # TODO: Take the alignment errors to be normally distributed.
-    # If an error output is atleast two standard devs away from the mean,
-    # then recompute the alignment(different resize factors, sliding scale)
-    #
-    # Keep a running estimator for mean and standard deviations.
-    # Possible scenario: The first alignment produces an error(or first couple)
-    # at such a large scale it shifts the distribution mean. Perhaps consider,
-    # a first pass alignment, and store a mapping from image to alignment error,
-    # second pass we can determine which alignments need to be recomputed.
-	
     Iouts = [] # [(imgpath, H, Ireg, err), ...]
-    sample_outs = {}
-    counter = 0    
-    mu = None
-    sigma = None
-    accum = 0
-    flag = False
-   
-    def align_simple(imgpath):
-	t1 = time.time()
-	I = shared.standardImread(imgpath, flatten=True)
-        Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
-        H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=rsz)
+    for imgpath in imgpaths:
+        I = shared.standardImread(imgpath, flatten=True)
+        Icrop = cropout_stuff(I, 0.2, 0.2, 0.2, 0.2)
+        H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
 
         Ireg = np.nan_to_num(Ireg)
-        Iouts.append((imgpath, H, Ireg, err, rsz))
-	t2 = time.time()
-
-    def align_thorough(imgpath):
-	t1 = time.time()
-	I = shared.standardImread(imgpath, flatten=True)
-	Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
-	H, Iref, err = imagesAlign(Icrop, Iref, type='rigid', rszFac = 1.0)
-	Ireg = np.nan_to_num(Ireg)
-	Iouts.append((imgpath, H, Ireg, err, rsz))
-	t2 = time.time()
-    
-
-    for imgpath in imgpaths:
-	if counter < SAMPLE_SIZE:
-		t1 = time.time()
-		I = shared.standardImread(imgpath, flatten=True)
-		Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
-		H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=rsz)
-	        accum += err
-                sample_outs[imgpath] = err
-		counter += 1
-		print "On counter=", counter
-	else:
-		if flag == False:
-			mu = accum / float(SAMPLE_SIZE)
-			print "mu:", mu
-			accum2 = 0
-			errs = sample_outs.values()
-			print errs
-			for i in xrange(SAMPLE_SIZE):
-				accum2 += (errs[i] - mu)**2
-				sigma = accum2 * (1 / (SAMPLE_SIZE - 1))
-				print "sigma:", sigma
-		
-			lb = mu - 2*sigma
-			ub = mu + 2*sigma
-		
-			print "lb: ", lb
-			print "ub: ", ub	
-		
-			for x in sample_outs.iteritems():
-				if x.value() > ub or x.value() < lb:
-					align_thorough(x.key())
-				else:
-					align_simple(x.key())
-			flag = True
-		align_simple(imgpath)
-			
+        Iouts.append((imgpath, H, Ireg, err))
     return Iouts
 
 def cropout_stuff(I, top, bot, left, right):
@@ -150,14 +82,14 @@ def cropout_stuff(I, top, bot, left, right):
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
 
-def do_aligning(imgpaths, outdir, idx, rsz):
+def do_aligning(imgpaths, outdir, idx):
     Iref_imgP = imgpaths.pop(idx)
     Iref_np = scipy.misc.imread(Iref_imgP, flatten=True)
     Iref = shared.standardImread(Iref_imgP, flatten=True)
 
-    Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
+    Iref_crop = cropout_stuff(Iref, 0.2, 0.2, 0.2, 0.2)
 
-    Iouts = global_align(Iref_crop, imgpaths, rsz)
+    Iouts = global_align(Iref_crop, imgpaths)
 
     ref_dir = os.path.join(outdir, 'ref')
 
@@ -168,8 +100,8 @@ def do_aligning(imgpaths, outdir, idx, rsz):
     Iref_imgname = os.path.split(Iref_imgP)[1]
     scipy.misc.imsave(os.path.join(ref_dir, Iref_imgname), Iref)
 
-    for imgpath, H, Ireg_crop, err, rsz in Iouts:
-        print "For imgpath {0}, err={1:.4f}, rsz={2}, H:".format(imgpath, err, rsz)
+    for imgpath, H, Ireg_crop, err in Iouts:
+        print "For imgpath {0}, err={1:.4f}, H:".format(imgpath, err)
         imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
         I = scipy.misc.imread(imgpath, flatten=True)
         Hc = correctH(Ireg_crop, H)
@@ -207,8 +139,8 @@ def correctH(I, H0):
     H=np.dot(np.dot(T0,H0),T1)
     return H
 
-def start(args, rsz):
-    #args = sys.argv[1:]
+def main():
+    args = sys.argv[1:]
     imgsdir = args[0]
     outdir = args[1]
     try:
@@ -227,7 +159,7 @@ def start(args, rsz):
         for imgpaths in imgpaths_per_dir:
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
             outdir_sub = os.path.join(outdir, parentdir, 'idx_{0}'.format(idx))
-            do_aligning(imgpaths_per_dir[:], outdir_sub, idx, rsz)
+            do_aligning(imgpaths_per_dir[:], outdir_sub, idx)
     else:
         for imgpaths in imgpaths_per_dir:
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
@@ -235,7 +167,7 @@ def start(args, rsz):
             for idx in xrange(len(imgpaths)):
                 print '...doing idx {0}...'.format(idx)
                 outdir_2 = os.path.join(outdir_sub, 'idx_{0}'.format(idx))
-                do_aligning(imgpaths[:], outdir_2, idx, rsz)
+                do_aligning(imgpaths[:], outdir_2, idx)
 
 if __name__ == '__main__':
-    start(sys.argv[1:],0.15) # default rsz
+    main()
