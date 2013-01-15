@@ -1,3 +1,4 @@
+import sys
 from os.path import join as pathjoin
 import shared as sh
 from imagesAlign import *
@@ -9,6 +10,9 @@ import wx
 from util import create_dirs
 import pickle
 import shutil
+
+sys.path.append('..')
+import global_align.global_align as global_align
 
 # Consider only the middle of the "Fill in the Arrow" voting targets
 # that Sequoia-style (e.g. SantaCruz) has. This is present because I
@@ -97,21 +101,6 @@ def correctH(I, H0):
     H=np.dot(np.dot(T0,H0),T1)
     return H
 
-def align_strong(I, Iref, scales=(0.1, 0.15, 0.2, 0.25, 0.3)):
-    """ Ad-hoc alignment strategy: try a range of scales, and choose
-    the alignment that minimizes the error.
-    """
-    H_best, Ireg_best, err_best = None, None, None
-    scale_best = None
-    for scale in scales:
-        H, Ireg, err = imagesAlign(I, Iref, fillval=1, type='rigid', rszFac=scale)
-        if err_best == None or err < err_best:
-            H_best = H
-            Ireg_best = Ireg
-            err_best = err
-            scale_best = scale
-    return H_best, Ireg_best, err_best
-
 def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     """ Given an image I (voted) and a ref image Iref (blank), extracts
     boundingboxes given by BBS from I, performing local image alignment
@@ -125,37 +114,16 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
     Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
-
     t0=time.clock()
-    #H1, I1, err = imagesAlign(I,IrefM,fillval=1,type='rigid', rszFac=0.25)
+
     H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
-    #H1, I1, err = align_strong(Icrop, IrefM_crop)
+    I1 = imtransform(I, H1)
+    # align_strong does alignment on several scales, and chooses the best one
+    #H1, I1, err = global_align.align_strong(IrefM_crop, I)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
     pFac=7
-
-    '''
-    if '_077.png' in balP:
-        misc.imsave("_Iorig.png", I)
-        misc.imsave("_IrefOrig.png", Iref)
-        _I1 = np.nan_to_num(I1)
-        _IrefM_crop = np.nan_to_num(IrefM_crop)
-        misc.imsave("_Icrop.png", Icrop)
-        misc.imsave("_IrefM_crop.png", _IrefM_crop)
-        misc.imsave("_I1pre.png", _I1)
-    '''
-    
-    #Hc = correctH(Icrop, H1)
-    #rot = Hc[:2, :2]
-    #trans = Hc[:2, 2]
-    #trans_np = (-trans[1], -trans[0])
-    #I1 = scipy.ndimage.interpolation.affine_transform(I, rot, trans_np)
-    I1 = imtransform(I, H1)
-
-    #if '_077.png' in balP:
-    #    _f = np.nan_to_num(I1)
-    #    misc.imsave("_I1post.png", _f)
 
     # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
     #     then extract bb.
