@@ -2,6 +2,8 @@
 *.pyc
 *.so
 *.log
+*.swo
+*.swp
 nosetests.xml
 .coverage
 opencount/projects
