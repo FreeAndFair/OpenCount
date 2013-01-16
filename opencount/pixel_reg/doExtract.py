@@ -113,13 +113,16 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
     IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
-    Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
+    #Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
     t0=time.clock()
 
-    H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
-    I1 = imtransform(I, H1)
-    # align_strong does alignment on several scales, and chooses the best one
-    #H1, I1, err = global_align.align_strong(IrefM_crop, I)
+    # GlobalAlign (V1): Simple scheme.
+    #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
+    #I1 = imtransform(I, H1)
+
+    # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
+    #                   alignment on several scales, choosing the best one
+    H1, I1, err = global_align.align_strong(I, IrefM_crop)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
