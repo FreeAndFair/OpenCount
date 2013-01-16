@@ -26,19 +26,21 @@ class Vendor(object):
         VERIFYPATCHES_BBS: stores the locations of barcode patches that
             need to be verified by the user:
                 {str bc_val: [(str imgpath, (x1,y1,x2,y2), userinfo), ...]}
-            For instance, the keys to this dict could be '0' and '1'
-            for Sequoia, Diebold, and ES&S (indicating whitespace and
-            and timing marks respectively). USERINFO can be any additional
-            information that your decoder needs (for example, an integer
-            ID that records which digit this encodes).
+            For instance, the keys to this dict could be '0' and '1',
+            indicating absence/presence of marks.
+            USERINFO can be any additional information that your decoder
+            needs, or simply None. In many cases you won't need USERINFO,
+            but this is present to allow meta-data to flow from
+            Vendor.decode_ballots to Vendor.partition_ballots if need be.
         ERR_IMGPATHS: List of voted imgpaths that were unable to be 
-            successfully decoded. These will be handled specially.
+            successfully decoded. These will be handled specially, by
+            having the user manually enter the barcode values.
         """
         raise NotImplementedError("Implement your own decode_ballots.")
 
     def partition_ballots(self, verified_results, manual_labeled):
         """
-        Given the user-verified (and corrected) results of decode_ballots,
+        Given the user-verified, corrected results of Vendor.decode_ballots,
         output the partitioning.
 
         Input:
@@ -53,11 +55,15 @@ class Vendor(object):
             {int partitionID: [int ballotID_i, ...]}
         IMG2DECODING: stores barcode strings for each image as:
             {str imgpath: [str bc_i, ...]}
+            Note: IMG2DECODING maps each imgpath to a /tuple/ of 
+                  strings. This is to account for ballots where multiple
+                  barcodes may be present in a single image.
         IMAGE_INFO: stores meaningful info for each image:
                 {str imgpath: {str PROPNAME: str PROPVAL}}
             where PROPNAME could be 'page', 'party', 'precinct', etc.
-            The key 'page' must be present. 'page' should
-            map to an integer, i.e. 0,1 is 'Front', 'Back' respectively.
+            Note: The key 'page' /must/ be present, and should
+                  map to an integer. i.e. 0/1 is Front/Back
+                  respectively.
         """
         raise NotImplementedError("Implement your own partition_ballots.")
 
