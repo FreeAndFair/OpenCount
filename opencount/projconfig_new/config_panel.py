@@ -17,7 +17,6 @@ BALLOT_VENDORS = ("Hart", "es_s", "Sequoia")
 VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor}
 
-
 class ConfigPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
@@ -304,8 +303,6 @@ election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), sel
                 listbox.Append(imgpath + ": " + msg)
         if type == 'samples':
             # Assume that we first process the templates, then the samples last
-            TIMER.stop_task(('cpu', MainFrame.map_pages[MainFrame.CONFIG]['cpu']))
-            TIMER.start_task(('user', MainFrame.map_pages[MainFrame.CONFIG]['user']))
             self.parent.Enable()
 
     #### Event Handlers
@@ -317,8 +314,6 @@ election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), sel
             self.set_samplepath(dirpath)
                 
     def onButton_runsanitycheck(self, evt):
-        TIMER.stop_task(('user', MainFrame.map_pages[MainFrame.CONFIG]['user']))
-        TIMER.start_task(('cpu', MainFrame.map_pages[MainFrame.CONFIG]['cpu']))
         self.upper_scroll.Clear()
         self.lower_scroll.Clear()
         num_files = 0
