@@ -93,10 +93,12 @@ class GridShow(wx.ScrolledWindow):
         return z
 
     def get_meta(self, ballotid, page):
+        print ballotid #REMOVE
         if page not in self.bal2targets[ballotid]:
             _,_,_, imgmeta_path = self.bal2targets[ballotid].values()[0]
         else:
             _,_,_, imgmeta_path = self.bal2targets[ballotid][page]
+        print imgmeta_path #REMOVE
         return pickle.load(open(imgmeta_path, 'rb'))
 
     def sample_to_targets(self, ballotpath):
@@ -227,7 +229,7 @@ class GridShow(wx.ScrolledWindow):
             return x[:60]+"\n"+lines(x[60:])
 
         
-        templatepath = self.get_meta(self.img2bal[ballotpath], None)['template']
+        templatepath = self.get_meta(self.img2bal[ballotpath], page)['template']
         wx.StaticText(pan, label="Ballot image:\n"+lines(ballotpath)+"\n\nTemplate image:\n"+lines(templatepath)+"\n\nTarget image:\n"+lines(targetpath)+ifflipped, 
                       pos=(before.size[0],before.size[1]/3))
 
