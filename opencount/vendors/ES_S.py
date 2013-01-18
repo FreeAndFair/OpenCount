@@ -46,6 +46,8 @@ class ESSVendor(Vendor):
                            {str bc_val: [(str imgpath, (x1,y1,x2,y2), ), ...]}
             err_imgpaths : list of unsuccessfully decoded imgpaths that
                            will be handled specially
+            ioerr_imgpaths : list of imgpaths that were unable to be read
+                             by OpenCV.
         """
 
         mark_path = MARK
@@ -54,6 +56,7 @@ class ESSVendor(Vendor):
         flip_map = {}  # {imgpath: is_flipped}
         bbs_map = {}   # {bit_value: [(imgpath, (x1,y1,x2,y2), None), ...]}
         err_imgpaths = []
+        ioerr_imgpaths = [] # TODO: Populate me if IOErrors occur!
         counter = 0
         for ballotid, decoded_results in decoded_results.iteritems():
             imgpaths = ballots[ballotid]
@@ -69,7 +72,7 @@ class ESSVendor(Vendor):
                             tup = (imgpath, box, counter)
                             bbs_map.setdefault(bit_value, []).append(tup)
                             counter += 1
-        return flip_map, bbs_map, err_imgpaths
+        return flip_map, bbs_map, err_imgpaths, ioerr_imgpaths
 
     def partition_ballots(self, verified_results, manual_labeled):
         """
