@@ -25,7 +25,7 @@ class SequoiaVendor(Vendor):
                                                                                                   sequoia.ONE_IMGPATH,
                                                                                                   sequoia.SIDESYM_IMGPATH),
                                                                                            combfn=_combfn,
-                                                                                           init=({}, {}, [], {}),
+                                                                                           init=({}, {}, [], [], {}),
                                                                                            manager=manager,
                                                                                            pass_queue=queue,
                                                                                            N=None)
@@ -189,11 +189,13 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
             try:
                 I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
             except IOError as e:
+                print 'IOERROR:', imgpath0
                 ioerr_imgpaths.add(imgpath0)
                 is_ioerror = True
             try:
                 I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
             except IOError as e:
+                print 'IOERROR:', imgpath1
                 ioerr_imgpaths.add(imgpath1)
                 is_ioerror = True
             if is_ioerror:

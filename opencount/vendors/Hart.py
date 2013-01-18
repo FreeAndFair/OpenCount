@@ -132,6 +132,6 @@ def decode_ballots(ballots, topbot_paths, manager, queue):
                                          combfn='dict',
                                          manager=manager,
                                          pass_queue=queue,
-                                         N=1)
+                                         N=None)
     print '...finished decoding...'
     return decoded_results

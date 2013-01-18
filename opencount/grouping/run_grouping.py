@@ -333,4 +333,4 @@ def get_ioerr_bals(proj):
     """
     ioerr_bals = pickle.load(open(pathjoin(proj.projdir_path,
                                            proj.partition_ioerr), 'rb'))
-    return list(set(discarded_bals))
+    return list(set(ioerr_bals))
