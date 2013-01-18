@@ -157,7 +157,7 @@ class RunGroupingMainPanel(wx.Panel):
                 for (subpatchP, exmplpath, (x1,y1,x2,y2)) in exmpls:
                     patches.setdefault(exmplpath, []).append([(y1,y2,x1,x2), attrtype, attrval, side])
         # Grab the quarantined/discarded ballot ids
-        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj)
+        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
         print "...Running Extract Attrvals..."
         patchDestDir_root = pathjoin(self.proj.projdir_path, 'grp_outpatches')
         t = time.time()
@@ -326,4 +326,11 @@ def get_discarded_bals(proj):
     """
     discarded_bals = pickle.load(open(pathjoin(proj.projdir_path,
                                                proj.partition_discarded), 'rb'))
+    return list(set(discarded_bals))
+def get_ioerr_bals(proj):
+    """ Returns a list of all ballotids that had some image that was
+    unable to be read by OpenCount (during Partitioning).
+    """
+    ioerr_bals = pickle.load(open(pathjoin(proj.projdir_path,
+                                           proj.partition_ioerr), 'rb'))
     return list(set(discarded_bals))

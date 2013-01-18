@@ -19,19 +19,19 @@ class SequoiaVendor(Vendor):
         self.proj = proj
 
     def decode_ballots(self, ballots, manager=None, queue=None):
-        flipmap, mark_bbs_map, err_imgpaths, backsmap = partask.do_partask(_decode_ballots,
-                                                                           ballots,
-                                                                           _args=(sequoia.ZERO_IMGPATH,
-                                                                                  sequoia.ONE_IMGPATH,
-                                                                                  sequoia.SIDESYM_IMGPATH),
-                                                                           combfn=_combfn,
-                                                                           init=({}, {}, [], {}),
-                                                                           manager=manager,
-                                                                           pass_queue=queue,
-                                                                           N=None)
+        flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths, backsmap = partask.do_partask(_decode_ballots,
+                                                                                           ballots,
+                                                                                           _args=(sequoia.ZERO_IMGPATH,
+                                                                                                  sequoia.ONE_IMGPATH,
+                                                                                                  sequoia.SIDESYM_IMGPATH),
+                                                                                           combfn=_combfn,
+                                                                                           init=({}, {}, [], {}),
+                                                                                           manager=manager,
+                                                                                           pass_queue=queue,
+                                                                                           N=None)
         # BACKSMAP: maps {int ballotID: [imgpath_i, ...]}
         self.backsmap = backsmap
-        return (flipmap, mark_bbs_map, err_imgpaths)
+        return (flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths)
 
     def partition_ballots(self, verified_results, manual_labeled):
         """
@@ -119,22 +119,23 @@ def get_imginfo(decodings):
     return {}
 
 def _combfn(a, b):
-    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, backsmap_a = a
-    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, backsmap_b = b
+    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerr_imgpaths_a, backsmap_a = a
+    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerr_imgpaths_b, backsmap_b = b
     flipmap_out = dict(flipmap_a.items() + flipmap_b.items())
     mark_bbs_map_out = mark_bbs_map_a
     for marktype, tups in mark_bbs_map_b.iteritems():
         mark_bbs_map_out.setdefault(marktype, []).extend(tups)
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
+    ioerrs_imgpaths_out = ioerr_imgpaths_a + ioerr_imgpaths_b
     backs_map_out = dict(backsmap_a.items() + backsmap_b.items())
-    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, backs_map_out)
+    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_imgpaths_out, backs_map_out)
 
 def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path), queue=None):
     """
     Input:
         dict BALLOTS: {int ballotID: [imgpath_i, ...]}
     Output:
-        (dict flipmap, dict mark_bbs, list err_imgpaths, dict backsmap)
+        (dict flipmap, dict mark_bbs, list err_imgpaths, list ioerr_imgpaths, dict backsmap)
     Since backsides do not really have barcodes, and I detect the 
     front/back by the ISIDESYM mark, back sides are handled differently.
     If an image I is found to be a backside, it will be added to the
@@ -143,115 +144,124 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
     imgpaths not present in the VERIFIED_RESULTS, but present in the
     FLIPMAP, are back-side images. 
     """
-    try:
-        flipmap = {}
-        mark_bbs_map = {} # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}
-        err_imgpaths = set()
-        Itemp0 = cv.LoadImage(template_path_zero, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        Itemp1 = cv.LoadImage(template_path_one, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        IsymA = cv.LoadImage(sequoia.SYMA_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        IsymB = cv.LoadImage(sequoia.SYMB_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        IsymC = cv.LoadImage(sequoia.SYMC_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        IsymD = cv.LoadImage(sequoia.SYMD_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        IsymE = cv.LoadImage(sequoia.SYME_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        # Rescale to current image resolution
-        exmpl_imgsize = cv.GetSize(cv.LoadImage(ballots.values()[0][0], cv.CV_LOAD_IMAGE_UNCHANGED))
-        if exmpl_imgsize != (sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H):
-            print "...rescaling template patches to match current resolution..."
-            Itemp0 = sequoia.rescale_img(Itemp0, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                         exmpl_imgsize[0], exmpl_imgsize[1])
-            Itemp1 = sequoia.rescale_img(Itemp1, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                         exmpl_imgsize[0], exmpl_imgsize[1])
-            IsymA = sequoia.rescale_img(IsymA, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                        exmpl_imgsize[0], exmpl_imgsize[1])
-            IsymB = sequoia.rescale_img(IsymB, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                        exmpl_imgsize[0], exmpl_imgsize[1])
-            IsymC = sequoia.rescale_img(IsymC, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                        exmpl_imgsize[0], exmpl_imgsize[1])
-            IsymD = sequoia.rescale_img(IsymD, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                        exmpl_imgsize[0], exmpl_imgsize[1])
-            IsymE = sequoia.rescale_img(IsymE, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
-                                        exmpl_imgsize[0], exmpl_imgsize[1])
+    flipmap = {}
+    mark_bbs_map = {} # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+    err_imgpaths = set()
+    ioerr_imgpaths = set()
+    Itemp0 = cv.LoadImage(template_path_zero, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Itemp1 = cv.LoadImage(template_path_one, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    IsymA = cv.LoadImage(sequoia.SYMA_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    IsymB = cv.LoadImage(sequoia.SYMB_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    IsymC = cv.LoadImage(sequoia.SYMC_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    IsymD = cv.LoadImage(sequoia.SYMD_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    IsymE = cv.LoadImage(sequoia.SYME_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    # Rescale to current image resolution
+    exmpl_imgsize = cv.GetSize(cv.LoadImage(ballots.values()[0][0], cv.CV_LOAD_IMAGE_UNCHANGED))
+    if exmpl_imgsize != (sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H):
+        print "...rescaling template patches to match current resolution..."
+        Itemp0 = sequoia.rescale_img(Itemp0, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                     exmpl_imgsize[0], exmpl_imgsize[1])
+        Itemp1 = sequoia.rescale_img(Itemp1, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                     exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymA = sequoia.rescale_img(IsymA, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                    exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymB = sequoia.rescale_img(IsymB, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                    exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymC = sequoia.rescale_img(IsymC, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                    exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymD = sequoia.rescale_img(IsymD, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                    exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymE = sequoia.rescale_img(IsymE, sequoia.ORIG_IMG_W, sequoia.ORIG_IMG_H,
+                                    exmpl_imgsize[0], exmpl_imgsize[1])
 
-        Itemp0 = tempmatch.smooth(Itemp0, 3, 3, bordertype='const', val=255.0)
-        Itemp1 = tempmatch.smooth(Itemp1, 3, 3, bordertype='const', val=255.0)
-        IsymA = tempmatch.smooth(IsymA, 3, 3, bordertype='const', val=255.0)
-        IsymB = tempmatch.smooth(IsymB, 3, 3, bordertype='const', val=255.0)
-        IsymC = tempmatch.smooth(IsymC, 3, 3, bordertype='const', val=255.0)
-        IsymD = tempmatch.smooth(IsymD, 3, 3, bordertype='const', val=255.0)
-        IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
-        backsmap = {} # maps {ballotid: [backpath_i, ...]}
-        for ballotid, imgpaths in ballots.iteritems():
-            fronts, backs = [], []
-            for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
+    Itemp0 = tempmatch.smooth(Itemp0, 3, 3, bordertype='const', val=255.0)
+    Itemp1 = tempmatch.smooth(Itemp1, 3, 3, bordertype='const', val=255.0)
+    IsymA = tempmatch.smooth(IsymA, 3, 3, bordertype='const', val=255.0)
+    IsymB = tempmatch.smooth(IsymB, 3, 3, bordertype='const', val=255.0)
+    IsymC = tempmatch.smooth(IsymC, 3, 3, bordertype='const', val=255.0)
+    IsymD = tempmatch.smooth(IsymD, 3, 3, bordertype='const', val=255.0)
+    IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
+    backsmap = {} # maps {ballotid: [backpath_i, ...]}
+    for ballotid, imgpaths in ballots.iteritems():
+        fronts, backs = [], []
+        for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
+            is_ioerror = False
+            try:
                 I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            except IOError as e:
+                ioerr_imgpaths.add(imgpath0)
+                is_ioerror = True
+            try:
                 I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
-                side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
-                side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD, IsymE)
-                if side0 == None and side1 == None:
-                    # Something crazy happened, run!
-                    err_imgpaths.add(imgpath0)
-                    err_imgpaths.add(imgpath1)
-                    if queue:
-                        queue.put(True)
-                    print "Craziness here, run!"
-                    continue
-                if side0 != None:
-                    flipmap[imgpath0] = isflip0
-                if side1 != None:
-                    flipmap[imgpath1] = isflip1
-                frontside = None
-                if side0 == 0:
-                    Ifront = I0
-                    frontside = 0
-                    imP_front = imgpath0
-                    cv.ResetImageROI(Ifront)
-                    if isflip0:
-                        cv.Flip(Ifront, Ifront, flipMode=-1)
-                else:
-                    Ifront = I1
-                    frontside = 1
-                    imP_front = imgpath1
-                    cv.ResetImageROI(Ifront)
-                    if isflip1:
-                        cv.Flip(Ifront, Ifront, flipMode=-1)
-                decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imP_front)
-                cv.ResetImageROI(Ifront)
-                if decodings == None:
-                    # Something crazy happened.
-                    err_imgpaths.add(imgpath0)
-                    err_imgpaths.add(imgpath1)
-                    if queue:
-                        queue.put(True)
-                    print "Craziness here, decodings == None"
-                    continue
-                elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
-                    err_imgpaths.add(imgpath0)
-                    err_imgpaths.add(imgpath1)
-                else:
-                    if frontside == 0 and side1 == None:
-                        # imgpath1 must be an empty backside.
-                        backs.append(imgpath1)
-                        flipmap[imgpath1] = False # Anything is fine
-                    elif frontside == 1 and side0 == None:
-                        # imgpath 0 must be an empty backside.
-                        backs.append(imgpath0)
-                        flipmap[imgpath0] = False
-                    elif frontside == 0:
-                        backs.append(imgpath1)
-                    elif frontside == 1:
-                        backs.append(imgpath0)
-                    for marktype, tups in mark_locs.iteritems():
-                        mark_bbs_map.setdefault(marktype, []).extend(tups)
-                    fronts.append(imgpath0)
-                if queue: 
-                    queue.put(True)
-            backsmap[ballotid] = backs
+            except IOError as e:
+                ioerr_imgpaths.add(imgpath1)
+                is_ioerror = True
+            if is_ioerror:
+                continue
 
-        return flipmap, mark_bbs_map, list(err_imgpaths), backsmap
-    except:
-        traceback.print_exc()
-        pdb.set_trace()
+            side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
+            side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD, IsymE)
+            if side0 == None and side1 == None:
+                # Something crazy happened, run!
+                err_imgpaths.add(imgpath0)
+                err_imgpaths.add(imgpath1)
+                if queue:
+                    queue.put(True)
+                print "Craziness here, run!"
+                continue
+            if side0 != None:
+                flipmap[imgpath0] = isflip0
+            if side1 != None:
+                flipmap[imgpath1] = isflip1
+            frontside = None
+            if side0 == 0:
+                Ifront = I0
+                frontside = 0
+                imP_front = imgpath0
+                cv.ResetImageROI(Ifront)
+                if isflip0:
+                    cv.Flip(Ifront, Ifront, flipMode=-1)
+            else:
+                Ifront = I1
+                frontside = 1
+                imP_front = imgpath1
+                cv.ResetImageROI(Ifront)
+                if isflip1:
+                    cv.Flip(Ifront, Ifront, flipMode=-1)
+            decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imP_front)
+            cv.ResetImageROI(Ifront)
+            if decodings == None:
+                # Something crazy happened.
+                err_imgpaths.add(imgpath0)
+                err_imgpaths.add(imgpath1)
+                if queue:
+                    queue.put(True)
+                print "Craziness here, decodings == None"
+                continue
+            elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
+                err_imgpaths.add(imgpath0)
+                err_imgpaths.add(imgpath1)
+            else:
+                if frontside == 0 and side1 == None:
+                    # imgpath1 must be an empty backside.
+                    backs.append(imgpath1)
+                    flipmap[imgpath1] = False # Anything is fine
+                elif frontside == 1 and side0 == None:
+                    # imgpath 0 must be an empty backside.
+                    backs.append(imgpath0)
+                    flipmap[imgpath0] = False
+                elif frontside == 0:
+                    backs.append(imgpath1)
+                elif frontside == 1:
+                    backs.append(imgpath0)
+                for marktype, tups in mark_locs.iteritems():
+                    mark_bbs_map.setdefault(marktype, []).extend(tups)
+                fronts.append(imgpath0)
+            if queue: 
+                queue.put(True)
+        backsmap[ballotid] = backs
+
+    return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
 
 def by_n_gen(seq, n):
     i = 0

@@ -259,12 +259,14 @@ repeat.", 100)
             def run(self):
                 t = time.time()
                 print "...Running Decoding ({0} ballots)...".format(len(self.b2imgs))
-                flipmap, verifypatch_bbs, err_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
+                # Pass in self.manager and self.queue to allow cross-process 
+                # communication (for multiprocessing)
+                flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
                 dur = time.time() - t
                 print "...Done Decoding Ballots ({0} s).".format(dur)
                 print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
-                wx.CallAfter(self.callback, flipmap, verifypatch_bbs, err_imgpaths)
+                wx.CallAfter(self.callback, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
             def __init__(self, queue, jobid, *args, **kwargs):
@@ -305,16 +307,22 @@ repeat.", 100)
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
         
-    def on_decodedone(self, flipmap, verifypatch_bbs, err_imgpaths):
+    def on_decodedone(self, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
         Input:
             dict FLIPMAP: {imgpath: bool isFlipped}
             dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
             list ERR_IMGPATHS:
+                List of images that the decoder was unable to decode
+                with high certainty.
+            list IOERR_IMGPATHS: 
+                List of images that were unable to be read by OpenCount
+                due to a read/load error (e.g. IOError).
         """
         print "...Decoding Done!"
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
-
+        print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
+        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         if err_imgpaths:
             dlg = LabelDialog(self, err_imgpaths)
             status = dlg.ShowModal()
@@ -324,31 +332,71 @@ repeat.", 100)
         else:
             self.errs_corrected = {}
             self.errs_flipmap = {}
+        if ioerr_imgpaths:
+            self.ioerr_imgpaths = ioerr_imgpaths
+            errpath = os.path.join(self.proj.projdir_path, 
+                                   'ioerr_imgpaths.txt')
+            dlg = wx.MessageDialog(self, message="Warning: {0} images \
+were unable to be read by OpenCount. These images (and associated \
+images from that ballot) will not be processed by further steps of the \
+OpenCount pipeline. \n\
+The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath),
+                                   style=wx.ID_OK)
+            dlg.ShowModal()
+            try:
+                with open(errpath, 'w') as errf:
+                    errf = open(errpath, 'w')
+                    print >>errf, "==== Images that could not be read by OpenCount ===="
+                    for ioerr_imgpath in ioerr_imgpaths:
+                        print >>errf, ioerr_imgpath
+            except IOError as e:
+                print "...Warning: Unable to write ioerr_imgpaths to:", errpath
+        else:
+            self.ioerr_imgpaths = []
+        # Output all ioerr ballot ids for future stages to be aware
+        ioerr_balids = set()
+        for ioerr_imgpath in self.ioerr_imgpaths:
+            ioerr_balids.add(img2bal[ioerr_imgpath])
+        pickle.dump(ioerr_balids, open(pathjoin(self.proj.projdir_path,
+                                                self.proj.partition_ioerr), 'wb'))
+        
+        def nuke_ballot(ballotid, verifypatch_bbs, flipmap):
+            """ Removes all images from BALLOTID from the relevant
+            data structs VERIFYPATCH_BBS and FLIPMAP.
+            Mutates input VERIFYPATCH_BBS, FLIPMAP.
+            """
+            for bc_val, tups in verifypatch_bbs.iteritems():
+                i = 0
+                while i < len(tups):
+                    tup_imP, tup_bb, tup_userdata = tups[i]
+                    tup_balid = img2bal[tup_imP]
+                    if tup_balid == ballotid:
+                        tups.pop(i)
+                    else:
+                        i += 1
+            for flipmap_imP in flipmap.keys():
+                flipmap_bid = img2bal[flipmap_imP]
+                if flipmap_bid == ballotid:
+                    flipmap.pop(flipmap_imP)
+            return verifypatch_bbs, flipmap
 
         # For a ballot B in ERRS_CORRECTED, if any of its sides was
         # quarantined/discarded, then don't process the rest of B.
-        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+
         for imgpath, label in self.errs_corrected.iteritems():
             ballotid = img2bal[imgpath]
             if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
                 # Remove all mentions of this ballot from relevant data structs
-                for bc_val, tups in verifypatch_bbs.iteritems():
-                    i = 0
-                    while i < len(tups):
-                        tup_imP, tup_bb, tup_userdata = tups[i]
-                        tup_balid = img2bal[tup_imP]
-                        if tup_balid == ballotid:
-                            tups.pop(i)
-                        else:
-                            i += 1
-                for flipmap_imP in flipmap.keys():
-                    flipmap_bid = img2bal[flipmap_imP]
-                    if flipmap_bid == ballotid:
-                        flipmap.pop(flipmap_imP)
+                verifypatch_bbs, flipmap = nuke_ballot(ballotid, verifypatch_bbs, flipmap)
             if label == LabelDialog.ID_Quarantine:
                 self.quarantine_ballot(ballotid)
             elif label == LabelDialog.ID_Discard:
                 self.discard_ballot(ballotid)
+        # For a ballot B that had an image in IOERR_IMGPATHS, nuke
+        # the rest of the images in B - the entire ballot B is hosed.
+        for imgpath in self.ioerr_imgpaths:
+            ballotid = img2bal[imgpath]
+            verifypatch_bbs, flipmap = nuke_ballot(ballotid, verifypatch_bbs, flipmap)
 
         self.start_verify(flipmap, verifypatch_bbs)
 

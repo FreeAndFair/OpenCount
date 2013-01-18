@@ -225,8 +225,26 @@ election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), sel
         if len(image_to_ballot) == 0:
             print "Everything is going to break. OpenCount didn't find any ballots."
             return
-        I = cv.LoadImage(image_to_ballot.keys()[0], cv.CV_LOAD_IMAGE_UNCHANGED)
-        w, h = cv.GetSize(I)
+        w, h = None, None
+        for imgpath in image_to_ballot.keys():
+            if w != None:
+                break
+            try:
+                I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+                w, h = cv.GetSize(I)
+            except IOError as e:
+                pass
+        if w == None:
+            dlg = wx.MessageDialog(self, message="Fatal Error: OpenCount \
+couldn't open any of the ballot images in {0}. Processing can not continue. \
+If you believe the images are in fact not corrupt, you could try converting \
+all images to new PNG images, in the hopes of OpenCV being able to read the \
+new images.".format(self.project.voteddir),
+                                   style=wx.ID_OK)
+            dlg.ShowModal()
+            print "==== Fatal Error ===="
+            exit(1)
+            
         self.project.imgsize = (w, h)
         # 4.) Set project.is_multipage
         if int(self.numpages_txtctrl.GetValue()) >= 2:

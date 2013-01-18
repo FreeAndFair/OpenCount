@@ -41,9 +41,14 @@ class HartVendor(Vendor):
         flipmap = {} # maps {imgpath: bool isFlipped}
         bbstripes_map = {} # maps {'wideNarrow': [(str imgpath, (x1,y1,x2,y2), int id), ...], ...}
         err_imgpaths = []
+        ioerr_imgpaths = []
         for ballotid, decoded_results in decoded_results_map.iteritems():
             imgpaths = ballots[ballotid]
-            for i, (bcs, isflipped, bbs, bbstripes_dict) in enumerate(decoded_results):
+            for i, subtuple in enumerate(decoded_results):
+                if issubclass(type(subtuple), IOError):
+                    ioerr_imgpaths.append(subtuple.filename)
+                    continue
+                bcs, isflipped, bbs, bbstripes_dict = subtuple
                 imgpath = imgpaths[i]
                 flipmap[imgpath] = isflipped
                 bc_ul = bcs[0]
@@ -62,7 +67,7 @@ class HartVendor(Vendor):
                         for (x1,y1,x2,y2) in bbstripes:
                             bbstripe_idx = stripe_y1s.index(y1)
                             bbstripes_map.setdefault(label, []).append((imgpath, (x1,y1,x2,y2), bbstripe_idx))
-        return flipmap, bbstripes_map, err_imgpaths
+        return flipmap, bbstripes_map, err_imgpaths, ioerr_imgpaths
 
     def partition_ballots(self, verified_results, manual_labeled):
         partitions = {} # maps {partitionID: [int ballotID, ...]}
@@ -103,35 +108,30 @@ class HartVendor(Vendor):
         return 'HartVendor()'
 
 def _do_decode_ballots(ballots, (topbot_paths,), queue=None):
-    try:
-        cvread = lambda imP: cv.LoadImage(imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        topbot_pairs = [[cvread(topbot_paths[0][0]), cvread(topbot_paths[0][1])],
-                        [cvread(topbot_paths[1][0]), cvread(topbot_paths[1][1])]]
-        results = {}
-        for ballotid, imgpaths in ballots.iteritems():
-            balresults = []
-            for imgpath in imgpaths:
+    cvread = lambda imP: cv.LoadImage(imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    topbot_pairs = [[cvread(topbot_paths[0][0]), cvread(topbot_paths[0][1])],
+                    [cvread(topbot_paths[1][0]), cvread(topbot_paths[1][1])]]
+    results = {} # maps {int ballotid: [(bcs_side0, isflipped_side0, bbs_side0, bbstripes_side0), ...]}
+    for ballotid, imgpaths in ballots.iteritems():
+        balresults = []
+        for imgpath in imgpaths:
+            try:
                 bcs, isflipped, bbs, bbstripes_dict = hart.decode(imgpath, topbot_pairs)
-                balresults.append((bcs, isflipped, bbs, bbstripes_dict))
-            results[ballotid] = balresults
-            if queue:
-                queue.put(True)
-        return results
-    except:
-        traceback.print_exc()
+                balresults.append((bcs, isflipped, bbs, bbstripes_dict))                
+            except IOError as e:
+                balresults.append(e)
+        results[ballotid] = balresults
+        if queue:
+            queue.put(True)
+    return results
 
 def decode_ballots(ballots, topbot_paths, manager, queue):
-    try:
-        decoded_results = partask.do_partask(_do_decode_ballots,
-                                             ballots,
-                                             _args=(topbot_paths,),
-                                             combfn='dict',
-                                             manager=manager,
-                                             pass_queue=queue,
-                                             N=None)
-        print 'finished decoding:'
-        return decoded_results
-    except:
-        traceback.print_exc()
-        return None
-
+    decoded_results = partask.do_partask(_do_decode_ballots,
+                                         ballots,
+                                         _args=(topbot_paths,),
+                                         combfn='dict',
+                                         manager=manager,
+                                         pass_queue=queue,
+                                         N=1)
+    print '...finished decoding...'
+    return decoded_results

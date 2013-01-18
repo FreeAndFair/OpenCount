@@ -151,6 +151,7 @@ class Project(object):
                      'barcode_bbs_map': 'barcode_bbs_map.p',
                      'partition_quarantined': 'partition_quarantined.p',
                      'partition_discarded': 'partition_discarded.p',
+                     'partition_ioerr': 'partition_ioerr.p',
                      'partition_attrmap': 'partition_attrmap.p',
                      'attrprops': 'attrprops.p',
                      'target_locs_map': 'target_locs_map.p',

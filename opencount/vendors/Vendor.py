@@ -19,7 +19,8 @@ class Vendor(object):
         Output:
             (dict FLIP_MAP,
              dict VERIFYPATCH_BBS,
-             list ERR_IMGPATHS)
+             list ERR_IMGPATHS,
+             list IOERR_IMGPATHS)
 
         FLIP_MAP: stores whether an image is flipped or not:
             {str imgpath: bool isFlipped}
@@ -35,6 +36,9 @@ class Vendor(object):
         ERR_IMGPATHS: List of voted imgpaths that were unable to be 
             successfully decoded. These will be handled specially, by
             having the user manually enter the barcode values.
+        IOERR_IMGPATHS: List of voted imgpaths that were unable to be
+            read/loaded (i.e. IOError). OpenCount will set these aside
+            separately (along with its associated images, if any).
         """
         raise NotImplementedError("Implement your own decode_ballots.")
 
