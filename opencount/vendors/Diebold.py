@@ -74,7 +74,7 @@ class DieboldVendor(Vendor):
             if ballotid in history:
                 continue
             imgpaths = bal2imgs[ballotid]
-            imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imgP]['page'])
+            imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
             decodings_ordered = tuple([img2decoding[imP] for imP in imgpaths_ordered])
             partitionid = decoding2partition.get(decodings_ordered, None)
             if partitionid == None:
