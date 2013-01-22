@@ -457,6 +457,8 @@ class GridShow(wx.ScrolledWindow):
         self.img2flip = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_flip), 'rb'))
         self.bal2targets = pickle.load(open(pathjoin(proj.projdir_path, proj.ballot_to_targets), 'rb'))
 
+        self.somethingHasChanged = False
+
         self.prefix = open(self.proj.classified+".prefix").read()
         
         self.parent = parent
