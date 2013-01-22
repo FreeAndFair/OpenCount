@@ -109,6 +109,7 @@ def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywi
 
 def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
                     xwinI=13, ywinI=13, MAX_MATS=50, prevmatches=None,
+                    DELT=0.5,
                     atleastone=False, jobid=None):
     """ Runs template matching, trying to find image A within each image
     in IMGPATHS. Returns location (and responses) of all matches greater than
@@ -117,7 +118,9 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
         IplImage A:
         list IMGPATHS:
         dict IMG2FLIP: maps {str imgpath: bool isflipped}
-        float T:
+        float T: Template-matching sensitivity
+        float DELT: How much we should perform non-maximal suppression,
+            on each axis.
         dict PREVMATCHES: maps {str imgpath: [(x1,y1,x2,y2), ...]}
     Output:
         dict MATCHES, of the form {str imgpath: [(x1, y1, x2, y2, float score), ...]}
@@ -150,10 +153,10 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
         prevmats = prevmatches.get(imgpath, []) if prevmatches else []
         for (x1,y1,x2,y2) in prevmats:
             #print 'suppressing: {0} at {1}'.format(imgpath, (x1, y1))
-            _x1 = max(0, int(x1 - (wA / 2)))
-            _y1 = max(0, int(y1 - (hA / 2)))
-            _x2 = min(M_np.shape[1], int(x1 + (wA / 2)))
-            _y2 = min(M_np.shape[0], int(y1 + (hA / 2)))
+            _x1 = max(0, int(x1 - max(1, (wA * DELT))))
+            _y1 = max(0, int(y1 - max(1, (hA * DELT))))
+            _x2 = min(M_np.shape[1], int(x1 + max(1, (wA * DELT))))
+            _y2 = min(M_np.shape[0], int(y1 + max(1, (hA * DELT))))
             M_np[_y1:_y2, _x1:_x2] = -1.0
         score = np.inf
         #print 'best score:', np.max(M_np)
@@ -168,10 +171,10 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
                 break
             matches.append((j, i, j+wA, i+hA, score))
             # Suppression
-            _x1 = max(0, int(j - (wA / 2)))
-            _y1 = max(0, int(i - (hA / 2)))
-            _x2 = min(M_np.shape[1], int(j + (wA / 2)))
-            _y2 = min(M_np.shape[0], int(i + (hA / 2)))
+            _x1 = max(0, int(j - max(1, (wA * DELT))))
+            _y1 = max(0, int(i - max(1, (hA * DELT))))
+            _x2 = min(M_np.shape[1], int(j + max(1, (wA * DELT))))
+            _y2 = min(M_np.shape[0], int(i + max(1, (hA * DELT))))
             M_np[_y1:_y2, _x1:_x2] = -1.0
             #M_np[i-(hA/2):i+(hA/2),
             #     j-(wA/2):j+(wA/2)] = -1.0
@@ -190,6 +193,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
 
 def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                    xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
+                                   DELT,
                                    atleastone, jobid)):
     result = {}
     A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
@@ -198,6 +202,7 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
         results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, do_smooth=do_smooth, xwinA=xwinA, 
                                   ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
                                   prevmatches=prevmatches,
+                                  DELT=DELT,
                                   jobid=jobid)
     except:
         traceback.print_exc()
@@ -207,6 +212,7 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
 def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, 
                         xwinA=13, ywinA=13, xwinI=13, ywinI=13,
                         MAX_MATS=50, prevmatches=None,
+                        DELT=0.5,
                         atleastone=False, NP=None, jobid=None):
     """ For each img in IMGPATHS, template match for A, using NP processes.
     A multiprocessing wrapper for get_tempmatches (see doc for get_tempmatches
@@ -225,6 +231,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
         result = partask.do_partask(_do_get_tempmatches, imgpaths,
                                     _args=(A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                            xwinI, ywinI, w, h, MAX_MATS, prevmatches,
+                                           DELT,
                                            atleastone, jobid),
                                     combfn='dict', singleproc=False)
     except Exception as e:

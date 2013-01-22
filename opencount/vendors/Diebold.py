@@ -23,7 +23,8 @@ except NameError:
     # This script is being run directly
     MYDIR = os.path.abspath(sys.path[0])
 
-TEMPLATE_PATH = pathjoin(MYDIR, 'diebold-mark.jpg')
+TEMPLATE_PATH = pathjoin(MYDIR, 'diebold_mark.png')
+COLMARK_PATH = pathjoin(MYDIR, 'diebold_colmark.png')
 
 ON = 'ON'
 OFF = 'OFF'
@@ -35,12 +36,12 @@ class DieboldVendor(Vendor):
     def decode_ballots(self, ballots, manager=None, queue=None):
         return partask.do_partask(_decode_ballots,
                                   ballots,
-                                  _args=(TEMPLATE_PATH,),
+                                  _args=(TEMPLATE_PATH, COLMARK_PATH),
                                   combfn=_combfn,
-                                  init=({}, {}, []),
+                                  init=({}, {}, [], []),
                                   manager=manager,
                                   pass_queue=queue,
-                                  N=1)
+                                  N=None)
 
     def partition_ballots(self, verified_results, manual_labeled):
         partitions = {}
@@ -64,8 +65,8 @@ class DieboldVendor(Vendor):
             img2decoding[imgpath] = (decoding,)
             imginfo_map[imgpath] = get_imginfo(decoding)
 
-        img2bal = pickle.load(self.proj.image_to_ballot)
-        bal2imgs = pickle.load(self.proj.ballot_to_images)
+        img2bal = pickle.load(open(self.proj.image_to_ballot))
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images))
         decoding2partition = {} # maps {(dec0, dec1, ...): int partitionID}
         curPartitionID = 0
         history = set()
@@ -141,16 +142,17 @@ def get_endercode(decoding):
     return decoding[21:32]
 
 def _combfn(a, b):
-    flipmap_a, mark_bbs_map_a, errs_imgpaths_a = a
-    flipmap_b, mark_bbs_map_b, errs_imgpaths_b = b
+    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerrs_a = a
+    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerrs_b = b
     flipmap_out = dict(flipmap_a.items() + flipmap_b.items())
     mark_bbs_map_out = mark_bbs_map_a
     for marktype, tups in mark_bbs_map_b.iteritems():
         mark_bbs_map_out.setdefault(marktype, []).extend(tups)
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
-    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out)
+    ioerrs_out = ioerrs_a + ioerrs_b
+    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_out)
 
-def _decode_ballots(ballots, (template_path,), queue=None):
+def _decode_ballots(ballots, (template_path, colpath), queue=None):
     """
     Input:
         dict BALLOTS: {int ballotID: [imgpath_i, ...]}
@@ -160,17 +162,25 @@ def _decode_ballots(ballots, (template_path,), queue=None):
     flipmap = {}
     mark_bbs_map = {}
     err_imgpaths = []
-    Itemp = cv.LoadImage(template_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    ioerr_imgpaths = []
+    Imark = cv.LoadImage(template_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Icol = cv.LoadImage(colpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     for ballotid, imgpaths in ballots.iteritems():
         for imgpath in imgpaths:
-            decoding, isflip, bbs = diebold_raw.decode(imgpath, Itemp)
+            try:
+                decoding, isflip, bbs = diebold_raw.decode(imgpath, Imark, Icol)
+            except IOError as e:
+                ioerr_imgpaths.append(imgpath)
+                continue
             if decoding == None:
                 err_imgpaths.append(imgpath)
             else:
                 flipmap[imgpath] = isflip
-                # TODO: Diebold decoder currently only outputs bbs of
-                # 'ON' timing marks.
-                mark_bbs_map.setdefault(ON, []).extend([(imgpath, bb, i) for (i, bb) in enumerate(bbs)])
+                # sort by x1 coordinate, left-to-right
+                bbs = sorted(bbs, key=lambda t: t[0])
+                for i, markval in enumerate(decoding):
+                    MYVAL = ON if markval == '1' else OFF
+                    mark_bbs_map.setdefault(MYVAL, []).append((imgpath, bbs[i], None))
             if queue:
                 queue.put(True)
-    return flipmap, mark_bbs_map, err_imgpaths
+    return flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths
