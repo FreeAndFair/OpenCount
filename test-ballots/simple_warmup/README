@@ -1,6 +1,22 @@
 This is a set of six (6) artificially-marked ballots, to be used as a 
 simple test dataset for OpenCount.
 
+The test images were created by manually adding voter marks in a simple
+image-editor program (Kolourpaint) to blank sample ballot images. 
+
+No voter data is present in this dataset.
+
+Expected OpenCount results can be found in:
+    results/election_results.txt
+    results/election_results_batches.txt
+    results/cvr/*
+
+========================================
+======== OpenCount Instructions ========
+========================================
+
+This section will take you through the OpenCount pipeline, step-by-step.
+
 ==== Project Configuration ====
 
 Voted Directory: 
@@ -166,3 +182,4 @@ CVR.
 
 If any issues arise, please don't hesitate to contact the OpenCount
 team.
+
