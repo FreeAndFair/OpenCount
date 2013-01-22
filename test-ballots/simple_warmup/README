@@ -9,6 +9,7 @@ No voter data is present in this dataset.
 Expected OpenCount results can be found in:
     results/election_results.txt
     results/election_results_batches.txt
+    results/cvr.csv
     results/cvr/*
 
 ========================================
