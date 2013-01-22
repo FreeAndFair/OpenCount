@@ -36,6 +36,11 @@ Ballot Vendor: Hart
 
 ==== Partition Ballots ====
 
+In this step, the voted ballots will be grouped by ballot layout, aka
+into a set of 'partitions'. All ballots in a partition P will have the
+same ballot layout. The partitioning is done by decoding barcode-like
+values on each ballot, and grouping ballots based on the decoded values.
+
 At the 'Partition Ballots' step, after you click the 'Run Partitioning...'
 button, a window will popup after some computation is done.
 
@@ -58,11 +63,51 @@ Here, you will, using your mouse, draw boxes around each voting target.
 Each time you draw a box around a box, OpenCount will try to automatically
 find other instances of the selected box on all ballots.
 
+The workflow should be similar to this:
+
+    a.) Select all voting targets (both filled and unfilled) on the
+        current side S of the current partition P.
+    b.) Once OpenCount has found all boxes on the current side S,
+        repeat (a) on the next side S+1. Repeat for all sides.
+    c.) Move onto the next partition P+1. Repeat steps (a), (b).
+
+Recall that each partition P contains ballots with the same ballot
+layout. As a result, when verifying if all voting targets have been
+found on a given side S in a partition P, you only need to look at
+one exemplar ballot image B from each partition. 
+
+To delete/move targets, click the "Modify" button on the button
+toolbar near the top. This will enter Modification mode.
+
+In Modification mode, you can select a target T by clicking on it.
+You can move selected targets by clicking and dragging per usual.
+You can delete a selected target by pressing the <DELETE> or
+<BACKSPACE> keys. Resizing targets is also possible.
+
+Finally, you can select multiple boxes by dragging a selection box:
+    a.) Click anywhere in the background
+    b.) While the mouse is still depressed, drag a selection box
+        around any number of targets
+    c.) Release the mouse. All target enclosed by the selection box
+        will be selected. This allows a convenient way to delete
+        multiple boxes at once.
+
+To go back to adding voting target boxes, click the 'Add Target' button.
+
 Once you have verified that all voting targets have been found, please
 click the 'Infer Contest Regions' button. This will automatically infer
 the contest bounding boxes. Once this computation is done, please verify
 that all contests are correctly demarcated. Then you may move onto the
 next step.
+
+'Force Add Target': If you want to force the system to add a voting target
+box at some location (or you want to add a target without running the
+automated target search), click the 'Force Add Target' button. In this
+mode, any boxes you add will not trigger the automated target search.
+
+'Add Contest': If, for some reason, the 'Infer Contest Regions' computation
+did not find all contests, you can manually add a contest box by clicking 
+the 'Add Contest' button. In this mode, you can create blue contest boxes.
 
 ==== Label Contests ====
 
