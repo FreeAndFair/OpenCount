@@ -1083,6 +1083,10 @@ class SplitGroup(Group):
                                                     do_align=True)
         dur = time.time() - t
         print "...Completed k-means ({0} s)".format(dur)
+        if len(clusters) != K:
+            print "...Warning: Kmeans only found {0} clusters, yet user \
+specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
             groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
@@ -1095,6 +1099,10 @@ class SplitGroup(Group):
         clusters = cluster_imgs.cluster_imgs_pca_kmeans(self.imgpaths, k=K, do_align=True)
         dur = time.time() - t
         print "...Completed PCA+k-means ({0} s)".format(dur)
+        if len(clusters) != K:
+            print "...Warning: PCA+Kmeans only found {0} clusters, yet user \
+specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
             groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
@@ -1108,6 +1116,10 @@ class SplitGroup(Group):
                                           do_align=True)
         dur = time.time() - t
         print "...Completed k-meansV2 ({0} s)".format(dur)
+        if len(clusters) != K:
+            print "...Warning: Kmeans2 only found {0} clusters, yet user \
+specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
             groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
@@ -1121,6 +1133,10 @@ class SplitGroup(Group):
                                             do_align=True)
         dur = time.time() - t
         print "...Completed k-mediods ({0} s)".format(dur)
+        if len(clusters) != K:
+            print "...Warning: Kmediods only found {0} clusters, yet user \
+specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
             groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
