@@ -67,8 +67,21 @@ class PartitionMainPanel(wx.Panel):
         for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
             pages_counter[imginfo['page']] += 1
         pages_norm_map = {} # maps {int decoderPage: int normPage}
+        _prev_count = None
+        flag_uneven_pages = False
         for i, decoderPage in enumerate(sorted(pages_counter.keys())):
+            print "...There are {0} images from side {1}...".format(pages_counter[decoderPage], decoderPage)
+            if _prev_count == None:
+                _prev_count = pages_counter[decoderPage]
+            if pages_counter[decoderPage] != _prev_count:
+                print "...Uhoh, detected uneven pages, might be problem..."
+                flag_uneven_pages = True
+            _prev_count = pages_counter[decoderPage]
             pages_norm_map[decoderPage] = i
+
+        #######################
+        #### Sanity Checks ####
+        #######################
 
         # 1.) Perform a few sanity checks if this is a single-sided 
         #     election. 
@@ -100,6 +113,36 @@ sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
                         else:
                             print "...discarding ballot {0}".format(img2b[imgpath])
                         handleballot(img2b[imgpath])
+        if not self.proj.is_varnum_pages and len(set(pages_norm_map.values())) != self.proj.num_pages:
+            print "...Warning: User specified this is an election with \
+{0} pages, yet partitioning only discovered {1} pages.".format(self.proj.num_pages,
+                                                               len(set(pages_norm_map.values())))
+            dlg = wx.MessageDialog(self, style=wx.ID_OK,
+                                   message="Warning: User specified that this \
+is an election with {0} pages, yet partitioning only discovered {1} pages.\n\
+Please go back and correct the 'Number of Pages' option in the previous step.".format(self.proj.num_pages,
+                                                                                      len(set(pages_norm_map.values()))))
+            dlg.ShowModal()
+            return
+
+        if not self.proj.is_varnum_pages and flag_uneven_pages:
+            _msg = 'Page Counts:\n'
+            for decoderPage in sorted(pages_counter.keys()):
+                _msg += '    Page {0}: {1}\n'.format(decoderPage, pages_counter[decoderPage])
+            print "...Warning: Uneven page numbers detected."
+            print _msg
+            dlg = wx.MessageDialog(self, style=wx.ID_OK,
+                                   message="Warning: OpenCount detected \
+an uneven number of images per side. This violates the assumption that \
+there are {0}-sides per ballot. \n\
+Is this perhaps an election with a variable-number of pages? \n\
+Or perhaps a few images are missing in the dataset? \n\
+You will not be able to proceed until you rectify this discrepancy.\
+The page counts are:\n{1}".format(self.proj.num_pages, _msg))
+            dlg.ShowModal()
+            return
+
+        #### END Sanity Checks
                         
         # 1.) Build up partitions_map, partitions_invmap
         # Note: self.partitionpanel.partitioning may have partitions
