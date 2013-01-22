@@ -13,6 +13,10 @@ import grouping.partask as partask
 
 from Vendor import Vendor
 
+from diebold_raw import get_checksum, get_precinct, get_cardnum, get_seqnum, \
+    get_startbit, get_day, get_month, get_year, get_electiontype, get_endercode, \
+    get_page
+
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
 # this script lives (which is important for loading resources like
@@ -92,10 +96,6 @@ class DieboldVendor(Vendor):
     def __str__(self):
         return 'DieboldVendor()'
 
-def get_page(decoding):
-    """ Back side always ends with 01111011110. """
-    return 0 if not get_endercode(decoding) == '01111011110' else 1
-
 def get_imginfo(decoding):
     if get_page(decoding) == 0:
         return {'checksum': get_checksum(decoding),
@@ -111,35 +111,6 @@ def get_imginfo(decoding):
                 'election_type': get_electiontype(decoding),
                 'endercode': get_endercode(decoding),
                 'page': 1}
-
-""" Information about Front side barcode """
-def get_checksum(decoding):
-    return decoding[0:2]
-def get_precinct(decoding):
-    return decoding[2:15]
-def get_cardnum(decoding):
-    return decoding[15:28]
-def get_seqnum(decoding):
-    return decoding[28:31]
-def get_startbit(decoding):
-    try:
-        return decoding[31]
-    except:
-        traceback.print_exc()
-        pdb.set_trace()
-        return None
-
-""" Information about Back side barcode """
-def get_day(decoding):
-    return decoding[0:5]
-def get_month(decoding):
-    return decoding[5:9]
-def get_year(decoding):
-    return decoding[9:16]
-def get_electiontype(decoding):
-    return decoding[16:21]
-def get_endercode(decoding):
-    return decoding[21:32]
 
 def _combfn(a, b):
     flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerrs_a = a

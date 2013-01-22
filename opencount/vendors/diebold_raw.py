@@ -30,7 +30,13 @@ def print_dbg(*args):
         print
 
 def decode(imgpath, markpath, colpath):
-    return decode_robust_v2(imgpath, markpath, colpath)
+    decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath)
+    if decoding != None:
+        bbs = sorted(bbs, key=lambda t: t[0])
+        # Strip off the left/right column marks (always '1')
+        decoding = decoding[1:-1]
+        bbs = bbs[1:-1]
+    return decoding, isflip, bbs
 
 def decode_robust_v2(imgpath, markpath, colpath):
     if type(markpath) in (str, unicode):
@@ -314,9 +320,19 @@ def most_popular(candidates):
 
 def sanitycheck_decoding_v2(decoding):
     ALL_ONES = '1'*34
-    return (decoding and len(decoding) == 34 and decoding[0] == '1'
-            and decoding[-1] == '1'
-            and decoding != ALL_ONES)
+    is_good = True
+    # Side-agnostic checks
+    is_good = (decoding and len(decoding) == 34 and decoding[0] == '1'
+               and decoding[-1] == '1'
+               and decoding != ALL_ONES)
+    dec = decoding[1:-1]
+    # Side-specific checks
+    if get_page(dec) == 0:
+        is_good = is_good and (get_startbit(dec) == '1' and 
+                               verify_checksum(dec))
+    else:
+        is_good = is_good and (get_endercode(dec) == '01111011110')
+    return is_good
 
 def estimate_ballot_rot(I, Imarkfull, bbs, MAX_THETA=2.0, K=5):
     roi_prev = cv.GetImageROI(I)
@@ -442,6 +458,53 @@ def estimate_rotation(xs, ys):
     slope, intercept, rval, pval, std_err = scipy.stats.linregress(xs, ys)
     degrees = math.degrees(math.atan2((slope*1.0 + intercept) - intercept, 1.0 - 0.0))
     return degrees
+
+"""
+==========================================================
+==== Diebold-specific barcode interpretation routines ====
+==========================================================
+"""
+""" Information about Front side barcode """
+def get_checksum(decoding):
+    return decoding[30:32]
+def get_precinct(decoding):
+    return decoding[17:30]
+def get_cardnum(decoding):
+    return decoding[4:17]
+def get_seqnum(decoding):
+    return decoding[1:4]
+def get_startbit(decoding):
+    return decoding[0]
+
+""" Information about Back side barcode """
+def get_day(decoding):
+    return decoding[27:32]
+def get_month(decoding):
+    return decoding[23:27]
+def get_year(decoding):
+    return decoding[16:23]
+def get_electiontype(decoding):
+    return decoding[11:16]
+def get_endercode(decoding):
+    return decoding[0:11]
+
+def get_page(decoding):
+    """ Back side always ends with 01111011110. Outputs an int: 0/1. """
+    return 0 if not get_endercode(decoding) == '01111011110' else 1
+
+def compute_checksum(decoding):
+    """ To compute a Diebold-style checksum, take the number of '1' bits
+    in bits 2-31, reduced modulo 4.
+    """
+    return len([v for v in decoding[:-2] if v == '1']) % 4
+def verify_checksum(decoding):
+    chksum_a = compute_checksum(decoding)
+
+    b = get_checksum(decoding)
+    chksum_b = 2*int(b[0]) + int(b[1])
+    return chksum_a == chksum_b
+
+""" END Diebold barcode interpretation routines """
 
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.jpg', '.jpeg', '.bmp')
