@@ -1379,7 +1379,23 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        MIN_LEN = 13
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
+            x_img, y_img = self.c2img(x,y)
+            if (abs(self.box_create.x1 - x_img) <= MIN_LEN) or (abs(self.box_create.y1 - y_img) <= MIN_LEN):
+                print "...User drew a too-small box..."
+                dlg = wx.MessageDialog(self, style=wx.ID_OK,
+                                       message="You drew a box that \
+was too small. \n\
+Either draw a bigger box, or zoom-in to better-select the targets.")
+                self.Disable()
+                dlg.ShowModal()
+                self.Enable()
+                self.isCreate = False
+                self.box_create = None
+                self.Refresh()
+                return
+
             box = self.finishBox(x, y)
             if isinstance(box, TargetBox):
                 imgpil = util_gui.imageToPil(self.img)
@@ -1419,8 +1435,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             self.boxes.append(box)
             self.Refresh()
         else:
-            TemplateMatchDrawPanel.onLeftUp(self, evt)
-        
+            TemplateMatchDrawPanel.onLeftUp(self, evt)        
 
 class TM_Thread(threading.Thread):
     TEMPLATE_MATCH_JOBID = 48
