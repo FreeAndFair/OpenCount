@@ -1412,6 +1412,11 @@ class TargetFindPanel(TemplateMatchDrawPanel):
 
     def onLeftDown(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        x_img, y_img = self.c2img(x,y)
+        w_img, h_img = self.img.GetSize()
+        if x_img >= (w_img-1) or y_img >= (h_img-1):
+            return
+                                                        
         if self.mode_m == self.M_FORCEADD_TARGET:
             print "...Creating Forced Target."
             self.clear_selected()
@@ -1422,6 +1427,11 @@ class TargetFindPanel(TemplateMatchDrawPanel):
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        # Restrict (x,y) to lie within the image
+        w_img, h_img = self.img.GetSize()
+        w_c, h_c = self.img2c(w_img-1, h_img-1)
+        x = min(w_c, x)
+        y = min(h_c, y)
         if self.mode_m == self.M_FORCEADD_TARGET and self.isCreate:
             # If this is the first-created box B, then make sure that 
             # subsequent-created boxes match the dimensions of B
