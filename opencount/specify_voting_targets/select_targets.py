@@ -543,6 +543,7 @@ this partition.")
             # Template match only on images after this partition (including 
             # this partition)
             imgpaths = sum([t for t in sum(self.partitions[self.cur_i:], [])], [])
+            imgpaths = imgpaths[self.cur_page:] # Don't run on prior pages
         print "...Running template matching on {0} images...".format(len(imgpaths))
         queue = Queue.Queue()
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
