@@ -502,10 +502,10 @@ class DefineAttributeDialog(wx.Dialog):
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
         
-        self.chkbox_is_digitbased = wx.CheckBox(self, label="This region is composed solely of digits (0-9).")
-        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="This region should be used only for reporting (it does not affect the layout of what is on the ballot).")
+        self.chkbox_is_digitbased = wx.CheckBox(self, label="This region is composed solely of digits (0-9) (e.g., a precinct number).")
+        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="This region should be used only for reporting (it does not affect the layout of the ballot).")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
-        self.chkbox_grp_per_partition = wx.CheckBox(self, label="This region is identical on all ballots with the same barcode. (If unsure, do not select this.)")
+        self.chkbox_grp_per_partition = wx.CheckBox(self, label="This region looks the same on all ballots with the same barcode. (If unsure, you can leave this unselected.)")
         self.numdigits_label = numdigits_label
         self.num_digits_ctrl = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
