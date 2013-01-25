@@ -1725,6 +1725,8 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                     if img2flip[imgpath]:
                         I = shared.fastFlip(I)
                     H, Ireg, err = global_align.align_image(Iref, I)
+                    #H, Ireg, err = global_align.align_strong(I, Iref, crop_Iref=(0.05, 0.05, 0.05, 0.05),
+                    #                                         do_nan_to_num=True)
                     outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
                     outpath = pathjoin(outdir, outname)
                     scipy.misc.imsave(outpath, Ireg)
