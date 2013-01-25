@@ -15,6 +15,7 @@ import util
 import threshold.imageFile
 import pixel_reg.doExtract as doExtract
 import quarantine.quarantinepanel as quarantinepanel
+import grouping.run_grouping as run_grouping
 
 class TargetExtractPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -101,7 +102,8 @@ class RunThread(threading.Thread):
         if not self.skip_extract:
             qballotids = quarantinepanel.get_quarantined_ballots(self.proj)
             discarded_ballotids = quarantinepanel.get_discarded_ballots(self.proj)
-            bad_ballotids = list(set(qballotids + discarded_ballotids))
+            ioerr_ballotids = run_grouping.get_ioerr_bals(self.proj)
+            bad_ballotids = list(set(qballotids + discarded_ballotids + ioerr_ballotids))
             avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                                                      target_locs_map, group_exmpls,
                                                                      bad_ballotids,
