@@ -237,9 +237,9 @@ class ToolBar(wx.Panel):
         btn_addattr.Bind(wx.EVT_BUTTON, self.onButton_addattr)
         btn_modify = wx.Button(self, label="Modify")
         btn_modify.Bind(wx.EVT_BUTTON, self.onButton_modify)
-        btn_addcustomattr = wx.Button(self, label="Add Custom Attribute...")
+        btn_addcustomattr = wx.Button(self, label="Advanced: Add Special Attribute...")
         btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
-        btn_viewcustomattrs = wx.Button(self, label="View Custom Attributes...")
+        btn_viewcustomattrs = wx.Button(self, label="Advanced: View Special Attributes...")
         btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
@@ -259,8 +259,7 @@ class ToolBar(wx.Panel):
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
-        choice_dlg = common.SingleChoiceDialog(self, message="Which modality \
-will the Custom Attribute use?", 
+        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Special Attribute do you want to add?", 
                                                choices=[SPREADSHEET, FILENAME])
         status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
@@ -273,7 +272,7 @@ will the Custom Attribute use?",
             if len(attrtypes) == 0:
                 print "No attrtypes created yet, can't do this."
                 d = wx.MessageDialog(self, message="You must first create \
-    Ballot Attributes, before creating Custom Ballot Attributes.")
+    Ballot Attributes, before creating Special Ballot Attributes.")
                 d.ShowModal()
                 return
             dlg = SpreadSheetAttrDialog(self, attrtypes)
@@ -303,7 +302,7 @@ spreadsheet path.")
                                                 is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
         elif choice == FILENAME:
-            print "Handling Filename-based Custom Attribute."
+            print "Handling Filename-based Special Attribute."
             dlg = FilenameAttrDialog(self)
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
@@ -328,10 +327,10 @@ an Attribute Name.")
         proj = self.GetParent().GetParent().proj
         custom_attrs = self.GetParent().cust_attrs
         if not custom_attrs:
-            d = wx.MessageDialog(self, message="No Custom Attributes yet.")
+            d = wx.MessageDialog(self, message="No Special Attributes yet.")
             d.ShowModal()
             return
-        print "Custom Attributes are:"
+        print "Special Attributes are:"
         for cattr in custom_attrs:
             attrname = cattr.attrname
             if isinstance(cattr, cust_attrs.Spreadsheet_Attr):
@@ -503,13 +502,10 @@ class DefineAttributeDialog(wx.Dialog):
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
         
-        self.chkbox_is_digitbased = wx.CheckBox(self, label="Is this a digit-based precinct patch?")
-        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
-this patch be only used for tabulation (and not for grouping)?")
+        self.chkbox_is_digitbased = wx.CheckBox(self, label="This region is composed solely of digits (0-9).")
+        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="This region should be used only for reporting (it does not affect the layout of what is on the ballot).")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
-        self.chkbox_grp_per_partition = wx.CheckBox(self, label="Is this \
-attribute consistent within each partition (where partitions are \
-dictated by the barcodes)?")
+        self.chkbox_grp_per_partition = wx.CheckBox(self, label="This region is identical on all ballots with the same barcode. (If unsure, do not select this.)")
         self.numdigits_label = numdigits_label
         self.num_digits_ctrl = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -617,7 +613,7 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
 
         sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
-        txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
+        txt2 = wx.StaticText(self, label="Special attr is a 'function' of:")
         self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
         sizer_horiz.Add(txt2)
         sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
@@ -678,7 +674,7 @@ regex that will match the attribute value.")
         sizer.Add((20, 20))
 
         sizer_input0 = wx.BoxSizer(wx.HORIZONTAL)
-        txt0 = wx.StaticText(self, label="Custom Attribute Name:")
+        txt0 = wx.StaticText(self, label="Special Attribute Name:")
         attrname_input = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
         attrname_input.Bind(wx.EVT_TEXT_ENTER, lambda evt: re_input.SetFocus())
         self.attrname_input = attrname_input
