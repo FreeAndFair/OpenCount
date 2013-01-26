@@ -326,7 +326,6 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
         S = self.seltargets_panel
         cur_groupid = self.i2groupid[S.cur_i]
         imgpath = self.displayed_imgpaths[cur_groupid][S.cur_j][S.cur_page]
-        print 'imgpath:', imgpath
         dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
                                style=wx.OK)
         dlg.ShowModal()
@@ -578,6 +577,7 @@ this partition.")
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
         # matches.
+        _cnt_added = 0
         for imgpath, matches in results.iteritems():
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
@@ -597,6 +597,8 @@ this partition.")
                         boxB.x2 = boxB.x1 + self.boxsize[0]
                         boxB.y2 = boxB.y1 + self.boxsize[1]
                     self.boxes.setdefault(partition_idx, [])[page].append(boxB)
+                    _cnt_added += 1
+        print 'Added {0} new boxes from this tempmatch run.'.format(_cnt_added)
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
@@ -1195,7 +1197,6 @@ class BoxDrawPanel(ImagePanel):
         if not self.boxes:
             # Force a redraw of the image - otherwise, the last-removed
             # boxes don't go away.
-            print "NO MORE BOXES, SHOULD REDRAW IMAGE"
             self.force_new_img_redraw()
             self.Refresh()
 
