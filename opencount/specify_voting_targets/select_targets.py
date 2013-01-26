@@ -1140,6 +1140,24 @@ class BoxDrawPanel(ImagePanel):
     def set_mode_m(self, mode):
         """ Sets my MouseMode. """
         self.mode_m = mode
+        self.update_cursor()
+
+    def update_cursor(self, force_cursor=None):
+        """ Updates the mouse cursor depending on the current state.
+        Returns the wx.Cursor that it decides to set.
+        To force the mouse cursor, pass in a wx.Cursor as FORCE_CURSOR.
+        """
+        if force_cursor != None:
+            self.SetCursor(force_cursor)
+            return force_cursor
+        if self.mode_m == BoxDrawPanel.M_CREATE:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+        elif self.mode_m == BoxDrawPanel.M_IDLE:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        else:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        self.SetCursor(cursor)
+        return cursor
 
     def set_boxes(self, boxes):
         self.boxes = boxes
@@ -1586,6 +1604,13 @@ Either draw a bigger box, or zoom-in to better-select the targets.")
 
 class TargetFindPanel(TemplateMatchDrawPanel):
     M_FORCEADD_TARGET = 3
+
+    def update_cursor(self, *args, **kwargs):
+        if self.mode_m == TargetFindPanel.M_FORCEADD_TARGET:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+            self.SetCursor(cursor)
+            return cursor
+        return TemplateMatchDrawPanel.update_cursor(self, *args, **kwargs)
 
     def onLeftDown(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
