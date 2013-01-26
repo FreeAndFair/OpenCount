@@ -187,7 +187,7 @@ class RunGroupingMainPanel(wx.Panel):
         digitexemplars_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                        self.proj.digit_exemplars_map), 'rb'))
         # Grab the quarantined/discarded ballot ids
-        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj)
+        badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
         all_results = {} # maps {str attrtype: dict results}
         MODE = get_digitgroup_mode(self.proj)
         digitpatch_dir = pathjoin(self.proj.projdir_path, self.proj.digitpatch_dir)

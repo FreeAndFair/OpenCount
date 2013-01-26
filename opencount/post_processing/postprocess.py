@@ -9,6 +9,7 @@ import csv
 from os.path import join as pathjoin
 import util
 from quarantine.quarantinepanel import get_quarantined_ballots, get_discarded_ballots
+from grouping.run_grouping import get_ioerr_bals
 
 class ResultsPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
@@ -293,10 +294,11 @@ class ResultsPanel(ScrolledPanel):
 
         full_cvr = []
         discarded_balids = get_discarded_ballots(self.proj)
+        ioerr_balids = get_ioerr_bals(self.proj)
         print 'And now going up to', len(ballot_to_images)
         for i,(ballotid,images) in enumerate(ballot_to_images.items()):
             # Ignore discarded ballots
-            if ballotid in discarded_balids:
+            if ballotid in discarded_balids or ballotid in ioerr_balids:
                 continue
             if i%1000 == 0: print 'on', i
             #print "----"

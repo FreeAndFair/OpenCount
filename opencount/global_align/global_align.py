@@ -49,16 +49,25 @@ def correctH(I, H0):
     H=np.dot(np.dot(T0,H0),T1)
     return H
 
-def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3)):
+def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3), 
+                 crop_I=(0.05, 0.05, 0.05, 0.05), 
+                 crop_Iref=None, do_nan_to_num=False):
     """ Alignment strategy: First, crop out 5% from each side of I.
     Then, try a range of scales, and choose the alignment that 
     minimizes the error.
     """
-    Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
+    if crop_I != None:
+        Icrop = cropout_stuff(I, crop_I[0], crop_I[1], crop_I[2], crop_I[3])
+    else:
+        Icrop = I
+    if crop_Iref != None:
+        Iref_crop = cropout_stuff(Iref, crop_Iref[0], crop_Iref[1], crop_Iref[2], crop_Iref[3])
+    else:
+        Iref_crop = Iref
     H_best, Ireg_best, err_best = None, None, None
     scale_best = None
     for scale in scales:
-        H, Ireg, err = imagesAlign.imagesAlign(Icrop, Iref, fillval=1, type='rigid', rszFac=scale)
+        H, Ireg, err = imagesAlign.imagesAlign(Icrop, Iref_crop, fillval=1, type='rigid', rszFac=scale)
         if err_best == None or err < err_best:
             H_best = H
             Ireg_best = Ireg
@@ -66,4 +75,6 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3)):
             scale_best = scale
     # Finally, apply H_BEST to I
     Ireg = imagesAlign.imtransform(I, H_best)
+    if do_nan_to_num:
+        Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
