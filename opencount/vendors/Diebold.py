@@ -140,6 +140,7 @@ def _decode_ballots(ballots, (template_path, colpath), queue=None):
     w_cur, h_cur = cv.GetSize(cv.LoadImage(ballots[ballots.keys()[0]][0], cv.CV_LOAD_IMAGE_UNCHANGED))
     W_ORIG, H_ORIG = diebold_raw.SIZE_ORIG
     h_gap_cur = diebold_raw.HORIZ_GAP
+    w_mark, h_mark = diebold_raw.WIDTH_MARK, diebold_raw.HEIGHT_MARK
     if w_cur != W_ORIG or h_cur != H_ORIG:
         c = w_cur / float(W_ORIG)
         print "...Detected current image resolution {0} differs from \
@@ -148,10 +149,13 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         Imark = diebold_raw.rescale_img(Imark, c)
         Icol = diebold_raw.rescale_img(Icol, c)
         h_gap_cur = int(round(h_gap_cur * c))
+        w_mark = int(round(w_mark * c))
+        h_mark = int(round(h_mark * c))
     for ballotid, imgpaths in ballots.iteritems():
         for imgpath in imgpaths:
             try:
-                decoding, isflip, bbs = diebold_raw.decode(imgpath, Imark, Icol, H_GAP=h_gap_cur)
+                decoding, isflip, bbs = diebold_raw.decode(imgpath, Imark, Icol, H_GAP=h_gap_cur,
+                                                           W_MARK=w_mark, H_MARK=h_mark)
             except IOError as e:
                 ioerr_imgpaths.append(imgpath)
                 continue

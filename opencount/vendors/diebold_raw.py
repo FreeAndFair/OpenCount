@@ -12,9 +12,14 @@ COLMARK_PATH = 'diebold_colmark.png'
 # HORIZ_GAP := Num. pixels between each mark in the barcode
 HORIZ_GAP = 7
 
+# WIDTH_MARK, HEIGHT_MARK := Dimensions of a mark
+WIDTH_MARK = 28
+HEIGHT_MARK = 7
+
 # Image Dimension (w,h) of ballot that MARKFULL_PATH/COLMARK_PATH were
 # extracted from. Used to re-scale these exemplar images to generalize to
-# other image resolutions, in addition to scaling HORIZ_GAP.
+# other image resolutions, in addition to scaling HORIZ_GAP, WIDTH_MARK,
+# HEIGHT_MARK
 SIZE_ORIG = (1280, 2104)
 
 DEBUG = False
@@ -28,8 +33,10 @@ def print_dbg(*args):
             print x,
         print
 
-def decode(imgpath, markpath, colpath, H_GAP=HORIZ_GAP):
-    decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath, H_GAP=H_GAP)
+def decode(imgpath, markpath, colpath, H_GAP=HORIZ_GAP,
+           W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
+    decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath, H_GAP=H_GAP,
+                                             W_MARK=W_MARK, H_MARK=H_MARK)
     if decoding != None:
         bbs = sorted(bbs, key=lambda t: t[0])
         # Strip off the left/right column marks (always '1')
@@ -37,7 +44,8 @@ def decode(imgpath, markpath, colpath, H_GAP=HORIZ_GAP):
         bbs = bbs[1:-1]
     return decoding, isflip, bbs
 
-def decode_robust_v2(imgpath, markpath, colpath, H_GAP=7):
+def decode_robust_v2(imgpath, markpath, colpath, H_GAP=7,
+                     W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     if type(markpath) in (str, unicode):
         markfull = cv.LoadImage(markpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
@@ -47,7 +55,8 @@ def decode_robust_v2(imgpath, markpath, colpath, H_GAP=7):
     else:
         Icol = colpath
 
-    decoding, isflip, bbs = decode_v2_wrapper(imgpath, markfull, Icol, H_GAP=H_GAP)
+    decoding, isflip, bbs = decode_v2_wrapper(imgpath, markfull, Icol, H_GAP=H_GAP,
+                                              W_MARK=W_MARK, H_MARK=H_MARK)
     return decoding, isflip, bbs
 
 def compute_border(A):
@@ -71,26 +80,16 @@ def compute_border(A):
             break
     return i1, h - i2, j1, w - j2
 
-def compute_border_leftright(A):
-    """ Determines if the left/right contains columns that are all black. """
-    h, w = A.shape
-    for j1 in xrange(w):
-        thesum = np.sum(A[:,j1])
-        if thesum != 0:
-            break
-    for j2 in xrange(w-1, -1, -1):
-        thesum = np.sum(A[:,j2])
-        if thesum != 0:
-            break
-    return j1, w - j2
-
-def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7):
+def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7,
+                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath, H_GAP=H_GAP)
+    result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath, H_GAP=H_GAP,
+                       W_MARK=W_MARK, H_MARK=H_MARK)
     if result == None and not DEBUG_SKIP_FLIP:
         print_dbg("...Trying FLIP...")
         cv.ResetImageROI(I)
-        result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath, H_GAP=H_GAP)
+        result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath, H_GAP=H_GAP,
+                           W_MARK=W_MARK, H_MARK=H_MARK)
     
     if result == None:
         return None, None, None
@@ -98,7 +97,8 @@ def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7):
         decoding, isflip, bbs_out = result
         return (decoding, isflip, bbs_out)
 
-def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7):
+def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
+              W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     if type(imgpath) in (str, unicode):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
@@ -143,14 +143,15 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7):
     else:
         print_dbg("==== Theta={0}".format(theta))
     
-    bbs_rough = ((0, 0.95 * h,
+    bbs_rough = ((0, 0.96 * h,
                   (w-1), (0.98 * h)),
                  (0, 0.945 * h,
                   (w-1), (0.995 * h)))
     result = decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip,
                                H_GAP, theta, 
                                i1_blk, i2_blk, j1_blk, j2_blk,
-                               imgpath=_imgpath)
+                               imgpath=_imgpath,
+                               W_MARK=W_MARK, H_MARK=H_MARK)
     return result
 
 def find_col_x1(I, Icol, bb, K=3, AX=0.2, AY=0.2, T=0.9):
@@ -198,13 +199,13 @@ def find_col_x1(I, Icol, bb, K=3, AX=0.2, AY=0.2, T=0.9):
 
 def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP, theta, 
                       i1_blk, i2_blk, j1_blk, j2_blk,
-                      imgpath=None, find_col=True):
+                      imgpath=None, find_col=True,
+                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     result = None
     roi_prev = cv.GetImageROI(I)
     w, h = cv.GetSize(I)
 
     if find_col:
-
         w, h = cv.GetSize(I)
         bb_left = (0.0, 0.86 * h, 0.06 * w, h-1)
         bb_right = ((w-1) - (0.06*w), 0.86 * h, w-1, h-1)
@@ -258,27 +259,98 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
 
         w_cor, h_cor = cv.GetSize(Icor)
         candidates = []
-        y1_step = int(h_markfull / 2.0)
-        for step in xrange(int((h_cor-1) / y1_step)):
-            shift_roi(Icor, 0, y1_step, w_cor, h_markfull)
+        y1_step = int(h_markfull / 4.0)
+        def tighten_bbs(bbs, decoding, I):
+            """ Given initial boundingboxes around each mark, compute
+            new bbs such that each 'on' mark is at the upper-left corner.
+            """
+            def find_black(I, x, BLACK=120, y1_start=0):
+                """ Find y1 of first black pixel, starting from (X, 0). """
+                w, h = cv.GetSize(I)
+                for y1 in xrange(y1_start, h):
+                    if I[y1,x] <= BLACK:
+                        return y1
+                return 0 # Default to fairly-sensible value
+            w_img, h_img = cv.GetSize(I)
+            bbs_out = []
+            y1s_ons = []
+            if DEBUG_SAVEIMGS:
+                print_dbg("<><><><> Saving '_Itightenbbs.png' <><><><>")
+                cv.SaveImage("_Itightenbbs.png", I)
+            # First, estimate the y1's for the left/right col marks,
+            # since they're the 'easiest' to find
+            y1s_leftright = []
+            for (x1,y1,x2,y2) in (bbs[0], bbs[-1]):
+                w_rect, h_rect = (x2-x1), (y2-y1)
+                x1s = (x1+int(w_rect*0.15), x1+int(w_rect/4.0), x1+int(w_rect/2.0), x1+int((3*w_rect)/4.0), (x2-1)-int(w_rect*0.1))
+                x1s = [x for x in x1s if x < w_img]
+                y1s = [find_black(I, x1_cur, y1_start=0) for x1_cur in x1s]
+                y1_out = int(round(np.median(y1s)))
+                y1s_leftright.append(y1_out)
 
+            for i, (x1,y1,x2,y2) in enumerate(bbs):
+                val = decoding[i]
+                if val == '0':
+                    bbs_out.append((x1,y1,x2,y2))
+                    continue
+                w_rect, h_rect = (x2-x1), (y2-y1)
+                x1s = (x1+int(w_rect*0.15), x1+int(w_rect/4.0), x1+int(w_rect/2.0), x1+int((3*w_rect)/4.0), (x2-1)-int(w_rect*0.1))
+                x1s = [x for x in x1s if x < w_img]
+                if i == 0 or i == len(bbs)-1:
+                    _y1 = 0
+                elif i < int(len(bbs)/2.0):
+                    _y1 = y1s_leftright[0] - int(h_rect*0.5)
+                else:
+                    _y1 = y1s_leftright[1] - int(h_rect*0.5)
+                y1s = [find_black(I, x1_cur, y1_start=_y1) for x1_cur in x1s]
+                #y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
+                y1_out = int(round(np.median(y1s)))
+                y2_out = y1_out + (y2-y1) - 1
+                y1s_ons.append(y1_out)
+                bbs_out.append((x1, y1_out-1, x2, y2_out-1))
+            # Finally, clamp all y1s of '0' marks to some fixed y1
+            y1_clamp = int(round(np.mean(y1s_ons)))
+            bbs_out_final = []
+            for i, (x1,y1,x2,y2) in enumerate(bbs_out):
+                if decoding[i] == '0':
+                    bbs_out_final.append((x1,y1_clamp,x2,y1_clamp+(y2-y1)-1))
+                else:
+                    bbs_out_final.append((x1,y1,x2,y2))
+            return bbs_out_final
+
+        for step in xrange(int((h_cor-1) / y1_step)):
+            if step == 0:
+                shift_roi(Icor, 0, 0, w_cor, h_markfull)
+            else:
+                # Don't shift down on first iteration!
+                shift_roi(Icor, 0, y1_step, w_cor, h_markfull)
+            if DEBUG_SAVEIMGS:
+                print_dbg("<><><><> Saving '_Icor_strip.ong' <><><><>")
+                cv.SaveImage("_Icor_strip.png", Icor)
+                pdb.set_trace()
+
+            # list SYMS := [(str VAL, int X1), ...]
             syms, params_ = scan_bars.parse_patch(Icor, (w_markfull, h_markfull), gap=H_GAP, 
                                                   LEN=34,
                                                   orient=scan_bars.HORIZONTAL, MARKTOL=0.7,
                                                   BEGIN_TOL=0.3, END_TOL=0.3)
             decoding = ''.join([t[0] for t in syms])
+            if not sanitycheck_decoding_v2(decoding):
+                continue
+            markbbs_rough = [(t[1], 0, t[1]+W_MARK, H_MARK-1) for t in syms]
+            # Find a tighter y1 for the black marks
+            bbs = tighten_bbs(markbbs_rough, decoding, Icor)
             # Correct for current-offset in sweep
-            bbs_out = [(t[1], y1_step*step, t[1] + w_markfull, y1_step*step + h_markfull) for t in syms]
+            #bbs_out = [(t[1], y1_step*step, t[1] + w_markfull, y1_step*step + h_markfull) for t in syms]
+            bbs_out = [(t[0], t[1]+(y1_step*step), t[2], t[3]+(y1_step*step)) for t in bbs]
             # Undo rotation correction
             bbs_out = [to_orig_coords(bb, H_inv) for bb in bbs_out]
             # Add the compute_border offsets (part1)
             bbs_out = [(x1+j1_blk_cor, y1+i1_blk_cor, x2+j1_blk_cor, y2+i2_blk_cor) for (x1,y1,x2,y2) in bbs_out]            
-            # Add the compute_border_leftright offsets
+            # Add the compute_border offsets
             bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
 
             if DEBUG_SAVEIMGS:
-                print_dbg("<><><><> Saving '_Icor_strip.ong' <><><><>")
-                cv.SaveImage("_Icor_strip.png", Icor)
                 print_dbg("==== decoding ({0}): {1}".format(len(decoding), decoding))
                 Icolor = draw_bbs(imgpath, decoding, bbs_out, isflip)
                 cv.SaveImage("_dbg_showit.png", Icolor)
@@ -296,6 +368,9 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
     return result
 
 def most_popular(candidates):
+    """ Returns the most-common decoding possibilty (recall that this
+    decoder may output multiple, possibly-different decodings).
+    """
     votes = {}
     outputs = {} # maps {str decoding: [(isflip_i, bbs_i), ...]}
     for decoding, isflip, bbs_out in candidates:
@@ -309,10 +384,30 @@ def most_popular(candidates):
         if best_decoding == None or vote_cnt > best_votes:
             best_decoding = decoding
             best_votes = vote_cnt
-    best_outputs = outputs[best_decoding]
-    # Return the 'middle' bounding boxes. Other options include
-    # returning the median/mean x1s/y1s for each bbox...
-    best_isflip, best_bbs_out = best_outputs[int(len(best_outputs) / 2)]
+    best_outputs = outputs[best_decoding] # [(isflip_i, bbs_i), ...]
+    def extrapolate_bbs(bbs_lst, fn=np.median):
+        """ Determine 'best' bbs for each mark. """
+        if len(bbs_lst) == 1:
+            return bbs_lst[0]
+        bbs_out = []
+        for i in xrange(len(bbs_lst[0])):
+            x1s, y1s, x2s, y2s = [], [], [], []
+            for bbs in bbs_lst:
+                bb = bbs[i]
+                x1s.append(bb[0])
+                y1s.append(bb[1])
+                x2s.append(bb[2])
+                y2s.append(bb[3])
+            x1 = int(round(fn(x1s)))
+            y1 = int(round(fn(y1s)))
+            x2 = int(round(fn(x2s)))
+            y2 = int(round(fn(y2s)))
+            bbs_out.append((x1,y1,x2,y2))
+        return bbs_out
+        
+    best_isflip = best_outputs[0][0]
+    best_bbs_out = extrapolate_bbs([t[1] for t in best_outputs], fn=np.median)
+    #best_isflip, best_bbs_out = best_outputs[int(len(best_outputs)/2.0)]
     return best_decoding, best_isflip, best_bbs_out
 
 def sanitycheck_decoding_v2(decoding):
@@ -383,6 +478,9 @@ def estimate_ballot_rot(I, Imarkfull, bbs, MAX_THETA=2.0, K=5):
     return theta_tm
 
 def detect_lonely_vals(vals, h_mark, C=2.0):
+    """ Detect values V which doesn't have a different value V' within
+    the neighborhood [V - (h_mark*C), V + (h_mark*C)].
+    """
     i = 0
     lonely_idxs = []
     while i < len(vals):
@@ -565,6 +663,7 @@ def main():
     w_cur, h_cur = cv.GetSize(cv.LoadImage(imgpaths[0], cv.CV_LOAD_IMAGE_UNCHANGED))
     W_ORIG, H_ORIG = SIZE_ORIG
     h_gap_cur = HORIZ_GAP
+    w_mark, h_mark = WIDTH_MARK, HEIGHT_MARK
     if w_cur != W_ORIG or h_cur != H_ORIG:
         c = w_cur / float(W_ORIG)
         print "...Detected current image resolution {0} differs from \
@@ -573,12 +672,15 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         Imarkfull = rescale_img(Imarkfull, c)
         Icol = rescale_img(Icol, c)
         h_gap_cur = int(round(HORIZ_GAP * c))
+        w_mark = int(round(WIDTH_MARK * c))
+        h_mark = int(round(HEIGHT_MARK * c))
         
     for imgpath in imgpaths:
         if N != None and cnt >= N:
             break
         try:
-            decoding, isflip, bbs = decode_robust_v2(imgpath, Imarkfull, Icol, H_GAP=h_gap_cur)
+            decoding, isflip, bbs = decode_robust_v2(imgpath, Imarkfull, Icol, H_GAP=h_gap_cur,
+                                                     W_MARK=w_mark, H_MARK=h_mark)
         except Exception as e:
             if type(e) == KeyboardInterrupt:
                 raise e
