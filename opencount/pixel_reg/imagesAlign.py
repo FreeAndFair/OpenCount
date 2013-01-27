@@ -287,7 +287,6 @@ def imtransform(I,H0,fillval=np.nan):
         I1=np.asarray(I1cv)
         I1[np.nonzero(I1<0)]=fillval
 
-        # TODO: Almost always returns only Nan's. wat?
         return I1
 
 def imtransform2(I,H0,fillval=3.0):

@@ -326,7 +326,6 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
         S = self.seltargets_panel
         cur_groupid = self.i2groupid[S.cur_i]
         imgpath = self.displayed_imgpaths[cur_groupid][S.cur_j][S.cur_page]
-        print 'imgpath:', imgpath
         dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
                                style=wx.OK)
         dlg.ShowModal()
@@ -426,7 +425,7 @@ this partition.")
         txt_slash0 = wx.StaticText(self, label=" / ")
         self.txt_totalpartitions = wx.StaticText(self, label="Foo")
         
-        txt2 = wx.StaticText(self, label="Ballot: ")
+        txt2 = wx.StaticText(self, label="Ballot (subset of full partition): ")
         self.txt_curballot = wx.StaticText(self, label="1")
         txt_slash1 = wx.StaticText(self, label=" / ")
         self.txt_totalballots = wx.StaticText(self, label="Bar")
@@ -543,6 +542,7 @@ this partition.")
             # Template match only on images after this partition (including 
             # this partition)
             imgpaths = sum([t for t in sum(self.partitions[self.cur_i:], [])], [])
+            imgpaths = imgpaths[self.cur_page:] # Don't run on prior pages
         print "...Running template matching on {0} images...".format(len(imgpaths))
         queue = Queue.Queue()
         thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
@@ -577,6 +577,7 @@ this partition.")
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
         # matches.
+        _cnt_added = 0
         for imgpath, matches in results.iteritems():
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
@@ -596,6 +597,8 @@ this partition.")
                         boxB.x2 = boxB.x1 + self.boxsize[0]
                         boxB.y2 = boxB.y1 + self.boxsize[1]
                     self.boxes.setdefault(partition_idx, [])[page].append(boxB)
+                    _cnt_added += 1
+        print 'Added {0} new boxes from this tempmatch run.'.format(_cnt_added)
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
@@ -964,9 +967,14 @@ class ImagePanel(ScrolledPanel):
         self.img = None
         # self.imgbitmap := A WxBitmap
         self.imgbitmap = None
+        # self.npimg := A Numpy-version of an untarnished-version of self.imgbitmap
+        self.npimg = None
 
         # self.scale: Scaling factor used to display self.IMGBITMAP
         self.scale = 1.0
+
+        # If True, a signal to completely-redraw the original image
+        self._imgredraw = False
 
         self._setup_ui()
         self._setup_evts()
@@ -1002,9 +1010,12 @@ class ImagePanel(ScrolledPanel):
         w, h = self.img.GetWidth(), self.img.GetHeight()
         new_w, new_h = int(round(w*scale)), int(round(h*scale))
         self.imgbitmap = img_to_wxbitmap(self.img, (new_w, new_h))
+        self.npimg = wxBitmap2np_v2(self.imgbitmap, is_rgb=True)
+
         self.sizer.Detach(0)
         self.sizer.Add(self.imgbitmap.GetSize())
         self.SetupScrolling()
+
         self.Refresh()
 
     def zoomin(self, amt=0.1):
@@ -1036,14 +1047,32 @@ class ImagePanel(ScrolledPanel):
     def img2c(self, x, y):
         return self.img_to_clientcoord(x,y)
 
+    def force_new_img_redraw(self):
+        """ Forces this widget to completely-redraw self.IMG, even if
+        self.imgbitmap contains modifications.
+        """
+        self._imgredraw = True
+
+    def draw_image(self, dc):
+        if not self.imgbitmap:
+            return
+        if self._imgredraw:
+            # Draw the 'virgin' self.img
+            self._imgredraw = False
+            w, h = self.img.GetWidth(), self.img.GetHeight()
+            new_w, new_h = int(round(w*self.scale)), int(round(h*self.scale))
+            self.imgbitmap = img_to_wxbitmap(self.img, (new_w, new_h))
+
+        dc.DrawBitmap(self.imgbitmap, 0, 0)
+        return dc
+
     def onPaint(self, evt):
         if self.IsDoubleBuffered():
             dc = wx.PaintDC(self)
         else:
             dc = wx.BufferedPaintDC(self)
         self.PrepareDC(dc)
-        if self.imgbitmap:
-            dc.DrawBitmap(self.imgbitmap, 0, 0)
+        self.draw_image(dc)
 
         return dc
 
@@ -1092,6 +1121,10 @@ class BoxDrawPanel(ImagePanel):
         self.box_resize = None
         self.resize_orient = None # 'N', 'NE', etc...
 
+        # self.isDragging : Is the user moving-mouse while mouse-left-down
+        # is held down?
+        self.isDragging = False
+
         self.mode_m = BoxDrawPanel.M_CREATE
 
         # BOXTYPE: Class of the Box to create
@@ -1107,9 +1140,28 @@ class BoxDrawPanel(ImagePanel):
     def set_mode_m(self, mode):
         """ Sets my MouseMode. """
         self.mode_m = mode
+        self.update_cursor()
+
+    def update_cursor(self, force_cursor=None):
+        """ Updates the mouse cursor depending on the current state.
+        Returns the wx.Cursor that it decides to set.
+        To force the mouse cursor, pass in a wx.Cursor as FORCE_CURSOR.
+        """
+        if force_cursor != None:
+            self.SetCursor(force_cursor)
+            return force_cursor
+        if self.mode_m == BoxDrawPanel.M_CREATE:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+        elif self.mode_m == BoxDrawPanel.M_IDLE:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        else:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        self.SetCursor(cursor)
+        return cursor
 
     def set_boxes(self, boxes):
         self.boxes = boxes
+        self.dirty_all_boxes()
 
     def startBox(self, x, y, boxtype=None):
         """ Starts creating a box at (x,y). """
@@ -1129,12 +1181,23 @@ class BoxDrawPanel(ImagePanel):
         self.box_create.canonicalize()
         toreturn = self.box_create
         self.box_create = None
+        self.dirty_all_boxes()
         return toreturn
+
+    def set_scale(self, scale, *args, **kwargs):
+        self.dirty_all_boxes()
+        return ImagePanel.set_scale(self, scale, *args, **kwargs)
+
+    def dirty_all_boxes(self):
+        """ Signal to unconditionally-redraw all boxes. """
+        for box in self.boxes:
+            box._dirty = True
     
     def select_boxes(self, *boxes):
         for box in boxes:
             box.is_sel = True
         self.sel_boxes.extend(boxes)
+        self.dirty_all_boxes()
 
     def clear_selected(self):
         """ Un-selects all currently-selected boxes, if any. """
@@ -1148,6 +1211,12 @@ class BoxDrawPanel(ImagePanel):
             self.boxes.remove(box)
             if box in self.sel_boxes:
                 self.sel_boxes.remove(box)
+        self.dirty_all_boxes()
+        if not self.boxes:
+            # Force a redraw of the image - otherwise, the last-removed
+            # boxes don't go away.
+            self.force_new_img_redraw()
+            self.Refresh()
 
     def get_boxes_within(self, x, y, C=8.0, mode='any'):
         """ Returns a list of Boxes that are at most C units within
@@ -1249,10 +1318,12 @@ class BoxDrawPanel(ImagePanel):
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        self.isDragging = False
         if self.isResize:
             self.box_resize.canonicalize()
             self.box_resize = None
             self.isResize = False
+            self.dirty_all_boxes()
 
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
@@ -1286,12 +1357,16 @@ class BoxDrawPanel(ImagePanel):
             self.box_create.x2, self.box_create.y2 = self.c2img(x, y)
             self.Refresh()
         elif self.sel_boxes and evt.Dragging():
+            self.isDragging = True
             xdel_img, ydel_img = self.c2img(xdel, ydel)
             for box in self.sel_boxes:
                 box.x1 += xdel_img
                 box.y1 += ydel_img
                 box.x2 += xdel_img
                 box.y2 += ydel_img
+            # Surprisingly, forcing a redraw for each mouse mvmt. is
+            # a very fast operation! Very convenient.
+            self.dirty_all_boxes()
             self.Refresh()
 
     def onKeyDown(self, evt):
@@ -1319,32 +1394,98 @@ class BoxDrawPanel(ImagePanel):
             self.Refresh()
 
     def onPaint(self, evt):
+        total_t = time.time()
         dc = ImagePanel.onPaint(self, evt)
         if self.isResize:
             dboxes = [b for b in self.boxes if b != self.box_resize]
         else:
             dboxes = self.boxes
+        t = time.time()
         self.drawBoxes(dboxes, dc)
+        dur = time.time() - t
         if self.isCreate:
             # Draw Box-Being-Created
             can_box = self.box_create.copy().canonicalize()
             self.drawBox(can_box, dc)
         if self.isResize:
-            pass
             resize_box_can = self.box_resize.copy().canonicalize()
             self.drawBox(resize_box_can, dc)
+        total_dur = time.time() - total_t
+        #print "Total Time: {0:.5f}s  (drawBoxes: {1:.5f}s, {2:.4f}%)".format(total_dur, dur, 100*float(dur / total_dur))
         return dc
         
     def drawBoxes(self, boxes, dc):
-        for box in boxes:
-            self.drawBox(box, dc)
+        boxes_todo = [b for b in boxes if b._dirty]
+        if not boxes_todo:
+            return
+        # First draw contests, then targets on-top.
+        boxes_todo = sorted(boxes_todo, key=lambda b: 0 if type(b) == ContestBox else 1)
+        npimg_cpy = self.npimg.copy()
+        def draw_border(npimg, box, thickness=2, color=(0, 0, 0)):
+            T = thickness
+            clr = np.array(color)
+            x1,y1,x2,y2 = box.x1, box.y1, box.x2, box.y2
+            x1,y1 = self.img2c(x1,y1)
+            x2,y2 = self.img2c(x2,y2)
+            x1 = max(x1, 0)
+            y1 = max(y1, 0)
+            # Top
+            npimg[y1:y1+T, x1:x2] *= 0.2
+            npimg[y1:y1+T, x1:x2] += clr*0.8
+            # Bottom
+            npimg[max(0, (y2-T)):y2, x1:x2] *= 0.2
+            npimg[max(0, (y2-T)):y2, x1:x2] += clr*0.8
+            # Left
+            npimg[y1:y2, x1:(x1+T)] *= 0.2
+            npimg[y1:y2, x1:(x1+T)] += clr*0.8
+            # Right
+            npimg[y1:y2, max(0, (x2-T)):x2] *= 0.2
+            npimg[y1:y2, max(0, (x2-T)):x2] += clr*0.8
+            return npimg
+
+        for box in boxes_todo:
+            clr, thickness = box.get_draw_opts()
+            draw_border(npimg_cpy, box, thickness=thickness, color=(0, 0, 0))
+            if type(box) in (TargetBox, ContestBox) and box.is_sel:
+                transparent_color = np.array(box.shading_selected_clr) if box.shading_selected_clr else None
+            else:
+                transparent_color = np.array(box.shading_clr) if box.shading_clr else None
+            if transparent_color != None:
+                t = time.time()
+                _x1, _y1 = self.img2c(box.x1, box.y1)
+                _x2, _y2 = self.img2c(box.x2, box.y2)
+                np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
+                np_rect[:,:] *= 0.7
+                np_rect[:,:] += transparent_color*0.3
+                dur_wxbmp2np = time.time() - t
+            
+            box._dirty = False
+
+        h, w = npimg_cpy.shape[:2]
+        t = time.time()
+        _image = wx.EmptyImage(w, h)
+        _image.SetData(npimg_cpy.tostring())
+        bitmap = _image.ConvertToBitmap()
+        dur_img2bmp = time.time() - t
+
+        self.imgbitmap = bitmap
+        self.Refresh()
 
     def drawBox(self, box, dc):
         """ Draws BOX onto DC.
+        Note: This draws directly to the PaintDC - this should only be done
+        for user-driven 'dynamic' behavior (such as resizing a box), as
+        drawing to the DC is much slower than just blitting everything to
+        the self.imgbitmap.
+        self.drawBoxes does all heavy-lifting box-related drawing in a single
+        step.
         Input:
             list box: (x1, y1, x2, y2)
             wxDC DC:
         """
+        total_t = time.time()
+
+        t = time.time()
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         drawops = box.get_draw_opts()
         dc.SetPen(wx.Pen(*drawops))
@@ -1352,7 +1493,41 @@ class BoxDrawPanel(ImagePanel):
         h = int(round(abs(box.y2 - box.y1) * self.scale))
         client_x, client_y = self.img2c(box.x1, box.y1)
         dc.DrawRectangle(client_x, client_y, w, h)
+        dur_drawrect = time.time() - t
 
+        transparent_color = np.array([200, 0, 0]) if isinstance(box, TargetBox) else np.array([0, 0, 200])
+        if self.imgbitmap and type(box) in (TargetBox, ContestBox):
+            t = time.time()
+            _x1, _y1 = self.img2c(box.x1, box.y1)
+            _x2, _y2 = self.img2c(box.x2, box.y2)
+            _x1, _y1 = max(0, _x1), max(0, _y1)
+            _x2, _y2 = min(self.imgbitmap.Width-1, _x2), min(self.imgbitmap.Height-1, _y2)
+            if (_x2 - _x1) <= 1 or (_y2 - _y1) <= 1:
+                return
+            sub_bitmap = self.imgbitmap.GetSubBitmap((_x1, _y1, _x2-_x1, _y2-_y1))
+            # I don't think I need to do a .copy() here...
+            #np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True).copy()
+            np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True)
+            np_rect[:,:] *= 0.7
+            np_rect[:,:] += transparent_color*0.3
+            dur_wxbmp2np = time.time() - t
+
+            _h, _w, channels = np_rect.shape
+
+            t = time.time()
+            _image = wx.EmptyImage(_w, _h)
+            _image.SetData(np_rect.tostring())
+            bitmap = _image.ConvertToBitmap()
+            dur_img2bmp = time.time() - t
+
+            t = time.time()
+            memdc = wx.MemoryDC()
+            memdc.SelectObject(bitmap)
+            dc.Blit(client_x, client_y, _w, _h, memdc, 0, 0)
+            memdc.SelectObject(wx.NullBitmap)
+            dur_memdcBlit = time.time() - t
+
+        t = time.time()
         if isinstance(box, TargetBox) or isinstance(box, ContestBox):
             # Draw the 'grabber' circles
             CIRCLE_RAD = 2
@@ -1368,6 +1543,26 @@ class BoxDrawPanel(ImagePanel):
             dc.DrawCircle(client_x+w, client_y+h, CIRCLE_RAD)           # Lower-Right
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
 
+        dur_drawgrabbers = time.time() - t
+
+        total_dur = time.time() - total_t
+
+        '''
+        print "== drawBox Total {0:.6f}s (wxbmp2np: {1:.6f}s {2:.3f}%) \
+(_img2bmp: {3:.6f}s {4:.3f}%) (memdc.blit {5:.3f}s {6:.3f}%) \
+(drawrect: {7:.6f}s {8:.3f}%) (drawgrabbers {9:.6f} {10:.3f}%)".format(total_dur,
+                                                                      dur_wxbmp2np,
+                                                                      100*(dur_wxbmp2np / total_dur),
+                                                                      dur_img2bmp,
+                                                                      100*(dur_img2bmp / total_dur),
+                                                                      dur_memdcBlit,
+                                                                      100*(dur_memdcBlit / total_dur),
+                                                                      dur_drawrect,
+                                                                      100*(dur_drawrect / total_dur),
+                                                                      dur_drawgrabbers,
+                                                                      100*(dur_drawgrabbers / total_dur))
+        '''
+                                                                 
 class TemplateMatchDrawPanel(BoxDrawPanel):
     """ Like a BoxDrawPanel, but when you create a Target box, it runs
     Template Matching to try to find similar instances.
@@ -1409,6 +1604,13 @@ Either draw a bigger box, or zoom-in to better-select the targets.")
 
 class TargetFindPanel(TemplateMatchDrawPanel):
     M_FORCEADD_TARGET = 3
+
+    def update_cursor(self, *args, **kwargs):
+        if self.mode_m == TargetFindPanel.M_FORCEADD_TARGET:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+            self.SetCursor(cursor)
+            return cursor
+        return TemplateMatchDrawPanel.update_cursor(self, *args, **kwargs)
 
     def onLeftDown(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -1488,8 +1690,14 @@ class TM_Thread(threading.Thread):
         self.callback(results, w, h)
 
 class Box(object):
+    # SHADING: (int R, int G, int B)
+    #     (Optional) color of transparent shading for drawing
+    shading_clr = None
+    shading_selected_clr = None
+
     def __init__(self, x1, y1, x2, y2):
         self.x1, self.y1, self.x2, self.y2 = x1, y1, x2, y2
+        self._dirty = True
     @property
     def width(self):
         return abs(self.x1-self.x2)
@@ -1542,6 +1750,9 @@ class Box(object):
         return {'x1': self.x1, 'y1': self.y1, 'x2': self.x2, 'y2': self.y2}
 
 class TargetBox(Box):
+    shading_clr = (0, 255, 0) # Green
+    shading_selected_clr = (255, 0, 0) # Red
+
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
@@ -1554,12 +1765,15 @@ class TargetBox(Box):
         DC to use.
         """
         if self.is_sel:
-            return ("Yellow", 3)
+            return ("Yellow", 1)
         else:
             return ("Green", 1)
     def copy(self):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
 class ContestBox(Box):
+    shading_clr = (0, 0, 200) # Blue
+    shading_selected_clr = (161, 0, 240) # Purple
+
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
@@ -1572,9 +1786,9 @@ class ContestBox(Box):
         DC to use.
         """
         if self.is_sel:
-            return ("Yellow", 5)
+            return ("Yellow", 1)
         else:
-            return ("Blue", 2)
+            return ("Blue", 1)
     def copy(self):
         return ContestBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
     
@@ -1724,6 +1938,8 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                     if img2flip[imgpath]:
                         I = shared.fastFlip(I)
                     H, Ireg, err = global_align.align_image(Iref, I)
+                    #H, Ireg, err = global_align.align_strong(I, Iref, crop_Iref=(0.05, 0.05, 0.05, 0.05),
+                    #                                         do_nan_to_num=True)
                     outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
                     outpath = pathjoin(outdir, outname)
                     scipy.misc.imsave(outpath, Ireg)
@@ -1800,6 +2016,50 @@ def divy_lists(lst, N):
         else:
             outlst[out_idx].append([lst_idx, sublist])
     return outlst
+
+def wxImage2np(Iwx, is_rgb=True):
+    """ Converts wxImage to numpy array """
+    w, h = Iwx.GetSize()
+    Inp_flat = np.frombuffer(Iwx.GetDataBuffer(), dtype='uint8')
+    if is_rgb:
+        Inp = Inp_flat.reshape(h,w,3)
+    else:
+        Inp = Inp_flat.reshape(h,w)
+    return Inp
+def wxBitmap2np(wxBmp, is_rgb=True):
+    """ Converts wxBitmap to numpy array """
+    total_t = time.time()
+
+    t = time.time() 
+    Iwx = wxBmp.ConvertToImage()
+    dur_bmp2wximg = time.time() - t
+    
+    t = time.time()
+    npimg = wxImage2np(Iwx, is_rgb=True)
+    dur_wximg2np = time.time() - t
+    
+
+    total_dur = time.time() - total_t
+    print "==== wxBitmap2np: {0:.6f}s (bmp2wximg: {1:.5f}s {2:.3f}%) \
+(wximg2np: {3:.5f}s {4:.3f}%)".format(total_dur,
+                                      dur_bmp2wximg,
+                                      100*(dur_bmp2wximg / total_dur),
+                                      dur_wximg2np,
+                                      100*(dur_wximg2np / total_dur))
+    return npimg
+def wxBitmap2np_v2(wxBmp, is_rgb=True):
+    """ Converts wxBitmap to numpy array """
+    total_t = time.time()
+    
+    w, h = wxBmp.GetSize()
+
+    npimg = np.zeros(h*w*3, dtype='uint8')
+    wxBmp.CopyToBuffer(npimg, format=wx.BitmapBufferFormat_RGB)
+    npimg = npimg.reshape(h,w,3)
+
+    total_dur = time.time() - total_t
+    #print "==== wxBitmap2np_v2: {0:.6f}s".format(total_dur)
+    return npimg
     
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', '.bmp', 'jpeg', '.jpg', '.tif')

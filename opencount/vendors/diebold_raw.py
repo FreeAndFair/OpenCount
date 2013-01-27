@@ -6,17 +6,16 @@ sys.path.append('..')
 import grouping.tempmatch as tempmatch
 from grouping.verify_overlays_new import iplimage2np
 
-"""
-TODO: 
-a.) Set GAP parameter programatically somehow.
-b.) The MARKFULL_PATH and COLMARK_PATH exemplar images were extracted
-    from Marin 2012 images w/ imagesize 1280x2104. Other elections will
-    not have the same image size (and possibly even different shape?), so
-    we need to account for this.
-"""
-
 MARKFULL_PATH = 'diebold_mark.png'
 COLMARK_PATH = 'diebold_colmark.png'
+
+# HORIZ_GAP := Num. pixels between each mark in the barcode
+HORIZ_GAP = 7
+
+# Image Dimension (w,h) of ballot that MARKFULL_PATH/COLMARK_PATH were
+# extracted from. Used to re-scale these exemplar images to generalize to
+# other image resolutions, in addition to scaling HORIZ_GAP.
+SIZE_ORIG = (1280, 2104)
 
 DEBUG = False
 DEBUG_SAVEIMGS = False
@@ -29,8 +28,8 @@ def print_dbg(*args):
             print x,
         print
 
-def decode(imgpath, markpath, colpath):
-    decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath)
+def decode(imgpath, markpath, colpath, H_GAP=HORIZ_GAP):
+    decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath, H_GAP=H_GAP)
     if decoding != None:
         bbs = sorted(bbs, key=lambda t: t[0])
         # Strip off the left/right column marks (always '1')
@@ -38,7 +37,7 @@ def decode(imgpath, markpath, colpath):
         bbs = bbs[1:-1]
     return decoding, isflip, bbs
 
-def decode_robust_v2(imgpath, markpath, colpath):
+def decode_robust_v2(imgpath, markpath, colpath, H_GAP=7):
     if type(markpath) in (str, unicode):
         markfull = cv.LoadImage(markpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
@@ -48,7 +47,7 @@ def decode_robust_v2(imgpath, markpath, colpath):
     else:
         Icol = colpath
 
-    decoding, isflip, bbs = decode_v2_wrapper(imgpath, markfull, Icol)
+    decoding, isflip, bbs = decode_v2_wrapper(imgpath, markfull, Icol, H_GAP=H_GAP)
     return decoding, isflip, bbs
 
 def compute_border(A):
@@ -85,13 +84,13 @@ def compute_border_leftright(A):
             break
     return j1, w - j2
 
-def decode_v2_wrapper(imgpath, markpath, Icol):
+def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7):
     I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath)
+    result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath, H_GAP=H_GAP)
     if result == None and not DEBUG_SKIP_FLIP:
         print_dbg("...Trying FLIP...")
         cv.ResetImageROI(I)
-        result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath)
+        result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath, H_GAP=H_GAP)
     
     if result == None:
         return None, None, None
@@ -99,7 +98,7 @@ def decode_v2_wrapper(imgpath, markpath, Icol):
         decoding, isflip, bbs_out = result
         return (decoding, isflip, bbs_out)
 
-def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None):
+def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7):
     if type(imgpath) in (str, unicode):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
@@ -108,8 +107,6 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None):
         Imark = cv.LoadImage(markpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
         Imark = markpath
-
-    GAP = 7 # TODO: Estimate from current img. resolution.
 
     if isflip:
         cv.Flip(I, I, -1)
@@ -151,7 +148,7 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None):
                  (0, 0.945 * h,
                   (w-1), (0.995 * h)))
     result = decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip,
-                               GAP, theta, 
+                               H_GAP, theta, 
                                i1_blk, i2_blk, j1_blk, j2_blk,
                                imgpath=_imgpath)
     return result
@@ -518,6 +515,21 @@ def draw_bbs(imgpath, decoding, bbs, isflip=False):
         cv.Rectangle(Icolor, (x1,y1), (x2,y2), color, thickness=2)
     return Icolor
 
+def rescale_img(I, c):
+    """ Scales image I by factor C. For instance, to upscale an image
+    by a factor of 2, pass in c=2.0. """
+    if c == 1.0:
+        return cv.CloneImage(I)
+    w_cur, h_cur = cv.GetSize(I)
+    w_new, h_new = int(round(w_cur * float(c))), int(round(h_cur * float(c)))
+    Iout = cv.CreateImage((w_new, h_new), I.depth, I.channels)
+    if c > 1.0:
+        # Downsizing
+        cv.Resize(I, Iout, interpolation=cv.CV_INTER_AREA)
+    else:
+        cv.Resize(I, Iout, interpolation=cv.CV_INTER_CUBIC)
+    return Iout
+
 def main():
     args = sys.argv[1:]
     arg0 = args[-1]
@@ -550,11 +562,23 @@ def main():
     errs = []
     Imarkfull = cv.LoadImage(MARKFULL_PATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
     Icol = cv.LoadImage(COLMARK_PATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    w_cur, h_cur = cv.GetSize(cv.LoadImage(imgpaths[0], cv.CV_LOAD_IMAGE_UNCHANGED))
+    W_ORIG, H_ORIG = SIZE_ORIG
+    h_gap_cur = HORIZ_GAP
+    if w_cur != W_ORIG or h_cur != H_ORIG:
+        c = w_cur / float(W_ORIG)
+        print "...Detected current image resolution {0} differs from \
+original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_cur, h_cur),
+                                                                             (W_ORIG, H_ORIG))
+        Imarkfull = rescale_img(Imarkfull, c)
+        Icol = rescale_img(Icol, c)
+        h_gap_cur = int(round(HORIZ_GAP * c))
+        
     for imgpath in imgpaths:
         if N != None and cnt >= N:
             break
         try:
-            decoding, isflip, bbs = decode_robust_v2(imgpath, Imarkfull, Icol)
+            decoding, isflip, bbs = decode_robust_v2(imgpath, Imarkfull, Icol, H_GAP=h_gap_cur)
         except Exception as e:
             if type(e) == KeyboardInterrupt:
                 raise e

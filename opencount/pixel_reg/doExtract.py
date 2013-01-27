@@ -1,4 +1,4 @@
-import sys
+import sys, pdb
 from os.path import join as pathjoin
 import shared as sh
 from imagesAlign import *
@@ -352,6 +352,17 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
             if not diffpaths:
                 # means this side had no targets - skip it
                 continue
+            if len(diffpaths) == 1:
+                # this side only had one target. This ends up
+                # crashing the following line:
+                #     Errs=np.vstack((Errs,np.squeeze(M1)[sidx]))
+                # skip it to avoid the crash. a side with
+                # /only/ one target is strange - shouldn't ever happen
+                print "Warning: the following ballot had only one voting \
+target defined. This is probably a mistake in SelectTargets!\n\
+    {0}".format(balP)
+                continue
+
             # loop over jobs
             M1=[]; IDX1=np.empty(0);
             for f1 in diffpaths:
@@ -381,7 +392,6 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
             else:
                 Errs=np.zeros((0,len(sidx)))
                 jList=[]
-
             Errs=np.vstack((Errs,np.squeeze(M1)[sidx]))
             jList.append(balP)
             ErrHash[k1]=Errs
