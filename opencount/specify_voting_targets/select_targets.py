@@ -425,7 +425,7 @@ this partition.")
         txt_slash0 = wx.StaticText(self, label=" / ")
         self.txt_totalpartitions = wx.StaticText(self, label="Foo")
         
-        txt2 = wx.StaticText(self, label="Ballot: ")
+        txt2 = wx.StaticText(self, label="Ballot (subset of full partition): ")
         self.txt_curballot = wx.StaticText(self, label="1")
         txt_slash1 = wx.StaticText(self, label=" / ")
         self.txt_totalballots = wx.StaticText(self, label="Bar")
