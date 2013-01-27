@@ -325,9 +325,8 @@ def exists_attrs(proj):
 
 def main():
     app = wx.App(False)
-    f = MainFrame(None)
+    f = MainFrame(None, size=wx.GetDisplaySize())
     f.Show()
-    f.Maximize()
     app.MainLoop()
 
 if __name__ == '__main__':
