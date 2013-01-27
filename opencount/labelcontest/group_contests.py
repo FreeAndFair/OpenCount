@@ -498,7 +498,7 @@ def do_extract(name, img, squares, giventargets):
     #print "T", targets
     for sq in sorted(squares, key=area):
         if sq in targets: continue
-        inside = [t for t in targets if area(intersect(sq, t)) == area(t)]
+        inside = [t for t in targets if area(intersect(sq, t))]
         if inside != []:
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
             contests.append(sq)
@@ -739,7 +739,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     and one for the title. OCR the text and record it.
     """
 
-    targets = [x for x in targets if intersect(contest, x) == x]
+    targets = [x for x in targets if area(intersect(contest, x))]
     cont_area = None
 
     print 'targs', len(targets), targets
@@ -1415,6 +1415,9 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
+    #print paths, giventargets, contests
+    #print paths[11], giventargets[11], contests[11]
+    #exit(0)
     ballots = map(group_given_contests_map, args)
     pool.close()
     pool.join()

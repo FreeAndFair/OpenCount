@@ -542,7 +542,7 @@ class LabelContest(wx.Panel):
         print "REORDER", self.reorder
         print "REORDER_INVERSE", self.reorder_inverse
         print "EQUIVS", self.equivs
-        pdb.set_trace()
+        #pdb.set_trace()
 
         def putresults(data):
             print "I get the data", data
