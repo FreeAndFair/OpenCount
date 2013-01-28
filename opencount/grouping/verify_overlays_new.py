@@ -168,7 +168,11 @@ class ViewOverlays(ScrolledPanel):
         self.idx = idx
         self.listbox_groups.SetSelection(self.idx)
         group = self.groups[idx]
-        self.txt_grplabel.SetLabel(group.tag)
+        try:
+            tag = str(group.tag)
+        except:
+            tag = 'GroupTag'
+        self.txt_grplabel.SetLabel(tag)
         self.txtctrl_num_elements.SetValue(str(len(group.imgpaths)))
 
         # OVERLAY_MIN, OVERLAY_MAX are IplImages
