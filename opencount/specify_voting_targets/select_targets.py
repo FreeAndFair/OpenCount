@@ -2017,6 +2017,7 @@ def divy_lists(lst, N):
             outlst[out_idx].append([lst_idx, sublist])
     return outlst
 
+# TODO: Reference the util.py versions of the following conversion methods
 def wxImage2np(Iwx, is_rgb=True):
     """ Converts wxImage to numpy array """
     w, h = Iwx.GetSize()

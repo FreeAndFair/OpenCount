@@ -442,6 +442,53 @@ def imageToPil( myWxImage ):
 def WxImageToWxBitmap( myWxImage ) :
     return myWxImage.ConvertToBitmap()
 
+####################################################################
+## Additional methods to quickly convert between wx* and numpy/cv ##
+####################################################################
+
+def wxImage2np(Iwx, is_rgb=True):
+    """ Converts wxImage to numpy array """
+    w, h = Iwx.GetSize()
+    Inp_flat = np.frombuffer(Iwx.GetDataBuffer(), dtype='uint8')
+    if is_rgb:
+        Inp = Inp_flat.reshape(h,w,3)
+    else:
+        Inp = Inp_flat.reshape(h,w)
+    return Inp
+def wxBitmap2np(wxBmp, is_rgb=True):
+    """ Converts wxBitmap to numpy array """
+    # TODO: I believe all wxBitmaps are implicitly RGB, so, the
+    #       IS_RGB argument may be unnecessary (it currently isn't even
+    #       handled right now...)
+    w, h = wxBmp.GetSize()
+    npimg = np.zeros(h*w*3, dtype='uint8')
+    wxBmp.CopyToBuffer(npimg, format=wx.BitmapBufferFormat_RGB)
+    npimg = npimg.reshape(h,w,3)
+    return npimg
+def np2wxImage(nparray):
+    """ Converts a numpy array to a wxImage. Note that wxImages are
+    always RGB (3-channeled) - if a single-channel (grayscale) nparray
+    image is passed, then it will be silently-converted to a three-channel
+    image. 
+    """
+    if len(nparray.shape) == 2:
+        Inp = np.zeros((nparray.shape[0], nparray.shape[1], 3), dtype=nparray.dtype)
+        Inp[:,:,0] = nparray
+        Inp[:,:,1] = nparray
+        Inp[:,:,2] = nparray
+    else:
+        Inp = nparray
+    h, w, channels = Inp.shape
+    image = wx.EmptyImage(w, h)
+    image.SetData(Inp.tostring())
+    return image
+def np2wxBitmap(nparray):
+    """ Converts a numpy array to a wxBitmap. Single-channel (grayscale)
+    nparray images will be 'treated' as a three-channel image (see the
+    docstring for np2wxImage).
+    """
+    wximg = np2wxImage(nparray)
+    return wximg.ConvertToBitmap()
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):

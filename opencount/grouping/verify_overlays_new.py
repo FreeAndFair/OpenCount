@@ -1,4 +1,4 @@
-import os, sys, traceback, time
+import os, sys, traceback, time, pdb
 try:
     import cPickle as pickle
 except:
@@ -12,6 +12,9 @@ from wx.lib.scrolledpanel import ScrolledPanel
 import cv, numpy as np, scipy, scipy.misc, Image
 import make_overlays
 import cluster_imgs
+
+sys.path.append('..')
+import util
 
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
@@ -62,31 +65,27 @@ class ViewOverlays(ScrolledPanel):
         # IDX: Current idx into self.GROUPS that we are displaying
         self.idx = None
 
+        # float RSZFAC: Current Image scale of displayed images
+        self.rszfac = 1.0
+
+        # Numpy versions of the original-sized min/max images (useful
+        # to keep track of to scale larger/smaller)
+        self.minimg_np_orig = None
+        self.maximg_np_orig = None
+
         self.init_ui()
 
     def overlays_layout_vert(self):
-        """ Layout the overlay patches s.t. there is one row of N columns. 
-        Typically called when the patch height > patch width.
-        """
+        """ Layout the images in a single vertical column. """
         self.sizer_overlays.SetOrientation(wx.VERTICAL)
-        self.sizer_overlays_voted.SetOrientation(wx.HORIZONTAL)
-        self.sizer_min.SetOrientation(wx.VERTICAL)
-        self.sizer_max.SetOrientation(wx.VERTICAL)
-        self.sizer_attrpatch.SetOrientation(wx.VERTICAL)
-        self.sizer_diff.SetOrientation(wx.VERTICAL)
-    def overlays_layout_horiz(self):
-        """ Layout the overlay patches s.t. there are N rows of 1 column.
-        Typically called when the patch width > patch height.
-        """
-        self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
         self.sizer_overlays_voted.SetOrientation(wx.VERTICAL)
-        self.sizer_min.SetOrientation(wx.HORIZONTAL)
-        self.sizer_max.SetOrientation(wx.HORIZONTAL)
-        self.sizer_attrpatch.SetOrientation(wx.HORIZONTAL)
-        self.sizer_diff.SetOrientation(wx.HORIZONTAL)
+    def overlays_layout_horiz(self):
+        """ Layout the images in a single horizontal row. """
+        self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
+        self.sizer_overlays_voted.SetOrientation(wx.HORIZONTAL)
     def set_patch_layout(self, orient='horizontal'):
-        """ Change the orientation of the overlay patch images. Either
-        arrange 'horizontal', or stack 'vertical'.
+        """ Change the orientation of the images. Either arrange 
+        'horizontal', or stack 'vertical'.
         """
         if orient == 'horizontal':
             sizer = self.overlays_layout_horiz()
@@ -96,44 +95,61 @@ class ViewOverlays(ScrolledPanel):
         self.Refresh()
 
     def init_ui(self):
+        stxt_grplabel = wx.StaticText(self, label="Current Group Label: ")
+        self.txt_grplabel = wx.StaticText(self, label='')
         txt_0 = wx.StaticText(self, label="Number of images in group: ")
         self.txtctrl_num_elements = wx.TextCtrl(self, value='0')
         self.listbox_groups = wx.ListBox(self, size=(200, 300))
+        self.listbox_groups.Hide()
         self.listbox_groups.Bind(wx.EVT_LISTBOX, self.onListBox_groups)
+        self.btn_showhidelistbox = wx.Button(self, label="Show List")
+        self.btn_showhidelistbox.Bind(wx.EVT_BUTTON, self.onButton_showhidelistbox)
+        sizer_grplabel = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_grplabel = sizer_grplabel
+        # Align self.txt_grplabel, self.txtctrl_num_elements as a column
+        _maxtxtlen = max(self.GetTextExtent(stxt_grplabel.GetLabel())[0],
+                         self.GetTextExtent(txt_0.GetLabel())[0])
+        _pad = 30
+
+        sizer_grplabel.AddMany([(stxt_grplabel,), 
+                                (_maxtxtlen - self.GetTextExtent(stxt_grplabel.GetLabel())[0] + _pad, 0),
+                                (self.txt_grplabel,)])
         sizer_numimgs = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_numimgs.AddMany([(txt_0,), (self.txtctrl_num_elements,)])
+        sizer_numimgs.AddMany([(txt_0,), 
+                               (_maxtxtlen - self.GetTextExtent(txt_0.GetLabel())[0] + _pad, 0),
+                               (self.txtctrl_num_elements,)])
         sizer_groups = wx.BoxSizer(wx.VERTICAL)
-        sizer_groups.AddMany([(sizer_numimgs,), (self.listbox_groups,)])
+        self.sizer_groups = sizer_groups
+        sizer_groups.AddMany([(sizer_grplabel,), (sizer_numimgs,), (self.listbox_groups,), (self.btn_showhidelistbox,)])
 
         st1 = wx.StaticText(self, -1, "min: ")
         st2 = wx.StaticText(self, -1, "max: ")
         st3 = wx.StaticText(self, -1, "Looks like? ")
-        st4 = wx.StaticText(self, -1, "diff: ")
-        self.st1, self.st2, self.st3, self.st4 = st1, st2, st3, st4
+        self.st1, self.st2, self.st3 = st1, st2, st3
 
         self.minOverlayImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
         self.maxOverlayImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
         self.txt_exemplarTag = wx.StaticText(self, label='')
         self.exemplarImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
-        self.diffImg = wx.StaticBitmap(self, bitmap=wx.EmptyBitmap(1, 1))
 
-        maxTxtW = max([txt.GetSize()[0] for txt in (st1, st2, st3, st4)]) + 20
+        maxTxtW = max([txt.GetSize()[0] for txt in (st1, st2, st3)]) + 20
 
         sizer_overlays = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_overlays = sizer_overlays
-        self.sizer_overlays_voted = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_min = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer_min.AddMany([(st1,), ((maxTxtW-st1.GetSize()[0],0),), (self.minOverlayImg,)])
-        self.sizer_max = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer_max.AddMany([(st2,), ((maxTxtW-st2.GetSize()[0],0),), (self.maxOverlayImg,)])
+        self.sizer_overlays_voted = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.sizer_min = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_min.AddMany([(st1,), (self.minOverlayImg,)])
+        self.sizer_max = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_max.AddMany([(st2,), (self.maxOverlayImg,)])
+
         self.sizer_innerattrpatch = wx.BoxSizer(wx.VERTICAL)
         self.sizer_innerattrpatch.AddMany([(self.txt_exemplarTag,), (self.exemplarImg,)])
-        self.sizer_attrpatch = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer_attrpatch.AddMany([(st3,), ((maxTxtW-st3.GetSize()[0],0),), (self.sizer_innerattrpatch,)])
-        self.sizer_diff = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer_diff.AddMany([(st4,), ((maxTxtW-st4.GetSize()[0],0),), (self.diffImg,)])
-        self.sizer_overlays_voted.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,), ((50, 50),),
-                                           (self.sizer_diff,)])
+
+        self.sizer_attrpatch = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_attrpatch.AddMany([(st3,), (self.sizer_innerattrpatch,)])
+
+        self.sizer_overlays_voted.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,)])
         self.sizer_overlays.AddMany([(self.sizer_overlays_voted,), ((50, 50),),
                                      (self.sizer_attrpatch, 0, wx.ALIGN_CENTER)])
         self.set_patch_layout('horizontal')
@@ -152,7 +168,7 @@ class ViewOverlays(ScrolledPanel):
         self.idx = idx
         self.listbox_groups.SetSelection(self.idx)
         group = self.groups[idx]
-
+        self.txt_grplabel.SetLabel(group.tag)
         self.txtctrl_num_elements.SetValue(str(len(group.imgpaths)))
 
         # OVERLAY_MIN, OVERLAY_MAX are IplImages
@@ -166,25 +182,87 @@ class ViewOverlays(ScrolledPanel):
             bbs_map_v2 = {}
         overlay_min, overlay_max = group.get_overlays(bbs_map=bbs_map_v2)
 
-        wImg, hImg = cv.GetSize(overlay_min)
-        if wImg > hImg:
-            self.set_patch_layout('horizontal')
-        else:
-            self.set_patch_layout('vertical')
-
         minimg_np = iplimage2np(overlay_min)
         maximg_np = iplimage2np(overlay_max)
+        
+        self.minimg_np_orig = gray2rgb_np(minimg_np)
+        self.maximg_np_orig = gray2rgb_np(maximg_np)
 
         min_bitmap = NumpyToWxBitmap(minimg_np)
         max_bitmap = NumpyToWxBitmap(maximg_np)
 
         self.minOverlayImg.SetBitmap(min_bitmap)
         self.maxOverlayImg.SetBitmap(max_bitmap)
+
+        orientation, rszfac = self.compute_img_layout(overlay_min, overlay_max)
+        self.apply_img_layout(orientation, rszfac)
         
         self.Layout()
         self.SetupScrolling()
 
         return self.idx
+
+    def compute_img_layout(self, minimg, maximg):
+        """ Computes the best layout considering the min and max
+        images. 
+        Returns (str orientation, float rescale_factor).
+        """
+        # Determine the best layout+autoscaling for these images.
+        w_space, h_space = map(float, self.GetClientSize())
+        h_space -= max(1, self.sizer_groups.GetSize()[1])
+
+        w_min, h_min = cv.GetSize(minimg)
+        w_max, h_max = cv.GetSize(maximg)
+
+        # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
+        MIN_RSZ_FAC = 0.5
+        MAX_RSZ_FAC = 10.0
+        c_horiz = w_space / (w_min+w_max)
+        if (h_min * c_horiz) >= h_space:
+            c_horiz = h_space / h_min
+        c_vert = h_space / (h_min+h_max)
+        if (w_min * c_vert) >= w_space:
+            c_vert = w_space / w_min
+
+        _w0, _h0 = self.st1.GetSize()
+        _w1, _h1 = self.st2.GetSize()
+
+        if c_horiz > c_vert:
+            c_out = c_horiz
+            return 'horizontal', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
+        else:
+            _added_amt = (_h0 + _h1)
+            _added_frac = _added_amt / float(h_space)
+            c_out = c_vert - _added_frac
+            return 'vertical', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
+
+    def apply_img_layout(self, orientation, rszfac):
+        if orientation != None:
+            self.set_patch_layout(orientation)
+        if rszfac != None:
+            self.rescale_images(rszfac)
+    
+    def show_larger(self, amt=0.2):
+        self.rescale_images(self.rszfac + amt)
+        self.Layout()
+    def show_smaller(self, amt=0.2):
+        self.rescale_images(self.rszfac - amt)
+        self.Layout()
+
+    def rescale_images(self, rszfac):
+        """ Rescales the images by RSZFAC. """
+        if rszfac <= 0.01:
+            return self.rszfac
+        min_resized = scipy.misc.imresize(self.minimg_np_orig, rszfac, interp='bicubic')
+        max_resized = scipy.misc.imresize(self.maximg_np_orig, rszfac, interp='bicubic')
+
+        self.minOverlayImg.SetBitmap(util.np2wxBitmap(min_resized))
+        self.maxOverlayImg.SetBitmap(util.np2wxBitmap(max_resized))
+
+        self.rszfac = rszfac
+        self.Layout()
+        self.SetupScrolling()
+        return rszfac
 
     def get_current_group(self):
         return self.groups[self.idx]
@@ -198,8 +276,7 @@ class ViewOverlays(ScrolledPanel):
         self.groups.pop(idx)
         self.listbox_groups.Delete(idx)
         if self.groups:
-            newidx = min(len(self.groups)-1, idx)
-            self.select_group(newidx)
+            self.select_group(0)
         else:
             # No more groups to display, so do some cleanup
             self.handle_nomoregroups()
@@ -276,6 +353,16 @@ class ViewOverlays(ScrolledPanel):
         if self.groups:
             self.select_group(idx)
 
+    def onButton_showhidelistbox(self, evt):
+        if self.listbox_groups.IsShown():
+            self.listbox_groups.Hide()
+            self.btn_showhidelistbox.SetLabel("Show List")
+        else:
+            self.listbox_groups.Show()
+            self.btn_showhidelistbox.SetLabel("Hide List")
+        self.Layout()
+        self.SetupScrolling()
+
 class SplitOverlaysPanel(ViewOverlaysPanel):
     """ Class that contains both a Header, a SplitOverlays, and a Button
     Toolbar Footer. """
@@ -298,8 +385,16 @@ class SplitOverlaysFooter(wx.Panel):
         sizer_split = wx.BoxSizer(wx.VERTICAL)
         sizer_split.AddMany([(btn_split,0,wx.ALIGN_CENTER), (btn_setsplitmode,0,wx.ALIGN_CENTER)])
 
+        btn_larger = wx.Button(self, label="Show Larger")
+        btn_larger.Bind(wx.EVT_BUTTON, self.onButton_showlarger)
+        btn_smaller = wx.Button(self, label="Show Smaller")
+        btn_smaller.Bind(wx.EVT_BUTTON, self.onButton_showsmaller)
+        sizer_scaling = wx.BoxSizer(wx.VERTICAL)
+        sizer_scaling.AddMany([(btn_larger,0,wx.ALIGN_CENTER), ((10,10),),(btn_smaller,0,wx.ALIGN_CENTER)])
+
         self.btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.btn_sizer.Add(sizer_split)
+        self.btn_sizer.Add(sizer_scaling)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -312,6 +407,10 @@ class SplitOverlaysFooter(wx.Panel):
         self.GetParent().overlaypanel.do_split()
     def onButton_setsplitmode(self, evt):
         self.GetParent().overlaypanel.do_setsplitmode()
+    def onButton_showlarger(self, evt):
+        self.GetParent().overlaypanel.show_larger()
+    def onButton_showsmaller(self, evt):
+        self.GetParent().overlaypanel.show_smaller()
 
 class SplitOverlays(ViewOverlays):
     def __init__(self, parent, *args, **kwargs):
@@ -431,6 +530,10 @@ class VerifyOverlays(SplitOverlays):
         # self.EXMPLIDX_SEL: The exemplaridx that the user has currently selected
         self.exmplidx_sel = None
 
+        # A numpy-version of the original-sized image (useful to keep
+        # track of to scale larger/smaller)
+        self.exemplarimg_np_orig = None
+
         # self.ONDONE: A callback function to call when verifying is done.
         self.ondone = None
 
@@ -521,25 +624,93 @@ class VerifyOverlays(SplitOverlays):
         return state
 
     def select_group(self, idx):
+        if idx < 0 or idx >= len(self.groups):
+            return None
+        group = self.groups[idx]
+        self.select_exmpl_group(group.tag, group.exmpl_idx)
+        
         curidx = SplitOverlays.select_group(self, idx)
         if curidx == None:
             # Say, if IDX is invalid (maybe no more groups?)
-            return
-        group = self.groups[curidx]
-        self.select_exmpl_group(group.tag, group.exmpl_idx)
+            return None
 
         self.Layout()
+
+    def compute_img_layout(self, minimg, maximg):
+        """ Computes the best layout considering the min, max, and the
+        exemplar image patches.
+        Returns (str orientation, float rescale_factor).
+        """
+        # TODO: This method is a copy+paste of ViewOverlays.compute_img_layout,
+        # which is frustrating, but, I couldn't see another way to do this
+        # without a tricky refactor...
+
+        # Assumes that select_exmpl_group() has already been called
+        # with the exemplar-image that we are about to display
+        w_space, h_space = map(float, self.GetClientSize())
+        h_space -= max(1, self.sizer_groups.GetSize()[1])
+
+        w_min, h_min = cv.GetSize(minimg)
+        w_max, h_max = cv.GetSize(maximg)
+        w_exm, h_exm = self.exemplarImg.GetSize()
+
+        # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
+        MIN_RSZ_FAC = 0.5
+        MAX_RSZ_FAC = 10.0
+        c_horiz = w_space / (w_min+w_max+w_exm)
+        if (h_min * c_horiz) >= h_space:
+            c_horiz = h_space / h_min
+        c_vert = h_space / (h_min+h_max+h_exm)
+        if (w_min * c_vert) >= w_space:
+            c_vert = w_space / w_min
+
+        _w0, _h0 = self.st1.GetSize()
+        _w1, _h1 = self.st2.GetSize()
+        _w2, _h2 = self.st3.GetSize()
+        _w3, _h3 = self.txt_exemplarTag.GetSize()
+
+        if c_horiz > c_vert:
+            _added_amt = 50 + 50 # Padding added between images
+            _added_frac = _added_amt / float(w_space)
+            c_out = c_horiz - _added_frac
+            print "Chose Horizontal, c_out={0:.5f}".format(c_out)
+            return 'horizontal', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
+        else:
+            _added_amt = max(_h0, _h1, _h2+_h3) + 50 + 50 # Padding added btwn imgs
+            _added_frac = _added_amt / float(h_space)
+            c_out = c_vert - _added_frac
+            print "Chose Vertical, c_out={0:.5f}".format(c_out)
+            return 'vertical', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
+
+    def rescale_images(self, rszfac):
+        if rszfac <= 0.01:
+            return self.rszfac
+        rszfac_out = SplitOverlays.rescale_images(self, rszfac)
+        if not self.exemplarImg.IsShown():
+            return rszfac_out
+        exemplar_resized = scipy.misc.imresize(self.exemplarimg_np_orig, rszfac, interp='bicubic')
+        self.exemplarImg.SetBitmap(util.np2wxBitmap(exemplar_resized))
+        self.Layout()
+        self.SetupScrolling()
+        return rszfac_out
 
     def select_exmpl_group(self, grouptag, exmpl_idx):
         """ Displays the correct exemplar img patch on the screen. """
         if grouptag not in self.exemplar_imgpaths:
-            print "...Invalid GroupTAG: {0}...".format(grouptag)
+            print "...Invalid GroupTAG: {0}. Hiding exemplar-related UI components...".format(grouptag)
+            self.sizer_attrpatch.ShowItems(False)
+            self.Layout()
+            self.SetupScrolling()
             return
+        if not self.exemplarImg.IsShown():
+            self.sizer_attrpatch.ShowItems(True)
         exemplar_paths = self.exemplar_imgpaths[grouptag]
         if exmpl_idx < 0 or exmpl_idx >= len(exemplar_paths):
             print "...Invalid exmpl_idx: {0}...".format(exmpl_idx)
             return
-        exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx])
+        exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx], flatten=True)
+        self.exemplarimg_np_orig = gray2rgb_np(exemplar_npimg)
+
         exemplarImg_bitmap = NumpyToWxBitmap(exemplar_npimg)
         self.exmplidx_sel = exmpl_idx
         self.exemplarImg.SetBitmap(exemplarImg_bitmap)
@@ -548,6 +719,7 @@ class VerifyOverlays(SplitOverlays):
         self.GetParent().footer.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
         self.GetParent().footer.txt_curlabel.SetLabel(str(grouptag))
         self.Layout()
+        self.SetupScrolling()
 
     def handle_nomoregroups(self):
         SplitOverlays.handle_nomoregroups(self)
@@ -888,7 +1060,6 @@ class SeparateImages(VerifyOverlays):
 
     def init_ui(self):
         VerifyOverlays.init_ui(self)
-        self.sizer_diff.ShowItems(False)
         self.sizer_attrpatch.ShowItems(False)
 
     def start(self, imggroups, do_align=False, bbs_map=None,
@@ -1375,6 +1546,16 @@ def iplimage2np(iplimage):
 
 def is_img_ext(p):
     return os.path.splitext(p)[1].lower() in ('.png', '.jpg', '.jpeg', '.bmp', '.tif')
+
+def gray2rgb_np(nparray):
+    if len(nparray.shape) == 2:
+        npout = np.zeros((nparray.shape[0],nparray.shape[1], 3), dtype=nparray.dtype)
+        npout[:,:,0] = nparray
+        npout[:,:,1] = nparray
+        npout[:,:,2] = nparray
+    else:
+        npout = nparray.copy()
+    return npout
 
 def test_verifyoverlays():
     class TestFrame(wx.Frame):
