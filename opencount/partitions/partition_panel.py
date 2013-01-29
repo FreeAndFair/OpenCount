@@ -500,6 +500,10 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
         f.Maximize()
         f.Show()
+        # Kludge: Do a 200ms delay, to allow size-related events to
+        # complete. If you call f.start() immediately, then f's widgets
+        # won't know its 'real' client size, causing layout issues.
+        wx.FutureCall(200, f.start)
 
     def on_verify_done(self, verify_results, patch2stuff, flipmap, verifypatch_bbs, skipVerify=False):
         """ Receives the (corrected) results from VerifyOverlays.
@@ -639,8 +643,10 @@ class VerifyOverlaysFrame(wx.Frame):
             a set of exemplar imgpatches.
         fn ONDONE: Callback function to call after verification is done.
         """
-        wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
+        wx.Frame.__init__(self, parent, *args, **kwargs)
 
+        self.imgcategories = imgcategories
+        self.exmplcategories = exmplcategories
         self.ondone = ondone
 
         self.verifyoverlays = verify_overlays_new.VerifyOverlaysMultCats(self)
@@ -650,9 +656,9 @@ class VerifyOverlaysFrame(wx.Frame):
         self.SetSizer(self.sizer)
         self.Layout()
 
-        self.verifyoverlays.start(imgcategories, exmplcategories, 
+    def start(self):
+        self.verifyoverlays.start(self.imgcategories, self.exmplcategories, 
                                   do_align=False, ondone=self.on_verify_done)
-
         self.Layout()
     
     def on_verify_done(self, verify_results):

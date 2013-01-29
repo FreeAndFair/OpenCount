@@ -92,6 +92,7 @@ class ViewOverlays(ScrolledPanel):
         else:
             sizer = self.overlays_layout_vert()
         self.Layout()
+        self.SetupScrolling()
         self.Refresh()
 
     def init_ui(self):
@@ -188,7 +189,7 @@ class ViewOverlays(ScrolledPanel):
 
         minimg_np = iplimage2np(overlay_min)
         maximg_np = iplimage2np(overlay_max)
-        
+
         self.minimg_np_orig = gray2rgb_np(minimg_np)
         self.maximg_np_orig = gray2rgb_np(maximg_np)
 
@@ -632,13 +633,13 @@ class VerifyOverlays(SplitOverlays):
             return None
         group = self.groups[idx]
         self.select_exmpl_group(group.tag, group.exmpl_idx)
-        
         curidx = SplitOverlays.select_group(self, idx)
         if curidx == None:
             # Say, if IDX is invalid (maybe no more groups?)
             return None
 
         self.Layout()
+        self.SetupScrolling()
 
     def compute_img_layout(self, minimg, maximg):
         """ Computes the best layout considering the min, max, and the
@@ -890,6 +891,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         for i, (page, category) in enumerate(pages):
             self.nb.AddPage(page, str(category))
         self.nb.ChangeSelection(0)
+        self.Layout()
         self.nb.SendPageChangedEvent(-1, 0)
         self.Layout()
 
@@ -906,11 +908,12 @@ class VerifyOverlaysMultCats(wx.Panel):
             return
         curcat = self.page2cat[new]
         imgpath_groups = self.imgpath_cats[curcat]
-        #exemplar_groups = self.cat_exemplars[curcat]
         exemplar_groups = self.cat_exemplars.get(curcat, {})
         bbs_map = self.bbs_map_cats.get(curcat, None)
         verifyoverlays = self.nb.GetPage(new)
-        verifyoverlays.start(imgpath_groups, exemplar_groups, None, 
+        # Do a CallAfter so that verifyoverlays knows its true client
+        # size after size-related events are finished.
+        wx.CallAfter(verifyoverlays.start, imgpath_groups, exemplar_groups, None, 
                              bbs_map=bbs_map, do_align=self.do_align, 
                              ondone=self.on_cat_done, auto_ondone=True)
         self.started_pages[new] = True
@@ -1172,8 +1175,9 @@ class SeparateImagesFrame(wx.Frame):
         for tagid, imgpaths in enumerate(imgpath_groups):
             imggroups[tagid] = imgpaths
 
-        self.separatepanel.start(imggroups, do_align=False, ondone=self.ondone_verify,
-                                 auto_ondone=True, realign_callback=self.realign_callback)
+        # Start via wx.CallAfter to allow size-related events to complete
+        wx.CallAfter(self.separatepanel.start, imggroups, do_align=False, ondone=self.ondone_verify,
+                     auto_ondone=True, realign_callback=self.realign_callback)
 
         self.Layout()
 
@@ -1553,10 +1557,15 @@ def is_img_ext(p):
 
 def gray2rgb_np(nparray):
     if len(nparray.shape) == 2:
-        npout = np.zeros((nparray.shape[0],nparray.shape[1], 3), dtype=nparray.dtype)
-        npout[:,:,0] = nparray
-        npout[:,:,1] = nparray
-        npout[:,:,2] = nparray
+        h, w = nparray.shape
+        # Workaround: Don't output RGB images with a width/height of 3:
+        #     http://projects.scipy.org/scipy/ticket/1828
+        h_out = (4 if h == 3 else h)
+        w_out = (4 if w == 3 else w)
+        npout = np.zeros((h_out,w_out,3), dtype=nparray.dtype)
+        npout[:h,:w,0] = nparray.copy()
+        npout[:h,:w,1] = nparray.copy()
+        npout[:h,:w,2] = nparray.copy()
     else:
         npout = nparray.copy()
     return npout
