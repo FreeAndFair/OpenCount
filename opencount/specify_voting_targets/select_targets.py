@@ -1292,7 +1292,11 @@ class BoxDrawPanel(ImagePanel):
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        
+        x_img, y_img = self.c2img(x,y)
+        w_img, h_img = self.img.GetSize()
+        if x_img >= (w_img-1) or y_img >= (h_img-1):
+            return
+
         box_resize, orient = self.get_box_to_resize(x, y)
         if self.mode_m == BoxDrawPanel.M_IDLE and box_resize:
             self.isResize = True
@@ -1446,7 +1450,7 @@ class BoxDrawPanel(ImagePanel):
         for box in boxes_todo:
             clr, thickness = box.get_draw_opts()
             draw_border(npimg_cpy, box, thickness=thickness, color=(0, 0, 0))
-            if type(box) in (TargetBox, ContestBox) and box.is_sel:
+            if box.is_sel:
                 transparent_color = np.array(box.shading_selected_clr) if box.shading_selected_clr else None
             else:
                 transparent_color = np.array(box.shading_clr) if box.shading_clr else None
