@@ -97,6 +97,7 @@ class ViewOverlays(ScrolledPanel):
 
     def init_ui(self):
         stxt_grplabel = wx.StaticText(self, label="Current Group Label: ")
+        self.stxt_grplabel = stxt_grplabel
         self.txt_grplabel = wx.StaticText(self, label='')
         txt_0 = wx.StaticText(self, label="Number of images in group: ")
         self.txtctrl_num_elements = wx.TextCtrl(self, value='0')
@@ -162,19 +163,42 @@ class ViewOverlays(ScrolledPanel):
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
-        
-    def select_group(self, idx):
-        if idx < 0 or idx >= len(self.groups):
-            return None
-        self.idx = idx
-        self.listbox_groups.SetSelection(self.idx)
-        group = self.groups[idx]
+
+    def update_grouptag_txt(self):
+        """ Updates the UI text about which group is currently-displayed. """
+        if self.idx == None:
+            return
+        group = self.get_current_group()
         try:
             tag = str(group.tag)
         except:
             tag = 'GroupTag'
         self.txt_grplabel.SetLabel(tag)
-        self.txtctrl_num_elements.SetValue(str(len(group.imgpaths)))
+        
+    def update_groupsize_txt(self):
+        """ Updates the UI text about how large the current group is. """
+        if self.idx == None:
+            return
+        group = self.get_current_group()
+        self.txtctrl_num_elements.SetValue(str(len(group.imgpaths)))        
+
+    def update_ui_text(self):
+        """ Updates UI text components for currently-displayed group. """
+        self.update_grouptag_txt()
+        self.update_groupsize_txt()
+
+    def select_group(self, idx):
+        """ Handles the frontend logic to select and display the group with
+        groupidx IDX. If the group G's overlays haven't been computed yet,
+        then its min/max overlays will be generated.
+        """
+        if idx < 0 or idx >= len(self.groups):
+            return None
+        self.idx = idx
+        self.listbox_groups.SetSelection(self.idx)
+        group = self.groups[idx]
+        
+        self.update_ui_text()
 
         # OVERLAY_MIN, OVERLAY_MAX are IplImages
         if self.bbs_map:
@@ -628,6 +652,18 @@ class VerifyOverlays(SplitOverlays):
         state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
         return state
 
+    def update_exemplartag_txt(self):
+        group = self.get_current_group()
+        try:
+            tag = str(group.tag)
+        except:
+            tag = "GroupTag"
+        self.txt_exemplarTag.SetLabel(tag)
+
+    def update_ui_text(self):
+        SplitOverlays.update_ui_text(self)
+        self.update_exemplartag_txt()
+
     def select_group(self, idx):
         if idx < 0 or idx >= len(self.groups):
             return None
@@ -719,7 +755,6 @@ class VerifyOverlays(SplitOverlays):
         exemplarImg_bitmap = NumpyToWxBitmap(exemplar_npimg)
         self.exmplidx_sel = exmpl_idx
         self.exemplarImg.SetBitmap(exemplarImg_bitmap)
-        self.txt_exemplarTag.SetLabel(str(grouptag))
         self.GetParent().footer.txt_curexmplidx.SetLabel(str(exmpl_idx+1))
         self.GetParent().footer.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
         self.GetParent().footer.txt_curlabel.SetLabel(str(grouptag))
@@ -1003,6 +1038,22 @@ class CheckImageEquals(VerifyOverlays):
         self.exemplarImg.SetBitmap(bitmap)
         self.Layout()
 
+    def update_grouptag_txt(self):
+        if self.stxt_grplabel.IsShown():
+            self.stxt_grplabel.Hide()
+        if self.txt_grplabel.IsShown():
+            self.txt_grplabel.Hide()
+
+    def update_exemplartag_txt(self):
+        group = self.get_current_group()
+        if group.tag in (CheckImageEquals.TAG_YES, CheckImageEquals.TAG_NO):
+            # Don't display the system-specific YES/NO tags to the user
+            self.txt_exemplarTag.Hide()
+        else:
+            if not self.txt_exemplarTag.IsShown():
+                self.txt_exemplarTag.Show()
+            VerifyOverlays.update_exemplartag_txt(self)
+
     def do_no(self):
         """ The user says that the current group does NOT match category A. """
         curgroup = self.get_current_group()
@@ -1091,6 +1142,16 @@ class SeparateImages(VerifyOverlays):
             VerifyOverlays.start(self, imggroups, exemplars, None, 
                                  bbs_map=bbs_map, ondone=ondone, stateP=stateP,
                                  auto_ondone=auto_ondone)
+
+    def update_grouptag_txt(self):
+        if self.stxt_grplabel.IsShown():
+            self.stxt_grplabel.Hide()
+        if self.txt_grplabel.IsShown():
+            self.txt_grplabel.Hide()
+
+    def update_exemplartag_txt(self):
+        if self.txt_exemplarTag.IsShown():
+            self.txt_exemplarTag.Hide()
             
     def export_results(self):
         if self.ondone:
