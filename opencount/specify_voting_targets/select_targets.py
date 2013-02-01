@@ -854,6 +854,7 @@ class Toolbar(wx.Panel):
         self.parent.imagepanel.boxtype = TargetBox
     def onButton_forceaddtarget(self, evt):
         self.setmode(TargetFindPanel.M_FORCEADD_TARGET)
+        self.parent.imagepanel.boxtype = TargetBox
     def onButton_addcontest(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = ContestBox
