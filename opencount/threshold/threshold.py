@@ -25,6 +25,7 @@ class GridShow(wx.ScrolledWindow):
     images = {}
     numcols = 20
     preloaded_fulllist = None
+    inverse_fulllist = None
 
     def lookupFullList(self, i):
         return self.classified_file[i]
@@ -162,12 +163,18 @@ class GridShow(wx.ScrolledWindow):
             _,targetmeta_dir,_,_ = self.bal2targets[ballotid][page]
         else:
             _,targetmeta_dir,_,_ = self.bal2targets[ballotid].values()[0]
-            
-        for ind, (p, _) in enumerate(self.enumerateOverFullList()):
+
+        if self.inverse_fulllist == None:
+            self.inverse_fulllist = {}
+            for ind, (p, _) in enumerate(self.enumerateOverFullList()):
+                self.inverse_fulllist[p] = ind
+        #for ind, (p, _) in enumerate(self.enumerateOverFullList()):
+        for p in targetpaths:
             # P is path to a target image
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
+            ind = self.inverse_fulllist[p]
             pname = os.path.split(p)[-1]
             #if pname in targetpaths:
             if p in targetpaths:
