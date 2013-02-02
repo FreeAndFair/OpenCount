@@ -307,7 +307,7 @@ class WarningDialog(wx.Dialog):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         txt = wx.StaticText(self, label=warn_msg)
-        txt.Wrap(500)
+        txt.Wrap(600)
         btns = []
         sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
         for i, btn_label in enumerate(btn_labels):
@@ -316,10 +316,10 @@ class WarningDialog(wx.Dialog):
             btns.append(btn)
             btn_statusval = status_vals[i]
             btn._mystatusval = btn_statusval
-            sizer_btns.Add(btn)
+            sizer_btns.Add(btn, border=5, flag=wx.ALL)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(txt)
-        sizer.Add(sizer_btns, flag=wx.ALIGN_CENTER)
+        sizer.Add(txt, border=20, flag=wx.ALL)
+        sizer.Add(sizer_btns, border=10, flag=wx.BOTTOM | wx.ALIGN_CENTER)
         self.SetSizer(sizer)
         self.Fit()
         

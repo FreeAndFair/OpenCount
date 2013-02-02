@@ -13,6 +13,7 @@ import wx, cv, numpy as np, Image, scipy, scipy.misc
 from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
+from panel_opencount import OpenCountPanel
 import util_gui, util
 import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
@@ -20,12 +21,24 @@ import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
 import global_align.global_align as global_align
 
-class SelectTargetsMainPanel(wx.Panel):
+class SelectTargetsMainPanel(OpenCountPanel):
     GLOBALALIGN_JOBID = util.GaugeID("GlobalAlignJobId")
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+        OpenCountPanel.__init__(self, parent, *args, **kwargs)
 
         self.proj = None
+
+        _sanitycheck_callbacks = ((ID_FLAG_ONLYONE_TARGET,
+                                   self._sanitycheck_handle_onlyone_target),
+                                  (ID_FLAG_LONELY_TARGETS,
+                                   self._sanitycheck_handle_lonelytargets),
+                                  (ID_FLAG_CONTEST_ONE_TARGET,
+                                   self._sanitycheck_handle_contest_one_target),
+                                  (ID_FLAG_EMPTY_CONTESTS,
+                                   self._sanitycheck_handle_empty_contest))
+        for (id_flag, fn) in _sanitycheck_callbacks:
+            self.add_sanity_check_callback(id_flag, fn)
+
         self.init_ui()
 
     def init_ui(self):
@@ -204,7 +217,7 @@ class SelectTargetsMainPanel(wx.Panel):
                 target_locs_map.setdefault(group_idx, {}).setdefault(side, [])
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
                 # LONELY_TARGETS: list [TargetBox_i, ...]
-                box_assocs, lonely_targets = self.compute_box_ids(boxes)
+                box_assocs, lonely_targets = compute_box_ids(boxes)
                 lonely_targets_map.setdefault(i, {}).setdefault(side, []).extend(lonely_targets)
                 # For now, just grab one exemplar image from this group
                 imgpath = self.seltargets_panel.partitions[i][0][side]
@@ -268,7 +281,8 @@ class SelectTargetsMainPanel(wx.Panel):
                                                    self.proj.target_locs_map), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         # Warn User about lonely targets.
-        # TODO: Help the user out more for dealing with this case.
+        # Note: This is currently handled in the UI during sanitychecks,
+        #       but no harm in leaving this here too.
         _lst = []
         cnt = 0
         for i, targs_sidesMap in lonely_targets_map.iteritems():
@@ -286,41 +300,12 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
                                    style=wx.OK)
             dlg.ShowModal()
 
-    def compute_box_ids(self, boxes):
-        """ Given a list of Boxes, some of which are Targets, others
-        of which are Contests, geometrically compute the correct
-        target->contest associations.
-        Input:
-            list BOXES:
-        Output:
-            dict ASSOCS. {int contest_id, [ContestBox, [TargetBox_i, ...]]}
+    def invoke_sanity_checks(self, *args, **kwargs):
+        """ Code that actually calls each sanity-check with application
+        specific arguments. Outputs a list of statuses.
         """
-        def containing_box(box, boxes):
-            """ Returns the box in BOXES that contains BOX. """
-            w, h = box.width, box.height
-            # Allow some slack when checking which targets are contained by a contest
-            slack_fact = 0.1
-            xEps = int(round(w*slack_fact))
-            yEps = int(round(h*slack_fact))
-            for i, otherbox in enumerate(boxes):
-                if ((box.x1+xEps) >= otherbox.x1 and (box.y1+yEps) >= otherbox.y1
-                        and (box.x2-xEps) <= otherbox.x2 and (box.y2-yEps) <= otherbox.y2):
-                    return i, otherbox
-            return None, None
-        assocs = {}
-        contests = [b for b in boxes if isinstance(b, ContestBox)]
-        targets = [b for b in boxes if isinstance(b, TargetBox)]
-        lonely_targets = []
-        for t in targets:
-            id, c = containing_box(t, contests)
-            if id == None:
-                print "Warning", t, "is not contained in any box."
-                lonely_targets.append(t)
-            elif id in assocs:
-                assocs[id][1].append(t)
-            else:
-                assocs[id] = [c, [t]]
-        return assocs, lonely_targets
+        lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes)        
+        return lst_statuses
 
     def onButton_getimgpath(self, evt):
         S = self.seltargets_panel
@@ -329,6 +314,176 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
         dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
                                style=wx.OK)
         dlg.ShowModal()
+
+    """ 
+    ===============================================
+    ==== SanityCheck callback handling methods ====
+    ===============================================
+    """
+
+    def rails_show_images(self, grps, grps_data=None,
+                          btn_labels=("Stop Here", "Next Image"), 
+                          btn_fns=(lambda i, grps, grps_data: False,
+                                   lambda i, grps, grps_data: 'next'),
+                          retval_end=False,
+                          title_fn=lambda i, grps, grps_data: "Generic Dialog Title",
+                          msg_fn=lambda i, grps, grps_data: "Generic Description"):
+        """ A simple framework that takes control of the UI, and directs
+        the user to the images indicated by BTN_LABELS. In other words,
+        this is a 'rail-guided' UI flow.
+        Input:
+            list GRPS: [(int grp_idx, int side), ...]
+            dict GRPS_DATA: {(int grp_idx, int side): obj DATA}
+                (Optional) Allows you to pass additional data associated
+                with each (grp_idx, side) to relevant btn_fns or dialog
+                message fns.
+            tuple BTN_LABELS: (str LABEL_0, ..., str LABEL_N)
+                At each image in GRPS, a dialog window with N buttons
+                will be displayed to the user. You can control what each
+                button says via this argument.
+            tuple BTN_FNS: (func FN_0, ..., func FN_N)
+                The function to invoke when the user clicks button N
+                after image i is shown. Each function accepts to 
+                arguments: int i          - the index we are at in GRPS
+                           lst grps       - the input GRPS.
+                           dict grps_data - data for each group GRP.
+                It should return one of three outputs:
+                    bool True: 
+                        Stop the rail-guided tour, and signal that the
+                        user /can/ move on
+                    bool False: 
+                        Stop the rail-guided tour, and signal that the 
+                        user /can't/ move on
+                    tuple 'next':
+                        Display the next image.
+            bool retval_end: 
+                Value to return if the user reaches the end of the list
+                of images. True if the user can move on, False o.w.
+            func TITLE_FN: 
+            func MSG_FN:
+        """
+        grps_data = grps_data if grps_data != None else {}
+        panel = self.seltargets_panel
+        btn_ids = range(len(btn_labels))
+        for i, (grp_idx, side) in enumerate(grps):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            dlg_title = title_fn(i, grps, grps_data)
+            dlg_msg = msg_fn(i, grps, grps_data)
+            status = util.WarningDialog(self, dlg_msg,
+                                        btn_labels,
+                                        btn_ids,
+                                        title=dlg_title).ShowModal()
+            btn_fn = btn_fns[status]
+            result = btn_fn(i, grps, grps_data)
+            if result == True:
+                return True
+            elif result == False:
+                return False
+        return retval_end
+
+    def _sanitycheck_handle_onlyone_target(self, grps):
+        """ Guides the user to each image that only has one voting target.
+        Input:
+            list GRPS: [(int grp_idx, int side), ...]
+        Output:
+            True if the user can move on, False o.w.
+        """
+        fn_stop = lambda i, grps, grps_data: False
+        fn_nextimg = lambda i, grps, grps_data: 'next'
+        fn_skip = lambda i, grps, grps_data: True
+        btn_labels = ("I can fix this.", "Next Image", "Everything is Fine")
+        btn_fns = (fn_stop, fn_nextimg, fn_skip)
+        dlg_titlefn = lambda i,grps,grps_data: "OpenCount Warning: Only one voting target"
+        dlg_msgfn = lambda i,grps, grps_data: "This is an image with only \
+one voting target.\n\
+Image {0} out of {1}".format(i+1, len(grps))
+        return self.rails_show_images(grps, btn_labels=btn_labels,
+                                      btn_fns=btn_fns,
+                                      retval_end=True,
+                                      title_fn=dlg_titlefn,
+                                      msg_fn=dlg_msgfn)
+    
+    def _sanitycheck_handle_lonelytargets(self, lonely_targets_map):
+        """ Guide the user to each image that has a voting target(s) not
+        enclosed within a contest.
+        Input:
+            dict LONELY_TARGETS_MAP: {(int grp_idx, int side): [TargetBox_i, ...]}
+        Output:
+            False (this is a fatal error.)
+        """
+        def make_dlg_msg(i, grps, grps_data):
+            msgbase = "This is an image with {0} voting targets that are \
+not enclosed within a contest."
+            stats = "Image {0} out of {1}."
+            return msgbase.format(len(grps_data[grps[i]])) + "\n" + stats.format(i+1, total_imgs)
+
+        total_imgs = len(lonely_targets_map)
+        total_targets = sum(map(len, lonely_targets_map.values()))
+        # Sort GRPS by first grpidx, then by side
+        grps = sorted(lonely_targets_map.keys(), key=lambda t: t[0]+t[1])
+        return self.rails_show_images(grps, grps_data=lonely_targets_map,
+                                      retval_end=False,
+                                      btn_labels=("I can fix this.", "Next Image"),
+                                      btn_fns=(lambda i,grps,grpdata: False,
+                                               lambda i,grps,grpdata: 'next'),
+                                      title_fn=lambda i,grps,grpdata: "OpenCount Fatal Warning: Lonely Targets",
+                                      msg_fn=make_dlg_msg)
+
+    def _sanitycheck_handle_contest_one_target(self, contests_one_target):
+        """ Guides the user to each offending image.
+        Input:
+            dict CONTESTS_ONE_TARGET: {(int grp_idx, int side): [ContestBox_i, ...]}
+        Output:
+            False (this is a fatal error).
+        """
+        # TODO: Refactor to use self.rails_show_images
+        panel = self.seltargets_panel
+        total_imgs = len(contests_one_target)
+        total_contests = sum(map(len, contests_one_target.values()))
+        _title = "OpenCount Fatal Warning: Bad Contests Detected"
+        _msgbase = "This is an image with {0} contests that only have \
+one voting target."
+        _msgfooter = "Image {0} out of {1}"
+        ID_RESUME = 0
+        ID_NEXT_IMAGE = 1
+        for i, ((grp_idx, side), contestboxes) in enumerate(contests_one_target.iteritems()):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            msgout = _msgbase.format(len(contestboxes)) + "\n" + _msgfooter.format(i+1, total_imgs)
+            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image"),
+                                        (ID_RESUME, ID_NEXT_IMAGE), title=_title).ShowModal()
+            if status == ID_RESUME:
+                return False
+        return False
+    def _sanitycheck_handle_empty_contest(self, empty_contests):
+        """ Guides the user to each empty contest box.
+        Input:
+            dict EMPTY_CONTESTS: {(int grp_idx, int side): [ContestBox_i, ...]
+        Output:
+            False (this is a fatal error).
+        """
+        # TODO: Refactor to use self.rails_show_images
+        panel = self.seltargets_panel
+        total_imgs = len(empty_contests)
+        _title = "OpenCount Fatal Warning: Empty Contests Detected"
+        _msgbase = "This is an image with {0} contests that have no \
+voting targets enclosed."
+        _msgfooter = "Image {0} out of {1}"
+        ID_RESUME = 0
+        ID_NEXT_IMAGE = 1
+        for i, ((grp_idx, side), contestboxes) in enumerate(empty_contests.iteritems()):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            msgout = _msgbase.format(len(contestboxes)) + "\n" + _msgfooter.format(i+1, total_imgs)
+            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image"),
+                                        (ID_RESUME, ID_NEXT_IMAGE), title=_title).ShowModal()
+            if status == ID_RESUME:
+                return False
+        return False
 
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
@@ -1865,6 +2020,183 @@ def expand_box(box, factor, bounds=None):
         b.x2 = int(round(box.x2 + (box.width*factor)))
         b.y2 = int(round(box.y2 + (box.height*factor)))
     return b
+
+def compute_box_ids(boxes):
+    """ Given a list of Boxes, some of which are Targets, others
+    of which are Contests, geometrically compute the correct
+    target->contest associations. Also outputs all voting targets
+    which are not contained in a contest.
+    Input:
+        list BOXES:
+    Output:
+        (ASSOCS, LONELY_TARGETS)
+    dict ASSOCS: {int contest_id, [ContestBox, [TargetBox_i, ...]]}
+    list LONELY_TARGETS: [TargetBox_i, ...]
+    """
+    def containing_box(box, boxes):
+        """ Returns the box in BOXES that contains BOX. """
+        w, h = box.width, box.height
+        # Allow some slack when checking which targets are contained by a contest
+        slack_fact = 0.1
+        xEps = int(round(w*slack_fact))
+        yEps = int(round(h*slack_fact))
+        for i, otherbox in enumerate(boxes):
+            if ((box.x1+xEps) >= otherbox.x1 and (box.y1+yEps) >= otherbox.y1
+                    and (box.x2-xEps) <= otherbox.x2 and (box.y2-yEps) <= otherbox.y2):
+                return i, otherbox
+        return None, None
+    assocs = {}
+    contests = [b for b in boxes if isinstance(b, ContestBox)]
+    targets = [b for b in boxes if isinstance(b, TargetBox)]
+    lonely_targets = []
+    # Ensure that each contest C is present in output ASSOCS, even if
+    # it has no contained voting targets
+    # Note: output contest ids are determined by ordering in the CONTESTS list
+    for contestid, c in enumerate(contests):
+        assocs[contestid] = (c, [])
+
+    for t in targets:
+        id, c = containing_box(t, contests)
+        if id == None:
+            #print "Warning", t, "is not contained in any box."
+            lonely_targets.append(t)
+        elif id in assocs:
+            assocs[id][1].append(t)
+        else:
+            assocs[id] = [c, [t]]
+    return assocs, lonely_targets
+
+"""
+=======================
+==== Sanity Checks ====
+=======================
+"""
+
+# There are absolutely /no/ voting targets
+ID_FLAG_NO_TARGETS = 0
+_MSG_NO_TARGETS = "Error: No voting targets have been created yet. You \
+will not be able to proceed until you select the voting targets."
+
+# There are images that have no voting targets
+ID_FLAG_EMPTY_IMAGES = 1
+
+# There are images with only one voting target
+ID_FLAG_ONLYONE_TARGET = 2
+
+# There are voting targets not within a contest
+ID_FLAG_LONELY_TARGETS = 3
+
+# There are no contests defined
+ID_FLAG_NO_CONTESTS = 4
+_MSG_NO_CONTESTS = "Error: No contests have been created. You must define \
+contests to proceed."
+
+# There are contests with no voting targets contained
+ID_FLAG_EMPTY_CONTESTS = 5
+
+# There are contests with only one voting target
+ID_FLAG_CONTEST_ONE_TARGET = 6
+
+def check_all_images_have_targets(boxes_map):
+    """
+    Input:
+        dict BOXES_MAP: {int grp_idx: [[Box_i_side0, Box_i+1_side0, ...], [Box_i_side1, ...], ...]}
+    Output:
+        [(bool isOk_i, bool isFatal_i, str msg_i, int ID_FLAG, obj data), ...]
+    """
+    PASS, NOTPASS = True, False
+    FATAL, NOTFATAL = True, False
+    out_lst = []
+    grp_contestcnts = util.Counter() # maps {(grp_idx, side): int contest_cnt}
+    grp_targetcnts = util.Counter() # maps {(grp_idx, side): int target_cnt}
+    grp_notargs = [] # [(int grp_idx, int side), ...]
+    grp_nocontests = [] # [(int grp_idx, int side), ...]
+    grp_onlyone_targ = [] # [(int grp_idx, int side), ...]
+    lonely_targets_map = {} # maps {(int grp_idx, int side): [TargetBox_i, ...]}}
+    cnt_lonely_targets = 0
+    grp_contests_one_target = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
+    grp_empty_contests = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
+    for grp_idx, boxes_tups in boxes_map.iteritems():
+        for side, boxes in enumerate(boxes_tups):
+            box_assocs, lonely_targets = compute_box_ids(boxes)
+            cnt_lonely_targets += len(lonely_targets)
+            if lonely_targets:
+                lonely_targets_map.setdefault((grp_idx, side), []).extend(lonely_targets)
+            targets = [b for b in boxes if isinstance(b, TargetBox)]
+            contests = [b for b in boxes if isinstance(b, ContestBox)]
+            grp_targetcnts[(grp_idx, side)] += len(targets)
+            grp_contestcnts[(grp_idx, side)] += len(contests)
+            if not targets:
+                grp_notargs.append((grp_idx, side))
+            if not contests:
+                grp_nocontests.append((grp_idx, side))
+            if len(targets) == 1:
+                grp_onlyone_targ.append((grp_idx, side))
+            
+            for contestid, contest_tup in box_assocs.iteritems():
+                contestbox, contest_targets = contest_tup[0], contest_tup[1]
+                if len(contest_targets) == 0:
+                    grp_empty_contests.setdefault((grp_idx, side), []).append(contestbox)
+                elif len(contest_targets) == 1:
+                    grp_contests_one_target.setdefault((grp_idx, side), []).append(contestbox)
+
+    isok_notargets = sum(grp_targetcnts.values()) > 0
+    isok_nocontests = sum(grp_contestcnts.values()) > 0
+    out_lst.append((isok_notargets, True, _MSG_NO_TARGETS, ID_FLAG_NO_TARGETS, None))
+
+    if not isok_notargets:
+        return out_lst
+
+    out_lst.append((isok_nocontests, True, _MSG_NO_CONTESTS, ID_FLAG_NO_CONTESTS, None))
+    if not isok_nocontests:
+        return out_lst
+ 
+    if grp_notargs:
+        msg_empty_images = "Warning: {0} different ballot images did not have \
+any voting targets detected. If this is a mistake, please go back and \
+correct it. \n\
+Otherwise, if these images in fact do not contain any voting \
+targets (e.g. they are blank), you may continue.".format(len(grp_notargs))
+        out_lst.append((NOTPASS, NOTFATAL, msg_empty_images, ID_FLAG_EMPTY_IMAGES, grp_notargs))
+    else:
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_EMPTY_IMAGES, None))
+    
+    if grp_onlyone_targ:
+        msg_onlyone_targ = "Warning: {0} ballot images only had one \
+voting target detected. If this is a mistake, please bo back and correct \
+the images.".format(len(grp_onlyone_targ))
+        out_lst.append((NOTPASS, NOTFATAL, msg_onlyone_targ, ID_FLAG_ONLYONE_TARGET, grp_onlyone_targ))
+    else:
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_ONLYONE_TARGET, None))
+
+    if cnt_lonely_targets > 0:
+        msg_lonelytargets = "Warning: There were {0} targets that were \
+not enclosed within a contest.".format(cnt_lonely_targets)
+        out_lst.append((NOTPASS, FATAL, msg_lonelytargets, ID_FLAG_LONELY_TARGETS, lonely_targets_map))
+    else:
+        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_LONELY_TARGETS, None))
+
+    if grp_empty_contests:
+        msg_emptycontests = "Warning: There were {0} contests that had \
+no voting targets enclosed.".format(len(grp_empty_contests))
+        out_lst.append((NOTPASS, FATAL, msg_emptycontests, ID_FLAG_EMPTY_CONTESTS, grp_empty_contests))
+    else:
+        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_EMPTY_CONTESTS, None))
+        
+    if grp_contests_one_target:
+        msg_contests_one_target = "Warning: There were {0} contests that \
+had only one voting target.".format(len(grp_contests_one_target))
+        out_lst.append((NOTPASS, FATAL, msg_contests_one_target, ID_FLAG_CONTEST_ONE_TARGET, grp_contests_one_target))
+    else:
+        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_CONTEST_ONE_TARGET, None))
+
+    return out_lst
+
+"""
+===========================
+==== END Sanity Checks ====
+===========================
+"""
 
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """

@@ -109,6 +109,18 @@ class MainFrame(wx.Frame):
                 dlg.ShowModal()
                 evt.Veto()
 
+        curpanel = self.notebook.GetPage(old)
+        if hasattr(curpanel, 'can_move_on'):
+            if not curpanel.can_move_on():
+                wx.MessageDialog(self, message="Error: You can not \
+proceed. Please address the prior warnings first.", 
+                                 caption="OpenCount: Can't go on",
+                                 style=wx.OK).ShowModal()
+                evt.Veto()
+                return
+        else:
+            print "...Warning: Class {0} has no can_move_on method.".format(curpanel)
+
         if old == MainFrame.CONFIG:
             self.panel_config.stop()
         elif old == MainFrame.PARTITION:
