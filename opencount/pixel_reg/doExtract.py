@@ -136,15 +136,8 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
         I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
         rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
-        #if '_077.png' in balP:
-        #    misc.imsave("_Ipatch.png", I_patch)
-        #    _f = np.nan_to_num(IrefM_patch)
-        #    misc.imsave("_IrefMpatch2.png", _f)
         H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
                                         rszFac=rszFac, type='rigid', minArea=np.power(2, 18))
-        #if '_077.png' in balP:
-        #    misc.imsave("_I1patchpost.png", I1_patch)
-        #    pdb.set_trace()
         targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
         # 2.) Unwind transformation to get the global location of TARG
         rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
@@ -181,16 +174,9 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
             Ic=sh.cropBb(I1,bbOut)
             IrefcNOMASK=sh.cropBb(Iref,bbOut)
             Irefc=sh.cropBb(IrefM,bbOut)
-            #misc.imsave('_Ic.png', Ic)
-            #misc.imsave('_IrefcNOMASK.png', IrefcNOMASK)
-            #misc.imsave('_Irefc.png', Irefc)
             rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
             IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
             Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
-            #misc.imsave('_Ic1.png', Ic1)
-            #if balP != None and '329_672_157_3_3' in balP:
-            #    pdb.set_trace()
-            pdb.set_trace()
             for k in range(bbsOff.shape[0]):
                 bbOff1=bbsOff[k,:]
                 iLen=bbOff1[1]-bbOff1[0]
