@@ -2179,9 +2179,9 @@ not enclosed within a contest.".format(cnt_lonely_targets)
     if grp_empty_contests:
         msg_emptycontests = "Warning: There were {0} contests that had \
 no voting targets enclosed.".format(len(grp_empty_contests))
-        out_lst.append((NOTPASS, FATAL, msg_emptycontests, ID_FLAG_EMPTY_CONTESTS, grp_empty_contests))
+        out_lst.append((NOTPASS, NOTFATAL, msg_emptycontests, ID_FLAG_EMPTY_CONTESTS, grp_empty_contests))
     else:
-        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_EMPTY_CONTESTS, None))
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_EMPTY_CONTESTS, None))
         
     if grp_contests_one_target:
         msg_contests_one_target = "Warning: There were {0} contests that \
