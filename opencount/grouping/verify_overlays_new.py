@@ -274,11 +274,21 @@ class ViewOverlays(ScrolledPanel):
         if rszfac != None:
             self.rescale_images(rszfac)
     
-    def show_larger(self, amt=0.2):
-        self.rescale_images(self.rszfac + amt)
+    def show_larger(self, amt=0.2, MIN_W=5, MIN_H=5):
+        w_cur, h_cur = self.minOverlayImg.GetSize()
+        w_new, h_new = int(round(w_cur * (1.0 + amt))), int(round(h_cur * (1.0 + amt)))
+        if w_new <= MIN_W or h_new <= MIN_H:
+            return
+        rszfac_new = float(w_new) / self.minimg_np_orig.shape[1]
+        self.rescale_images(rszfac_new)
         self.Layout()
-    def show_smaller(self, amt=0.2):
-        self.rescale_images(self.rszfac - amt)
+    def show_smaller(self, amt=0.2, MIN_W=5, MIN_H=5):
+        w_cur, h_cur = self.minOverlayImg.GetSize()
+        w_new, h_new = int(round(w_cur * (1.0 - amt))), int(round(h_cur * (1.0 - amt)))
+        if w_new <= MIN_W or h_new <= MIN_H:
+            return
+        rszfac_new = float(w_new) / self.minimg_np_orig.shape[1]
+        self.rescale_images(rszfac_new)
         self.Layout()
 
     def rescale_images(self, rszfac):
