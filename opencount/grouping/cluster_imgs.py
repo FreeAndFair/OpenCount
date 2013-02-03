@@ -1,4 +1,4 @@
-import sys, os, time
+import sys, os, time, pdb
 sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
@@ -111,7 +111,14 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         Returns the clustering, in the form:
             {clusterID: [impath_i, ...]}
     """
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
+    t_total = time.time()
+
+    MIN_DIM = 50
+    MAX_DIM = 300
+    t = time.time()
+    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
+                           MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM)
+    dur_imgs2mat = time.time() - t
     '''
     if bb_map == None:
         bb_map = {}
@@ -137,13 +144,22 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         data[row,:] = patch
     '''
 
+    print '    data.shape:', data.shape
+
     # 1.) Call scipy's kmeans implementation
+    t = time.time()
     centroids, _ = scipy.cluster.vq.kmeans(data, k)
+    dur_kmeans = time.time() - t
     # 2.) Assign each image to a cluster
     idx, dists = scipy.cluster.vq.vq(data, centroids)
     clusters = {}
     for i, clusterid in enumerate(idx):
         clusters.setdefault(clusterid, []).append(imgpaths[i])
+
+    dur_total = time.time() - t_total
+    print "Split K_Means finished ({0:.4f}s total)".format(dur_total)
+    print "    imgs2mat: {0:.5f}s ({1:.4f}%)".format(dur_imgs2mat, 100.0*(dur_imgs2mat / dur_total))
+    print "    kmeans  : {0:.5f}s ({1:.4f}%)".format(dur_kmeans, 100.0*(dur_kmeans / dur_total))
     return clusters
 
 def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', centroidfn_method='mean', do_align=True):
@@ -231,12 +247,15 @@ def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
         clusters[i] = cluster
     return clusters  
 
-def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False):
+def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
+                    rszFac=None,
+                    MIN_DIM=None, MAX_DIM=None):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
     w,h are the width/height of the largest image in IMGPATHS.
     If BB_MAP is given, then this will extract a patch from the 
     associated IMGPATH.
+    Two different resize modes: RSZFAC, and the (MIN_DIM, MAX_DIM).
     """
     if bb_map == None:
         bb_map = {}
@@ -247,18 +266,34 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
         w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxN array, where M is the number
     #     of images, and N is the number of pixels of each image.
-    data = np.zeros((len(imgpaths), h_big*w_big))
+    if rszFac != None:
+        w_out, h_out = int(round(rszFac*w_big)), int(round(rszFac*h_big))
+    elif MIN_DIM != None and MAX_DIM != None:
+        if h_big <= MIN_DIM or w_big <= MIN_DIM:
+            rszFac = 1.0
+        else:
+            rszFac = min(1.0, MAX_DIM / float(min(w_big, h_big)))
+        w_out, h_out = int(round(rszFac * w_big)), int(round(rszFac * h_big))
+    else:
+        w_out, h_out = w_big, h_big
+            
+    print "imgpaths_to_mat -- using rszFac={0}".format(rszFac)
+
+    data = np.zeros((len(imgpaths), h_out*w_out))
     Iref = None
-    alignerrs = [None] * len(imgpaths) # [float err_i, ...]
-    alignerrs = np.zeros((len(imgpaths), 1))
+    if return_align_errs:
+        alignerrs = [None] * len(imgpaths) # [float err_i, ...]
+        alignerrs = np.zeros((len(imgpaths), 1))
+    else:
+        alignerrs = None
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         bb = bb_map.get(imgpath, None)
         if bb == None:
-            patch = resize_mat(img, (h_big, w_big))
+            patch = resize_mat(img, (h_out, w_out), rszFac=rszFac)
         else:
             # Must make sure that all patches are the same shape.
-            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
+            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_out, w_out), rszFac=rszFac)
         if do_align and Iref == None:
             Iref = patch
         elif do_align:
@@ -358,11 +393,11 @@ def get_largest_img_dims(imgpaths):
     """ Returns the largest dimensions of the images in imgpaths. """
     h, w = None, None
     for imgpath in imgpaths:
-        img = scipy.misc.imread(imgpath)
-        if h == None or img.shape[0] > h:
-            h = img.shape[0]
-        if w == None or img.shape[1] > w:
-            w = img.shape[1]
+        w_img, h_img = cv.GetSize(cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED))
+        if h == None or h_img > h:
+            h = h_img
+        if w == None or w_img > w:
+            w = w_img
     return (h, w)
 def get_largest_bb(bbs):
     """ Returns the largest bb in bb_map.
@@ -376,19 +411,34 @@ def get_largest_bb(bbs):
         outbb.append(max(map(lambda _bb: _bb[i], bbs)))
     return outbb
 
-def resize_mat(mat, shape):
+def resize_mat(mat, shape, rszFac=None):
     """ Takes in an NxM matrix 'mat', and either truncates or pads
     it so that it has the 'shape'.
     Input:
         obj mat: an NxM numpy array
         tuple shape: (h,w)
+        float rszFac: If given, then this first rescales MAT by RSZFAC,
+            followed by truncation/padding.
     Output:
         An hxw sized array.
     """
-    out = np.zeros(shape)
-    i = min(mat.shape[0], out.shape[0])
-    j = min(mat.shape[1], out.shape[1])
-    out[0:i,0:j] = mat[0:i, 0:j]
+    h, w = mat.shape
+    if rszFac != None:
+        w_new, h_new = int(round(rszFac * w)), int(round(rszFac * h))
+        if w_new != w or h_new != h:
+            Icv = cv.fromarray(mat)
+            Icv_rsz = cv.CreateMat(h_new, w_new, Icv.type)
+            cv.Resize(Icv, Icv_rsz, cv.CV_INTER_CUBIC)
+            mat_rsz = np.asarray(Icv_rsz)
+        else:
+            mat_rsz = mat
+    else:
+        mat_rsz = mat
+                
+    out = np.zeros(shape, dtype=mat_rsz.dtype)
+    i = min(mat_rsz.shape[0], out.shape[0])
+    j = min(mat_rsz.shape[1], out.shape[1])
+    out[0:i,0:j] = mat_rsz[0:i, 0:j]
     return out
 
 def _test_resize_mat():

@@ -16,6 +16,9 @@ import cluster_imgs
 sys.path.append('..')
 import util
 
+# Max. allowable size of each group
+MAX_GROUP_SIZE = 10000
+
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
     def __init__(self, parent, *args, **kwargs):
@@ -461,12 +464,17 @@ class SplitOverlays(ViewOverlays):
             self.bbs_map = bbs_map if bbs_map != None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = SplitGroup(imgpaths, tag=tag, do_align=do_align)
-                self.add_group(group)
+                trimmed_groups = trim_group(group, MAX_GROUP_SIZE)
+                for trimmed_group in trimmed_groups:
+                    self.add_group(trimmed_group)
         self.select_group(0)
 
-    def do_split(self):
+    def do_split(self, MAX_GROUP_SIZE=MAX_GROUP_SIZE):
         curgroup = self.get_current_group()
-        groups = curgroup.split(mode=self.splitmode)
+        t = time.time()
+        groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE)
+        dur = time.time() - t
+        print "...Split took {0:.4f}s ({1} total new groups added)".format(dur, len(groups))
         for group in groups:
             self.add_group(group)
         self.remove_group(curgroup)
@@ -595,7 +603,9 @@ class VerifyOverlays(SplitOverlays):
                 group = VerifyGroup(imgpaths, tag=tag, do_align=do_align)
                 self.possible_tags.add(group.tag)
                 if imgpaths:
-                    self.add_group(group)
+                    trimmed_groups = trim_group(group, MAX_GROUP_SIZE)
+                    for trimmed_group in trimmed_groups:
+                        self.add_group(trimmed_group)
             self.possible_tags = tuple(self.possible_tags)
         if len(self.groups) == 0:
             self.handle_nomoregroups()
@@ -738,7 +748,6 @@ class VerifyOverlays(SplitOverlays):
     def select_exmpl_group(self, grouptag, exmpl_idx):
         """ Displays the correct exemplar img patch on the screen. """
         if grouptag not in self.exemplar_imgpaths:
-            print "...Invalid GroupTAG: {0}. Hiding exemplar-related UI components...".format(grouptag)
             self.sizer_attrpatch.ShowItems(False)
             self.Layout()
             self.SetupScrolling()
@@ -1383,7 +1392,8 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         assert len(groups) == K
         return groups
 
-    def split(self, mode=None):
+    def split(self, mode=None, MAX_GROUP_SIZE=None):
+        """ Assume that MAX_GROUP_SIZE > 2 """
         if mode == None:
             mode == 'kmeans'
         if len(self.imgpaths) == 1:
@@ -1391,18 +1401,37 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         elif len(self.imgpaths) == 2:
             return [type(self)([self.imgpaths[0]], tag=self.tag, do_align=self.do_align),
                     type(self)([self.imgpaths[1]], tag=self.tag, do_align=self.do_align)]
+
+        # If necessary, first trim myself into tractable-sized groups
+        input_groups = [self]
+        if MAX_GROUP_SIZE != None:
+            grps_toobig = []
+            i = 0
+            while i < len(input_groups):
+                group = input_groups[i]
+                if len(group.imgpaths) >= MAX_GROUP_SIZE:
+                    input_groups.pop(i)
+                    grps_toobig.append(group)
+                else:
+                    i += 1
+            for big_grp in grps_toobig:
+                input_groups.extend(trim_group(big_grp, MAX_GROUP_SIZE))
+        
+        out_groups = []
         if mode == 'midsplit':
-            return self.midsplit()
+            out_groups = sum([g.midsplit() for g in input_groups], [])
         elif mode == 'kmeans':
-            return self.split_kmeans(K=2)
+            out_groups = sum([g.split_kmeans(K=2) for g in input_groups], [])
         elif mode == 'pca_kmeans':
-            return self.split_pca_kmeans(K=2, N=3)
+            out_groups = sum([g.split_pca_kmeans(K=2, N=3) for g in input_groups], [])
         elif mode == 'kmeans2':
-            return self.split_kmeans2(K=2)
+            out_groups = sum([g.split_kmeans2(K=2) for g in input_groups], [])
         elif mode == 'kmediods':
-            return self.split_kmediods(K=2)
+            out_groups = sum([g.split_kmediods(K=2) for g in input_groups], [])
         else:
-            return self.split_kmeans(K=2)
+            out_groups = sum([g.split_kmeans(K=2) for g in input_groups], [])
+
+        return out_groups
 
     @staticmethod
     def unmarshall(d):
@@ -1421,13 +1450,13 @@ class VerifyGroup(SplitGroup):
         SplitGroup.__init__(self, imgpaths, *args, **kwargs)
         self.rlist_idx = rlist_idx
         self.exmpl_idx = exmpl_idx
-    def split(self, mode=None):
+    def split(self, mode=None, MAX_GROUP_SIZE=None):
         if mode == None:
             mode = 'rankedlist'
         if mode == 'rankedlist':
             return [self]
         else:
-            return SplitGroup.split(self, mode=mode)
+            return SplitGroup.split(self, mode=mode, MAX_GROUP_SIZE=MAX_GROUP_SIZE)
     def marshall(self):
         me = SplitGroup.marshall(self)
         me['rlist_idx'] = self.rlist_idx
@@ -1467,6 +1496,20 @@ class DigitGroup(VerifyGroup):
                                                                         self.rlist_idx,
                                                                         self.exmpl_idx,
                                                                         len(self.imgpaths))
+
+def trim_group(group, max_group_size):
+    """ Given a Group, pares the group down into smaller group sizes
+    no larger than max_group_size.
+    """
+    out_groups = []
+    i = 0
+    while i < len(group.imgpaths):
+        j = min(len(group.imgpaths), i+max_group_size)
+        new_imgpaths = group.imgpaths[i:j]
+        new_group = type(group)(new_imgpaths, tag=group.tag, do_align=group.do_align)
+        out_groups.append(new_group)
+        i = j
+    return out_groups
 
 class ManualRelabelDialog(wx.Dialog):
     def __init__(self, parent, tags, *args, **kwargs):
