@@ -483,7 +483,8 @@ voting targets enclosed."
                                         (ID_RESUME, ID_NEXT_IMAGE), title=_title).ShowModal()
             if status == ID_RESUME:
                 return False
-        return False
+        # TODO: Temp. make this a non-fatal error
+        return True
 
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
