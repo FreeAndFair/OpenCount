@@ -62,6 +62,10 @@ class ViewOverlays(ScrolledPanel):
         # list GROUPS: [obj GROUP_i, ...]
         self.groups = None
 
+        # set GROUPTAGS: set([str grouptag_i, ...])
+        #     Used to keep track of all group tags seen so far.
+        self.grouptags = None
+
         # dict BBS_MAP: maps {(tag, str imgpath): (x1,y1,x2,y2)}
         self.bbs_map = None
         
@@ -101,9 +105,10 @@ class ViewOverlays(ScrolledPanel):
     def init_ui(self):
         stxt_grplabel = wx.StaticText(self, label="Current Group Label: ")
         self.stxt_grplabel = stxt_grplabel
-        self.txt_grplabel = wx.StaticText(self, label='')
+        self.cbox_grplabel = wx.ComboBox(self, style=wx.CB_READONLY | wx.CB_SORT)
+        self.cbox_grplabel.Bind(wx.EVT_COMBOBOX, self.onComboBox_grplabel)
         txt_0 = wx.StaticText(self, label="Number of images in group: ")
-        self.txtctrl_num_elements = wx.TextCtrl(self, value='0')
+        self.txtctrl_num_elements = wx.StaticText(self, label='0')
         self.listbox_groups = wx.ListBox(self, size=(200, 300))
         self.listbox_groups.Hide()
         self.listbox_groups.Bind(wx.EVT_LISTBOX, self.onListBox_groups)
@@ -111,14 +116,14 @@ class ViewOverlays(ScrolledPanel):
         self.btn_showhidelistbox.Bind(wx.EVT_BUTTON, self.onButton_showhidelistbox)
         sizer_grplabel = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_grplabel = sizer_grplabel
-        # Align self.txt_grplabel, self.txtctrl_num_elements as a column
+        # Align self.cbox_grplabel, self.txtctrl_num_elements as a column
         _maxtxtlen = max(self.GetTextExtent(stxt_grplabel.GetLabel())[0],
                          self.GetTextExtent(txt_0.GetLabel())[0])
         _pad = 30
 
         sizer_grplabel.AddMany([(stxt_grplabel,), 
                                 (_maxtxtlen - self.GetTextExtent(stxt_grplabel.GetLabel())[0] + _pad, 0),
-                                (self.txt_grplabel,)])
+                                (self.cbox_grplabel,)])
         sizer_numimgs = wx.BoxSizer(wx.HORIZONTAL)
         sizer_numimgs.AddMany([(txt_0,), 
                                (_maxtxtlen - self.GetTextExtent(txt_0.GetLabel())[0] + _pad, 0),
@@ -176,14 +181,14 @@ class ViewOverlays(ScrolledPanel):
             tag = str(group.tag)
         except:
             tag = 'GroupTag'
-        self.txt_grplabel.SetLabel(tag)
+        self.cbox_grplabel.SetStringSelection(tag)
         
     def update_groupsize_txt(self):
         """ Updates the UI text about how large the current group is. """
         if self.idx == None:
             return
         group = self.get_current_group()
-        self.txtctrl_num_elements.SetValue(str(len(group.imgpaths)))        
+        self.txtctrl_num_elements.SetLabel(str(len(group.imgpaths)))        
 
     def update_ui_text(self):
         """ Updates UI text components for currently-displayed group. """
@@ -310,9 +315,16 @@ class ViewOverlays(ScrolledPanel):
         return self.groups[self.idx]
         
     def add_group(self, group):
+        """ Registers group GROUP into both my internal data structures,
+        as well as updating relevant UI components.
+        """
         self.groups.insert(0, group)
-        label = "{0} -> {1} elements".format(group.tag, len(group.imgpaths))
+        self.grouptags.add(str(group.tag))
+        label = "{0} -> {1} elements".format(str(group.tag), str(len(group.imgpaths)))
         self.listbox_groups.Insert(label, 0)
+        if str(group.tag) not in self.cbox_grplabel.GetItems():
+            self.cbox_grplabel.Append(str(group.tag))
+        
     def remove_group(self, group):
         idx = self.groups.index(group)
         self.groups.pop(idx)
@@ -356,6 +368,7 @@ class ViewOverlays(ScrolledPanel):
         self.stateP = stateP
         if not self.restore_session():
             self.groups = []
+            self.grouptags = set()
             self.bbs_map = bbs_map if bbs_map != None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = Group(imgpaths, tag=tag, do_align=do_align)
@@ -368,6 +381,7 @@ class ViewOverlays(ScrolledPanel):
             state = pickle.load(open(self.stateP, 'rb'))
             groups = state['groups']
             self.groups = []
+            self.grouptags = set()
             for group_dict in groups:
                 self.add_group(Group.unmarshall(group_dict))
             self.bbs_map = state['bbs_map']
@@ -405,6 +419,12 @@ class ViewOverlays(ScrolledPanel):
         self.Layout()
         self.SetupScrolling()
 
+    def onComboBox_grplabel(self, evt):
+        """ Triggered when the user clicks a new group label from the 
+        combobox dropdown list.
+        """
+        evt.Skip()
+
 class SplitOverlaysPanel(ViewOverlaysPanel):
     """ Class that contains both a Header, a SplitOverlays, and a Button
     Toolbar Footer. """
@@ -423,6 +443,7 @@ class SplitOverlaysFooter(wx.Panel):
         btn_split = wx.Button(self, label="Split...")
         btn_split.Bind(wx.EVT_BUTTON, self.onButton_split)
         btn_setsplitmode = wx.Button(self, label="Set Split Mode...")
+        btn_setsplitmode.Hide() # Not necessary for the user to fuss with
         btn_setsplitmode.Bind(wx.EVT_BUTTON, self.onButton_setsplitmode)
         sizer_split = wx.BoxSizer(wx.VERTICAL)
         sizer_split.AddMany([(btn_split,0,wx.ALIGN_CENTER), (btn_setsplitmode,0,wx.ALIGN_CENTER)])
@@ -471,6 +492,7 @@ class SplitOverlays(ViewOverlays):
         self.stateP = stateP
         if not self.restore_session():
             self.groups = []
+            self.grouptags = set()
             self.bbs_map = bbs_map if bbs_map != None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = SplitGroup(imgpaths, tag=tag, do_align=do_align)
@@ -528,7 +550,11 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         btn_matches.Bind(wx.EVT_BUTTON, self.onButton_matches)
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")
         self.btn_manual_relabel.Bind(wx.EVT_BUTTON, self.onButton_manual_relabel)
+        self.btn_manual_relabel.Hide() # This has been replaced
 
+        # This functionality lets the user view each possible exemplar
+        # patch - for normal usage, this isn't necessary, so, we decided
+        # to hide it.
         btn_nextexmpl = wx.Button(self, label="Next Exemplar Patch")
         btn_nextexmpl.Bind(wx.EVT_BUTTON, self.onButton_nextexmpl)
         btn_prevexmpl = wx.Button(self, label="Previous Exemplar Patch")
@@ -542,6 +568,7 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
                                  (self.txt_totalexmplidxs,)])
         self.sizer_exmpls = wx.BoxSizer(wx.VERTICAL)
         self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
+        self.sizer_exmpls.ShowItems(False) # Hide the next/prev exemplar widgets
 
         self.btn_sizer.AddMany([(btn_matches,), (self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
@@ -550,6 +577,7 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         self.sizer_curlabel = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_curlabel.AddMany([(txt_curlabel0,), (self.txt_curlabel,)])
         self.sizer.Add(self.sizer_curlabel, proportion=0, flag=wx.ALIGN_CENTER)
+        self.sizer_curlabel.ShowItems(False) # This is a redundant UI component
 
         self.Layout()
 
@@ -604,6 +632,7 @@ class VerifyOverlays(SplitOverlays):
         if not self.restore_session():
             self.exemplar_imgpaths = group_exemplars
             self.groups = []
+            self.grouptags = set()
             self.bbs_map = bbs_map if bbs_map != None else {}
             self.possible_tags = set()
             self.rankedlist_map = rlist_map
@@ -644,6 +673,7 @@ class VerifyOverlays(SplitOverlays):
             state = pickle.load(open(self.stateP, 'rb'))
             groups = state['groups']
             self.groups = []
+            self.grouptags = set()
             for group_dict in groups:
                 self.add_group(VerifyGroup.unmarshall(group_dict))
 
@@ -798,6 +828,7 @@ class VerifyOverlays(SplitOverlays):
 
     def do_manual_relabel(self):
         """ The user clicked the 'Manual Relabel this Group' """
+        # Note: No longer in use.
         dlg = ManualRelabelDialog(self, self.possible_tags)
         status = dlg.ShowModal()
         if status == wx.CANCEL:
@@ -806,14 +837,25 @@ class VerifyOverlays(SplitOverlays):
         self.select_exmpl_group(sel_tag, self.get_current_group().exmpl_idx)
     def do_nextexmpl(self):
         """ The user wants to see the next exemplar patch. """
+        # Note: No longer in use.
         curtag = self.get_current_group().tag
         nextidx = self.exmplidx_sel + 1
         self.select_exmpl_group(curtag, nextidx)
     def do_prevexmpl(self):
         """ The user wants to see the previous exemplar patch. """
+        # Note: No longer in use.
         curtag = self.get_current_group().tag
         previdx = self.exmplidx_sel - 1
         self.select_exmpl_group(curtag, previdx)
+
+    def onComboBox_grplabel(self, evt):
+        """ The user selected a new group label for this group, so
+        update UI components, and modify the group's tag.
+        """
+        selected_tag = self.cbox_grplabel.GetValue()
+        self.get_current_group().tag = selected_tag
+        self.select_exmpl_group(selected_tag, 0)
+        evt.Skip()
 
 class VerifyOrFlagOverlaysPanel(VerifyOverlaysPanel):
     """ Class that contains both a Header, a VerifyOrFlagOverlays, and a Button
@@ -1060,8 +1102,8 @@ class CheckImageEquals(VerifyOverlays):
     def update_grouptag_txt(self):
         if self.stxt_grplabel.IsShown():
             self.stxt_grplabel.Hide()
-        if self.txt_grplabel.IsShown():
-            self.txt_grplabel.Hide()
+        if self.cbox_grplabel.IsShown():
+            self.cbox_grplabel.Hide()
 
     def update_exemplartag_txt(self):
         group = self.get_current_group()
@@ -1078,6 +1120,9 @@ class CheckImageEquals(VerifyOverlays):
         curgroup = self.get_current_group()
         self.finished_groups.setdefault(self.TAG_NO, []).append(curgroup)
         self.remove_group(curgroup)
+        self.Layout()
+        self.SetupScrolling()
+
     def handle_nomoregroups(self):
         self.export_results()
         self.Close()
@@ -1165,8 +1210,8 @@ class SeparateImages(VerifyOverlays):
     def update_grouptag_txt(self):
         if self.stxt_grplabel.IsShown():
             self.stxt_grplabel.Hide()
-        if self.txt_grplabel.IsShown():
-            self.txt_grplabel.Hide()
+        if self.cbox_grplabel.IsShown():
+            self.cbox_grplabel.Hide()
 
     def update_exemplartag_txt(self):
         if self.txt_exemplarTag.IsShown():
