@@ -441,8 +441,18 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
         if len(self.verify_results_cat) == len(self.cat2page):
             print "We're done verifying all categories!"
             self.Disable()
+            wx.MessageDialog(self, style=wx.OK,
+                             message="You've finished verifying all \
+categories.\n\n\
+You may proceed to the next task.",
+                             caption="Grouping Verification Completed").ShowModal()
             if self.ondone:
                 self.ondone(self.verify_results_cat, self.quarantine_results_cat)
+        else:
+            wx.MessageDialog(self, style=wx.OK,
+                             message="You've finished verifying category '{0}'.\n\n\
+You may move onto the next category.".format(curcat),
+                             caption="Category Completed").ShowModal()
 
 def exists_imgattr(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
