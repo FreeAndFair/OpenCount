@@ -1580,7 +1580,25 @@ class BoxDrawPanel(ImagePanel):
         if not boxes_todo:
             return
         # First draw contests, then targets on-top.
-        boxes_todo = sorted(boxes_todo, key=lambda b: 0 if type(b) == ContestBox else 1)
+        contest_boxes, target_boxes = [], []
+        for box in boxes_todo:
+            if isinstance(box, ContestBox):
+                contest_boxes.append(box)
+            else:
+                target_boxes.append(box)
+
+        # Sort contests first by x1, then by y1 (e.g roughly by columns)
+        # TODO: Doing this sort of sort on every draw routine sounds like
+        # a bad idea (plus, this is just a heuristic sloppy sort anyways) - 
+        # for now, just let the original ordering determine the color order
+        # for contests.
+        '''
+        if contest_boxes:
+            max_x1 = max([c.x1 for c in contest_boxes])
+            _decdigits = int(round(math.floor(math.log(max_x1, 10))))
+            contest_boxes = sorted(contest_boxes, key=lambda c: (c.x1 * (10**_decdigits)) + c.y1)
+        '''
+
         npimg_cpy = self.npimg.copy()
         def draw_border(npimg, box, thickness=2, color=(0, 0, 0)):
             T = thickness
@@ -1604,23 +1622,42 @@ class BoxDrawPanel(ImagePanel):
             npimg[y1:y2, max(0, (x2-T)):x2] += clr*0.8
             return npimg
 
-        for box in boxes_todo:
-            clr, thickness = box.get_draw_opts()
-            draw_border(npimg_cpy, box, thickness=thickness, color=(0, 0, 0))
-            if box.is_sel:
-                transparent_color = np.array(box.shading_selected_clr) if box.shading_selected_clr else None
+        for i, contestbox in enumerate(contest_boxes):
+            clr, thickness = contestbox.get_draw_opts()
+            draw_border(npimg_cpy, contestbox, thickness=thickness, color=(0, 0, 0))
+            if contestbox.is_sel:
+                transparent_color = np.array(contestbox.shading_selected_clr) if contestbox.shading_selected_clr else None
             else:
-                transparent_color = np.array(box.shading_clr) if box.shading_clr else None
+                #transparent_color = np.array(contestbox.shading_clr) if contestbox.shading_clr else None
+                transparent_color = np.array(contestbox.shading_clr_cycle[i % len(contestbox.shading_clr_cycle)]) if contestbox.shading_clr_cycle else None
             if transparent_color != None:
                 t = time.time()
-                _x1, _y1 = self.img2c(box.x1, box.y1)
-                _x2, _y2 = self.img2c(box.x2, box.y2)
+                _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
+                _x2, _y2 = self.img2c(contestbox.x2, contestbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
                 np_rect[:,:] *= 0.7
                 np_rect[:,:] += transparent_color*0.3
                 dur_wxbmp2np = time.time() - t
             
-            box._dirty = False
+            contestbox._dirty = False
+
+        for targetbox in target_boxes:
+            clr, thickness = targetbox.get_draw_opts()
+            draw_border(npimg_cpy, targetbox, thickness=thickness, color=(0, 0, 0))
+            if targetbox.is_sel:
+                transparent_color = np.array(targetbox.shading_selected_clr) if targetbox.shading_selected_clr else None
+            else:
+                transparent_color = np.array(targetbox.shading_clr) if targetbox.shading_clr else None
+            if transparent_color != None:
+                t = time.time()
+                _x1, _y1 = self.img2c(targetbox.x1, targetbox.y1)
+                _x2, _y2 = self.img2c(targetbox.x2, targetbox.y2)
+                np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
+                np_rect[:,:] *= 0.7
+                np_rect[:,:] += transparent_color*0.3
+                dur_wxbmp2np = time.time() - t
+            
+            targetbox._dirty = False
 
         h, w = npimg_cpy.shape[:2]
         t = time.time()
@@ -1856,6 +1893,8 @@ class Box(object):
     shading_clr = None
     shading_selected_clr = None
 
+    shading_clr_cycle = None
+
     def __init__(self, x1, y1, x2, y2):
         self.x1, self.y1, self.x2, self.y2 = x1, y1, x2, y2
         self._dirty = True
@@ -1914,6 +1953,8 @@ class TargetBox(Box):
     shading_clr = (0, 255, 0) # Green
     shading_selected_clr = (255, 0, 0) # Red
 
+    shading_clr_cycle = None
+
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
@@ -1933,7 +1974,10 @@ class TargetBox(Box):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
 class ContestBox(Box):
     shading_clr = (0, 0, 200) # Blue
-    shading_selected_clr = (161, 0, 240) # Purple
+    shading_selected_clr = (171, 0, 240) # Purple
+
+    # shading_clr_cycle := A list of colors to alternate from
+    shading_clr_cycle = ((0, 0, 200), (0, 150, 245), (0, 190, 150), (80, 0, 245))
 
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
