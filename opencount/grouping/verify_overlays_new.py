@@ -603,6 +603,15 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         self.btn_sizer.Insert(1, (10,0))
         self.btn_sizer.AddMany([(self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
+        """ DEBUG """
+        btn_print_imgs = wx.Button(self, label="(Debug) Print imgpaths")
+        self.btn_sizer.AddMany([((25,0),), (btn_print_imgs,)])
+        def dbg_print_imgs(evt):
+            print "[DEBUG] Printing imgpaths of current group ({0} imgs):".format(len(self.GetParent().overlaypanel.get_current_group().imgpaths))
+            for imgpath in self.GetParent().overlaypanel.get_current_group().imgpaths:
+                print imgpath
+        btn_print_imgs.Bind(wx.EVT_BUTTON, dbg_print_imgs)
+
         txt_curlabel0 = wx.StaticText(self, label="Current guess: ")
         self.txt_curlabel = wx.StaticText(self, label="")
         self.sizer_curlabel = wx.BoxSizer(wx.HORIZONTAL)
