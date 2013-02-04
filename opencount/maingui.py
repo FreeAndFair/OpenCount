@@ -99,6 +99,10 @@ class MainFrame(wx.Frame):
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
+        if old == -1:
+            # Don't know why these events are sometimes triggered...
+            return
+
         if old == MainFrame.PROJECT:
             status, msg = self.panel_projects.can_move_on()
             if status:
@@ -108,6 +112,7 @@ class MainFrame(wx.Frame):
                 dlg = wx.MessageDialog(self, message=msg, style=wx.ID_OK)
                 dlg.ShowModal()
                 evt.Veto()
+            return
 
         curpanel = self.notebook.GetPage(old)
         if hasattr(curpanel, 'can_move_on'):
