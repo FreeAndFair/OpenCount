@@ -26,7 +26,8 @@ def extractTargets(I,Iref,bbs,verbose=False):
     # Note: Currently only used in debugWorker. See extractTargetsRegions
     #       for the function actually used.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs);
+    #IrefM=sh.maskBordersTargets(Iref,bbs);
+    IrefM = Iref # Currently don't mask out targets, found it helps global alignment
     t0=time.clock();
     
     IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
@@ -133,7 +134,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
 
     # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
     #                   alignment on several scales, choosing the best one
-    H1, I1, err = global_align.align_strong(I, IrefM_crop)
+    H1, I1, err = global_align.align_image(I, IrefM_crop)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []

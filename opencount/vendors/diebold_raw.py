@@ -144,7 +144,7 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
         print_dbg("==== Theta={0}".format(theta))
     
     bbs_rough = ((0, 0.96 * h,
-                  (w-1), (0.98 * h)),
+                  (w-1), (0.985 * h)),
                  (0, 0.945 * h,
                   (w-1), (0.995 * h)))
     result = decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip,

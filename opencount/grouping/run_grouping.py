@@ -229,12 +229,30 @@ class RunGroupingMainPanel(wx.Panel):
                                        self.proj.group_infomap),
                               pathjoin(self.proj.projdir_path,
                                        self.proj.group_exmpls))
+        print "...Starting Grouping..."
+        t_total = time.time()
         if exists_imgattr(self.proj):
+            print "...Doing imgbased grouping..."
+            t = time.time()
             self.run_imgbased_grouping()
+            dur = time.time() - t
+            print "...Finished imgbased grouping ({0:.4f}s)".format(dur)
         if exists_digattr(self.proj):
+            print "...Doing digitbased grouping..."
+            t = time.time()
             self.run_digitbased_grouping()
+            dur = time.time() - t
+            print "...Finished digitbased grouping ({0:.4f}s)".format(dur)
 
+        dur_total = time.time() - t_total
+        print "...Finished Grouping. ({0:.4f}s)".format(dur_total)
         self.btn_rungrouping.Disable()
+        
+        wx.MessageDialog(self, message="Grouping is finished ({0:.2f} seconds elapsed).\n\n\
+You may proceed to the next task.".format(dur_total),
+                         style=wx.OK,
+                         caption="Grouping Completed").ShowModal()
+
         self.Enable()
         
     def onButton_continueverify(self, evt):

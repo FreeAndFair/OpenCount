@@ -190,10 +190,19 @@ class ViewOverlays(ScrolledPanel):
         group = self.get_current_group()
         self.txtctrl_num_elements.SetLabel(str(len(group.imgpaths)))        
 
+    def update_header(self):
+        """ Updates (if necessary) any UI components of the header. """
+        pass
+    def update_footer(self):
+        """ Updates (if necessary) any UI components of the footer. """
+        pass
+
     def update_ui_text(self):
         """ Updates UI text components for currently-displayed group. """
         self.update_grouptag_txt()
         self.update_groupsize_txt()
+        self.update_header()
+        self.update_footer()
 
     def select_group(self, idx):
         """ Handles the frontend logic to select and display the group with
@@ -314,13 +323,18 @@ class ViewOverlays(ScrolledPanel):
     def get_current_group(self):
         return self.groups[self.idx]
         
+    def get_group_label(self, group):
+        """ Given a group GROUP, returns a human-readable string for GROUP. """
+        label = "{0} -> {1} elements".format(str(group.tag), str(len(group.imgpaths)))
+        return label
+
     def add_group(self, group):
         """ Registers group GROUP into both my internal data structures,
         as well as updating relevant UI components.
         """
         self.groups.insert(0, group)
         self.grouptags.add(str(group.tag))
-        label = "{0} -> {1} elements".format(str(group.tag), str(len(group.imgpaths)))
+        label = self.get_group_label(group)
         self.listbox_groups.Insert(label, 0)
         if str(group.tag) not in self.cbox_grplabel.GetItems():
             self.cbox_grplabel.Append(str(group.tag))
@@ -440,7 +454,8 @@ class SplitOverlaysFooter(wx.Panel):
 
         self.init_ui()
     def init_ui(self):
-        btn_split = wx.Button(self, label="Split...")
+        btn_split = wx.Button(self, label="Split and continue")
+        self.btn_split = btn_split
         btn_split.Bind(wx.EVT_BUTTON, self.onButton_split)
         btn_setsplitmode = wx.Button(self, label="Set Split Mode...")
         btn_setsplitmode.Hide() # Not necessary for the user to fuss with
@@ -456,8 +471,7 @@ class SplitOverlaysFooter(wx.Panel):
         sizer_scaling.AddMany([(btn_larger,0,wx.ALIGN_CENTER), ((10,10),),(btn_smaller,0,wx.ALIGN_CENTER)])
 
         self.btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_sizer.Add(sizer_split)
-        self.btn_sizer.Add(sizer_scaling)
+        self.btn_sizer.AddMany([(sizer_split,), ((35, 0),), (sizer_scaling,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -500,6 +514,20 @@ class SplitOverlays(ViewOverlays):
                 for trimmed_group in trimmed_groups:
                     self.add_group(trimmed_group)
         self.select_group(0)
+
+    def select_group(self, *args, **kwargs):
+        """ If the selected-group has only one image in it, then
+        disable the 'Split' button. 
+        """
+        idx = ViewOverlays.select_group(self, *args, **kwargs)
+        if idx == None:
+            return idx
+
+        if self.get_current_group() and len(self.get_current_group().imgpaths) <= 1:
+            self.GetParent().footer.btn_split.Disable()
+        else:
+            self.GetParent().footer.btn_split.Enable()
+        return idx
 
     def do_split(self, MAX_GROUP_SIZE=MAX_GROUP_SIZE):
         curgroup = self.get_current_group()
@@ -546,7 +574,8 @@ class VerifyOverlaysPanel(SplitOverlaysPanel):
 class VerifyOverlaysFooter(SplitOverlaysFooter):
     def init_ui(self):
         SplitOverlaysFooter.init_ui(self)
-        btn_matches = wx.Button(self, label="Matches")
+        btn_matches = wx.Button(self, label="Accept all as *")
+        self.btn_matches = btn_matches
         btn_matches.Bind(wx.EVT_BUTTON, self.onButton_matches)
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")
         self.btn_manual_relabel.Bind(wx.EVT_BUTTON, self.onButton_manual_relabel)
@@ -570,7 +599,18 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
         self.sizer_exmpls.ShowItems(False) # Hide the next/prev exemplar widgets
 
-        self.btn_sizer.AddMany([(btn_matches,), (self.btn_manual_relabel,), (self.sizer_exmpls,)])
+        self.btn_sizer.Insert(0, btn_matches)
+        self.btn_sizer.Insert(1, (10,0))
+        self.btn_sizer.AddMany([(self.btn_manual_relabel,), (self.sizer_exmpls,)])
+
+        """ DEBUG """
+        btn_print_imgs = wx.Button(self, label="(Debug) Print imgpaths")
+        self.btn_sizer.AddMany([((25,0),), (btn_print_imgs,)])
+        def dbg_print_imgs(evt):
+            print "[DEBUG] Printing imgpaths of current group ({0} imgs):".format(len(self.GetParent().overlaypanel.get_current_group().imgpaths))
+            for imgpath in self.GetParent().overlaypanel.get_current_group().imgpaths:
+                print imgpath
+        btn_print_imgs.Bind(wx.EVT_BUTTON, dbg_print_imgs)
 
         txt_curlabel0 = wx.StaticText(self, label="Current guess: ")
         self.txt_curlabel = wx.StaticText(self, label="")
@@ -703,16 +743,18 @@ class VerifyOverlays(SplitOverlays):
         return state
 
     def update_exemplartag_txt(self):
-        group = self.get_current_group()
-        try:
-            tag = str(group.tag)
-        except:
-            tag = "GroupTag"
-        self.txt_exemplarTag.SetLabel(tag)
+        selected_tag = self.cbox_grplabel.GetValue()
+        self.txt_exemplarTag.SetLabel(selected_tag)
 
     def update_ui_text(self):
         SplitOverlays.update_ui_text(self)
         self.update_exemplartag_txt()
+
+    def update_footer(self):
+        """ Updates the 'Accept as *' button text. """
+        selected_tag = self.cbox_grplabel.GetValue()
+        self.GetParent().footer.btn_matches.SetLabel("Accept All as: '{0}'".format(selected_tag))
+        self.GetParent().Layout()
 
     def select_group(self, idx):
         if idx < 0 or idx >= len(self.groups):
@@ -855,6 +897,7 @@ class VerifyOverlays(SplitOverlays):
         selected_tag = self.cbox_grplabel.GetValue()
         self.get_current_group().tag = selected_tag
         self.select_exmpl_group(selected_tag, 0)
+        self.update_ui_text()
         evt.Skip()
 
 class VerifyOrFlagOverlaysPanel(VerifyOverlaysPanel):
@@ -868,9 +911,10 @@ class VerifyOrFlagOverlaysPanel(VerifyOverlaysPanel):
 class VerifyOrFlagOverlaysFooter(VerifyOverlaysFooter):
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
-        self.btn_quarantine = wx.Button(self, label="Quarantine")
+        self.btn_quarantine = wx.Button(self, label="Quarantine This Group")
         self.btn_quarantine.Bind(wx.EVT_BUTTON, self.onButton_quarantine)
-        self.btn_sizer.Add(self.btn_quarantine)
+        self.btn_sizer.Insert(3, (25, 0))
+        self.btn_sizer.Insert(4, self.btn_quarantine)
         self.Layout()
     def onButton_quarantine(self, evt):
         self.GetParent().overlaypanel.do_quarantine()
@@ -1041,10 +1085,13 @@ class CheckImageEqualsPanel(VerifyOverlaysPanel):
 class CheckImageEqualsFooter(VerifyOverlaysFooter):
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
-        btn_no = wx.Button(self, label="Doesn't Match")
+        self.btn_matches.SetLabel("Accept (All Matches)")
+        btn_no = wx.Button(self, label="Reject (Not All Matches)")
         btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
         
-        self.btn_sizer.Add(btn_no)
+        self.btn_sizer.Insert(1, (10, 10))
+        self.btn_sizer.Insert(2, btn_no)
+        self.btn_sizer.Insert(3, (10, 10))
 
         self.btn_manual_relabel.Hide()
         self.sizer_exmpls.ShowItems(False)
@@ -1115,6 +1162,16 @@ class CheckImageEquals(VerifyOverlays):
                 self.txt_exemplarTag.Show()
             VerifyOverlays.update_exemplartag_txt(self)
 
+    def update_footer(self):
+        """ Override this method to /not/ update the button text as 
+        Accept All as ''.
+        """
+        pass
+
+    def get_group_label(self, group, *args, **kwargs):
+        label = "Group -> {0} elements".format(len(group.imgpaths))
+        return label
+
     def do_no(self):
         """ The user says that the current group does NOT match category A. """
         curgroup = self.get_current_group()
@@ -1156,13 +1213,18 @@ class SeparateImagesPanel(VerifyOverlaysPanel):
 class SeparateImagesFooter(VerifyOverlaysFooter):
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
-        self.btn_explode_group = wx.Button(self, label="Explode this group.")
+        self.btn_matches.SetLabel("Accept (Full Match)")
+        self.btn_explode_group = wx.Button(self, label="Reject (No match)")
         self.btn_explode_group.Bind(wx.EVT_BUTTON, self.onButton_explode)
         self.btn_realign_imgs = wx.Button(self, label="Re-align images...")
         self.btn_realign_imgs.Bind(wx.EVT_BUTTON, self.onButton_realign)
 
-        self.btn_sizer.AddMany([(self.btn_explode_group,), (self.btn_realign_imgs,)])
-
+        self.btn_sizer.Insert(1, (10, 0))
+        self.btn_sizer.Insert(2, self.btn_explode_group)
+        self.btn_sizer.Insert(3, (10, 0))
+        self.btn_sizer.Insert(5, (20, 0))
+        self.btn_sizer.Insert(6, self.btn_realign_imgs)
+        
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
         self.btn_manual_relabel.Hide()
@@ -1200,7 +1262,7 @@ class SeparateImages(VerifyOverlays):
         self.stateP = stateP
         self.realign_callback = realign_callback
         if self.realign_callback:
-            self.btn_realign_imgs.Show()
+            self.GetParent().footer.btn_realign_imgs.Show()
         if not self.restore_session():
             exemplars = [] # No need for exemplars
             VerifyOverlays.start(self, imggroups, exemplars, None, 
@@ -1217,6 +1279,14 @@ class SeparateImages(VerifyOverlays):
         if self.txt_exemplarTag.IsShown():
             self.txt_exemplarTag.Hide()
             
+    def update_footer(self):
+        """ Don't update the Matches button text. """
+        pass
+
+    def get_group_label(self, group, *args, **kwargs):
+        label = "Group -> {0} elements".format(len(group.imgpaths))
+        return label
+
     def export_results(self):
         if self.ondone:
             verify_results = {} # maps {int id: [imgpath_i, ...]}
@@ -1743,7 +1813,7 @@ def test_verifyoverlays():
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=True, ondone=self.ondone)
+            self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=True, ondone=self.ondone, auto_ondone=True)
 
         def ondone(self, verify_results):
             print '...In ondone...'
