@@ -318,14 +318,12 @@ repeat.", 100)
                 self.jobid = jobid
                 self._stop = threading.Event()
             def stop(self):
-                print "...ListenThread: Someone called my stop()..."
                 self._stop.set()
             def is_stopped(self):
                 return self._stop.isSet()
             def run(self):
                 while True:
                     if self.is_stopped():
-                        print "...ListenThread: Stopping."
                         return
                     try:
                         val = self.queue.get(block=True, timeout=1)
@@ -625,6 +623,9 @@ Adding to separate partitions...".format(len(bad_ballotids))
                     i += 1
         # Export results.
         self.GetParent().export_results()
+        wx.MessageDialog(self, style=wx.OK, caption="Partitioning Done",
+                         message="Partitioning is complete. \n\n\
+You may move onto the next step.").ShowModal()
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
