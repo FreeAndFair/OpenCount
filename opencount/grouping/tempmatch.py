@@ -1,4 +1,4 @@
-import traceback
+import traceback, threading, multiprocessing
 import cv, numpy as np
 
 from wx.lib.pubsub import Publisher
@@ -110,7 +110,7 @@ def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywi
 def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
                     xwinI=13, ywinI=13, MAX_MATS=50, prevmatches=None,
                     DELT=0.5,
-                    atleastone=False, jobid=None):
+                    atleastone=False, jobid=None, queue_mygauge=None):
     """ Runs template matching, trying to find image A within each image
     in IMGPATHS. Returns location (and responses) of all matches greater than
     some threshold T.
@@ -188,13 +188,18 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
             matches.append((j, i, j + wA, i + hA, score))
         results[imgpath] = matches
         if jobid and wx.App.IsMainLoopRunning():
+            # Note: I don't think this actually does anything, since this
+            # is living in a separate process, which can't communicate
+            # to the wx App instance living in the original host process
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+        if jobid and queue_mygauge != None and wx.App.IsMainLoopRunning():
+            queue_mygauge.put(True)
     return results
 
 def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                    xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
                                    DELT,
-                                   atleastone, jobid)):
+                                   atleastone, jobid, queue_mygauge)):
     result = {}
     A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A, A_str)
@@ -203,7 +208,7 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                   ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
                                   prevmatches=prevmatches,
                                   DELT=DELT,
-                                  jobid=jobid)
+                                  jobid=jobid, queue_mygauge=queue_mygauge)
     except:
         traceback.print_exc()
         return {}
@@ -227,19 +232,45 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
     """
     A_str = A.tostring()
     w, h = cv.GetSize(A)
+
+    manager = multiprocessing.Manager()
+    queue_mygauge = manager.Queue()
+    tick_thread = ThreadTicker(queue_mygauge, jobid)
+    tick_thread.start()
+
     try:
         result = partask.do_partask(_do_get_tempmatches, imgpaths,
                                     _args=(A_str, img2flip, T, do_smooth, xwinA, ywinA,
                                            xwinI, ywinI, w, h, MAX_MATS, prevmatches,
                                            DELT,
-                                           atleastone, jobid),
+                                           atleastone, jobid, queue_mygauge),
+                                    manager=manager,
                                     combfn='dict', singleproc=False)
     except Exception as e:
         traceback.print_exc()
         return {}
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+    tick_thread.turn_me_off()
+
     return result    
+
+class ThreadTicker(threading.Thread):
+    def __init__(self, queue_mygauge, jobid, *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.queue_mygauge = queue_mygauge
+        self.jobid = jobid
+
+        self.i_am_listening = threading.Event()
+
+    def turn_me_off(self):
+        self.i_am_listening.set()
+
+    def run(self):
+        while not self.i_am_listening.isSet():
+            val = self.queue_mygauge.get()
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+        return True
 
 def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to I, with window size [XWIN,YWIN].

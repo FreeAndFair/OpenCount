@@ -21,8 +21,11 @@ import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
 import global_align.global_align as global_align
 
+JOBID_TEMPMATCH_TARGETS = util.GaugeID("TemplateMatchTargets")
+
 class SelectTargetsMainPanel(OpenCountPanel):
     GLOBALALIGN_JOBID = util.GaugeID("GlobalAlignJobId")
+
     def __init__(self, parent, *args, **kwargs):
         OpenCountPanel.__init__(self, parent, *args, **kwargs)
 
@@ -490,7 +493,6 @@ class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
     partitions
     """
-    TEMPLATE_MATCH_JOBID = 830
     
     # TM_MODE_ALL: Run template matching on all images
     TM_MODE_ALL = 901
@@ -669,6 +671,7 @@ this partition.")
             Box BOX:
             PIL IMG:
         """
+        self.Disable()
         # 1.) Do an autofit.
         patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
         patch = util_gui.fit_image(patch_prefit, padx=0, pady=0)
@@ -701,10 +704,16 @@ this partition.")
             imgpaths = imgpaths[self.cur_page:] # Don't run on prior pages
         print "...Running template matching on {0} images...".format(len(imgpaths))
         queue = Queue.Queue()
-        thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
+        thread = TM_Thread(queue, JOBID_TEMPMATCH_TARGETS, patch, img,
                            imgpaths, self.tm_param, self.win_ballot, self.win_target,
                            self.on_tempmatch_done)
         thread.start()
+
+        gauge = util.MyGauge(self, 1, job_id=JOBID_TEMPMATCH_TARGETS,
+                             msg="Finding Voting Targets...")
+        gauge.Show()
+        num_tasks = len(imgpaths)
+        Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, JOBID_TEMPMATCH_TARGETS))
 
     def on_tempmatch_done(self, results, w, h):
         """ Invoked after template matching computation is complete. 
@@ -758,6 +767,7 @@ this partition.")
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
+        self.Enable()
         print "...Finished adding results from tempmatch run."
 
     def display_image(self, i, j, page, autofit=False):
@@ -1848,7 +1858,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             TemplateMatchDrawPanel.onLeftUp(self, evt)        
 
 class TM_Thread(threading.Thread):
-    TEMPLATE_MATCH_JOBID = 48
+
     def __init__(self, queue, job_id, patch, img, imgpaths, tm_param,
                  win_ballot, win_target,
                  callback, *args, **kwargs):
@@ -1882,7 +1892,8 @@ class TM_Thread(threading.Thread):
         results = tempmatch.get_tempmatches_par(self.patch, self.imgpaths,
                                                 do_smooth=tempmatch.SMOOTH_IMG_BRD,
                                                 T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
-                                                xwinI=xwinB, ywinI=ywinB)
+                                                xwinI=xwinB, ywinI=ywinB,
+                                                jobid=self.job_id)
         dur = time.time() - t
         print "...finished running template matching ({0} s).".format(dur)
         self.callback(results, w, h)
