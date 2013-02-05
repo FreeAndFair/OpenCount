@@ -11,6 +11,8 @@ from util import create_dirs
 import pickle
 import shutil
 
+from matplotlib.pyplot import show, imshow, figure, title
+
 sys.path.append('..')
 import global_align.global_align as global_align
 
@@ -81,7 +83,7 @@ def bbsInCell(bbs,i1,i2,j1,j2):
     for bb in bbs:
         iCtr=(bb[0]+bb[1])/2.
         jCtr=(bb[2]+bb[3])/2.        
-        if (iCtr>i1) and (iCtr<i2) and (jCtr>j1) and (jCtr<j2):
+        if (iCtr>=i1) and (iCtr<=i2) and (jCtr>=j1) and (jCtr<=j2):
             bbOut=np.vstack((bbOut,bb))
 
     return bbOut
@@ -170,10 +172,9 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         hStep=math.ceil(Iref.shape[1]/hCells);
         for i in range(vCells):
             for j in range(hCells):
-                i1=i*vStep; i1=max(i1,0);
-                i2=(i+1)*vStep; i2=min(i2,I1.shape[0]-1);
-                j1=j*hStep; j1=max(j1,0);
-                j2=(j+1)*hStep; j2=min(j2,I1.shape[1]-1);
+                i1=i*vStep; j1=j*hStep;
+                i2=(i+1)*vStep-1; i2=min(i2,I1.shape[0]-1);
+                j2=(j+1)*hStep-1; j2=min(j2,I1.shape[1]-1);
                 # grab all targets within this range
                 bbs1=bbsInCell(bbs,i1,i2,j1,j2)
                 if bbs1.size == 0:
@@ -473,9 +474,13 @@ def convertImagesWorkerMAP(job):
             balP = balL[side]
             bbs = bbsL[side]
             flipped = balL_flips[side]
-            writeMAP(extractTargetsRegions(balImg, tplImg, bbs, balP=balP, do_grid_opt=False), 
+            writeMAP(extractTargetsRegions(balImg,tplImg,bbs,
+                                           balP=balP,do_grid_opt=True,
+                                           vCells=4,hCells=4), 
                      targetDir, targetDiffDir, 
-                     targetMetaDir, imageMetaDir, balP, tplImgPath, flipped, side, voted_rootdir,result_queue)
+                     targetMetaDir, imageMetaDir, balP, tplImgPath,
+                     flipped, side, voted_rootdir,result_queue)
+
         queue.put(True)
     except Exception as e:
         traceback.print_exc()
