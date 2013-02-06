@@ -451,41 +451,10 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             print "...Skipping Barcode Overlay Verification..."
             self.on_verify_done(None, None, flipmap, verifypatch_bbs, skipVerify=True)
             return
-        
-        # 1.) Extract all patches to an outdir
-        imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
+
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
-        bc_val_cnt = {} # maps {bc_val: int cnt}
-        bc_val_dircnt = {} # maps {bc_val: int dircnt}
-        img_ctr = util.Counter()
-        print "...creating jobs for barcode-patch extraction..."
-        for bc_val, tups in verifypatch_bbs.iteritems():
-            for (imgpath, (x1,y1,x2,y2), userdata) in tups:
-                i = bc_val_cnt.get(bc_val, None)
-                if i == None: 
-                    bc_val_cnt[bc_val] = 0
-                    bc_val_dircnt[bc_val] = 0
-                    i = 0
-                if i != 0 and i % 750 == 0:
-                    bc_val_dircnt[bc_val] += 1
-                dircnt = bc_val_dircnt[bc_val]
-                imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
-                # Recreate directory structure
-                rp = os.path.splitext(os.path.relpath(os.path.abspath(imgpath), os.path.abspath(self.proj.voteddir)))[0]
-                outpath = pathjoin(outrootdir, rp, "{0}_{1}.png".format(imgname, img_ctr[imgpath]))
-                img_ctr[imgpath] += 1
-                # use the loc as the ID, in case USERDATA isn't used
-                ID = (x1,y1,x2,y2) 
-                tag = (bc_val, userdata, ID)
-                isflip = flipmap[imgpath]
-                imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), isflip, outpath, tag))
-                i += 1
-        print '...extracting...'
-        t = time.time()
-        img2patch, patch2stuff = extract_patches.extract(imgpatches)
-        dur = time.time() - t
-        print '...done extracting ({0} s)...'.format(dur)
-        print "    Avg. Time Per Image:", dur / float(len(imgpatches))
+        img2patch, patch2stuff = extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, self.proj.voteddir)
+
         cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -825,3 +794,59 @@ class BadPagesDialog(wx.Dialog):
         self.keep_page = self.cb_pages.GetSelection()
         self.do_quarantine = True if self.rb_quarantine.GetValue() else False
         self.EndModal(self.ID_KEEPONE)
+
+def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir):
+    """ Given the results of the barcode decoder, extract each barcode
+    value (given by the bounding boxes) and save them to OUTROOTDIR.
+    Input:
+        dict VERIFYPATCH_BBS: maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+        dict FLIPMAP: maps {str imgpath: bool isflip}
+        str OUTROOTDIR:
+            Root directory to store extracted images
+        str VOTEDDIR:
+            Root directory of voted ballots directory. This is used to
+            recreate the directory structure for OUTROOTDIR.
+    Output:
+        (dict IMG2PATCH, dict PATCH2STUFF)
+    dict IMG2PATCH: 
+    dict PATCH2STUFF: 
+    """
+    # 1.) Extract all patches to an outdir
+    imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
+
+    bc_val_cnt = {} # maps {bc_val: int cnt}
+    bc_val_dircnt = {} # maps {bc_val: int dircnt}
+    img_ctr = util.Counter()
+    print "...creating jobs for barcode-patch extraction..."
+    for bc_val, tups in verifypatch_bbs.iteritems():
+        for (imgpath, (x1,y1,x2,y2), userdata) in tups:
+            i = bc_val_cnt.get(bc_val, None)
+            if i == None: 
+                bc_val_cnt[bc_val] = 0
+                bc_val_dircnt[bc_val] = 0
+                i = 0
+            if i != 0 and i % 750 == 0:
+                bc_val_dircnt[bc_val] += 1
+            dircnt = bc_val_dircnt[bc_val]
+            imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
+            # Recreate directory structure
+            rp = os.path.splitext(os.path.relpath(os.path.abspath(imgpath), os.path.abspath(voteddir)))[0]
+            outpath = pathjoin(outrootdir, rp, "{0}_{1}.png".format(imgname, img_ctr[imgpath]))
+            img_ctr[imgpath] += 1
+            # use the loc as the ID, in case USERDATA isn't used
+            ID = (x1,y1,x2,y2) 
+            tag = (bc_val, userdata, ID)
+            isflip = flipmap[imgpath]
+            imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), isflip, outpath, tag))
+            i += 1
+    print '...extracting...'
+    t = time.time()
+
+    img2patch, patch2stuff = extract_patches.extract(imgpatches)
+
+    dur = time.time() - t
+    num_ballots = len(flipmap)
+    print '...done extracting ({0} s)...'.format(dur)
+    print "    Avg. Time Per Image:", dur / float(num_ballots)
+
+    return img2patch, patch2stuff
