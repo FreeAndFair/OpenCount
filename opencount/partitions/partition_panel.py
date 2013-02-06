@@ -808,8 +808,8 @@ def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir):
             recreate the directory structure for OUTROOTDIR.
     Output:
         (dict IMG2PATCH, dict PATCH2STUFF)
-    dict IMG2PATCH: 
-    dict PATCH2STUFF: 
+    dict IMG2PATCH: maps {(imgpath, tag): patchpath}
+    dict PATCH2STUFF: maps {patchpath: (imgpath, (x1,y1,x2,y2), tag)}
     """
     # 1.) Extract all patches to an outdir
     imgpatches = {} # {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
