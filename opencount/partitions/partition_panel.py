@@ -204,6 +204,7 @@ The page counts are:\n{1}".format(self.proj.num_pages, _msg))
         
 class PartitionPanel(ScrolledPanel):
     PARTITION_JOBID = util.GaugeID("PartitionJobId")
+    JOBID_EXTRACT_BARCODE_MARKS = util.GaugeID("ExtractBarcodeMarks")
 
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -454,8 +455,37 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             return
 
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
-        img2patch, patch2stuff = extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, self.proj.voteddir)
 
+        manager = multiprocessing.Manager()
+        queue_mygauge = manager.Queue()
+
+        thread_updateMyGauge = ThreadUpdateMyGauge(queue_mygauge, self.JOBID_EXTRACT_BARCODE_MARKS)
+        thread_updateMyGauge.start()
+
+        thread_doextract = ThreadExtractBarcodePatches(verifypatch_bbs, flipmap, 
+                                                       outrootdir, self.proj.voteddir,
+                                                       manager, queue_mygauge,
+                                                       thread_updateMyGauge,
+                                                       callback=self.on_extract_done)
+        thread_doextract.start()
+
+        gauge = util.MyGauge(self, 1, thread=thread_doextract,
+                             msg="Extracting Barcode Values...", 
+                             job_id=self.JOBID_EXTRACT_BARCODE_MARKS)
+        gauge.Show()
+
+        num_tasks = len(flipmap)
+        Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, self.JOBID_EXTRACT_BARCODE_MARKS))
+
+    def on_extract_done(self, img2patch, patch2stuff, verifypatch_bbs, flipmap):
+        """ Invoked once all barcode value patches have been extracted.
+        Input:
+            dict IMG2PATCH: {(imgpath, tag): patchpath}
+            dict PATCH2STUFF: {patchpath: (imgpath, (x1,y1,x2,y2), tag)}
+            dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+            dict FLIPMAP: {imgpath: bool isFlipped}
+        """
+        Publisher().sendMessage("signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS))
         cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -796,7 +826,59 @@ class BadPagesDialog(wx.Dialog):
         self.do_quarantine = True if self.rb_quarantine.GetValue() else False
         self.EndModal(self.ID_KEEPONE)
 
-def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir):
+class ThreadExtractBarcodePatches(threading.Thread):
+    """ A separate thread to run the extract_barcode_patches call. """
+    def __init__(self, verifypatch_bbs, flipmap, outrootdir, voteddir, 
+                 manager, queue_mygauge, 
+                 thread_updateMyGauge,
+                 callback=None,
+                 *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.verifypatch_bbs = verifypatch_bbs
+        self.flipmap = flipmap
+        self.outrootdir = outrootdir
+        self.voteddir = voteddir
+        self.manager = manager
+        self.queue_mygauge = queue_mygauge
+        self.thread_updateMyGauge = thread_updateMyGauge
+        self.callback = callback
+        
+    def run(self):
+        print "==== ThreadExtractBarcodePatches: Starting extract_barcode_patches()"
+        t = time.time()
+        img2patch, patch2stuff = extract_barcode_patches(self.verifypatch_bbs, self.flipmap,
+                                                         self.outrootdir, self.voteddir,
+                                                         manager=self.manager,
+                                                         queue_mygauge=self.queue_mygauge)
+        dur = time.time() - t
+        print "==== ThreadExtractBarcodePatches: Finished extracted_barcode_patches ({0:.4f}s)".format(dur)
+        self.thread_updateMyGauge.stop_running()
+        wx.CallAfter(self.callback, img2patch, patch2stuff, self.verifypatch_bbs, self.flipmap)
+        
+class ThreadUpdateMyGauge(threading.Thread):
+    """ A Thread that listens on self.queue_mygauge, and throws out
+    'tick' messages to a MyGauge instance, based on self.jobid.
+    """
+    def __init__(self, queue_mygauge, jobid, *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.queue_mygauge = queue_mygauge
+        self.jobid = jobid
+
+        self._stop = threading.Event()
+
+    def stop_running(self):
+        self._stop.set()
+
+    def i_am_running(self):
+        return not self._stop.isSet()
+
+    def run(self):
+        while self.i_am_running():
+            val = self.queue_mygauge.get()
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+
+def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
+                            manager=None, queue_mygauge=None):
     """ Given the results of the barcode decoder, extract each barcode
     value (given by the bounding boxes) and save them to OUTROOTDIR.
     Input:
@@ -843,7 +925,7 @@ def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir):
     print '...extracting...'
     t = time.time()
 
-    img2patch, patch2stuff = extract_patches.extract(imgpatches)
+    img2patch, patch2stuff = extract_patches.extract(imgpatches, manager=manager, queue_mygauge=queue_mygauge)
 
     dur = time.time() - t
     num_ballots = len(flipmap)
