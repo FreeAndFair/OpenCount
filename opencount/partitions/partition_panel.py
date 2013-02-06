@@ -334,13 +334,14 @@ repeat.", 100)
 
         vendor_obj = self.proj.vendor_obj
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
 
         manager = multiprocessing.Manager()
         progress_queue = manager.Queue()
         tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
         t = PartitionThread(b2imgs, vendor_obj, self.on_decodedone,
                             self.PARTITION_JOBID, manager, progress_queue, tlisten)
-        numtasks = len(b2imgs)
+        numtasks = len(img2b)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
         tlisten.start()
