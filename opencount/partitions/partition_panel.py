@@ -1,4 +1,4 @@
-import sys, os, threading, multiprocessing, Queue, time, textwrap
+import sys, os, threading, multiprocessing, Queue, time, textwrap, pdb
 try:
     import cPickle as pickle
 except:
@@ -125,29 +125,13 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
             dlg.ShowModal()
             return
 
-        if not self.proj.is_varnum_pages and flag_uneven_pages:
-            _msg = 'Page Counts:\n'
-            for decoderPage in sorted(pages_counter.keys()):
-                _msg += '    Page {0}: {1}\n'.format(decoderPage, pages_counter[decoderPage])
-            print "...Warning: Uneven page numbers detected."
-            print _msg
-            dlg = wx.MessageDialog(self, style=wx.ID_OK,
-                                   message="Warning: OpenCount detected \
-an uneven number of images per side. This violates the assumption that \
-there are {0}-sides per ballot. \n\
-Is this perhaps an election with a variable-number of pages? \n\
-Or perhaps a few images are missing in the dataset? \n\
-You will not be able to proceed until you rectify this discrepancy.\
-The page counts are:\n{1}".format(self.proj.num_pages, _msg))
-            dlg.ShowModal()
-            return
-
         #### END Sanity Checks
                         
         # 1.) Build up partitions_map, partitions_invmap
         # Note: self.partitionpanel.partitioning may have partitions
         # with either no ballotids, or ballotids that are all quarantined/discarded.
         # Take care to detect these cases.
+        ballots_unevenpages = []
         for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
             if not ballotIDs:
                 continue
@@ -156,13 +140,23 @@ The page counts are:\n{1}".format(self.proj.num_pages, _msg))
                 if ballotID in self.partitionpanel.quarantined_bals or ballotID in self.partitionpanel.discarded_bals:
                     continue
                 imgpaths = b2imgs[ballotID]
+                pages_set = set()
+                _img2page = {}
                 for imgpath in imgpaths:
                     atLeastOne = True
                     decoderPage = self.partitionpanel.imginfo[imgpath]['page']
-                    image_to_page[imgpath] = pages_norm_map[decoderPage]
-                    image_to_flip[imgpath] = self.partitionpanel.flipmap[imgpath]
-                partitions_map.setdefault(curPartID, []).append(ballotID)
-                partitions_invmap[ballotID] = curPartID
+                    page_normed = pages_norm_map[decoderPage]
+                    pages_set.add(page_normed)
+                    _img2page[imgpath] = page_normed
+                if not self.proj.is_varnum_pages and len(pages_set) != self.proj.num_pages:
+                    # We have a ballot with a weird number of sides
+                    ballots_unevenpages.append((ballotID, _img2page))
+                else:
+                    for imgpath, page in _img2page.iteritems():
+                        image_to_page[imgpath] = page
+                        image_to_flip[imgpath] = self.partitionpanel.flipmap[imgpath]
+                    partitions_map.setdefault(curPartID, []).append(ballotID)
+                    partitions_invmap[ballotID] = curPartID
             if atLeastOne:
                 curPartID += 1
         # 2.) Grab NUM_EXMPLS number of exemplars from each partition
@@ -173,6 +167,40 @@ The page counts are:\n{1}".format(self.proj.num_pages, _msg))
                     exmpls.add(ballotID)
             if exmpls:
                 partition_exmpls[partitionID] = sorted(list(exmpls))
+
+        if not self.proj.is_varnum_pages and ballots_unevenpages:
+            _msg = 'Page Counts:\n'
+            for decoderPage in sorted(pages_counter.keys()):
+                _msg += '    Page {0}: {1}\n'.format(decoderPage, pages_counter[decoderPage])
+            print "...Warning: Uneven page numbers detected for {0} ballots.".format(len(ballots_unevenpages))
+            print _msg
+            print "Relevant Ballots:"
+            _errf = open(pathjoin(self.proj.projdir_path,
+                                  "_ballots_unevenpages.txt"), 'w')
+            for i, (ballotid, _img2page) in enumerate(ballots_unevenpages):
+                print "{0}: BallotID={1}".format(i, ballotid)
+                print >>_errf, "{0}: BallotID={1}".format(i, ballotid)
+                for _imP, pg in _img2page.iteritems():
+                    print "    {0} -> Page {1}".format(_imP, pg)
+                    print >>_errf, "    {0} -> Page {1}".format(_imP, pg)
+            _errf.close()
+            dlg = wx.MessageDialog(self, style=wx.ID_OK,
+                                   message="Warning: OpenCount detected \
+an uneven number of images per side. This violates the assumption that \
+there are {0}-sides per ballot. \n\n\
+In particular, there were {1} ballots with an unusual number of reported \
+sides.\n\n\
+Is this perhaps an election with a variable-number of pages? \n\n\
+Or perhaps a few images are missing in the dataset? \n\n\
+These {1} ballots will be quarantined.\n\n\
+The page counts are:\n{2}\n\
+(Detailed info on these ballots have been saved to: \n\
+    opencount/<projdir>/_ballots_unevenpages.txt".format(self.proj.num_pages, len(ballots_unevenpages), _msg))
+            dlg.ShowModal()
+
+        for (ballotid, _img2page) in ballots_unevenpages:
+            self.partitionpanel.quarantined_bals.add(ballotid)
+
         partitions_map_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_map)
         partitions_invmap_outP = pathjoin(self.proj.projdir_path, self.proj.partitions_invmap)
         img2decoding_outP = pathjoin(self.proj.projdir_path, self.proj.img2decoding)
@@ -332,6 +360,26 @@ repeat.", 100)
                             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
                     except Queue.Empty:
                         pass
+
+        # First, remove all prior output files (if exists)
+        for path in (pathjoin(self.proj.projdir_path, self.proj.partition_quarantined),
+                     pathjoin(self.proj.projdir_path, self.proj.partitions_invmap),
+                     pathjoin(self.proj.projdir_path, self.proj.img2decoding),
+                     pathjoin(self.proj.projdir_path, self.proj.imginfo_map),
+                     pathjoin(self.proj.projdir_path, self.proj.partition_exmpls),
+                     pathjoin(self.proj.projdir_path, self.proj.partition_quarantined),
+                     pathjoin(self.proj.projdir_path, self.proj.partition_discarded),
+                     pathjoin(self.proj.projdir_path, self.proj.image_to_page),
+                     pathjoin(self.proj.projdir_path, self.proj.image_to_flip)):
+            try: 
+                shutil.rmtree(path)
+                print "REMOVING:", path
+            except: pass
+        self.partitioning = None
+        self.img2decoding = None
+        self.imginfo = None
+        self.quarantined_bals = set()
+        self.discarded_bals = set()
 
         vendor_obj = self.proj.vendor_obj
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
@@ -520,13 +568,14 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                     for patchpath in patchpaths:
                         imgpath, bb, (bc_val_this, userdata, id) = patch2stuff[patchpath]
                         verified_decodes.setdefault(bc_val, []).append((imgpath, bb, userdata))
-        manual_labeled = {} # maps {str imgpath: str label}
+        # Merge in the manually-labeled images
+        manual_labeled = {} # maps {str imgpath: (str label_i, ...)}
         for imgpath, label in self.errs_corrected.iteritems():
             if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
                 # TODO: Officially document (or modify textentry widget) 
                 # that commas separate barcode values
-                decoding = tuple([s.strip() for s in label.split(",")])
-                manual_labeled[imgpath] = decoding
+                decodings = tuple([s.strip() for s in label.split(",")])
+                manual_labeled[imgpath] = decodings
         print "...generating partitions..."
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)

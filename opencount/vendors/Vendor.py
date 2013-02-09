@@ -49,7 +49,11 @@ class Vendor(object):
 
         Input:
             dict VERIFIED_RESULTS: {str bc_val: [(str imgpath, (x1,y1,x2,y2), userinfo), ...]}
-            dict MANUAL_LABELED: {str imgpath: str label}
+            dict MANUAL_LABELED: {str imgpath: (str label_i, ...)}
+                Stores the decoded barcode(s) of any images that the user
+                manually entered.
+                This maps to a /tuple/ of strings, because there may be
+                multiple barcodes on a given image.
         Output:
             (dict PARTITIONS, 
              dict IMG2DECODING,

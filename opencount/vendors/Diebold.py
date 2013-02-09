@@ -48,6 +48,13 @@ class DieboldVendor(Vendor):
                                   N=None)
 
     def partition_ballots(self, verified_results, manual_labeled):
+        """
+        Input:
+            dict VERIFIED_RESULTS:
+            dict MANUAL_LABELED: {str imgpath: (str bc,)}
+        Output:
+            (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
+        """
         partitions = {}
         img2decoding = {}
         imginfo_map = {}
@@ -65,16 +72,16 @@ class DieboldVendor(Vendor):
             img2decoding[imgpath] = (decoding,)
             imginfo = get_imginfo(decoding)
             imginfo_map[imgpath] = imginfo
-        for imgpath, decoding in manual_labeled.iteritems():
-            img2decoding[imgpath] = (decoding,)
-            imginfo_map[imgpath] = get_imginfo(decoding)
+        for imgpath, decoding_tuple in manual_labeled.iteritems():
+            img2decoding[imgpath] = decoding_tuple
+            imginfo_map[imgpath] = get_imginfo(decoding_tuple[0])
 
         img2bal = pickle.load(open(self.proj.image_to_ballot))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images))
         decoding2partition = {} # maps {(dec0, dec1, ...): int partitionID}
         curPartitionID = 0
         history = set()
-        for imgpath, decoding in img2decoding.iteritems():
+        for imgpath, decoding_tuple in img2decoding.iteritems():
             ballotid = img2bal[imgpath]
             if ballotid in history:
                 continue
