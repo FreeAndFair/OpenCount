@@ -490,6 +490,36 @@ def np2wxBitmap(nparray):
     wximg = np2wxImage(nparray)
     return wximg.ConvertToBitmap()
 
+def cvImg2np(Icv):
+    """ Converts from the OpenCV ImageIpl class to a numpy array. 
+    Assumes that Icv has datatype either IPL_DEPTH_32F or IPL_DEPTH_8U. """
+    if Icv.depth == cv.IPL_DEPTH_32F:
+        dtype = 'float32'
+    else:
+        dtype = 'uint8'
+    nparray = np.fromstring(Icv.tostring(), dtype=dtype)
+    
+    w, h = cv.GetSize(Icv)
+    if Icv.channels == 3:
+        nparray = nparray.reshape((h,w,3))
+    else:
+        nparray = nparray.reshape((h,w))
+    return nparray
+
+def np2cvImg(Inp):
+    """ Converts from an nparray to a OpenCV ImageIpl. Assumes that Inp
+    has dtype either 'float32' or 'uint8'. """
+    num_channels = 3 if len(Inp.shape) == 3 else 1
+    h, w = Inp.shape[0], Inp.shape[1]
+    if Inp.dtype == 'float32':
+        depth = cv.IPL_DEPTH_32F
+    else:
+        depth = cv.IPL_DEPTH_8U
+    Icv = cv.CreateImageHeader((Inp.shape[1], Inp.shape[0]), depth, num_channels)
+    cv.SetData(Icv, Inp.tostring(), Inp.dtype.itemsize * num_channels * w)
+    return Icv
+
+
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, size=(800, 800), 
