@@ -1,4 +1,5 @@
 import sys, os, threading, multiprocessing, Queue, time, textwrap, pdb
+from Queue import Empty
 try:
     import cPickle as pickle
 except:
@@ -523,7 +524,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         gauge.Show()
 
         num_tasks = len(flipmap)
-        Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, self.JOBID_EXTRACT_BARCODE_MARKS))
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, self.JOBID_EXTRACT_BARCODE_MARKS))
 
     def on_extract_done(self, img2patch, patch2stuff, verifypatch_bbs, flipmap):
         """ Invoked once all barcode value patches have been extracted.
@@ -533,7 +534,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
             dict FLIPMAP: {imgpath: bool isFlipped}
         """
-        Publisher().sendMessage("signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS))
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS,))
         cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -923,8 +924,12 @@ class ThreadUpdateMyGauge(threading.Thread):
 
     def run(self):
         while self.i_am_running():
-            val = self.queue_mygauge.get()
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+            try:
+                val = self.queue_mygauge.get(block=True, timeout=1)
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+            except Empty as e:
+                pass
+        print "ThreadUpdateMyGauge is done."
 
 def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
                             manager=None, queue_mygauge=None):
