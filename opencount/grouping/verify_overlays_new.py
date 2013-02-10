@@ -17,7 +17,7 @@ sys.path.append('..')
 import util
 
 # Max. allowable size of each group
-MAX_GROUP_SIZE = 10000
+MAX_GROUP_SIZE = 50000
 
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
