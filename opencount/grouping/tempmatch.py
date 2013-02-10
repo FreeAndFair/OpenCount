@@ -2,6 +2,7 @@ import traceback, threading, multiprocessing
 import cv, numpy as np
 
 from wx.lib.pubsub import Publisher
+from Queue import Empty
 import wx
 
 import partask
@@ -248,7 +249,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
                                     combfn='dict', singleproc=False)
     except Exception as e:
         traceback.print_exc()
-        return {}
+        result = {}
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
     tick_thread.turn_me_off()
@@ -268,8 +269,11 @@ class ThreadTicker(threading.Thread):
 
     def run(self):
         while not self.i_am_listening.isSet():
-            val = self.queue_mygauge.get()
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+            try:
+                val = self.queue_mygauge.get(block=True, timeout=1)
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+            except Empty:
+                pass
         return True
 
 def smooth(I, xwin, ywin, bordertype=None, val=255.0):

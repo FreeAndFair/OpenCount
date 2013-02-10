@@ -1889,14 +1889,16 @@ class TM_Thread(threading.Thread):
         xwinT, ywinT = self.win_target
         # results: {str imgpath: [(x1,y1,x2,y2,score_i), ...]}
         # Note: self.patch is already smooth'd.
+
         results = tempmatch.get_tempmatches_par(self.patch, self.imgpaths,
                                                 do_smooth=tempmatch.SMOOTH_IMG_BRD,
                                                 T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
                                                 xwinI=xwinB, ywinI=ywinB,
                                                 jobid=self.job_id)
+
         dur = time.time() - t
         print "...finished running template matching ({0} s).".format(dur)
-        self.callback(results, w, h)
+        wx.CallAfter(self.callback, results, w, h)
 
 class Box(object):
     # SHADING: (int R, int G, int B)
