@@ -123,7 +123,8 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     ''' Perform local alignment around each target, then crop out target  '''
     # 0.) Mask out targets on Iref, coarsely-align I to Iref.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
+    #IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
+    IrefM = Iref # Currently don't mask out targets, found it helps global alignment
     #IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
     #Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
     t0=time.clock()

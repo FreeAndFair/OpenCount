@@ -674,7 +674,7 @@ this partition.")
         self.Disable()
         # 1.) Do an autofit.
         patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
-        patch = util_gui.fit_image(patch_prefit, padx=0, pady=0)
+        patch = util_gui.fit_image(patch_prefit, padx=3, pady=3)
         patch_cv = pil2iplimage(patch)
         # 2.) Apply a smooth on PATCH (first adding a white border, to
         # avoid the smooth darkening PATCH, but brightening IMG).
