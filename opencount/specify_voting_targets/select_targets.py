@@ -1320,10 +1320,18 @@ class BoxDrawPanel(ImagePanel):
         if self.mode_m == BoxDrawPanel.M_CREATE:
             cursor = wx.StockCursor(wx.CURSOR_CROSS)
         elif self.mode_m == BoxDrawPanel.M_IDLE:
-            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+            if self.isResize:
+                cursor = wx.StockCursor(wx.CURSOR_SIZING)
+            elif self.get_box_to_resize(self._x, self._y)[0]:
+                cursor = wx.StockCursor(wx.CURSOR_SIZING)
+            elif self.get_boxes_within(self._x, self._y, mode='any'):
+                cursor = wx.StockCursor(wx.CURSOR_HAND)
+            else:
+                cursor = wx.StockCursor(wx.CURSOR_ARROW)
         else:
             cursor = wx.StockCursor(wx.CURSOR_ARROW)
-        self.SetCursor(cursor)
+        if self.GetCursor() != cursor:
+            self.SetCursor(cursor)
         return cursor
 
     def set_boxes(self, boxes):
@@ -1429,13 +1437,14 @@ class BoxDrawPanel(ImagePanel):
         results = sorted(results, key=lambda t: t[1])
         return results
 
-    def get_box_to_resize(self, x, y, C=8.0):
+    def get_box_to_resize(self, x, y, C=5.0):
         """ Returns a Box instance if the current mouse location is
         close enough to a resize location, or None o.w.
         Input:
             int X, Y: Mouse location.
+            int C: How close the mouse has to be to a box corner.
         Output:
-            Box or None.
+            (Box, str orientation) or (None, None).
         """
         results = [] # [[orient, box, dist], ...]
         for box in self.boxes:
@@ -1470,12 +1479,14 @@ class BoxDrawPanel(ImagePanel):
             self.box_resize = box_resize
             self.resize_orient = orient
             self.Refresh()
+            self.update_cursor()
             return
 
         if self.mode_m == BoxDrawPanel.M_CREATE:
             print "...Creating Target box."
             self.clear_selected()
             self.startBox(x, y)
+            self.update_cursor()
         elif self.mode_m == BoxDrawPanel.M_IDLE:
             boxes = self.get_boxes_within(x, y, mode='any')
             if boxes:
@@ -1486,6 +1497,7 @@ class BoxDrawPanel(ImagePanel):
             else:
                 self.clear_selected()
                 self.startBox(x, y, SelectionBox)
+            self.update_cursor()
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -1495,15 +1507,19 @@ class BoxDrawPanel(ImagePanel):
             self.box_resize = None
             self.isResize = False
             self.dirty_all_boxes()
+            self.update_cursor()
 
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             self.boxes.append(box)
+            self.update_cursor()
         elif self.mode_m == BoxDrawPanel.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
             boxes = get_boxes_within(self.boxes, box)
             print "...Selecting {0} boxes.".format(len(boxes))
             self.select_boxes(*boxes)
+            self.update_cursor()
+        
         self.Refresh()
 
     def onMotion(self, evt):
@@ -1521,6 +1537,7 @@ class BoxDrawPanel(ImagePanel):
                 self.box_resize.y2 += ydel_img
             if 'W' in self.resize_orient:
                 self.box_resize.x1 += xdel_img
+            self.update_cursor()
             self.Refresh()
             return
 
@@ -1539,6 +1556,7 @@ class BoxDrawPanel(ImagePanel):
             # a very fast operation! Very convenient.
             self.dirty_all_boxes()
             self.Refresh()
+        self.update_cursor()
 
     def onKeyDown(self, evt):
         keycode = evt.GetKeyCode()
@@ -1832,6 +1850,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             self.clear_selected()
             self.startBox(x, y)
             self.Refresh()
+            self.update_cursor()
         else:
             TemplateMatchDrawPanel.onLeftDown(self, evt)
 
@@ -1854,8 +1873,10 @@ class TargetFindPanel(TemplateMatchDrawPanel):
                 box.y2 = box.y1 + h
             self.boxes.append(box)
             self.Refresh()
+            self.update_cursor()
         else:
-            TemplateMatchDrawPanel.onLeftUp(self, evt)        
+            TemplateMatchDrawPanel.onLeftUp(self, evt)
+        
 
 class TM_Thread(threading.Thread):
 
