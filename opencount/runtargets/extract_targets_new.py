@@ -138,7 +138,7 @@ class RunThread(threading.Thread):
         # Just add it to there once. Code will be faster.
         
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
-        print "...Doing a zip..."
+        print "...Doing a zip...", time.time()
 
         total = len(bal2targets)
         manager = multiprocessing.Manager()
@@ -147,7 +147,7 @@ class RunThread(threading.Thread):
         #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
         tmp = avg_intensities # TMP: [[imgpath, float avg_intensity], ...]
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
-        print "...Starting a find-longest-prefix thing..."
+        print "...Starting a find-longest-prefix thing...", time.time()
         time_longestPrefix = time.time()
         fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
         fulllst = [(x,int(y)) for x,y in fulllst]
@@ -173,7 +173,7 @@ class RunThread(threading.Thread):
         open(self.proj.classified+".prefix", "w").write(prefix)
         print "...Finished find-longest-prefix ({0} s).".format(dur_longestPrefix)
 
-        print "...Starting classifiedWrite..."
+        print "...Starting classifiedWrite...", time.time()
         time_classifiedWrite = time.time()
         out = open(self.proj.classified, "w")
         offsets = array.array('L')
@@ -190,7 +190,7 @@ class RunThread(threading.Thread):
         dur_classifiedWrite = time.time() - time_classifiedWrite
         print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
 
-        print "...Starting imageFileMake..."
+        print "...Starting imageFileMake...", time.time()
         time_imageFileMake = time.time()
 
         threshold.imageFile.makeOneFile('',

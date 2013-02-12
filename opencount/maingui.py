@@ -97,7 +97,6 @@ class MainFrame(wx.Frame):
         for panel, fullname, shortname in self.pages:
             self.notebook.AddPage(panel, shortname)
             self.titles[panel] = (fullname, shortname)
-
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()

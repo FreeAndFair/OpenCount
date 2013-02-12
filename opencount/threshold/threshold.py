@@ -10,9 +10,66 @@ from time import time
 import imageFile
 import array
 import pickle
+import math
+
+import numpy as np
+import wx.lib
+import wx.lib.dialogs
 
 sys.path.append('..')
 import ViewOverlays
+
+class OverlayGrid(wx.Frame):
+    def __init__(self, parent, maybefilled, maybeunfilled):
+        wx.Frame.__init__(self, parent, size=(800,800))
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.parent = parent
+        self.maybefilled = maybefilled
+        self.maybeunfilled = maybeunfilled
+
+        bit = self.createImages(np.max, 90, maybefilled)
+
+        for i in range(0,len(bit),10):
+            s2 = wx.BoxSizer(wx.HORIZONTAL)
+            for each in bit[i:i+10]:
+                s2.Add(each)
+            sizer.Add(s2)
+
+        bit = self.createImages(np.min, 90, maybeunfilled)
+
+        for i in range(0,len(bit),10):
+            s2 = wx.BoxSizer(wx.HORIZONTAL)
+            for each in bit[i:i+10]:
+                s2.Add(each)
+            sizer.Add(s2)
+
+        self.SetSizer(sizer)
+
+    def createImages(self, fn, numImgs, whichside):
+        parent = self.parent
+        results = []
+        print "GO UP TO", len(whichside)
+        gap = int(math.floor(float(len(whichside))/numImgs))
+        for i in range(0,len(whichside),gap):
+            print i, gap
+            # BOUNDRY ERROR
+            use_imgs,ch = parent.imagefile.readManyImages_filter(whichside[i:i+gap], parent.numcols, 
+                                                                 parent.basetargetw, parent.basetargeth,
+                                                                 parent.targetw, parent.targeth, True)
+
+            if ch == True:
+                res = np.uint8(np.round(fn(np.array(use_imgs),axis=0)))
+                res = (res,res,res)
+            else:
+                res = [np.uint8(np.round(fn(np.array(use_imgs[i::3]),axis=0))) for i in range(3)]
+            args = [Image.fromarray(x.reshape((parent.targeth,parent.targetw))) for x in res]
+            resimg = Image.merge('RGB', tuple(args))
+            
+            results.append(wx.StaticBitmap(self, -1, pil2wxb(resimg)))
+
+        return results
+
 
 class GridShow(wx.ScrolledWindow):
     """
@@ -339,6 +396,7 @@ class GridShow(wx.ScrolledWindow):
         self.Refresh()
 
     def drawWrongMark(self, i):
+        i = self.index_to_visible[i]
         imgIdx = i-i%self.numcols
         try:
             jpg = self.jpgs[imgIdx]
@@ -355,6 +413,7 @@ class GridShow(wx.ScrolledWindow):
         self.addimg(imgIdx)
 
     def markWrong(self, which, evt=None):
+        # Input which is the wrong mark in visible coordinates.
         if evt == None:
             imgIdx = which - (which%self.numcols)
         else:
@@ -369,37 +428,44 @@ class GridShow(wx.ScrolledWindow):
 
         offset = self.CalcScrolledPosition((0,0))[1]
 
-        if which not in self.wrong:
-            self.wrong[which] = True
-            self.drawWrongMark(which)
+        converted_id = self.visible_to_index[which]
+        
+        if converted_id not in self.wrong:
+            self.wrong[converted_id] = True
+            self.drawWrongMark(converted_id)
         else:
             jpg = self.basejpgs[imgIdx].copy()
             self.jpgs[imgIdx] = jpg
             self.images[imgIdx].Destroy()
             self.addimg(imgIdx)
-            del self.wrong[which]
+            del self.wrong[converted_id]
             for each in self.wrong:
-                if each/self.numcols == which/self.numcols:
+                if each/self.numcols == converted_id/self.numcols:
                     self.drawWrongMark(each)
             if self.threshold != None:
                 self.drawThreshold()
         self.Refresh()
 
+        #print "WRONG IS", self.wrong
+
+
     def drawThreshold(self):
-        imgIdx = self.threshold - (self.threshold%self.numcols)
+        if self.threshold not in self.index_to_visible: return
+        cthreshold = self.index_to_visible[self.threshold]
+        imgIdx = cthreshold - (cthreshold%self.numcols)
         if not (imgIdx in self.jpgs and imgIdx in self.images): return
 
         take = self.jpgs[imgIdx]
         dr = ImageDraw.Draw(take)
         dr.rectangle((0, self.targeth-1, 
-                      (self.threshold-imgIdx)*self.targetw, self.targeth-1),
+                      (cthreshold-imgIdx)*self.targetw, self.targeth-1),
                      fill=(0,255,0))
 
-        dr.rectangle(((self.threshold-imgIdx)*self.targetw, 0, 
-                      (self.threshold-imgIdx)*self.targetw, self.targeth-1),
+        dr.rectangle(((cthreshold-imgIdx)*self.targetw, 0, 
+                      (cthreshold-imgIdx)*self.targetw, self.targeth-1),
                      fill=(0,255,0))
 
-        dr.rectangle(((self.threshold-imgIdx)*self.targetw, 0, 
+        dr.rectangle(((cthreshold-imgIdx)*self.targetw, 0, 
                       self.targetw*self.numcols, 0),
                      fill=(0,255,0))
 
@@ -410,10 +476,11 @@ class GridShow(wx.ScrolledWindow):
 
     def setLine(self, which, evt=None):
         if evt == None:
-            imgIdx = which - (which%self.numcols)
+            imgIdx = self.index_to_visible[which] - (self.index_to_visible[which]%self.numcols)
         else:
             imgIdx = which
             which = which+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
+            which = self.visible_to_index[which]
             print 'click line ', evt.GetPositionTuple()[0]/self.targetw
             
         if imgIdx not in self.jpgs: 
@@ -422,15 +489,16 @@ class GridShow(wx.ScrolledWindow):
 
         self.somethingHasChanged = True
 
-        if self.threshold != None:
-            lastIdx = self.threshold - self.threshold%self.numcols
+        if self.threshold != None and self.threshold in self.index_to_visible:
+            lastIdx = self.index_to_visible[self.threshold] - self.index_to_visible[self.threshold]%self.numcols
             if lastIdx in self.images:
                 self.jpgs[lastIdx] = self.basejpgs[lastIdx].copy()
                 self.images[lastIdx].Destroy()
                 self.addimg(lastIdx)
             for each in self.wrong:
-                if each/self.numcols == self.threshold/self.numcols:
-                    self.drawWrongMark(each)
+                if each in self.index_to_visible:
+                    if self.index_to_visible[each]/self.numcols == self.index_to_visible[self.threshold]/self.numcols:
+                        self.drawWrongMark(each)
             
         self.threshold = which
 
@@ -473,9 +541,42 @@ class GridShow(wx.ScrolledWindow):
         self.quarantined = []
 
         self.quarantined_targets = []
+        
+        self.visible_to_index = {}
+        self.index_to_visible = {}
 
     def reset_panel(self):
         self.proj.removeCloseEvent(self.dosave)
+
+    def setFilter(self):
+        gr = OverlayGrid(self, range(0,self.threshold), 
+                         range(self.threshold,self.numberOfTargets))
+        gr.Show()
+        return
+
+        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", ["Show All", "Show only even", "Show only filled", "Open Overlay Selection"]);
+        dlg.ShowModal()
+
+        self.jpgs = {}
+        self.basejpgs = {}
+        for each in self.images:
+            self.images[each].Destroy()
+        self.images = {}
+        self.index_to_visible = {}
+        self.visible_to_index = {}
+        
+        if dlg.GetValue()[0] == 0:
+            self.visibleTargets = range(0,self.numberOfTargets)
+        elif dlg.GetValue()[0] == 1:
+            self.visibleTargets = range(0,self.numberOfTargets,2)
+        elif dlg.GetValue()[0] == 2:
+            self.visibleTargets = range(0,self.threshold)
+        elif dlg.GetValue()[0] == 3:
+            pass
+
+        self.numberOfVisibleTargets = len(self.visibleTargets)
+
+        self.onScroll(self.lastpos)
 
     def getImageList(self):
         """
@@ -618,6 +719,8 @@ class GridShow(wx.ScrolledWindow):
         self.numberOfTargets = 0
         for _ in self.enumerateOverFullList():
             self.numberOfTargets += 1
+        self.visibleTargets = range(self.numberOfTargets)
+        self.numberOfVisibleTargets = len(self.visibleTargets)
 
         self.classified_file = [l.split("\0") for l in open(self.proj.classified)]
         self.classified_lookup = dict([(l.split("\0")[0], i) for i,l in enumerate(open(self.proj.classified))])
@@ -651,7 +754,7 @@ class GridShow(wx.ScrolledWindow):
                 data = pickle.load(open(self.proj.threshold_internal))
                 if len(data) == 4:
                     self.threshold, self.wrong, self.quarantined, self.quarantined_targets = data
-                    self.onScroll(self.threshold-(self.numcols*self.numrows)/2)
+                    self.onScroll(self.index_to_visible[self.threshold]-(self.numcols*self.numrows)/2)
                 else:
                     self.threshold, self.wrong, self.quarantined, self.quarantined_targets, pos = data
                     self.onScroll(pos)
@@ -681,11 +784,11 @@ class GridShow(wx.ScrolledWindow):
         else:
             pos = pos - pos%self.numcols
         if pos < 0: pos = 0
-        GAP = self.numcols*4
+        GAP = 0#self.numcols*4
 
         self.lastpos = pos
         low = max(0,pos-GAP)
-        high = min(pos+self.numcols*self.numrows+GAP,self.numberOfTargets)
+        high = min(pos+self.numcols*self.numrows+GAP,self.numberOfVisibleTargets)
 
         self.clear_unused(low, high)
 
@@ -700,7 +803,14 @@ class GridShow(wx.ScrolledWindow):
                 continue
             # Open and draw it.
 
-            jpg = self.imagefile.readManyImages(i, self.numcols, 
+            #jpg = self.imagefile.readManyImages(i, self.numcols, 
+            #                                    self.basetargetw, self.basetargeth,
+            #                                    self.targetw, self.targeth)
+            todraw = self.visibleTargets[i:i+self.numcols]
+            for realindex,onscreenindex in zip(todraw,range(i,i+len(todraw))):
+                self.visible_to_index[onscreenindex] = realindex
+                self.index_to_visible[realindex] = onscreenindex
+            jpg = self.imagefile.readManyImages_filter(todraw, self.numcols, 
                                                 self.basetargetw, self.basetargeth,
                                                 self.targetw, self.targeth)
 
@@ -714,11 +824,12 @@ class GridShow(wx.ScrolledWindow):
 
         # This could get very slow on big elections with lots of wrong marks
         for each in self.wrong:
-            if (each/self.numcols)*self.numcols in self.jpgs:
-                self.drawWrongMark(each)
+            if each in self.index_to_visible:
+                if (self.index_to_visible[each]/self.numcols)*self.numcols in self.jpgs:
+                    self.drawWrongMark(each)
 
-        if self.threshold != None:
-            if self.threshold/self.numcols*self.numcols in self.jpgs:
+        if self.threshold != None and self.threshold in self.index_to_visible:
+            if self.index_to_visible[self.threshold]/self.numcols*self.numcols in self.jpgs:
                 self.drawThreshold()
 
         # Scroll us to the right place.
@@ -816,10 +927,13 @@ class ThresholdPanel(wx.Panel):
         button3.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos-tabOne.numcols*(tabOne.numrows-5)))
         button4 = wx.Button(self, label="Scroll Down")
         button4.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos+tabOne.numcols*(tabOne.numrows-5)))
+        button5 = wx.Button(self, label="Set Filter")
+        button5.Bind(wx.EVT_BUTTON, lambda x: tabOne.setFilter())
         top.Add(button1)
         top.Add(button2)
         top.Add(button3)
         top.Add(button4)
+        top.Add(button5)
 
         sizer.Add(top)
         tabOne.setup()

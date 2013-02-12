@@ -12,9 +12,10 @@ def is_image_ext(filename):
 def makeOneFile(prefix, src, dst):
     out = open(dst, "wb")
     tout = open(dst+".type", "wb")
-    for each,score in src:
-        if wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+    for i,(each,score) in enumerate(src):
+        if i%1000 == 0:
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
         #if i%100 == 0:
         #    print i
         img = Image.open(os.path.join(prefix, each))
@@ -52,7 +53,7 @@ class ImageFile:
         #return [ord(x) for x in self.infile.read(self.size*count)]
 
     @util.pdb_on_crash
-    def readManyImages(self, imagenum, numcols, width, height, curwidth, curheight):
+    def readManyImages(self, imagenum, numcols, width, height, curwidth, curheight, returnnumpy=False):
         imagetypes = self.imtype[imagenum:imagenum+numcols]
         # Three bytes for colored images, one byte otherwise
         types = [3 if x == "B" else 1 for x in imagetypes]
@@ -62,6 +63,41 @@ class ImageFile:
 
         data = self.readRawBytes(self.offsets[imagenum], toread)
 
+        if returnnumpy: return tomerge
+        
+        if imagetypes[0] == 'A': # single chanel
+            fixed = np.concatenate([data[j:j+self.size].reshape((height,width)) for j in range(0,data.shape[0],self.size)], axis=1)
+            jpg = Image.fromarray(fixed)
+            tomerge = jpg,jpg,jpg
+        else:
+            tomerge = []
+            for start in range(3):
+                fixed = np.concatenate([data[j+start:j+self.size*3:3].reshape((height,width)) for j in range(0,data.shape[0],self.size*3)], axis=1)
+                jpg = Image.fromarray(fixed)
+                tomerge.append(jpg)
+            tomerge = tuple(tomerge)
+        
+        realnumcols = (fixed.shape[0]*fixed.shape[1])/(width*height)
+        jpg = Image.merge('RGB', tomerge)
+        #print jpg
+        jpg = jpg.resize((curwidth*realnumcols, curheight))
+        #print jpg
+        return jpg
+
+    @util.pdb_on_crash
+    def readManyImages_filter(self, imagenums, numcols, width, height, curwidth, curheight, returnnumpy=False):
+        imagenums = [x for x in imagenums if x < len(self.imtype)]
+        imagetypes = [self.imtype[x] for x in imagenums]
+        # Three bytes for colored images, one byte otherwise
+        types = [3 if x == "B" else 1 for x in imagetypes]
+        if not all(x == types[0] for x in types):
+            raise Exception("All the images must be L or RGB, not both.")
+        toread = sum(types)
+        
+        data = [self.readRawBytes(self.offsets[x], y) for x,y in zip(imagenums,types)]
+        if returnnumpy: return data, imagetypes[0]=='A'
+
+        data = np.concatenate(data)
         
         if imagetypes[0] == 'A': # single chanel
             fixed = np.concatenate([data[j:j+self.size].reshape((height,width)) for j in range(0,data.shape[0],self.size)], axis=1)
