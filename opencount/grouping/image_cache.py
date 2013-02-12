@@ -1,12 +1,21 @@
 import sys, os, time, pdb
 from collections import deque
-import Image, cv, scipy.misc
+import Image, cv, scipy.misc, numpy as np
 
 """
 A module to help maintain an in-memory cache of images. 
 
 Designed to prevent memory usage from spiraling madly out of control.
+
+WARNING: PIL has an upper-limit on how many files can be open at once!
+         For this reason, DO NOT USE THE PIL mode!
+
+TODO
+- estimate_imgsize_bytes for OpenCV is always an overestimate, but I
+  don't know why. 
 """
+
+
 
 SIZECAP_UNBOUNDED = -1
 
@@ -24,10 +33,10 @@ def _load_pil(imgpath, img_mode=IM_MODE_UNCHANGED):
     img = Image.open(imgpath)
 
     if img_mode == IM_MODE_GRAYSCALE:
-        if img_mode.mode != "L":
+        if img.mode != "L":
             img = img.convert("L")
     elif img_mode == IM_MODE_RGB:
-        if img_mode.mode != "RGB":
+        if img.mode != "RGB":
             img = img.convert("RGB")
 
     return img
@@ -185,7 +194,7 @@ def estimate_imgsize_bytes(img, img_format):
         elif img.mode == 'RGBA':
             size *= 4
     elif img_format == IM_FORMAT_SCIPY:
-        return img.nbytes
+        size = img.nbytes
     else:
         w, h = cv.GetSize(img)
         channels = img.nChannels
@@ -198,7 +207,10 @@ def estimate_imgsize_bytes(img, img_format):
             pix_byte = 32
         elif img.depth in (cv.IPL_DEPTH_64F,):
             pix_byte = 64
-        return w * h * channels * pix_byte
+        # Divide by 6 because...I have no idea. Too large of an
+        # estimate otherwise. Wat.
+        size = (w * h * channels * pix_byte / 6)
+    return size
 
 def print_dbg(*args):
     if DEBUG:
@@ -211,7 +223,7 @@ def test_unbounded(imgsdir, imgsdir2):
     cache sizes.
     """
     img_cache = ImageCache(SIZECAP=SIZECAP_UNBOUNDED,
-                           img_format=IM_FORMAT_SCIPY,
+                           img_format=IM_FORMAT_PIL,
                            img_mode=IM_MODE_GRAYSCALE)
 
     t = time.time()
@@ -294,7 +306,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
     """
     img_cache = ImageCache(SIZECAP=sizecap,
                            img_format=IM_FORMAT_SCIPY,
-                           img_mode=IM_MODE_GRAYSCALE)
+                           img_mode=IM_MODE_UNCHANGED)
 
     t = time.time()
     img_cnt = 0
