@@ -1,4 +1,4 @@
-import multiprocessing
+import multiprocessing, time
 from PIL import Image, ImageChops, ImageOps
 from time import clock
 import numpy as np
@@ -213,7 +213,8 @@ def np2iplimage(array):
     cv.SetData(img, array.tostring(), array.dtype.itemsize * 1 * array.shape[1])
     return img
 
-def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None):
+def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
+                        queue_mygauge=None):
     """ Generates the min/max overlays of a set of imagepaths.
     If the images in IMGPATHS are of different size, then this function
     arbitrarily chooses the first image to be the size of the output
@@ -261,6 +262,8 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None):
                 h, w = overlayMax.shape
                 img = resize_img_norescale(img, (w,h))
             overlayMax = np.fmax(overlayMax, img)
+        if queue_mygauge != None:
+            queue_mygauge.put(True)
 
     # HACK: To prevent auto-dynamic-rescaling bugs, where an all-white
     # image is interpreted as all-black, artificially insert a 0.0 at (0,0).

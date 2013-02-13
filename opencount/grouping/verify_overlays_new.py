@@ -1,13 +1,15 @@
-import os, sys, traceback, time, pdb
+import os, sys, traceback, time, pdb, threading, multiprocessing
 try:
     import cPickle as pickle
 except:
     import pickle
 
 from os.path import join as pathjoin
+from Queue import Empty
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
+from wx.lib.pubsub import Publisher
 
 import cv, numpy as np, scipy, scipy.misc, Image
 import make_overlays
@@ -22,6 +24,8 @@ MAX_GROUP_SIZE = 50000
 
 # Max size of ImageCache (in MB)
 MAX_CACHE_SIZE = 2000
+
+JOBID_GENERATE_MINMAX_OVERLAYS = util.GaugeID("GenerateMinMaxOverlays")
 
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
@@ -235,8 +239,34 @@ class ViewOverlays(ScrolledPanel):
                     bbs_map_v2[imgpath] = (x1,y1,x2,y2)
         else:
             bbs_map_v2 = {}
-        overlay_min, overlay_max = group.get_overlays(bbs_map=bbs_map_v2, imgCache=self.imgCache)
+        if group.overlay_min == None or group.overlay_max == None:
+            self.disable_ui()
+            manager = multiprocessing.Manager()
+            queue_mygauge = manager.Queue()
+            num_tasks = len(group.imgpaths)
+            thread_listener = ThreadListen(queue_mygauge, JOBID_GENERATE_MINMAX_OVERLAYS)
+            thread_listener.start()
+            thread = ThreadGenerateOverlays(group, manager, queue_mygauge, thread_listener,
+                                            bbs_map_v2,
+                                            self.imgCache, JOBID_GENERATE_MINMAX_OVERLAYS,
+                                            self.set_minmax_imgs)
+            thread.start()
+            gauge = util.MyGauge(self, 1, job_id=JOBID_GENERATE_MINMAX_OVERLAYS,
+                                 msg="Generating Min/Max Overlays...",
+                                 thread=thread)
+            gauge.Show()
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_GENERATE_MINMAX_OVERLAYS))
+        else:
+            self.set_minmax_imgs(group.overlay_min, group.overlay_max)
 
+        return self.idx
+
+    def set_minmax_imgs(self, overlay_min, overlay_max):
+        """ Sets the Min/Max overlay images to OVERLAY_MIN, OVERLAY_MAX.
+        Input:
+            nparray OVERLAY_MIN, OVERLAY_MAX
+        """
+        self.disable_ui()
         minimg_np, maximg_np = overlay_min, overlay_max
 
         self.minimg_np_orig = gray2rgb_np(minimg_np)
@@ -250,11 +280,10 @@ class ViewOverlays(ScrolledPanel):
 
         orientation, rszfac = self.compute_img_layout(overlay_min, overlay_max)
         self.apply_img_layout(orientation, rszfac)
-        
+
+        self.enable_ui()
         self.Layout()
         self.SetupScrolling()
-
-        return self.idx
 
     def compute_img_layout(self, minimg, maximg):
         """ Computes the best layout considering the min and max
@@ -379,7 +408,7 @@ class ViewOverlays(ScrolledPanel):
 
     def handle_nomoregroups(self):
         """ Called when there are no more groups in the queue. """
-        self.Disable()
+        self.disable_ui()
 
     def start(self, imgpath_groups, do_align=False, bbs_map=None, stateP=None):
         """
@@ -425,6 +454,21 @@ class ViewOverlays(ScrolledPanel):
         except:
             return False
         
+    def disable_ui(self):
+        """ Disables the UI for this entire widget, including my
+        Header and Footer.
+        """
+        self.Disable()
+        self.GetParent().header.Disable()
+        self.GetParent().footer.Disable()
+    def enable_ui(self):
+        """ Enables the UI for this entire widget, including my
+        Header and Footer.
+        """
+        self.Enable()
+        self.GetParent().header.Enable()
+        self.GetParent().footer.Enable()
+
     def onListBox_groups(self, evt):
         if evt.Selection == -1:
             # Some ListBox events fire when nothing is selected (i.e. -1)
@@ -542,7 +586,9 @@ class SplitOverlays(ViewOverlays):
     def do_split(self, MAX_GROUP_SIZE=MAX_GROUP_SIZE):
         curgroup = self.get_current_group()
         t = time.time()
+        self.disable_ui()
         groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=self.imgCache)
+        self.enable_ui()
         dur = time.time() - t
         print "...Split took {0:.4f}s ({1} total new groups added)".format(dur, len(groups))
         for group in groups:
@@ -1410,7 +1456,7 @@ class Group(object):
         self.overlay_min = None
         self.overlay_max = None
         self.do_align = do_align
-    def get_overlays(self, bbs_map=None, force=False, imgCache=None):
+    def get_overlays(self, bbs_map=None, force=False, imgCache=None, queue_mygauge=None):
         """
         Input:
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2)}
@@ -1432,7 +1478,8 @@ class Group(object):
             #                                             rszFac=0.75, bbs_map=bbs_map, numProcs=1,
             #                                             imgCache=imgCache)
             minimg, maximg = make_overlays.make_minmax_overlay(self.imgpaths, do_align=self.do_align,
-                                                               rszFac=0.75, imgCache=imgCache)
+                                                               rszFac=0.75, imgCache=imgCache,
+                                                               queue_mygauge=queue_mygauge)
             dur = time.time() - t
             print "...Finished Computing Min/Max Overlays ({0} s).".format(dur)
             self.overlay_min = minimg
@@ -1774,6 +1821,43 @@ class ChooseSplitModeDialog(wx.Dialog):
         else:
             print "Unrecognized split mode. Defaulting to K-means."
             self.EndModal(self.ID_KMEANS)
+
+class ThreadGenerateOverlays(threading.Thread):
+    def __init__(self, group, manager, queue_mygauge, thread_listener,
+                 bbs_map, imgCache, jobid, callback, *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.group = group
+        self.manager = manager
+        self.queue_mygauge = queue_mygauge
+        self.thread_listener = thread_listener
+        self.bbs_map = bbs_map
+        self.imgCache = imgCache
+        self.jobid = jobid
+        self.callback = callback
+        
+    def run(self):
+        overlay_min, overlay_max = self.group.get_overlays(bbs_map=self.bbs_map, imgCache=self.imgCache,
+                                                           queue_mygauge=self.queue_mygauge)
+        self.thread_listener.stop_running()
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
+        wx.CallAfter(self.callback, overlay_min, overlay_max)
+class ThreadListen(threading.Thread):
+    def __init__(self, queue_mygauge, jobid, *args, **kwargs):
+        threading.Thread.__init__(self, *args, **kwargs)
+        self.queue_mygauge = queue_mygauge
+        self.jobid = jobid
+        self._stop = threading.Event()
+    def stop_running(self):
+        self._stop.set()
+    def do_i_keep_running(self):
+        return not self._stop.is_set()
+    def run(self):
+        while self.do_i_keep_running():
+            try:
+                val = self.queue_mygauge.get(block=True, timeout=1)
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+            except Empty:
+                pass
 
 def PilImageToWxBitmap( myPilImage ) :
     return WxImageToWxBitmap( PilImageToWxImage( myPilImage ) )
