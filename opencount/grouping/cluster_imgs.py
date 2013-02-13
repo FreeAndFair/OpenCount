@@ -7,6 +7,7 @@ import pylab, cv
 
 import cluster_fns
 import pixel_reg.imagesAlign as imagesAlign
+import util
 
 """
 A script designed to cluster images.
@@ -93,7 +94,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     return clustering
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
-                        do_downsize=False, downsize_amt=0.5, do_align=True):
+                        do_downsize=False, downsize_amt=0.5, do_align=True, imgCache=None):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
     clusters.
     Note: This uses the Euclidean distance as the distance metric:
@@ -117,7 +118,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     MAX_DIM = 300
     t = time.time()
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
-                           MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM)
+                           MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache)
     dur_imgs2mat = time.time() - t
     '''
     if bb_map == None:
@@ -249,7 +250,8 @@ def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
 
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
                     rszFac=None,
-                    MIN_DIM=None, MAX_DIM=None):
+                    MIN_DIM=None, MAX_DIM=None,
+                    imgCache=None):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
     w,h are the width/height of the largest image in IMGPATHS.
@@ -257,6 +259,13 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     associated IMGPATH.
     Two different resize modes: RSZFAC, and the (MIN_DIM, MAX_DIM).
     """
+    def load_image(imgpath):
+        if imgCache == None:
+            return scipy.misc.imread(imgpath, flatten=True)
+        else:
+            (Inp, imgpath), isHit = imgCache.load(imgpath)
+            return Inp
+
     if bb_map == None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
@@ -287,7 +296,7 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     else:
         alignerrs = None
     for row, imgpath in enumerate(imgpaths):
-        img = scipy.misc.imread(imgpath, flatten=True)
+        img = load_image(imgpath)
         bb = bb_map.get(imgpath, None)
         if bb == None:
             patch = resize_mat(img, (h_out, w_out), rszFac=rszFac)
@@ -297,6 +306,12 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
         if do_align and Iref == None:
             Iref = patch
         elif do_align:
+            # Looks like imagesAlign requires input images to be of dtype
+            # float32, to allow usage of NaN's.
+            if patch.dtype != 'float32':
+                patch = patch.astype('float32')
+            if Iref.dtype != 'float32':
+                Iref = Iref.astype('float32')
             H, patch, err = imagesAlign.imagesAlign(patch, Iref)
             if return_align_errs:
                 alignerrs[row] = err

@@ -12,6 +12,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 import cv, numpy as np, scipy, scipy.misc, Image
 import make_overlays
 import cluster_imgs
+from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_GRAYSCALE
 
 sys.path.append('..')
 import util
@@ -19,10 +20,14 @@ import util
 # Max. allowable size of each group
 MAX_GROUP_SIZE = 50000
 
+# Max size of ImageCache (in MB)
+MAX_CACHE_SIZE = 2000
+
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
+
         self.set_classes()
         self.init_ui()
 
@@ -79,6 +84,10 @@ class ViewOverlays(ScrolledPanel):
         # to keep track of to scale larger/smaller)
         self.minimg_np_orig = None
         self.maximg_np_orig = None
+
+        self.imgCache = ImageCache(SIZECAP=MAX_CACHE_SIZE, 
+                                   img_format=IM_FORMAT_SCIPY,
+                                   img_mode=IM_MODE_GRAYSCALE)
 
         self.init_ui()
 
@@ -226,10 +235,9 @@ class ViewOverlays(ScrolledPanel):
                     bbs_map_v2[imgpath] = (x1,y1,x2,y2)
         else:
             bbs_map_v2 = {}
-        overlay_min, overlay_max = group.get_overlays(bbs_map=bbs_map_v2)
+        overlay_min, overlay_max = group.get_overlays(bbs_map=bbs_map_v2, imgCache=self.imgCache)
 
-        minimg_np = iplimage2np(overlay_min)
-        maximg_np = iplimage2np(overlay_max)
+        minimg_np, maximg_np = overlay_min, overlay_max
 
         self.minimg_np_orig = gray2rgb_np(minimg_np)
         self.maximg_np_orig = gray2rgb_np(maximg_np)
@@ -257,8 +265,10 @@ class ViewOverlays(ScrolledPanel):
         w_space, h_space = map(float, self.GetClientSize())
         h_space -= max(1, self.sizer_groups.GetSize()[1])
 
-        w_min, h_min = cv.GetSize(minimg)
-        w_max, h_max = cv.GetSize(maximg)
+        #w_min, h_min = cv.GetSize(minimg)
+        #w_max, h_max = cv.GetSize(maximg)
+        w_min, h_min = get_imgSize(minimg)
+        w_max, h_max = get_imgSize(maximg)
 
         # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
         MIN_RSZ_FAC = 0.5
@@ -532,7 +542,7 @@ class SplitOverlays(ViewOverlays):
     def do_split(self, MAX_GROUP_SIZE=MAX_GROUP_SIZE):
         curgroup = self.get_current_group()
         t = time.time()
-        groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE)
+        groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=self.imgCache)
         dur = time.time() - t
         print "...Split took {0:.4f}s ({1} total new groups added)".format(dur, len(groups))
         for group in groups:
@@ -783,8 +793,10 @@ class VerifyOverlays(SplitOverlays):
         w_space, h_space = map(float, self.GetClientSize())
         h_space -= max(1, self.sizer_groups.GetSize()[1])
 
-        w_min, h_min = cv.GetSize(minimg)
-        w_max, h_max = cv.GetSize(maximg)
+        #w_min, h_min = cv.GetSize(minimg)
+        #w_max, h_max = cv.GetSize(maximg)
+        w_min, h_min = get_imgSize(minimg)
+        w_max, h_max = get_imgSize(maximg)
         w_exm, h_exm = self.exemplarImg.GetSize()
 
         # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
@@ -1195,7 +1207,7 @@ class CheckImageEqualsFrame(wx.Frame):
         wx.Frame.__init__(self, parent)
 
         verifypanel = CheckImageEqualsPanel(self)
-        verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=True)
+        verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=False)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(verifypanel, proportion=1, flag=wx.EXPAND)
@@ -1328,9 +1340,11 @@ class SeparateImages(VerifyOverlays):
             for i, new_imgpath in enumerate(result):
                 curgroup.imgpaths[i] = new_imgpath
         # Now, re-compute the overlays for this group
-        overlay_min, overlay_max = curgroup.get_overlays(force=True)
-        minimg_np = iplimage2np(overlay_min)
-        maximg_np = iplimage2np(overlay_max)
+        overlay_min, overlay_max = curgroup.get_overlays(force=True, imgCache=self.imgCache)
+
+        #minimg_np = iplimage2np(overlay_min)
+        #maximg_np = iplimage2np(overlay_max)
+        minimg_np, maximg_np = overlay_min, overlay_max
 
         min_bitmap = NumpyToWxBitmap(minimg_np)
         max_bitmap = NumpyToWxBitmap(maximg_np)
@@ -1396,7 +1410,7 @@ class Group(object):
         self.overlay_min = None
         self.overlay_max = None
         self.do_align = do_align
-    def get_overlays(self, bbs_map=None, force=False):
+    def get_overlays(self, bbs_map=None, force=False, imgCache=None):
         """
         Input:
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2)}
@@ -1404,7 +1418,7 @@ class Group(object):
         Output:
             IplImage minimg, IplImage maximg.
         """
-        if not self.overlay_min or force:
+        if self.overlay_min == None or force:
             print "...Computing Min/Max Overlays for {0} images...".format(len(self.imgpaths))
             t = time.time()
             #minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
@@ -1414,8 +1428,11 @@ class Group(object):
             #       I have to do to deal with IplImages not being
             #       pickle'able. Might just have to use nparrays (which
             #       are pickle'able.
-            minimg, maximg = make_overlays.minmax_cv_par(self.imgpaths, do_align=self.do_align,
-                                                         rszFac=0.75, bbs_map=bbs_map, numProcs=1)
+            #minimg, maximg = make_overlays.minmax_cv_par(self.imgpaths, do_align=self.do_align,
+            #                                             rszFac=0.75, bbs_map=bbs_map, numProcs=1,
+            #                                             imgCache=imgCache)
+            minimg, maximg = make_overlays.make_minmax_overlay(self.imgpaths, do_align=self.do_align,
+                                                               rszFac=0.75, imgCache=imgCache)
             dur = time.time() - t
             print "...Finished Computing Min/Max Overlays ({0} s).".format(dur)
             self.overlay_min = minimg
@@ -1450,11 +1467,11 @@ class SplitGroup(Group):
         return [type(self)(imgsA, tag=self.tag, do_align=self.do_align),
                 type(self)(imgsB, tag=self.tag, do_align=self.do_align)]
 
-    def split_kmeans(self, K=2):
+    def split_kmeans(self, K=2, imgCache=None):
         t = time.time()
         print "...running k-means..."
         clusters = cluster_imgs.cluster_imgs_kmeans(self.imgpaths, k=K, do_downsize=True,
-                                                    do_align=True)
+                                                    do_align=False, imgCache=imgCache)
         dur = time.time() - t
         print "...Completed k-means ({0} s)".format(dur)
         if len(clusters) != K:
@@ -1470,7 +1487,7 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
     def split_pca_kmeans(self, K=2, N=3):
         t = time.time()
         print "...running PCA+k-means..."
-        clusters = cluster_imgs.cluster_imgs_pca_kmeans(self.imgpaths, k=K, do_align=True)
+        clusters = cluster_imgs.cluster_imgs_pca_kmeans(self.imgpaths, k=K, do_align=False)
         dur = time.time() - t
         print "...Completed PCA+k-means ({0} s)".format(dur)
         if len(clusters) != K:
@@ -1487,7 +1504,7 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         t = time.time()
         print "...running k-meansV2..."
         clusters = cluster_imgs.kmeans_2D(self.imgpaths, k=K, distfn_method='vardiff',
-                                          do_align=True)
+                                          do_align=False)
         dur = time.time() - t
         print "...Completed k-meansV2 ({0} s)".format(dur)
         if len(clusters) != K:
@@ -1504,7 +1521,7 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         t = time.time()
         print "...running k-mediods..."
         clusters = cluster_imgs.kmediods_2D(self.imgpaths, k=K, distfn_method='vardiff',
-                                            do_align=True)
+                                            do_align=False)
         dur = time.time() - t
         print "...Completed k-mediods ({0} s)".format(dur)
         if len(clusters) != K:
@@ -1517,7 +1534,7 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         assert len(groups) == K
         return groups
 
-    def split(self, mode=None, MAX_GROUP_SIZE=None):
+    def split(self, mode=None, MAX_GROUP_SIZE=None, imgCache=None):
         """ Assume that MAX_GROUP_SIZE > 2 """
         if mode == None:
             mode == 'kmeans'
@@ -1546,7 +1563,7 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         if mode == 'midsplit':
             out_groups = sum([g.midsplit() for g in input_groups], [])
         elif mode == 'kmeans':
-            out_groups = sum([g.split_kmeans(K=2) for g in input_groups], [])
+            out_groups = sum([g.split_kmeans(K=2, imgCache=imgCache) for g in input_groups], [])
         elif mode == 'pca_kmeans':
             out_groups = sum([g.split_pca_kmeans(K=2, N=3) for g in input_groups], [])
         elif mode == 'kmeans2':
@@ -1575,13 +1592,13 @@ class VerifyGroup(SplitGroup):
         SplitGroup.__init__(self, imgpaths, *args, **kwargs)
         self.rlist_idx = rlist_idx
         self.exmpl_idx = exmpl_idx
-    def split(self, mode=None, MAX_GROUP_SIZE=None):
+    def split(self, mode=None, MAX_GROUP_SIZE=None, imgCache=None):
         if mode == None:
             mode = 'rankedlist'
         if mode == 'rankedlist':
             return [self]
         else:
-            return SplitGroup.split(self, mode=mode, MAX_GROUP_SIZE=MAX_GROUP_SIZE)
+            return SplitGroup.split(self, mode=mode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=imgCache)
     def marshall(self):
         me = SplitGroup.marshall(self)
         me['rlist_idx'] = self.rlist_idx
@@ -1799,6 +1816,17 @@ def gray2rgb_np(nparray):
         npout = nparray.copy()
     return npout
 
+def get_imgSize(img):
+    """ Handles both IplImage and numpy nparrays. """
+    try:
+        return cv.GetSize(img)
+    except:
+        pass
+    try:
+        return img.shape[1], img.shape[0]
+    except:
+        raise Exception("get_imgSize died!")
+
 def test_verifyoverlays():
     class TestFrame(wx.Frame):
         def __init__(self, parent, imggroups, exemplars, *args, **kwargs):
@@ -1813,7 +1841,7 @@ def test_verifyoverlays():
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=True, ondone=self.ondone, auto_ondone=True)
+            self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=False, ondone=self.ondone, auto_ondone=True)
 
         def ondone(self, verify_results):
             print '...In ondone...'
@@ -1858,7 +1886,7 @@ def test_checkimgequal():
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.chkimgequals.start(imgpaths, catimgpath, do_align=True, ondone=self.ondone)
+            self.chkimgequals.start(imgpaths, catimgpath, do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
             print '...In TestFrame.ondone...'
@@ -1890,7 +1918,7 @@ def test_verifycategories():
             self.Layout()
 
             self.viewoverlays.start(imgcategories, exmplcategories, 
-                                    do_align=True, ondone=self.ondone)
+                                    do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
             print 'verify_results:', verify_results
