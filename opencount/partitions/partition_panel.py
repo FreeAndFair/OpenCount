@@ -104,6 +104,10 @@ sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
             else:
                 keepDecoderPage = sorted(pages_norm_map.keys())[dlg.keep_page]
                 pages_norm_map[keepDecoderPage] = 0
+                for decoderPage in pages_norm_map.keys():
+                    if decoderPage != keepDecoderPage:
+                        pages_norm_map.pop(decoderPage)
+                        pages_counter.pop(decoderPage)
                 doQuarantine = dlg.do_quarantine
                 handleballot = self.partitionpanel.quarantine_ballot if doQuarantine else self.partitionpanel.discard_ballot
                 for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
@@ -833,8 +837,13 @@ class BadPagesDialog(wx.Dialog):
         
         txt = wx.StaticText(self, label=msg)
 
-        btn_treatNormal = wx.Button(self, label="Treat all ballots as separate pages")
+        btn_treatNormal = wx.Button(self, label="Process All")
         btn_treatNormal.Bind(wx.EVT_BUTTON, self.onButton_treatNormal)
+
+        _msg_treatNormal = "    In other words, treat each image as if \
+it were the front-side of a ballot."
+        _msg_treatNormal = textwrap.fill(_msg_treatNormal, width=300)
+        txt_treatNormal = wx.StaticText(self, label=_msg_treatNormal)
 
         txt_choose = wx.StaticText(self, label="Or, process only one side:")
         choices = []
@@ -860,8 +869,12 @@ class BadPagesDialog(wx.Dialog):
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
         sizer2.Add(btn_ok, flag=wx.ALIGN_CENTER)
 
+        sizer_treatNormal = wx.BoxSizer(wx.VERTICAL)
+        sizer_treatNormal.Add(btn_treatNormal)
+        sizer_treatNormal.Add(txt_treatNormal)
+
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_treatNormal,), ((50,0),), (sizer2,)])
+        btn_sizer.AddMany([(sizer_treatNormal,), ((50,0),), (sizer2,)])
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.AddMany([(txt,), (btn_sizer,)])
