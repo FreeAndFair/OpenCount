@@ -23,7 +23,8 @@ class SequoiaVendor(Vendor):
                                                                                            ballots,
                                                                                            _args=(sequoia.ZERO_IMGPATH,
                                                                                                   sequoia.ONE_IMGPATH,
-                                                                                                  sequoia.SIDESYM_IMGPATH),
+                                                                                                  sequoia.SIDESYM_IMGPATH,
+                                                                                                  self.proj.num_pages),
                                                                                            combfn=_combfn,
                                                                                            init=({}, {}, [], [], {}),
                                                                                            manager=manager,
@@ -130,10 +131,13 @@ def _combfn(a, b):
     backs_map_out = dict(backsmap_a.items() + backsmap_b.items())
     return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_imgpaths_out, backs_map_out)
 
-def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path), queue=None):
+def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path, num_pages), queue=None):
     """
     Input:
         dict BALLOTS: {int ballotID: [imgpath_i, ...]}
+        int NUM_PAGES:
+            The number of pages this election has. Only supports 1, or
+            multiples of 2 (assuming front/back pairs).
     Output:
         (dict flipmap, dict mark_bbs, list err_imgpaths, list ioerr_imgpaths, dict backsmap)
     Since backsides do not really have barcodes, and I detect the 
@@ -182,86 +186,146 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
     IsymD = tempmatch.smooth(IsymD, 3, 3, bordertype='const', val=255.0)
     IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
     backsmap = {} # maps {ballotid: [backpath_i, ...]}
-    for ballotid, imgpaths in ballots.iteritems():
-        fronts, backs = [], []
-        for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
-            is_ioerror = False
-            try:
-                I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
-            except IOError as e:
-                print 'IOERROR:', imgpath0
-                ioerr_imgpaths.add(imgpath0)
-                is_ioerror = True
-            try:
-                I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
-            except IOError as e:
-                print 'IOERROR:', imgpath1
-                ioerr_imgpaths.add(imgpath1)
-                is_ioerror = True
-            if is_ioerror:
-                continue
 
-            side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
-            side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD, IsymE)
-            if side0 == None and side1 == None:
-                # Something crazy happened, run!
-                err_imgpaths.add(imgpath0)
-                err_imgpaths.add(imgpath1)
-                if queue:
-                    queue.put(True)
-                print "Craziness here, run!"
-                continue
-            if side0 != None:
-                flipmap[imgpath0] = isflip0
-            if side1 != None:
-                flipmap[imgpath1] = isflip1
-            frontside = None
-            if side0 == 0:
-                Ifront = I0
-                frontside = 0
-                imP_front = imgpath0
+    if num_pages == 1:
+        return handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE, queue)
+    else:
+        for ballotid, imgpaths in ballots.iteritems():
+            fronts, backs = [], []
+            for (imgpath0, imgpath1) in by_n_gen(imgpaths, 2):
+                is_ioerror = False
+                try:
+                    I0 = cv.LoadImage(imgpath0, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                except IOError as e:
+                    print 'IOERROR:', imgpath0
+                    ioerr_imgpaths.add(imgpath0)
+                    is_ioerror = True
+                try:
+                    I1 = cv.LoadImage(imgpath1, cv.CV_LOAD_IMAGE_GRAYSCALE)
+                except IOError as e:
+                    print 'IOERROR:', imgpath1
+                    ioerr_imgpaths.add(imgpath1)
+                    is_ioerror = True
+                if is_ioerror:
+                    continue
+
+                side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
+                side1, isflip1 = sequoia.get_side(I1, IsymA, IsymB, IsymC, IsymD, IsymE)
+                if side0 == None and side1 == None:
+                    # Something crazy happened, run!
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
+                    if queue:
+                        queue.put(True)
+                    print "Craziness here, run!"
+                    continue
+                if side0 != None:
+                    flipmap[imgpath0] = isflip0
+                if side1 != None:
+                    flipmap[imgpath1] = isflip1
+                frontside = None
+                if side0 == 0:
+                    Ifront = I0
+                    frontside = 0
+                    imP_front = imgpath0
+                    cv.ResetImageROI(Ifront)
+                    if isflip0:
+                        cv.Flip(Ifront, Ifront, flipMode=-1)
+                else:
+                    Ifront = I1
+                    frontside = 1
+                    imP_front = imgpath1
+                    cv.ResetImageROI(Ifront)
+                    if isflip1:
+                        cv.Flip(Ifront, Ifront, flipMode=-1)
+                decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imP_front)
                 cv.ResetImageROI(Ifront)
-                if isflip0:
-                    cv.Flip(Ifront, Ifront, flipMode=-1)
-            else:
-                Ifront = I1
-                frontside = 1
-                imP_front = imgpath1
-                cv.ResetImageROI(Ifront)
-                if isflip1:
-                    cv.Flip(Ifront, Ifront, flipMode=-1)
-            decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imP_front)
-            cv.ResetImageROI(Ifront)
-            if decodings == None:
-                # Something crazy happened.
-                err_imgpaths.add(imgpath0)
-                err_imgpaths.add(imgpath1)
-                if queue:
+                if decodings == None:
+                    # Something crazy happened.
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
+                    if queue:
+                        queue.put(True)
+                    print "Craziness here, decodings == None"
+                    continue
+                elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
+                    err_imgpaths.add(imgpath0)
+                    err_imgpaths.add(imgpath1)
+                else:
+                    if frontside == 0 and side1 == None:
+                        # imgpath1 must be an empty backside.
+                        backs.append(imgpath1)
+                        flipmap[imgpath1] = False # Anything is fine
+                    elif frontside == 1 and side0 == None:
+                        # imgpath 0 must be an empty backside.
+                        backs.append(imgpath0)
+                        flipmap[imgpath0] = False
+                    elif frontside == 0:
+                        backs.append(imgpath1)
+                    elif frontside == 1:
+                        backs.append(imgpath0)
+                    for marktype, tups in mark_locs.iteritems():
+                        mark_bbs_map.setdefault(marktype, []).extend(tups)
+                    fronts.append(imgpath0)
+                if queue: 
                     queue.put(True)
-                print "Craziness here, decodings == None"
-                continue
-            elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
-                err_imgpaths.add(imgpath0)
-                err_imgpaths.add(imgpath1)
-            else:
-                if frontside == 0 and side1 == None:
-                    # imgpath1 must be an empty backside.
-                    backs.append(imgpath1)
-                    flipmap[imgpath1] = False # Anything is fine
-                elif frontside == 1 and side0 == None:
-                    # imgpath 0 must be an empty backside.
-                    backs.append(imgpath0)
-                    flipmap[imgpath0] = False
-                elif frontside == 0:
-                    backs.append(imgpath1)
-                elif frontside == 1:
-                    backs.append(imgpath0)
-                for marktype, tups in mark_locs.iteritems():
-                    mark_bbs_map.setdefault(marktype, []).extend(tups)
-                fronts.append(imgpath0)
-            if queue: 
+            backsmap[ballotid] = backs
+
+        return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
+
+def handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE,
+                      queue):
+    """ Do decoding for single-sided elections. Don't do the arm-tangly
+    accounting-for-back-sides here - instead, if a backside seems to show
+    up, just mark it as an error and move on.
+    """
+    flipmap = {}
+    mark_bbs_map = {} # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+    err_imgpaths = set()
+    ioerr_imgpaths = set()
+    backsmap = {} # maps {ballotid: [backpath_i, ...]}
+    for ballotid, imgpaths in ballots.iteritems():
+        imgpath = imgpaths[0]
+        is_ioerror = False
+        try:
+            I0 = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        except IOError as e:
+            print 'IOERROR:', imgpath
+            ioerr_imgpaths.add(imgpath)
+            is_ioerror = True
+
+        if is_ioerror:
+            continue
+
+        side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
+        if side0 == None or side0 == 1:
+            # Something crazy happened, run!
+            err_imgpaths.add(imgpath)
+            if queue:
                 queue.put(True)
-        backsmap[ballotid] = backs
+            continue
+
+        flipmap[imgpath] = isflip0
+        Ifront = I0
+        cv.ResetImageROI(Ifront)
+        if isflip0:
+            cv.Flip(Ifront, Ifront, flipMode=-1)
+
+        decodings, mark_locs = sequoia.decode(Ifront, Itemp0, Itemp1, _imgpath=imgpath)
+        cv.ResetImageROI(Ifront)
+        if decodings == None:
+            # Something crazy happened.
+            err_imgpaths.add(imgpath)
+            if queue:
+                queue.put(True)
+            continue
+        elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
+            err_imgpaths.add(imgpath)
+        else:
+            for marktype, tups in mark_locs.iteritems():
+                mark_bbs_map.setdefault(marktype, []).extend(tups)
+        if queue: 
+            queue.put(True)
 
     return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
 
