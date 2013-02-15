@@ -477,15 +477,18 @@ voting targets enclosed."
         _msgfooter = "Image {0} out of {1}"
         ID_RESUME = 0
         ID_NEXT_IMAGE = 1
+        ID_SKIPALL = 2
         for i, ((grp_idx, side), contestboxes) in enumerate(empty_contests.iteritems()):
             panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
             panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
             panel.display_image(grp_idx, 0, side)
             msgout = _msgbase.format(len(contestboxes)) + "\n" + _msgfooter.format(i+1, total_imgs)
-            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image"),
-                                        (ID_RESUME, ID_NEXT_IMAGE), title=_title).ShowModal()
+            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image", "- Ignore the empty contests -"),
+                                        (ID_RESUME, ID_NEXT_IMAGE, ID_SKIPALL), title=_title).ShowModal()
             if status == ID_RESUME:
                 return False
+            elif status == ID_SKIPALL:
+                return True
         # TODO: Temp. make this a non-fatal error
         return True
 
