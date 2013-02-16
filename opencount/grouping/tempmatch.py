@@ -16,13 +16,15 @@ SMOOTH_IMG_BRD = 4
 SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
-def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
+def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
               xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """ Runs template matching on IMGPATHS, searching for best match
     for A. 
     Input:
         A: Either a string (path), or an IplImage.
         list IMGPATHS: List of imgpaths to search over
+        tuple BB: (x1,y1,x2,y2)
+            Search window to do template matching over.
         dict IMG2FLIP: maps {str imgpath: bool isflipped}
         int DO_SMOOTH:
         dict  PREVMATCHES: {imgpath: [(x_i, y_i), ...]}. Matches to ignore.
@@ -51,6 +53,9 @@ def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
             I = smooth(I, xwinI, ywinI)
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
+        if bb != None:
+            new_roi = tuple(map(int, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])))
+            cv.SetImageROI(I, new_roi)
         w_I, h_I = cv.GetSize(I)
         matchmat = cv.CreateMat(h_I-h_A+1, w_I-w_A+1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, matchmat, cv.CV_TM_CCOEFF_NORMED)
@@ -64,18 +69,21 @@ def bestmatch(A, imgpaths, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
             _y2 = min(matchmat.rows, int(y + (h_A / 3)))
             matchmat[_y1:_y2, _x1:_x2] = -1.0
         minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(matchmat)
-        results[imgpath] = (maxLoc[0], maxLoc[1], maxResp)
+        x, y = maxLoc[0], maxLoc[1]
+        if bb != None:
+            x += bb[0]
+            y += bb[1]
+        results[imgpath] = (x, y, maxResp)
         if jobid and wx.App.IsMainLoopRunning():    
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
 
-    #print 'results:', results
     return results
 
-def _do_bestmatch(imgpaths, (A_str, img2flip, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
+def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
     A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
-        result = bestmatch(A_cv, imgpaths, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
+        result = bestmatch(A_cv, imgpaths, bb=bb, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
                            ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches,
                            jobid=jobid)
         return result
@@ -83,7 +91,7 @@ def _do_bestmatch(imgpaths, (A_str, img2flip, do_smooth, xwinA, ywinA, xwinI, yw
         traceback.print_exc()
         return {}
 
-def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
+def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
                   xwinI=3, ywinI=3, prevmatches=None, jobid=None):
     """ Find the best match for A in each image in IMGPATHS, using NP
     processes. A multiprocessing-wrapper for bestmatch (see doc for
@@ -91,6 +99,8 @@ def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywi
     Input:
         IplImage A:
         list IMGPATHS:
+        tuple BB: (x1,y1,x2,y2)
+            Search BB to do tempmatching on.
         int NP: Number of processors to use.
         ...
         list PREVMATCHES: [(x_i, y_i), ...]. Previously-found matches
@@ -101,14 +111,15 @@ def bestmatch_par(A, imgpaths, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywi
     A_str = A.tostring()
     w, h = cv.GetSize(A)
     result = partask.do_partask(_do_bestmatch, imgpaths,
-                                _args=(A_str, img2flip, do_smooth, xwinA, ywinA,
+                                _args=(A_str, bb, img2flip, do_smooth, xwinA, ywinA,
                                        xwinI, ywinI, w, h, prevmatches, jobid),
                                 combfn='dict', N=None)
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
     return result
 
-def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, ywinA=13,
+def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
+                    do_smooth=0, xwinA=13, ywinA=13,
                     xwinI=13, ywinI=13, MAX_MATS=50, prevmatches=None,
                     DELT=0.5,
                     atleastone=False, jobid=None, queue_mygauge=None):
@@ -120,6 +131,8 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
         list IMGPATHS:
         dict IMG2FLIP: maps {str imgpath: bool isflipped}
         float T: Template-matching sensitivity
+        tuple BB: (x1,y1,x2,y2)
+            Search in each img in IMGPATHS inside this BB only.
         float DELT: How much we should perform non-maximal suppression,
             on each axis.
         dict PREVMATCHES: maps {str imgpath: [(x1,y1,x2,y2), ...]}
@@ -146,6 +159,9 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
             I = smooth(I, xwinI, ywinI)
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
+        if bb != None:
+            new_roi = tuple(map(int, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])))
+            cv.SetImageROI(I, new_roi)
         wI, hI = cv.GetSize(I)
         M = cv.CreateMat(hI-hA+1, wI-wA+1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, M, cv.CV_TM_CCOEFF_NORMED)
@@ -167,6 +183,10 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
             M_idx = np.argmax(M_np)
             i = int(M_idx / M.cols)
             j = M_idx % M.cols
+            if bb != None:
+                i += bb[1]
+                j += bb[0]
+                
             score = M_np[i,j]
             if score < T:
                 break
@@ -185,6 +205,9 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
             M_idx = np.argmax(M_np)
             i = int(M_idx / M.cols)
             j = M_idx % M.cols
+            if bb != None:
+                i += bb[1]
+                j += bb[0]
             score = M_np[i,j]
             matches.append((j, i, j + wA, i + hA, score))
         results[imgpath] = matches
@@ -197,7 +220,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, xwinA=13, yw
             queue_mygauge.put(True)
     return results
 
-def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
+def _do_get_tempmatches(imgpaths, (A_str, img2flip, bb, T, do_smooth, xwinA, ywinA,
                                    xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
                                    DELT,
                                    atleastone, jobid, queue_mygauge)):
@@ -205,7 +228,7 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
     A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A, A_str)
     try:
-        results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, do_smooth=do_smooth, xwinA=xwinA, 
+        results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, bb=bb, do_smooth=do_smooth, xwinA=xwinA, 
                                   ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
                                   prevmatches=prevmatches,
                                   DELT=DELT,
@@ -215,7 +238,9 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, T, do_smooth, xwinA, ywinA,
         return {}
     return results
 
-def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0, 
+def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, 
+                        bb=None,
+                        do_smooth=0, 
                         xwinA=13, ywinA=13, xwinI=13, ywinI=13,
                         MAX_MATS=50, prevmatches=None,
                         DELT=0.5,
@@ -226,6 +251,8 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
     Input:
         IplImage A:
         lst IMGPATHS:
+        tuple BB: (x1,y1,x2,y2)
+            Search on each img in IMGPATHS inside BB.
         int NP: Number of processes, or None for auto.
         
     Output:
@@ -234,14 +261,18 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
     A_str = A.tostring()
     w, h = cv.GetSize(A)
 
-    manager = multiprocessing.Manager()
-    queue_mygauge = manager.Queue()
-    tick_thread = ThreadTicker(queue_mygauge, jobid)
-    tick_thread.start()
+    if jobid != None:
+        manager = multiprocessing.Manager()
+        queue_mygauge = manager.Queue()
+        tick_thread = ThreadTicker(queue_mygauge, jobid)
+        tick_thread.start()
+    else:
+        manager, queue_mygauge, tick_thread = None, None, None
 
     try:
         result = partask.do_partask(_do_get_tempmatches, imgpaths,
-                                    _args=(A_str, img2flip, T, do_smooth, xwinA, ywinA,
+                                    _args=(A_str, img2flip, T, bb,
+                                           do_smooth, xwinA, ywinA,
                                            xwinI, ywinI, w, h, MAX_MATS, prevmatches,
                                            DELT,
                                            atleastone, jobid, queue_mygauge),
@@ -252,7 +283,8 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, do_smooth=0,
         result = {}
     if jobid and wx.App.IsMainLoopRunning():
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
-    tick_thread.turn_me_off()
+    if tick_thread:
+        tick_thread.turn_me_off()
 
     return result    
 
