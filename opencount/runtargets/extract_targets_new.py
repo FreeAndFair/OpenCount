@@ -112,7 +112,8 @@ class RunThread(threading.Thread):
                                                                      self.proj.ballot_metadata,
                                                                      pathjoin(self.proj.projdir_path,
                                                                               self.proj.targetextract_quarantined),
-                                                                     self.proj.voteddir)
+                                                                     self.proj.voteddir,
+                                                                     self.proj.projdir_path)
             pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
                                                        'targetextract_avg_intensities.p'), 'wb'),
                         pickle.HIGHEST_PROTOCOL)
@@ -194,7 +195,9 @@ class RunThread(threading.Thread):
         time_imageFileMake = time.time()
 
         threshold.imageFile.makeOneFile('',
-                                        fulllst, self.proj.extractedfile)
+                                        fulllst, 
+                                        pathjoin(self.proj.projdir_path,'extracted_radix/'),
+                                        self.proj.extractedfile)
         dur_imageFileMake = time.time() - time_imageFileMake
         print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 

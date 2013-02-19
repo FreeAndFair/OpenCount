@@ -10,6 +10,7 @@ import wx
 from util import create_dirs
 import pickle
 import shutil
+import array
 
 from matplotlib.pyplot import show, imshow, figure, title
 
@@ -213,7 +214,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
              balP, tplP, flipped, page,
-             voted_rootdir, result_queue):
+             voted_rootdir, projdir, result_queue):
     imgname = os.path.splitext(os.path.split(balP)[1])[0]
 
     relpath_root = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voted_rootdir))
@@ -232,22 +233,30 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     try: os.makedirs(imgmetaout_rootdir)
     except: pass
 
+
+    curid = str(id(mp.current_process()))
+    radix_sort_dir = os.path.join(os.path.abspath(projdir), "extracted_radix/"+curid)
+    print radix_sort_dir
+    try: os.makedirs(radix_sort_dir)
+    except: pass
+
     avg_intensities = [] # [(targetoutpath, float avg_intensity), ...]
 
     # 1.) First, save target patches, target diff data, and target meta
     #     data to disk, and reconstruct directory structure.
     targets = [] # [str targetpath_i, ...]
+
     for uid,img,bbox,Idiff in imgs:
         targetoutname = imgname+"."+str(int(uid))+".png"
         targetoutpath = pathjoin(targetout_rootdir, targetoutname)
         targets.append(targetoutpath)
         img = np.nan_to_num(img)
         if not HACK_SANTACRUZ:
-            avg_intensity = int(255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1])))
+            avg_intensity = 255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1]))
         else:
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
-            avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
+            avg_intensity = 255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))
         avg_intensities.append((targetoutpath, avg_intensity))
         sh.imsave(targetoutpath, img)
 
@@ -258,6 +267,15 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
         metafile = pathjoin(targetmetaout_rootdir, metaoutname)
         pickle.dump({'bbox':bbox}, open(metafile, "w"))
 
+        placefile = os.path.join(radix_sort_dir, "%02x"%int(avg_intensity))
+        data = array.array("B", np.floor(img.flatten()*255.0).astype(np.uint8)).tostring()
+        if os.path.exists(placefile):
+            open(placefile, "a").write(data)
+            open(placefile+".index", "a").write(targetoutpath+"\0")
+        else:
+            open(placefile, "w").write(data)
+            open(placefile+".index", "w").write(targetoutpath+"\0")
+    
     # 2.) Finally, save image meta-data to disk.
     imgmeta_outpath = os.path.join(imgmetaout_rootdir, "{0}_meta.p".format(imgname))
     toWrite={"flipped": flipped, "targets":targets, "ballot": balP, "template": tplP}
@@ -443,7 +461,7 @@ def convertImagesWorkerMAP(job):
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
     #print "START"
     try:
-        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue) = job
+        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
         t0=time.clock();
 
         # need to load the template images
@@ -481,7 +499,7 @@ def convertImagesWorkerMAP(job):
                                            vCells=4,hCells=4), 
                      targetDir, targetDiffDir, 
                      targetMetaDir, imageMetaDir, balP, tplImgPath,
-                     flipped, side, voted_rootdir,result_queue)
+                     flipped, side, voted_rootdir, projdir, result_queue)
 
         queue.put(True)
     except Exception as e:
@@ -612,7 +630,7 @@ def hack_stopped():
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls, bad_ballotids,
                     targetDir, targetMetaDir, imageMetaDir,
-                    targetextract_quarantined, voted_rootdir, stopped=None):
+                    targetextract_quarantined, voted_rootdir, projdir, stopped=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
         dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
@@ -679,8 +697,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
-                   targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue]
+            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, 
+                   imgpaths_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
+                   voted_rootdir, projdir, queue, result_queue]
             jobs.append(job)
             imgcount += len(imgpaths_ordered)
             
