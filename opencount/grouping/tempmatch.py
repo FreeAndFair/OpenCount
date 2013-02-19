@@ -271,7 +271,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
 
     try:
         result = partask.do_partask(_do_get_tempmatches, imgpaths,
-                                    _args=(A_str, img2flip, T, bb,
+                                    _args=(A_str, img2flip, bb, T,
                                            do_smooth, xwinA, ywinA,
                                            xwinI, ywinI, w, h, MAX_MATS, prevmatches,
                                            DELT,
