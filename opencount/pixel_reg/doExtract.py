@@ -188,7 +188,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                 IrefcNOMASK=sh.cropBb(Iref,bbOut)
                 Irefc=sh.cropBb(IrefM,bbOut)
                 rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
+                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid',minArea=np.power(2,18))
                 Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
                 for k in range(bbsOff.shape[0]):
                     bbOff1=bbsOff[k,:]
