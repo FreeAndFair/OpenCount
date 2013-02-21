@@ -21,6 +21,10 @@ def makeOneFile(prefix, src, radix, dst):
     out = open(dst, "wb")
     tout = open(dst+".type", "wb")
     sm = 0
+
+    imgSize = Image.open(os.path.join(prefix,src[0][0])).size
+    imgSize = imgSize[0]*imgSize[1]
+
     print len(src)
     for index in range(256):
         which = "%02x"%index
@@ -37,7 +41,7 @@ def makeOneFile(prefix, src, radix, dst):
                 nn = time.time()
                 content = open(fullpath).read()
                 a += time.time()-nn; nn=time.time();
-                data.extend([content[i*2967:(i+1)*2967] for i in range(len(content)/2967)])
+                data.extend([content[i*imgSize:(i+1)*imgSize] for i in range(len(content)/imgSize)])
                 b += time.time()-nn; nn=time.time();
                 names.extend(open(fullpath+".index").read().split("\0")[:-1])
                 c += time.time()-nn; nn=time.time();

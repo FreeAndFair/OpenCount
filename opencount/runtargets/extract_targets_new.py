@@ -56,6 +56,9 @@ Extraction, but you just want to create the Image File:")
         if os.path.exists(self.proj.ballot_metadata): shutil.rmtree(self.proj.ballot_metadata)
         if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.targetextract_quarantined)):
             os.remove(pathjoin(self.proj.projdir_path, self.proj.targetextract_quarantined))
+        if os.path.exists(pathjoin(self.proj.projdir_path, "extracted_radix")): 
+            shutil.rmtree(pathjoin(self.proj.projdir_path, "extracted_radix"))
+
 
         t = RunThread(self.proj)
         t.start()
