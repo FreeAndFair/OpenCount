@@ -162,10 +162,13 @@ def find_lines(data):
         lower = max(y-10,0)
         upper = min(y+10,height)
 
+        seen = []
+
         q = [point[0]]
         x = point[1]-1
         while q and x > 0:
             q = list(set([dy+y for y in q for dy in [-1, 0, 1] if lower <= dy+y < upper and data[dy+y][x] < black]))
+            seen.extend(q)
             #LST.extend([(x,y) for y in q])
             x -= 1
         l = x
@@ -173,11 +176,12 @@ def find_lines(data):
         x = point[1]+1
         while q and x < width:
             q = list(set([dy+y for y in q for dy in [-1, 0, 1] if lower <= dy+y < upper and data[dy+y][x] < black]))
+            seen.extend(q)
             #LST.extend([(x,y) for y in q])
             x += 1
         r = x
-
-        return l,r
+        yy = sum(seen)/len(seen) if len(seen) else point[0]
+        return yy,(l,r)
 
     def full_extend_ud_2(point):
         l,r = extend_lr(point)
@@ -188,10 +192,13 @@ def find_lines(data):
         lower = max(x-10,0)
         upper = min(x+10,width)
 
+        seen = []
+
         q = [point[1]]
         y = point[0]-1
         while q and y > 0:
             q = list(set([dx+x for x in q for dx in [-1, 0, 1] if lower <= dx+x < upper and data[y][dx+x] < black]))
+            seen.extend(q)
             #LST.extend([(x,y) for y in q])
             y -= 1
         u = y
@@ -199,11 +206,12 @@ def find_lines(data):
         y = point[0]+1
         while q and y < height:
             q = list(set([dx+x for x in q for dx in [-1, 0, 1] if lower <= dx+x < upper and data[y][dx+x] < black]))
+            seen.extend(q)
             #LST.extend([(x,y) for y in q])
             y += 1
         d = y
-
-        return u,d
+        yy = sum(seen)/len(seen) if len(seen) else point[1]
+        return yy,(u,d)
 
     foundy = {}
     foundx = {}
@@ -218,24 +226,24 @@ def find_lines(data):
             if y%YSKIP == 0 and (y/3,x/3) not in foundy:
                 u,d = full_extend_ud((y,x))
                 if d-u > 30:
-                    u,d = full_extend_ud_2((y,x))
+                    xx,(u,d) = full_extend_ud_2((y,x))
                     if d-u > 30:
                         for dx in range(-10, 10, 3):
                             for q in range(u,d):
-                                foundy[q/3,(x+dx)/3] = True
-                        lines.append(("V", (x-3,u,x+3,d)))
+                                foundy[q/3,(xx+dx)/3] = True
+                        lines.append(("V", (xx-3,u,xx+3,d)))
 
             if x%XSKIP == 0 and (y/3,x/3) not in foundx:
                 #print 'h', newy, y, x
-                l,r = full_extend_lr_2((y,x))
+                yy,(l,r) = full_extend_lr_2((y,x))
                 if r-l > 30:
                     for dy in range(-10, 10, 3):
                         for q in range(l,r):
-                            foundx[(y+dy)/3,q/3] = True
+                            foundx[(yy+dy)/3,q/3] = True
                     #print 'line starting from', x, y, data[y][x]
                     #LST.append((x-3,y-3,x+3,y+3))
                     #LST.append((l,y,r,y))
-                    lines.append(("H", (l,y-3,r,y+3)))
+                    lines.append(("H", (l,yy-3,r,yy+3)))
     
     if do_save:
         num2pil(data).save(tmp+"/it.png")
@@ -499,7 +507,8 @@ def do_extract(name, img, squares, giventargets):
     for sq in sorted(squares, key=area):
         if sq in targets: continue
         inside = [t for t in targets if area(intersect(sq, t))]
-        if inside != []:
+        print sq
+        if inside != [] and sq[3]-sq[1] > 5*(t[3]-t[1]):
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
             contests.append(sq)
             targets = [x for x in targets if x not in inside]
