@@ -538,8 +538,8 @@ class SelectTargetsPanel(ScrolledPanel):
         self.toolbar = Toolbar(self)
         self.imagepanel = TargetFindPanel(self, self.do_tempmatch)
 
-        txt = wx.StaticText(self, label="Select all Voting Targets from \
-this partition.")
+        txt = wx.StaticText(self, label="Draw a rectangle around each \
+voting target on this ballot.")
 
         btn_nextpartition = wx.Button(self, label="Next Partition...")
         btn_prevpartition = wx.Button(self, label="Previous Partition...")
@@ -2171,7 +2171,11 @@ ID_FLAG_LONELY_TARGETS = 3
 # There are no contests defined
 ID_FLAG_NO_CONTESTS = 4
 _MSG_NO_CONTESTS = "Error: No contests have been created. You must define \
-contests to proceed."
+contests to proceed. The easiest way to define the contests is to click \
+the Infer Contest Regions button; this automatically tries to detect the \
+contest boundaries. Alternatively, if for some reason you need to do it \
+entirely manually (which is much more work), you can click the Add Contest \
+button and draw a rectangle around each individual contest."
 
 # There are contests with no voting targets contained
 ID_FLAG_EMPTY_CONTESTS = 5

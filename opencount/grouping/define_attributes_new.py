@@ -258,9 +258,9 @@ class ToolBar(wx.Panel):
         btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
         btn_zoomout = wx.Button(self, label="Zoom Out")
         btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
-        btn_addcustomattr = wx.Button(self, label="Add Custom Attribute...")
+        btn_addcustomattr = wx.Button(self, label="Advanced: Add Custom Attribute...")
         btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
-        btn_viewcustomattrs = wx.Button(self, label="View Custom Attributes...")
+        btn_viewcustomattrs = wx.Button(self, label="Advanced: View Custom Attributes...")
         btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
@@ -286,8 +286,7 @@ class ToolBar(wx.Panel):
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
-        choice_dlg = common.SingleChoiceDialog(self, message="Which modality \
-will the Custom Attribute use?", 
+        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Custom Attribute do you want to add?", 
                                                choices=[SPREADSHEET, FILENAME])
         status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
@@ -546,13 +545,10 @@ class DefineAttributeDialog(wx.Dialog):
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
         
-        self.chkbox_is_digitbased = wx.CheckBox(self, label="Is this a digit-based precinct patch?")
-        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="Should \
-this patch be only used for tabulation (and not for grouping)?")
+        self.chkbox_is_digitbased = wx.CheckBox(self, label="This region is composed solely of digits (0-9) (e.g., a precinct number).")
+        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="This region should be used only for reporting (it does not affect the layout of the ballot).")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
-        self.chkbox_grp_per_partition = wx.CheckBox(self, label="Is this \
-attribute consistent within each partition (where partitions are \
-dictated by the barcodes)?")
+        self.chkbox_grp_per_partition = wx.CheckBox(self, label="This region looks the same on all ballots with the same barcode. (If unsure, you can leave this unselected.)")
         self.numdigits_label = numdigits_label
         self.num_digits_ctrl = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
