@@ -558,10 +558,13 @@ class LabelContest(wx.Panel):
             print "RUN"
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
 
+    def stop(self):
+        self.save()
+
     def save(self):
         self.saveText(removeit=False)
 
-
+        print "Label Contest Saving"
         did_multibox = {}
         groupedtext = {}
         for k in self.text.keys():

@@ -157,7 +157,7 @@ proceed. Please address the prior warnings first.",
         elif old == MainFrame.SELTARGETS:
             self.panel_seltargets.stop()
         elif old == MainFrame.LABEL_CONTESTS:
-            pass
+            self.panel_label_contests.stop()
         elif old == MainFrame.TARGET_EXTRACT:
             self.panel_target_extract.stop()
         elif old == MainFrame.SET_THRESHOLD:
