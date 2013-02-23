@@ -170,11 +170,14 @@ class DefineAttributesPanel(ScrolledPanel):
                  'cust_attrs': self.cust_attrs}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
-    def display_image(self, cur_side, cur_i):
+    def display_image(self, cur_side, cur_i, autofit=True):
         """ Displays the CUR_SIDE-side of the CUR_I-th image.
         Input:
             int CUR_SIDE: 
             int CUR_I:
+            bool AUTOFIT
+                If True, then this will autoscale the image such that
+                if fits snugly in the current viewport.
         """
         if cur_side < 0 or cur_side > len(self.ballot_sides):
             return None
@@ -192,7 +195,21 @@ class DefineAttributesPanel(ScrolledPanel):
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
         if self.img2flip[imgpath]:
             wximg = wximg.Rotate90().Rotate90()
-        self.boxdraw.set_image(wximg)
+        if autofit:
+            wP, hP = self.boxdraw.GetClientSize()
+            w_img, h_img = wximg.GetWidth(), wximg.GetHeight()
+            if w_img > h_img and w_img > wP:
+                _c = w_img / float(wP)
+                w_img_new = wP
+                h_img_new = int(round(h_img / _c))
+            elif w_img < h_img and h_img > hP:
+                _c = h_img / float(hP)
+                w_img_new = int(round(w_img / _c))
+                h_img_new = hP
+            size = (w_img_new, h_img_new)
+        else:
+            size = None
+        self.boxdraw.set_image(wximg, size=size)
         self.boxdraw.set_boxes(boxes)
     
     def get_attrtypes(self):
@@ -237,19 +254,29 @@ class ToolBar(wx.Panel):
         btn_addattr.Bind(wx.EVT_BUTTON, self.onButton_addattr)
         btn_modify = wx.Button(self, label="Modify")
         btn_modify.Bind(wx.EVT_BUTTON, self.onButton_modify)
-        btn_addcustomattr = wx.Button(self, label="Advanced: Add Special Attribute...")
+        btn_zoomin = wx.Button(self, label="Zoom In")
+        btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
+        btn_zoomout = wx.Button(self, label="Zoom Out")
+        btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
+        btn_addcustomattr = wx.Button(self, label="Advanced: Add Custom Attribute...")
         btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
-        btn_viewcustomattrs = wx.Button(self, label="Advanced: View Special Attributes...")
+        btn_viewcustomattrs = wx.Button(self, label="Advanced: View Custom Attributes...")
         btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
-                           (btn_viewcustomattrs,)])
+                           (btn_viewcustomattrs,), 
+                           ((50,50),), 
+                           (btn_zoomin,), (btn_zoomout,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(btn_sizer)
 
         self.SetSizer(self.sizer)
         self.Layout()
+    def onButton_zoomin(self, evt):
+        self.GetParent().boxdraw.zoomin()
+    def onButton_zoomout(self, evt):
+        self.GetParent().boxdraw.zoomout()
     def onButton_addattr(self, evt):
         boxdrawpanel = self.GetParent().boxdraw
         boxdrawpanel.set_mode_m(boxdrawpanel.M_CREATE)
@@ -259,7 +286,7 @@ class ToolBar(wx.Panel):
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
-        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Special Attribute do you want to add?", 
+        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Custom Attribute do you want to add?", 
                                                choices=[SPREADSHEET, FILENAME])
         status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
@@ -272,7 +299,7 @@ class ToolBar(wx.Panel):
             if len(attrtypes) == 0:
                 print "No attrtypes created yet, can't do this."
                 d = wx.MessageDialog(self, message="You must first create \
-    Ballot Attributes, before creating Special Ballot Attributes.")
+    Ballot Attributes, before creating Custom Ballot Attributes.")
                 d.ShowModal()
                 return
             dlg = SpreadSheetAttrDialog(self, attrtypes)
@@ -302,7 +329,7 @@ spreadsheet path.")
                                                 is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
         elif choice == FILENAME:
-            print "Handling Filename-based Special Attribute."
+            print "Handling Filename-based Custom Attribute."
             dlg = FilenameAttrDialog(self)
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
@@ -327,10 +354,10 @@ an Attribute Name.")
         proj = self.GetParent().GetParent().proj
         custom_attrs = self.GetParent().cust_attrs
         if not custom_attrs:
-            d = wx.MessageDialog(self, message="No Special Attributes yet.")
+            d = wx.MessageDialog(self, message="No Custom Attributes yet.")
             d.ShowModal()
             return
-        print "Special Attributes are:"
+        print "Custom Attributes are:"
         for cattr in custom_attrs:
             attrname = cattr.attrname
             if isinstance(cattr, cust_attrs.Spreadsheet_Attr):
@@ -347,18 +374,31 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        x_img, y_img = self.c2img(x,y)
+        w_img, h_img = self.img.GetSize()
+        if x_img >= (w_img-1) or y_img >= (h_img-1):
+            return
+
         if self.mode_m == self.M_CREATE:
             print "...Creating Attr Box..."
+            self.clear_selected()
             self.startBox(x, y, AttrBox)
-        elif self.mode_m == self.M_IDLE and not self.sel_boxes:
+        elif self.mode_m == self.M_IDLE:
             boxes = self.get_boxes_within(x, y, mode='any')
             if boxes:
-                self.select_boxes(boxes[0][0])
+                box = boxes[0][0]
+                if box not in self.sel_boxes:
+                    self.clear_selected()
+                    self.select_boxes(boxes[0][0])
             else:
+                self.clear_selected()
                 self.startBox(x, y, select_targets.SelectionBox)
+        else:
+            self.clear_selected()
+            self.dirty_all_boxes()
+        self.Refresh()
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        self.clear_selected()
         if self.mode_m == self.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             dlg = DefineAttributeDialog(self)
@@ -386,21 +426,24 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             self.select_boxes(*boxes)
         self.Refresh()
 
-    def drawBox(self, box, dc):
-        select_targets.BoxDrawPanel.drawBox(self, box, dc)
-        if isinstance(box, AttrBox):
+    def drawBoxes(self, boxes, dc):
+        select_targets.BoxDrawPanel.drawBoxes(self, boxes, dc)
+        for attrbox in [b for b in self.boxes if isinstance(b, AttrBox)]:
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
             dc.SetTextForeground("Blue")
-            w = int(round(abs(box.x2 - box.x1) * self.scale))
-            h = int(round(abs(box.y2 - box.y1) * self.scale))
-            client_x, client_y = self.img2c(box.x1, box.y1)            
-            w_txt, h_txt = dc.GetTextExtent(box.label)
+            w = int(round(abs(attrbox.x2 - attrbox.x1) * self.scale))
+            h = int(round(abs(attrbox.y2 - attrbox.y1) * self.scale))
+            client_x, client_y = self.img2c(attrbox.x1, attrbox.y1)            
+            w_txt, h_txt = dc.GetTextExtent(attrbox.label)
             x_txt, y_txt = client_x, client_y - h_txt
             if y_txt < 0:
                 y_txt = client_y + h
-            dc.DrawText(box.label, x_txt, y_txt)
-        
+            dc.DrawText(attrbox.label, x_txt, y_txt)
+
 class AttrBox(select_targets.Box):
+    shading_clr = (0, 255, 0)
+    shading_selected_clr = (255, 0, 0)
+
     def __init__(self, x1, y1, x2, y2, is_sel=False, label='', attrtypes=None,
                  is_digitbased=None, num_digits=None, is_tabulationonly=None,
                  side=None, grp_per_partition=None):
@@ -613,7 +656,7 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
 
         sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
-        txt2 = wx.StaticText(self, label="Special attr is a 'function' of:")
+        txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
         self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
         sizer_horiz.Add(txt2)
         sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
@@ -674,7 +717,7 @@ regex that will match the attribute value.")
         sizer.Add((20, 20))
 
         sizer_input0 = wx.BoxSizer(wx.HORIZONTAL)
-        txt0 = wx.StaticText(self, label="Special Attribute Name:")
+        txt0 = wx.StaticText(self, label="Custom Attribute Name:")
         attrname_input = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
         attrname_input.Bind(wx.EVT_TEXT_ENTER, lambda evt: re_input.SetFocus())
         self.attrname_input = attrname_input

@@ -467,7 +467,7 @@ class LabelContest(wx.Panel):
         #print "ALL", targets
 
         if self.grouping_cached:
-            groups = final_grouping(self.grouping_cached, targets, self.dirList, self.load_languages(), tmp=self.proj.ocr_tmp_dir)
+            groups = final_grouping(self.grouping_cached, targets, self.dirList, self.load_languages(), t=self.proj.ocr_tmp_dir)
         else:
             if not self.proj.infer_bounding_boxes:
                 dlg = wx.MessageDialog(self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
@@ -542,6 +542,7 @@ class LabelContest(wx.Panel):
         print "REORDER", self.reorder
         print "REORDER_INVERSE", self.reorder_inverse
         print "EQUIVS", self.equivs
+        #pdb.set_trace()
 
         def putresults(data):
             print "I get the data", data

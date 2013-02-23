@@ -498,7 +498,7 @@ def do_extract(name, img, squares, giventargets):
     #print "T", targets
     for sq in sorted(squares, key=area):
         if sq in targets: continue
-        inside = [t for t in targets if area(intersect(sq, t)) == area(t)]
+        inside = [t for t in targets if area(intersect(sq, t))]
         if inside != []:
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
             contests.append(sq)
@@ -719,15 +719,15 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
     if not os.path.exists(sub):
         os.mkdir(sub)
     res = []
-    #print "CONTESTS", contests
+    print "CONTESTS", contests
     for c in contests:
-        #print "TOMAKE", c
+        print "TOMAKE", c
         if not os.path.exists(os.path.join(sub, "-".join(map(str,c)))):
             os.mkdir(os.path.join(sub, "-".join(map(str,c))))
         t = compare_preprocess(lang, os.path.join(sub, "-".join(map(str,c))), 
                                image, c, targets, vendor)
         res.append((i, c, t))
-    #print "RESULTING", res
+    print "RESULTING", res
     return res
 
 
@@ -739,8 +739,10 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     and one for the title. OCR the text and record it.
     """
 
-    targets = [x for x in targets if intersect(contest, x) == x]
+    targets = [x for x in targets if area(intersect(contest, x))]
     cont_area = None
+
+    print 'targs', len(targets), targets
 
     if vendor:
         boxes = vendor.split_contest_to_targets(image, contest, targets)
@@ -749,7 +751,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
 
     l,u,r,d = contest
     blocks = []
-
+    print 'lenbox', len(boxes)
     for count,(upper,lower) in boxes:
         istarget = (count != 0)
         print upper, lower
@@ -797,7 +799,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
             blocks.append((istarget, ""))
             
     
-    #print blocks
+    print 'retlen', len(blocks)
     return blocks
 
 #import editdist
@@ -916,7 +918,7 @@ def compare(otexts1, otexts2, debug=False):
                              (len(texts1), order, num_writeins))
     #print otexts1
     #print otexts2
-    #print "res", [x[1] for x in sorted(res.items())], best
+    print "res", [x[1] for x in sorted(res.items())], best
     return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):
@@ -1245,9 +1247,9 @@ def full_group(contests_text, key):
         data,(score,winum) = compare(text, contests_text[dst][2])
         newgroups[index].append((contests_text[dst][:2], get_order(*data[winum][1])))
     
-    #print "SO GET"
+    print "SO GET"
     #print sorted(map(hash,map(str,map(sorted,groups))))
-    #print sorted(map(hash,map(str,map(sorted,newgroups))))
+    print sorted(map(sorted,newgroups))
 
     return newgroups
     
@@ -1268,8 +1270,6 @@ def equ_class(contests, languages):
         print "ON GROUP", i, key, len(group)
         print "-"*50
         result += full_group(group, key)
-        if len(result) >= 74:
-            print "RES74", result[74]
         print "Finished one group"
         print "Total length", len(result)
     
@@ -1415,7 +1415,10 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     pool = mp.Pool(mp.cpu_count())
     args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    ballots = pool.map(group_given_contests_map, args)
+    #print paths, giventargets, contests
+    #print paths[11], giventargets[11], contests[11]
+    #exit(0)
+    ballots = map(group_given_contests_map, args)
     pool.close()
     pool.join()
     #ballots = map(group_given_contests_map, args)

@@ -326,7 +326,6 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
         S = self.seltargets_panel
         cur_groupid = self.i2groupid[S.cur_i]
         imgpath = self.displayed_imgpaths[cur_groupid][S.cur_j][S.cur_page]
-        print 'imgpath:', imgpath
         dlg = wx.MessageDialog(self, message="Displayed Imagepath: {0}".format(imgpath),
                                style=wx.OK)
         dlg.ShowModal()
@@ -426,7 +425,7 @@ this partition.")
         txt_slash0 = wx.StaticText(self, label=" / ")
         self.txt_totalpartitions = wx.StaticText(self, label="Foo")
         
-        txt2 = wx.StaticText(self, label="Ballot: ")
+        txt2 = wx.StaticText(self, label="Ballot (subset of full partition): ")
         self.txt_curballot = wx.StaticText(self, label="1")
         txt_slash1 = wx.StaticText(self, label=" / ")
         self.txt_totalballots = wx.StaticText(self, label="Bar")
@@ -578,6 +577,7 @@ this partition.")
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
         # matches.
+        _cnt_added = 0
         for imgpath, matches in results.iteritems():
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
@@ -597,6 +597,8 @@ this partition.")
                         boxB.x2 = boxB.x1 + self.boxsize[0]
                         boxB.y2 = boxB.y1 + self.boxsize[1]
                     self.boxes.setdefault(partition_idx, [])[page].append(boxB)
+                    _cnt_added += 1
+        print 'Added {0} new boxes from this tempmatch run.'.format(_cnt_added)
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
@@ -1138,6 +1140,24 @@ class BoxDrawPanel(ImagePanel):
     def set_mode_m(self, mode):
         """ Sets my MouseMode. """
         self.mode_m = mode
+        self.update_cursor()
+
+    def update_cursor(self, force_cursor=None):
+        """ Updates the mouse cursor depending on the current state.
+        Returns the wx.Cursor that it decides to set.
+        To force the mouse cursor, pass in a wx.Cursor as FORCE_CURSOR.
+        """
+        if force_cursor != None:
+            self.SetCursor(force_cursor)
+            return force_cursor
+        if self.mode_m == BoxDrawPanel.M_CREATE:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+        elif self.mode_m == BoxDrawPanel.M_IDLE:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        else:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        self.SetCursor(cursor)
+        return cursor
 
     def set_boxes(self, boxes):
         self.boxes = boxes
@@ -1195,7 +1215,6 @@ class BoxDrawPanel(ImagePanel):
         if not self.boxes:
             # Force a redraw of the image - otherwise, the last-removed
             # boxes don't go away.
-            print "NO MORE BOXES, SHOULD REDRAW IMAGE"
             self.force_new_img_redraw()
             self.Refresh()
 
@@ -1273,7 +1292,11 @@ class BoxDrawPanel(ImagePanel):
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        
+        x_img, y_img = self.c2img(x,y)
+        w_img, h_img = self.img.GetSize()
+        if x_img >= (w_img-1) or y_img >= (h_img-1):
+            return
+
         box_resize, orient = self.get_box_to_resize(x, y)
         if self.mode_m == BoxDrawPanel.M_IDLE and box_resize:
             self.isResize = True
@@ -1427,7 +1450,7 @@ class BoxDrawPanel(ImagePanel):
         for box in boxes_todo:
             clr, thickness = box.get_draw_opts()
             draw_border(npimg_cpy, box, thickness=thickness, color=(0, 0, 0))
-            if type(box) in (TargetBox, ContestBox) and box.is_sel:
+            if box.is_sel:
                 transparent_color = np.array(box.shading_selected_clr) if box.shading_selected_clr else None
             else:
                 transparent_color = np.array(box.shading_clr) if box.shading_clr else None
@@ -1585,6 +1608,13 @@ Either draw a bigger box, or zoom-in to better-select the targets.")
 
 class TargetFindPanel(TemplateMatchDrawPanel):
     M_FORCEADD_TARGET = 3
+
+    def update_cursor(self, *args, **kwargs):
+        if self.mode_m == TargetFindPanel.M_FORCEADD_TARGET:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+            self.SetCursor(cursor)
+            return cursor
+        return TemplateMatchDrawPanel.update_cursor(self, *args, **kwargs)
 
     def onLeftDown(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -1991,6 +2021,7 @@ def divy_lists(lst, N):
             outlst[out_idx].append([lst_idx, sublist])
     return outlst
 
+# TODO: Reference the util.py versions of the following conversion methods
 def wxImage2np(Iwx, is_rgb=True):
     """ Converts wxImage to numpy array """
     w, h = Iwx.GetSize()
