@@ -378,11 +378,18 @@ class ViewOverlays(ScrolledPanel):
         if str(group.tag) not in self.cbox_grplabel.GetItems():
             self.cbox_grplabel.Append(str(group.tag))
         
-    def remove_group(self, group):
+    def remove_group(self, group, do_show_next_group=True):
+        """ Removes GROUP from my internal datastructures and UI components.
+        If DO_SHOW_NEXT_GROUP is True, then this automatically selects the
+        next group (if any) and displays it to the user.
+        """
+        if group not in self.groups:
+            print "(VerifyOverlays) Warning: Trying to remove group not in self.groups:", group
+            return
         idx = self.groups.index(group)
         self.groups.pop(idx)
         self.listbox_groups.Delete(idx)
-        if self.groups:
+        if self.groups and do_show_next_group == True:
             self.select_group(0)
         else:
             # No more groups to display, so do some cleanup
@@ -915,14 +922,23 @@ class VerifyOverlays(SplitOverlays):
         if self.auto_ondone:
             self.stop()
 
+    def finalize_group(self, group, do_show_next_group=True):
+        """ Marks GROUP as being 'accepted' by the user. Updates internal
+        data structures and UI components. 
+        """
+        if group not in self.groups:
+            print "(VerifyOverlays) Warning: Trying to finalize group not present in self.groups:", group
+            return
+        tag = group.tag
+        self.finished_groups.setdefault(tag, []).append(group)
+        self.remove_group(group, )
+
     def do_matches(self):
         """ Handles the scenario where the user says, "The current overlays
         indeed match and look fine."
         """
         curgroup = self.groups[self.idx]
-        curtag = curgroup.tag
-        self.finished_groups.setdefault(curtag, []).append(curgroup)
-        self.remove_group(curgroup)
+        self.finalize_group(curgroup)
         self.Layout()
         self.SetupScrolling()
 
@@ -1326,6 +1342,39 @@ class SeparateImages(VerifyOverlays):
             VerifyOverlays.start(self, imggroups, exemplars, None, 
                                  bbs_map=bbs_map, ondone=ondone, stateP=stateP,
                                  auto_ondone=auto_ondone)
+            if self.cleanup_my_groups():
+                return
+
+    def cleanup_my_groups(self):
+        """ Auto-accept all groups with only one element. Calling this
+        method will mutate both internal data structures and UI components.
+        If, after cleanup, no more groups remain, then the appropriate
+        callback/functions will be invoked, and this method will return True.
+        Otherwise, this returns False.
+        Output:
+            True if no more groups remain. False o.w.
+        """
+        # Auto-accept groups with only one element
+        self.disable_ui()
+        flag_shouldReselect = False
+        for i, group in enumerate(self.groups[:]):
+            if len(group.imgpaths) <= 1:
+                self.finalize_group(group, do_show_next_group=False)
+                if i == 0:
+                    flag_shouldReselect = True
+
+        if not self.groups:
+            # self.finalize_group has already invoked the callback(s)
+            return True
+        if flag_shouldReselect:
+            self.select_group(0)
+        self.enable_ui()
+        return False
+
+    def do_split(self, *args, **kwargs):
+        VerifyOverlays.do_split(self, *args, **kwargs)
+        # Auto-accept any resulting size-1 groups
+        self.cleanup_my_groups()
 
     def update_grouptag_txt(self):
         if self.stxt_grplabel.IsShown():
@@ -2052,6 +2101,7 @@ def test_separateimages():
 
         def ondone(self, verify_results):
             print "Number of groups:", len(verify_results)
+            self.separateimages.Hide()
 
         def realign(self, imgpaths):
             out = []
@@ -2079,10 +2129,10 @@ def test_separateimages():
     app.MainLoop()
 
 def main():
-    test_verifyoverlays()
+    #test_verifyoverlays()
     #test_checkimgequal()
     #test_verifycategories()
-    #test_separateimages()
+    test_separateimages()
 
 if __name__ == '__main__':
     main()
