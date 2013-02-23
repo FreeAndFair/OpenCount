@@ -26,6 +26,19 @@ from post_processing.postprocess import ResultsPanel
 
 import specify_voting_targets.util_gui as util_gui
 
+"""
+The main module for OpenCount.
+
+Usage:
+    $ python maingui.py [-h --help -help]
+"""
+
+USAGE = """Usage:
+
+    $ python maingui.py [-h --help -help]
+
+"""
+
 PROJROOTDIR = 'projects_new'
 
 class MainFrame(wx.Frame):
@@ -349,6 +362,11 @@ def exists_attrs(proj):
         return True
 
 def main():
+    args = sys.argv[1:]
+    if '-h' in args or '--help' in args or '-help' in args:
+        print USAGE
+        return 0
+
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())
     f.Show()
