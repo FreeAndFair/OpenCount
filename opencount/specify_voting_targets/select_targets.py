@@ -750,9 +750,9 @@ voting target on this ballot.")
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
                 boxB = TargetBox(x1, y1, x1+w, y1+h)
-                # 1.a.) See if any already-existing box is too close
+                # 1.a.) See if any already-existing TargetBox is too close
                 do_add = True
-                for boxA in self.boxes[partition_idx][page]:
+                for boxA in [b for b in self.boxes[partition_idx][page] if isinstance(b, TargetBox)]:
                     if too_close(boxA, boxB):
                         do_add = False
                         break
