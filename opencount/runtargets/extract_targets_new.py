@@ -24,8 +24,8 @@ class TargetExtractPanel(wx.Panel):
         self.init_ui()
 
     def init_ui(self):
-        btn_run = wx.Button(self, label="Run Target Extraction...")
-        btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
+        self.btn_run = wx.Button(self, label="Run Target Extraction...")
+        self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
         txt = wx.StaticText(self, label="...Or, if you've already run Target \
 Extraction, but you just want to create the Image File:")
         txt.Hide()
@@ -33,13 +33,18 @@ Extraction, but you just want to create the Image File:")
         btn_createImageFile.Bind(wx.EVT_BUTTON, self.onButton_createImageFile)
         btn_createImageFile.Hide()
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.Add(btn_run)
+        btn_sizer.Add(self.btn_run)
+
+        self.txt_can_move_on = wx.StaticText(self, label="Target Extraction computation complete. You may move on.")
+        self.txt_can_move_on.Hide()
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(btn_sizer)
         self.sizer.Add((0, 50))
         self.sizer.Add(txt)
         self.sizer.Add(btn_createImageFile)
+        self.sizer.Add((0, 50))
+        self.sizer.Add(self.txt_can_move_on)
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -80,6 +85,9 @@ Extraction, but you just want to create the Image File:")
 
     def on_targetextract_done(self):
         print "...TargetExtraction Done!..."
+        self.btn_run.Disable()
+        self.txt_can_move_on.Show()
+        self.Layout()
         self.Enable()
 
 class RunThread(threading.Thread):

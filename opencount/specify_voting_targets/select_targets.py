@@ -999,7 +999,7 @@ class Toolbar(wx.Panel):
         self.btn_zoomin = wx.Button(self, label="Zoom In")
         self.btn_zoomout = wx.Button(self, label="Zoom Out")
         self.btn_infercontests = wx.Button(self, label="Infer Contest Regions..")
-        self.btn_opts = wx.Button(self, label="Options...")
+        self.btn_opts = wx.Button(self, label="Advanced: Options...")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_forceaddtarget,), 
