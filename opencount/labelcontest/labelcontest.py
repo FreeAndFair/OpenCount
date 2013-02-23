@@ -171,8 +171,13 @@ class LabelContest(wx.Panel):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer = sizer
 
+        self.small_x_size = 303
+        self.small_y_size = 500
+        self.view_x_size = sz[0]-300-self.small_x_size-100
+        self.view_y_size = sz[1]-100
+
         sz2 = wx.BoxSizer(wx.VERTICAL)
-        self.imagebox = ImageManipulate(self, size=(500,600))
+        self.imagebox = ImageManipulate(self, size=(self.view_x_size,self.view_y_size))
 
         sz3 = wx.BoxSizer(wx.HORIZONTAL)
         zoomin = wx.Button(self, label="Zoom In")
@@ -189,7 +194,7 @@ class LabelContest(wx.Panel):
         rightside = wx.BoxSizer(wx.HORIZONTAL)
 
         #self.textarea = wx.Panel(self)
-        self.textarea = wx.lib.scrolledpanel.ScrolledPanel(self, size=(300, 600))
+        self.textarea = wx.lib.scrolledpanel.ScrolledPanel(self, size=(300, self.view_y_size-150))
         self.textarea.SetAutoLayout(True)
         self.textarea.SetupScrolling(False, True)
 
@@ -233,7 +238,7 @@ class LabelContest(wx.Panel):
         button4.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(1))
 
 
-        self.templatebox = wx.Panel(self, size=(303,500))
+        self.templatebox = wx.Panel(self, size=(self.small_x_size,self.small_y_size))
         self.templatebox.img = wx.StaticBitmap(self.templatebox)
         
         template.Add(self.templatebox)
@@ -804,8 +809,6 @@ class LabelContest(wx.Panel):
         # Save the image corresponding to this template
         self.imgo = self.maybe_flip(self.dirList[self.templatenum])
         print 'qqq', self.imgo.shape
-        self.small_x_size = 303#self.imgo.shape[1]/4#303
-        self.small_y_size = 500#self.imgo.shape[0]/4#500
         self.imgo_resize = scipy.misc.imresize(self.imgo,(self.small_y_size, self.small_x_size))
         self.imgo_resizefactor_y = float(self.imgo.shape[0])/self.imgo_resize.shape[0]
         self.imgo_resizefactor_x = float(self.imgo.shape[1])/self.imgo_resize.shape[1]
@@ -885,7 +888,7 @@ class LabelContest(wx.Panel):
 
         self.templatebox.img.SetBitmap(wxBitmap)
         
-        SCALE = float(self.imgo.shape[0])/500
+        SCALE = float(self.imgo.shape[0])/self.small_y_size
         print "SCALE", SCALE
         # Switch to selected contest.
         @util.pdb_on_crash
@@ -1223,8 +1226,8 @@ class LabelContest(wx.Panel):
         coords = self.crop[self.currentcontests[self.count]][1]
         center = ((coords[2]+coords[0])/2, (coords[3]+coords[1])/2)
 
-        percentage_w = float(coords[2]-coords[0])/(500)
-        percentage_h = float(coords[3]-coords[1])/(600)
+        percentage_w = float(coords[2]-coords[0])/(self.view_x_size)
+        percentage_h = float(coords[3]-coords[1])/(self.view_y_size)
         scale = min(1/percentage_w, 1/percentage_h)
         if not move:
             center, scale = restore
