@@ -538,8 +538,8 @@ class SelectTargetsPanel(ScrolledPanel):
         self.toolbar = Toolbar(self)
         self.imagepanel = TargetFindPanel(self, self.do_tempmatch)
 
-        txt = wx.StaticText(self, label="Select all Voting Targets from \
-this partition.")
+        txt = wx.StaticText(self, label="Draw a rectangle around each \
+voting target on this ballot.")
 
         btn_nextpartition = wx.Button(self, label="Next Partition...")
         btn_prevpartition = wx.Button(self, label="Previous Partition...")
