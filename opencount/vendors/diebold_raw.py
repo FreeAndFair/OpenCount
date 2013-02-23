@@ -126,11 +126,11 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
     w, h = cv.GetSize(I)
     w_markfull, h_markfull = cv.GetSize(Imark)
 
-    bbs_middle = ((w * 0.2, 0.947 * h,
-                   (w-1) - (w*0.4),
+    bbs_middle = ((w * 0.15, 0.947 * h,
+                   (w-1) - (w*0.15),
                    (0.97 * h)),
-                  (w * 0.2, 0.945 * h,
-                   (w-1) - (w*0.4),
+                  (w * 0.15, 0.945 * h,
+                   (w-1) - (w*0.15),
                    (0.995 *h)),
                   (w * 0.1, 0.93 * h,
                    (w-1) - (w*0.1),
@@ -144,7 +144,7 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
         print_dbg("==== Theta={0}".format(theta))
     
     bbs_rough = ((0, 0.96 * h,
-                  (w-1), (0.98 * h)),
+                  (w-1), (0.985 * h)),
                  (0, 0.945 * h,
                   (w-1), (0.995 * h)))
     result = decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip,
@@ -333,7 +333,8 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             syms, params_ = scan_bars.parse_patch(Icor, (w_markfull, h_markfull), gap=H_GAP, 
                                                   LEN=34,
                                                   orient=scan_bars.HORIZONTAL, MARKTOL=0.7,
-                                                  BEGIN_TOL=0.3, END_TOL=0.3)
+                                                  BEGIN_TOL=0.3, END_TOL=0.3,
+                                                  GAMMA=0.5)
             decoding = ''.join([t[0] for t in syms])
             if not sanitycheck_decoding_v2(decoding):
                 continue
@@ -346,15 +347,26 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             # Undo rotation correction
             bbs_out = [to_orig_coords(bb, H_inv) for bb in bbs_out]
             # Add the compute_border offsets (part1)
-            bbs_out = [(x1+j1_blk_cor, y1+i1_blk_cor, x2+j1_blk_cor, y2+i2_blk_cor) for (x1,y1,x2,y2) in bbs_out]            
+            bbs_out = [(x1+j1_blk_cor, y1+i1_blk_cor, x2+j1_blk_cor, y2+i1_blk_cor) for (x1,y1,x2,y2) in bbs_out]            
             # Add the compute_border offsets
-            bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
+            #bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
+            bbs_out = [(x1+j1_blk, y1+i1_blk, (x1+W_MARK-1)+j1_blk, (y1+H_MARK-1)+i1_blk) for (x1,y1,x2,y2) in bbs_out]
 
             if DEBUG_SAVEIMGS:
                 print_dbg("==== decoding ({0}): {1}".format(len(decoding), decoding))
                 Icolor = draw_bbs(imgpath, decoding, bbs_out, isflip)
                 cv.SaveImage("_dbg_showit.png", Icolor)
                 print "<><><><> Saving '_dbg_showit.png' <><><><>"
+                dbg_bbs_out = [(t[1], y1_step*step, t[1] + w_markfull, y1_step*step + h_markfull) for t in syms]
+                # Undo rotation correction
+                dbg_bbs_out = [to_orig_coords(bb, H_inv) for bb in dbg_bbs_out]
+                # Add the compute_border offsets (part1)
+                dbg_bbs_out = [(x1+j1_blk_cor, y1+i1_blk_cor, x2+j1_blk_cor, y2+i2_blk_cor) for (x1,y1,x2,y2) in dbg_bbs_out]
+                # Add the compute_border offsets
+                dbg_bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in dbg_bbs_out]
+                Icolor_notighten = draw_bbs(imgpath, decoding, dbg_bbs_out, isflip)
+                cv.SaveImage("_dbg_showit_notighten.png", Icolor_notighten)
+                print "<><><><> Saving '_dbg_showit_notighten.png' <><><><>"
                 pdb.set_trace()
 
             if sanitycheck_decoding_v2(decoding):
@@ -367,7 +379,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
     cv.SetImageROI(I, roi_prev)
     return result
 
-def most_popular(candidates):
+def most_popular(candidates, W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     """ Returns the most-common decoding possibilty (recall that this
     decoder may output multiple, possibly-different decodings).
     """
@@ -400,8 +412,10 @@ def most_popular(candidates):
                 y2s.append(bb[3])
             x1 = int(round(fn(x1s)))
             y1 = int(round(fn(y1s)))
-            x2 = int(round(fn(x2s)))
-            y2 = int(round(fn(y2s)))
+            x2 = x1 + W_MARK - 1
+            y2 = y1 + H_MARK - 1
+            #x2 = int(round(fn(x2s)))
+            #y2 = int(round(fn(y2s)))
             bbs_out.append((x1,y1,x2,y2))
         return bbs_out
         
@@ -516,7 +530,7 @@ def get_rotmat(I, degrees):
     return rotmat
 def apply_rot(I, H):
     Idst = cv.CreateImage(cv.GetSize(I), I.depth, I.channels)
-    cv.WarpAffine(I, Idst, H)
+    cv.WarpAffine(I, Idst, H, fillval=255.0)
     return Idst
 def rotate_img(I, degrees):
     H = get_rotmat(I, degrees)
@@ -631,13 +645,17 @@ def rescale_img(I, c):
 def main():
     args = sys.argv[1:]
     arg0 = args[-1]
-    do_show = '-show' in args
+    do_show = '--show' in args
+    do_compare = '--compare' in args
     try: N = int(args[args.index('-n')+1])
     except: N = None
     try: outpath = args[args.index('-o')+1]
     except: outpath = None
     try: erroutpath = args[args.index('--erroutpath')+1]
     except: erroutpath = 'errs_diebold_raw.txt'
+    try: true_results = pickle.load(open(args[args.index('--compare')+1], 'rb'))
+    except: true_results = None
+
     global DEBUG, DEBUG_SAVEIMGS, DEBUG_SKIP_FLIP
     DEBUG = '--debug' in args
     DEBUG_SAVEIMGS = '--saveimgs' in args
@@ -712,11 +730,33 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(N))
     print "    Number of Errors: {0}".format(len(errs))
 
+    if do_compare:
+        are_inconsistensies = False
+        true_decoding2imgs, true_img2decoding, true_flipmap, true_img2bbs, true_errs = true_results
+        wrong_map = compare_decodings(decoding2imgs, img2decoding, true_decoding2imgs, true_img2decoding)
+        num_wrongs = len(wrong_map)
+        for imgpath, (our_dec, true_dec) in wrong_map.iteritems():
+            print "For imgpath={0}:".format(imgpath)
+            print "    Our Decoding:", our_dec
+            print "   True Decoding:", true_dec
+        print "==== Number of Inconsistensies:", num_wrongs
+        if num_wrongs > 0:
+            are_inconsistensies = True
+    else:
+        are_inconsistensies = False
+
     if outpath:
         outfile = open(outpath, 'wb')
-        pickle.dump((decoding2imgs, img2decoding, flipmap, img2bbs, errs), outfile)
-        print "...Saved pickle'd files to: {0}...".format(outpath)
-    
+        if are_inconsistensies:
+            response = raw_input("Inconsistensies were detected. Are you \
+sure you want to dump to {0}? (y/n)".format(outpath))
+            if response and response.strip().lower() in ('y', 'yes'):
+                pickle.dump((decoding2imgs, img2decoding, flipmap, img2bbs, errs), outfile)
+                print "...Saved pickle'd files to: {0}...".format(outpath)
+        else:
+            pickle.dump((decoding2imgs, img2decoding, flipmap, img2bbs, errs), outfile)
+            print "...Saved pickle'd files to: {0}...".format(outpath)
+
     if errs:
         do_write = raw_input("Would you like to write out all err imgpaths to '{0}' (Y/N)?".format(erroutpath))
         if do_write and do_write.strip().lower() in ('y', 'yes'):
@@ -726,6 +766,16 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
                 print >>f, errpath
 
     print "Done."
+
+def compare_decodings(dec2imgs, img2dec, true_dec2imgs, true_img2dec):
+    wrong_map = {} # maps {str imgpath: [str our_answer, str true_answer]}
+    for true_decoding, imgpaths in true_dec2imgs.iteritems():
+        for imgpath in imgpaths:
+            our_decoding = img2dec.get(imgpath, None)
+            if our_decoding != true_decoding:
+                wrong_map[imgpath] = [our_decoding, true_decoding]
+        
+    return wrong_map
 
 if __name__ == '__main__':
     main()

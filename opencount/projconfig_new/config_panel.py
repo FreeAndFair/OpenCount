@@ -18,6 +18,10 @@ VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor,
                   "diebold": Diebold.DieboldVendor}
 
+# int BALLOT_LIMIT := Set to an integer N if you'd like to only include the
+#                     first N ballots in an election. For testing purposes.
+BALLOT_LIMIT = None
+
 class ConfigPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
@@ -198,12 +202,14 @@ match the regular expressions.".format(imgpath)
                                    is_alternating=self.alternate_chkbox.GetValue())
         curballotid = 0
         weirdballots = []
-        for imgpaths in by_ballots:
+        for i, imgpaths in enumerate(by_ballots):
             if not self.varnumpages_chkbox.GetValue() and len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
                 # Ballot has too many/few sides.
                 print "Warning -- found Ballot with {0} sides, yet project \
 specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()))
                 weirdballots.append(imgpaths)
+            elif BALLOT_LIMIT != None and i >= BALLOT_LIMIT:
+                break
             else:
                 ballot_to_images[curballotid] = imgpaths
                 for imgpath in imgpaths:

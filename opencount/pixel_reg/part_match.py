@@ -2,10 +2,16 @@ import multiprocessing as mp
 import numpy as np
 import imagesAlign as lk
 import shared as sh
-import time
+import time, sys
 import distance_transform
 import wx
 from wx.lib.pubsub import Publisher
+
+sys.path.append('..')
+
+from util import GaugeID
+
+JOBID_GROUPING_DIGITBASED = GaugeID("GROUPING_DIGITBASED")
 
 def dt1(f):
     n = f.size
@@ -347,72 +353,76 @@ def stackMax1(result_hash):
     return (maxSurf,symmax)
 
 def process_one(args):
-    imP, digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes, flipmap = args
-    I1 = sh.standardImread(imP,flatten=True)
-    if flipmap[imP]:
-        I1 = sh.fastFlip(I1)
-    # 0.) For Yolo (and perhaps other elections), upside-down voted
-    # ballots were problematic. Recall that the ballot straightener
-    # will pad the voted ballot with a black border if the B isn't
-    # of the specified canonical size (W,H). Currently, the straightener
-    # adds the padding to the bottom+right of the image. However, if the
-    # voted ballot is upside down, then the padding is added to the 
-    # top+left (after undoing the flip), which results in a large shift
-    # which our algorithms aren't able to gracefully handle.
-    # ROWS, COLS is number of rows/cols removed from remove_border_topleft
-    I1, rows, cols = sh.remove_border_topleft(I1)
-    #I1=sh.prepOpenCV(I1)
-    E_i1 = 0.10  # factor to expand bbSearch by
-    E_i2 = 0.33
-    E_j1 = 0.05
-    E_j2 = 0.05 
-    h, w = int(bbSearch[1] - bbSearch[0]), int(bbSearch[3]-bbSearch[2])
-    amt_i1 = int(round(E_i1*h))
-    amt_i2 = int(round(E_i2*h))
-    amt_j1 = int(round(E_j1*w))
-    amt_j2 = int(round(E_j2*w))
-    if (bbSearch[0] - amt_i1) < 0:
-        amt_i1 = bbSearch[0]
-    if (bbSearch[1] + amt_i2) > (I1.shape[0]-1):
-        amt_i2 = (I1.shape[0]-1 - bbSearch[1])
-    if (bbSearch[2] - amt_j1) < 0:
-        amt_j1 = bbSearch[2]
-    if (bbSearch[3] + amt_j2) > (I1.shape[1]-1):
-        amt_j2 = (I1.shape[1]-1 - bbSearch[3])
-    bb_patch = [max(0, bbSearch[0]-amt_i1),
-                min(I1.shape[0]-1, bbSearch[1]+amt_i2),
-                max(0, bbSearch[2]-amt_j1),
-                min(I1.shape[1]-1, bbSearch[3]+amt_j2)]
-    #I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
-    I1_patch = I1[bb_patch[0]:bb_patch[1], bb_patch[2]:bb_patch[3]]
+    try:
+        imP, digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes, flipmap, queue_progress = args
+        I1 = sh.standardImread(imP,flatten=True)
+        if flipmap[imP]:
+            I1 = sh.fastFlip(I1)
+        # 0.) For Yolo (and perhaps other elections), upside-down voted
+        # ballots were problematic. Recall that the ballot straightener
+        # will pad the voted ballot with a black border if the B isn't
+        # of the specified canonical size (W,H). Currently, the straightener
+        # adds the padding to the bottom+right of the image. However, if the
+        # voted ballot is upside down, then the padding is added to the 
+        # top+left (after undoing the flip), which results in a large shift
+        # which our algorithms aren't able to gracefully handle.
+        # ROWS, COLS is number of rows/cols removed from remove_border_topleft
+        I1, rows, cols = sh.remove_border_topleft(I1)
+        #I1=sh.prepOpenCV(I1)
+        E_i1 = 0.10  # factor to expand bbSearch by
+        E_i2 = 0.33
+        E_j1 = 0.05
+        E_j2 = 0.05 
+        h, w = int(bbSearch[1] - bbSearch[0]), int(bbSearch[3]-bbSearch[2])
+        amt_i1 = int(round(E_i1*h))
+        amt_i2 = int(round(E_i2*h))
+        amt_j1 = int(round(E_j1*w))
+        amt_j2 = int(round(E_j2*w))
+        if (bbSearch[0] - amt_i1) < 0:
+            amt_i1 = bbSearch[0]
+        if (bbSearch[1] + amt_i2) > (I1.shape[0]-1):
+            amt_i2 = (I1.shape[0]-1 - bbSearch[1])
+        if (bbSearch[2] - amt_j1) < 0:
+            amt_j1 = bbSearch[2]
+        if (bbSearch[3] + amt_j2) > (I1.shape[1]-1):
+            amt_j2 = (I1.shape[1]-1 - bbSearch[3])
+        bb_patch = [max(0, bbSearch[0]-amt_i1),
+                    min(I1.shape[0]-1, bbSearch[1]+amt_i2),
+                    max(0, bbSearch[2]-amt_j1),
+                    min(I1.shape[1]-1, bbSearch[3]+amt_j2)]
+        #I1=I1[bbSearch[0]:bbSearch[1],bbSearch[2]:bbSearch[3]]
+        I1_patch = I1[bb_patch[0]:bb_patch[1], bb_patch[2]:bb_patch[3]]
 
-    #if do_flip == False:
-    #    misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
-    #                                         str(do_flip)),
-    #                I1)
-    rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
-    accepted_hash = accepted_hashes.get(imP, None) if accepted_hashes else None
-    # perform matching for all digits
-    # return best matching digit
-    # mask out 
-    # res := (str ocr_str, list patches, list bbs, list scores, list matched_keys)
-    res = pm2(digit_hash,I1_patch,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
-    #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
-    # 1.) Remember to correct for E_i,E_j expansion factor from earlier,
-    #     the cropped-out black border (ROWS,COLS), and also to account 
-    #     for bbSearch offset.
-    newbbs = []
-    for bb in res[2]:
-        newbb0 = (max(0, bb[0]+bb_patch[0]+rows),
-                  min(I1.shape[0]-1, bb[1]+bb_patch[0]+rows),
-                  max(0, bb[2]+bb_patch[2]+cols),
-                  min(I1.shape[1]-1, bb[3]+bb_patch[2]+cols))
-        newbbs.append(newbb0)
+        #if do_flip == False:
+        #    misc.imsave('_{0}_{1}_bb.png'.format(os.path.splitext(os.path.split(imP)[1])[0],
+        #                                         str(do_flip)),
+        #                I1)
+        rejected_hash = rejected_hashes.get(imP, None) if rejected_hashes else None
+        accepted_hash = accepted_hashes.get(imP, None) if accepted_hashes else None
+        # perform matching for all digits
+        # return best matching digit
+        # mask out 
+        # res := (str ocr_str, list patches, list bbs, list scores, list matched_keys)
+        res = pm2(digit_hash,I1_patch,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+        #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+        # 1.) Remember to correct for E_i,E_j expansion factor from earlier,
+        #     the cropped-out black border (ROWS,COLS), and also to account 
+        #     for bbSearch offset.
+        newbbs = []
+        for bb in res[2]:
+            newbb0 = (max(0, bb[0]+bb_patch[0]+rows),
+                      min(I1.shape[0]-1, bb[1]+bb_patch[0]+rows),
+                      max(0, bb[2]+bb_patch[2]+cols),
+                      min(I1.shape[1]-1, bb[3]+bb_patch[2]+cols))
+            newbbs.append(newbb0)
 
-    if wx.App.IsMainLoopRunning():
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+        queue_progress.put((True, None))
 
-    return (imP,res[0],res[1],newbbs,res[3])
+        return (imP,res[0],res[1],newbbs,res[3])
+    except Exception as e:
+        traceback.print_exc()
+        queue_progress.put((False, (imP, e.message)))
+        return False
 
 def digitParse(digit_hash,imList,bbSearch,nDigits, flipmap=None, hspace=20,
                rejected_hashes=None, accepted_hashes=None):
@@ -439,16 +449,43 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, flipmap=None, hspace=20,
     nProc=sh.numProcs()
     #nProc = 1
 
+    manager = mp.Manager()
+    queue_progress = manager.Queue() # Used for MyGauge updates
+
+    jobs = [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap, queue_progress) for x in imList]
+
     if nProc < 2:
         results = []
         for x in imList:
-            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,hspace,rejected_hashes,accepted_hashes,flipmap)))
+            results.append(process_one((x,digit_hash,imList,bbSearch,nDigits,hspace,rejected_hashes,accepted_hashes,flipmap, queue_progress)))
+            job_status, job_metadata = queue_progress.get()
+            if job_status == False:
+                print "...Uhoh, imP={0} failed in digit-grouping computation.".format(job_metadata[0])
+                print "       ErrMsg was:", job_metadata[1]
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_DIGITBASED,))
     else:
         pool = mp.Pool(processes=nProc)
-        results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
+        #results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
+        result_async = pool.map_async(process_one, jobs)
+        
         pool.close()
+
+        i = 0
+        while i < len(jobs):
+            job_status, job_metadata = queue_progress.get()
+            if job_status == False:
+                print "...Uhoh, imP={0} failed in digit-grouping computation.".format(job_metadata[0])
+                print "       ErrMsg was:", job_metadata[1]
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_DIGITBASED,))
+            i += 1
+
         pool.join()
 
+        results = result_async.get()
+    # TODO: Currently, any images that process_one() crashes on is signaled by 
+    #       A 'False' value in RESULTS. We should explicitly handle these
+    #       cases (perhaps by having the caller quarantine these images).
+
     return results
-
-

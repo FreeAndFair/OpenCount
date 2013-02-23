@@ -10,6 +10,9 @@ import wx
 from util import create_dirs
 import pickle
 import shutil
+import array
+
+from matplotlib.pyplot import show, imshow, figure, title
 
 sys.path.append('..')
 import global_align.global_align as global_align
@@ -24,7 +27,8 @@ def extractTargets(I,Iref,bbs,verbose=False):
     # Note: Currently only used in debugWorker. See extractTargetsRegions
     #       for the function actually used.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs);
+    #IrefM=sh.maskBordersTargets(Iref,bbs);
+    IrefM = Iref # Currently don't mask out targets, found it helps global alignment
     t0=time.clock();
     
     IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
@@ -81,7 +85,7 @@ def bbsInCell(bbs,i1,i2,j1,j2):
     for bb in bbs:
         iCtr=(bb[0]+bb[1])/2.
         jCtr=(bb[2]+bb[3])/2.        
-        if (iCtr>i1) and (iCtr<i2) and (jCtr>j1) and (jCtr<j2):
+        if (iCtr>=i1) and (iCtr<=i2) and (jCtr>=j1) and (jCtr<=j2):
             bbOut=np.vstack((bbOut,bb))
 
     return bbOut
@@ -101,18 +105,28 @@ def correctH(I, H0):
     H=np.dot(np.dot(T0,H0),T1)
     return H
 
-def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
+def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
+                          do_grid_opt=False):
     """ Given an image I (voted) and a ref image Iref (blank), extracts
     boundingboxes given by BBS from I, performing local image alignment
     between I and Iref.
+    Input:
+        bool DO_GRID_OPT:
+            If True, then this will grid up the image into VCELLSxHCELLS
+            cells. For each cell C_i, a super-region R is computed around 
+            all voting targets T that reside in C_i, and a single local-alignment
+            is performed for T. 
+            If False, then a small area around each individual voting 
+            target is aligned.
     Output:
         [(int targetID, nparray img, tuple bbImgLoc, float err), ...]
     """
     ''' Perform local alignment around each target, then crop out target  '''
     # 0.) Mask out targets on Iref, coarsely-align I to Iref.
     rszFac=sh.resizeOrNot(I.shape,sh.COARSE_BALLOT_REG_HEIGHT)
-    IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
-    IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
+    #IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
+    IrefM = Iref # Currently don't mask out targets, found it helps global alignment
+    #IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
     #Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
     t0=time.clock()
 
@@ -122,99 +136,85 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None):
 
     # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
     #                   alignment on several scales, choosing the best one
-    H1, I1, err = global_align.align_strong(I, IrefM_crop)
+    H1, I1, err = global_align.align_image(I, IrefM)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
     pFac=7
 
-    # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
-    #     then extract bb.
-    for i, bb in enumerate(bbs):
-        # bb := [i1, i2, j1, j2, targetID]
-        bbExp, bbOff = sh.expandBbsSingle(bb, I1.shape[0], I1.shape[1], pFac)
-        I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
-        IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
-        rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
-        #if '_077.png' in balP:
-        #    misc.imsave("_Ipatch.png", I_patch)
-        #    _f = np.nan_to_num(IrefM_patch)
-        #    misc.imsave("_IrefMpatch2.png", _f)
-        H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
-                                        rszFac=rszFac, type='rigid', minArea=np.power(2, 18))
-        #if '_077.png' in balP:
-        #    misc.imsave("_I1patchpost.png", I1_patch)
-        #    pdb.set_trace()
-        targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
-        # 2.) Unwind transformation to get the global location of TARG
-        rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
-        rOff_tr=pttransform(I_patch,np.linalg.inv(H2),np.array([bbOff[2],bbOff[0],1]))
-        targLocGl=np.zeros(4)
-        iLen = bbOff[1] - bbOff[0]
-        jLen = bbOff[3] - bbOff[2]
-        targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
-        targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
-        targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
-        targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
+    if not do_grid_opt:
+        # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
+        #     then extract bb.
+        for i, bb in enumerate(bbs):
+            # bb := [i1, i2, j1, j2, targetID]
+            bbExp, bbOff = sh.expandBbsSingle(bb, I1.shape[0], I1.shape[1], pFac)
+            I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+            IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
+            rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
+            H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
+                                            rszFac=rszFac, type='rigid', minArea=np.power(2, 18))
+            targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
+            # 2.) Unwind transformation to get the global location of TARG
+            rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
+            rOff_tr=pttransform(I_patch,np.linalg.inv(H2),np.array([bbOff[2],bbOff[0],1]))
+            targLocGl=np.zeros(4)
+            iLen = bbOff[1] - bbOff[0]
+            jLen = bbOff[3] - bbOff[2]
+            targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
+            targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
+            targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
+            targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
 
-        # weird bug in imsave where if the matrix is all ones, it saves as pure black
-        result.append((bb[4],targ,map(int,tuple(targLocGl)),err))
-    '''
-    # parameter specified number of cells
-    # for each cell, grab the targets that fall in the center
-    #   compute super-region and pad
-    vStep=math.ceil(Iref.shape[0]/vCells);
-    hStep=math.ceil(Iref.shape[1]/hCells);
-    for i in range(vCells):
-        for j in range(hCells):
-            i1=i*vStep; i1=max(i1,0);
-            i2=(i+1)*vStep; i2=min(i2,I1.shape[0]-1);
-            j1=j*hStep; j1=max(j1,0);
-            j2=(j+1)*hStep; j2=min(j2,I1.shape[1]-1);
-            # grab all targets within this range
-            bbs1=bbsInCell(bbs,i1,i2,j1,j2)
-            if bbs1.size == 0:
-                continue
+            # weird bug in imsave where if the matrix is all ones, it saves as pure black
+            result.append((bb[4],targ,map(int,tuple(targLocGl)),err))
+    else:
+        # parameter specified number of cells
+        # for each cell, grab the targets that fall in the center
+        #   compute super-region and pad
+        vStep=math.ceil(Iref.shape[0]/vCells);
+        hStep=math.ceil(Iref.shape[1]/hCells);
+        for i in range(vCells):
+            for j in range(hCells):
+                i1=i*vStep; j1=j*hStep;
+                i2=(i+1)*vStep-1; i2=min(i2,I1.shape[0]-1);
+                j2=(j+1)*hStep-1; j2=min(j2,I1.shape[1]-1);
+                # grab all targets within this range
+                bbs1=bbsInCell(bbs,i1,i2,j1,j2)
+                if bbs1.size == 0:
+                    continue
 
-            (bbOut,bbsOff)=sh.expandBbs(bbs1,I.shape[0],I.shape[1],pFac)
+                (bbOut,bbsOff)=sh.expandBbs(bbs1,I.shape[0],I.shape[1],pFac)
 
-            Ic=sh.cropBb(I1,bbOut)
-            IrefcNOMASK=sh.cropBb(Iref,bbOut)
-            Irefc=sh.cropBb(IrefM,bbOut)
-            #misc.imsave('_Ic.png', Ic)
-            #misc.imsave('_IrefcNOMASK.png', IrefcNOMASK)
-            #misc.imsave('_Irefc.png', Irefc)
-            rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-            IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
-            Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
-            #misc.imsave('_Ic1.png', Ic1)
-            #if balP != None and '329_672_157_3_3' in balP:
-            #    pdb.set_trace()
-            pdb.set_trace()
-            for k in range(bbsOff.shape[0]):
-                bbOff1=bbsOff[k,:]
-                iLen=bbOff1[1]-bbOff1[0]
-                jLen=bbOff1[3]-bbOff1[2]
-                targ=np.copy(sh.cropBb(Ic1,bbOff1))
-                # unwind the transformations to get the global location of the target
-                rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbOut[2],bbOut[0],1]))
-                rOff_tr=pttransform(Ic,np.linalg.inv(Hc1),np.array([bbOff1[2],bbOff1[0],1]))
-                targLocGl=np.zeros(4)
-                targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
-                targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
-                targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
-                targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
+                Ic=sh.cropBb(I1,bbOut)
+                IrefcNOMASK=sh.cropBb(Iref,bbOut)
+                Irefc=sh.cropBb(IrefM,bbOut)
+                rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
+                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid',minArea=np.power(2,18))
+                Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
+                for k in range(bbsOff.shape[0]):
+                    bbOff1=bbsOff[k,:]
+                    iLen=bbOff1[1]-bbOff1[0]
+                    jLen=bbOff1[3]-bbOff1[2]
+                    targ=np.copy(sh.cropBb(Ic1,bbOff1))
+                    # unwind the transformations to get the global location of the target
+                    rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbOut[2],bbOut[0],1]))
+                    rOff_tr=pttransform(Ic,np.linalg.inv(Hc1),np.array([bbOff1[2],bbOff1[0],1]))
+                    targLocGl=np.zeros(4)
+                    targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
+                    targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
+                    targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
+                    targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
 
-                # weird bug in imsave where if the matrix is all ones, it saves as pure black
-                result.append((bbs1[k,4],targ,map(int,tuple(targLocGl)),err))
-    '''
+                    # weird bug in imsave where if the matrix is all ones, it saves as pure black
+                    result.append((bbs1[k,4],targ,map(int,tuple(targLocGl)),err))
+
     if(verbose):
         print 'total extract time = ',time.clock()-t0,'(s)'
     return result
 
 def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
              balP, tplP, flipped, page,
-             voted_rootdir, result_queue):
+             voted_rootdir, projdir, result_queue):
     imgname = os.path.splitext(os.path.split(balP)[1])[0]
 
     relpath_root = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voted_rootdir))
@@ -233,22 +233,30 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     try: os.makedirs(imgmetaout_rootdir)
     except: pass
 
+
+    curid = str(id(mp.current_process()))
+    radix_sort_dir = os.path.join(os.path.abspath(projdir), "extracted_radix/"+curid)
+    print radix_sort_dir
+    try: os.makedirs(radix_sort_dir)
+    except: pass
+
     avg_intensities = [] # [(targetoutpath, float avg_intensity), ...]
 
     # 1.) First, save target patches, target diff data, and target meta
     #     data to disk, and reconstruct directory structure.
     targets = [] # [str targetpath_i, ...]
+
     for uid,img,bbox,Idiff in imgs:
         targetoutname = imgname+"."+str(int(uid))+".png"
         targetoutpath = pathjoin(targetout_rootdir, targetoutname)
         targets.append(targetoutpath)
         img = np.nan_to_num(img)
         if not HACK_SANTACRUZ:
-            avg_intensity = int(255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1])))
+            avg_intensity = 255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1]))
         else:
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
-            avg_intensity = int(round(255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))))
+            avg_intensity = 255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))
         avg_intensities.append((targetoutpath, avg_intensity))
         sh.imsave(targetoutpath, img)
 
@@ -259,6 +267,15 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
         metafile = pathjoin(targetmetaout_rootdir, metaoutname)
         pickle.dump({'bbox':bbox}, open(metafile, "w"))
 
+        placefile = os.path.join(radix_sort_dir, "%02x"%int(avg_intensity))
+        data = array.array("B", np.floor(img.flatten()*255.0).astype(np.uint8)).tostring()
+        if os.path.exists(placefile):
+            open(placefile, "a").write(data)
+            open(placefile+".index", "a").write(targetoutpath+"\0")
+        else:
+            open(placefile, "w").write(data)
+            open(placefile+".index", "w").write(targetoutpath+"\0")
+    
     # 2.) Finally, save image meta-data to disk.
     imgmeta_outpath = os.path.join(imgmetaout_rootdir, "{0}_meta.p".format(imgname))
     toWrite={"flipped": flipped, "targets":targets, "ballot": balP, "template": tplP}
@@ -444,7 +461,7 @@ def convertImagesWorkerMAP(job):
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
     #print "START"
     try:
-        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue) = job
+        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
         t0=time.clock();
 
         # need to load the template images
@@ -477,8 +494,13 @@ def convertImagesWorkerMAP(job):
             balP = balL[side]
             bbs = bbsL[side]
             flipped = balL_flips[side]
-            writeMAP(extractTargetsRegions(balImg, tplImg, bbs, balP=balP), targetDir, targetDiffDir, 
-                     targetMetaDir, imageMetaDir, balP, tplImgPath, flipped, side, voted_rootdir,result_queue)
+            writeMAP(extractTargetsRegions(balImg,tplImg,bbs,
+                                           balP=balP,do_grid_opt=True,
+                                           vCells=4,hCells=4), 
+                     targetDir, targetDiffDir, 
+                     targetMetaDir, imageMetaDir, balP, tplImgPath,
+                     flipped, side, voted_rootdir, projdir, result_queue)
+
         queue.put(True)
     except Exception as e:
         traceback.print_exc()
@@ -608,7 +630,7 @@ def hack_stopped():
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls, bad_ballotids,
                     targetDir, targetMetaDir, imageMetaDir,
-                    targetextract_quarantined, voted_rootdir, stopped=None):
+                    targetextract_quarantined, voted_rootdir, projdir, stopped=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
         dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
@@ -675,8 +697,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
-                   targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, queue, result_queue]
+            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, 
+                   imgpaths_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
+                   voted_rootdir, projdir, queue, result_queue]
             jobs.append(job)
             imgcount += len(imgpaths_ordered)
             

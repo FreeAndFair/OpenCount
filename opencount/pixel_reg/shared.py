@@ -49,7 +49,7 @@ def fastResize(I,rszFac,sig=-1):
     else:
         Icv=cv.fromarray(np.copy(I))
         I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
-        cv.Resize(Icv,I1cv)
+        cv.Resize(Icv,I1cv,interpolation=cv.CV_INTER_AREA)
         Iout=np.asarray(I1cv)
         if sig>0:
             Iout=gaussian_filter(Iout,sig);

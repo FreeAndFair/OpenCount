@@ -46,12 +46,12 @@ class MainFrame(wx.Frame):
 
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, title="OpenCount", *args, **kwargs)
-        
+
         # PROJECT: Current Project being worked on.
         self.project = None
 
         self.init_ui()
-        
+
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onPageChange)
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.onPageChanging)
         self.Bind(wx.EVT_CLOSE, self.onClose)
@@ -79,26 +79,31 @@ class MainFrame(wx.Frame):
         self.panel_set_threshold = ThresholdPanel(self.notebook, self.GetSize())
         self.panel_quarantine = QuarantinePanel(self.notebook)
         self.panel_process = ResultsPanel(self.notebook)
-        self.pages = [(self.panel_projects, "Projects"),
-                      (self.panel_config, "Import Files"), 
-                      (self.panel_partition, "Partition ballots"),
-                      (self.panel_define_attrs, "Define Ballot Attributes"),
-                      (self.panel_label_attrs, "Label Ballot Attributes"),
-                      (self.panel_label_digitattrs, "Label Digit-Based Attributes"),
-                      (self.panel_run_grouping, "Run Grouping"),
-                      (self.panel_correct_grouping, "Correct Grouping"),
-                      (self.panel_seltargets, "Select Voting Targets"),
-                      (self.panel_label_contests, "Label Contests"),
-                      (self.panel_target_extract, "Extract Targets"),
-                      (self.panel_set_threshold, "Set Threshold"),
-                      (self.panel_quarantine, "Process Quarantine"),
-                      (self.panel_process, "Results")]
-        for panel, text in self.pages:
-            self.notebook.AddPage(panel, text)
-        
+        self.pages = [(self.panel_projects, "Projects", "Projects"),
+                      (self.panel_config, "Import Files", "Import"),
+                      (self.panel_partition, "Partition Ballots", "Partition"),
+                      (self.panel_define_attrs, "Define Ballot Attributes", "Define Attrs"),
+                      (self.panel_label_attrs, "Label Ballot Attributes", "Label Attrs"),
+                      (self.panel_label_digitattrs, "Label Digit-Based Attributes", "Label Digit Attrs"),
+                      (self.panel_run_grouping, "Run Grouping", "Group"),
+                      (self.panel_correct_grouping, "Correct Grouping", "Correct Grouping"),
+                      (self.panel_seltargets, "Select Voting Targets", "Targets"),
+                      (self.panel_label_contests, "Label Contests", "Contests"),
+                      (self.panel_target_extract, "Extract Targets", "Extract"),
+                      (self.panel_set_threshold, "Set Threshold", "Threshold"),
+                      (self.panel_quarantine, "Process Quarantine", "Quarantine"),
+                      (self.panel_process, "Results", "Results")]
+        self.titles = {}
+        for panel, fullname, shortname in self.pages:
+            self.notebook.AddPage(panel, shortname)
+            self.titles[panel] = (fullname, shortname)
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
+        if old == -1:
+            # Don't know why these events are sometimes triggered...
+            return
+
         if old == MainFrame.PROJECT:
             status, msg = self.panel_projects.can_move_on()
             if status:
@@ -108,6 +113,19 @@ class MainFrame(wx.Frame):
                 dlg = wx.MessageDialog(self, message=msg, style=wx.ID_OK)
                 dlg.ShowModal()
                 evt.Veto()
+            return
+
+        curpanel = self.notebook.GetPage(old)
+        if hasattr(curpanel, 'can_move_on'):
+            if not curpanel.can_move_on():
+                wx.MessageDialog(self, message="Error: You can not \
+proceed. Please address the prior warnings first.",
+                                 caption="OpenCount: Can't go on",
+                                 style=wx.OK).ShowModal()
+                evt.Veto()
+                return
+        else:
+            print "...Warning: Class {0} has no can_move_on method.".format(curpanel)
 
         if old == MainFrame.CONFIG:
             self.panel_config.stop()
@@ -142,6 +160,13 @@ class MainFrame(wx.Frame):
 
         if self.project:
             self.project.save()
+
+        if old != -1:
+            curpanel = self.notebook.GetPage(old)
+            self.notebook.SetPageText(old, self.titles[curpanel][1])
+        newpanel = self.notebook.GetPage(new)
+        self.notebook.SetPageText(new, self.titles[newpanel][0])
+
 
         if new >= MainFrame.SELTARGETS:
             if not os.path.exists(pathjoin(self.project.projdir_path,
@@ -313,7 +338,7 @@ def exists_imgattr(proj):
         if not attr['is_digitbased']:
             return True
     return False
-    
+
 def exists_attrs(proj):
     if not os.path.exists(proj.ballot_attributesfile):
         return False

@@ -1,23 +1,30 @@
-import os, sys
+import os, sys, multiprocessing, thread
 import cv
 sys.path.append('..')
 import grouping.partask as partask
 
-def extract(imgpatches, do_threshold=None):
+def extract(imgpatches, do_threshold=None, manager=None, queue_mygauge=None):
     """
     Input:
         dict IMGPATCHES: {imgpath: [((x1,y1,x2,y2), isflip, outpath, tag), ...]}
+        obj MANAGER:
+            Pass if you want to do MyGauge-related updates (to be used
+            with an associated Queue instance, QUEUE_MYGAUGE.
+        obj QUEUE_MYGAUGE:
+            The Queue instance (owned by MANAGER) which is used to 
+            communicate cross-process to a MyGauge instance.
     Output:
         dict IMG2PATCH: {(imgpath, tag): patchpath},
         dict PATCH2STUFF. {patchpath: (imgpath, (x1,y1,x2,y2), tag)}.
     """
     return partask.do_partask(_extract_patches, imgpatches,
-                              _args=(do_threshold,),
+                              _args=(do_threshold, queue_mygauge),
+                              manager=manager,
                               combfn=_combfn,
                               init=({}, {}),
                               N=None)
 
-def _extract_patches(imgpatches, (do_threshold,)):
+def _extract_patches(imgpatches, (do_threshold, queue_mygauge)):
     img2patch = {}
     patch2stuff = {}
     for imgpath, tups in imgpatches.iteritems():
@@ -34,6 +41,9 @@ def _extract_patches(imgpatches, (do_threshold,)):
             cv.SaveImage(outpath, I)
             img2patch[(imgpath, tag)] = outpath
             patch2stuff[outpath] = (imgpath, (x1,y1,x2,y2), tag)
+        if queue_mygauge != None:
+            # Updates the MyGauge widget
+            queue_mygauge.put(True)
     return img2patch, patch2stuff
 
 def _combfn(a, b):

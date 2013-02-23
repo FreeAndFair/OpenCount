@@ -13,6 +13,7 @@ import wx, cv, numpy as np, Image, scipy, scipy.misc
 from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
+from panel_opencount import OpenCountPanel
 import util_gui, util
 import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
@@ -20,12 +21,27 @@ import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
 import global_align.global_align as global_align
 
-class SelectTargetsMainPanel(wx.Panel):
+JOBID_TEMPMATCH_TARGETS = util.GaugeID("TemplateMatchTargets")
+
+class SelectTargetsMainPanel(OpenCountPanel):
     GLOBALALIGN_JOBID = util.GaugeID("GlobalAlignJobId")
+
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+        OpenCountPanel.__init__(self, parent, *args, **kwargs)
 
         self.proj = None
+
+        _sanitycheck_callbacks = ((ID_FLAG_ONLYONE_TARGET,
+                                   self._sanitycheck_handle_onlyone_target),
+                                  (ID_FLAG_LONELY_TARGETS,
+                                   self._sanitycheck_handle_lonelytargets),
+                                  (ID_FLAG_CONTEST_ONE_TARGET,
+                                   self._sanitycheck_handle_contest_one_target),
+                                  (ID_FLAG_EMPTY_CONTESTS,
+                                   self._sanitycheck_handle_empty_contest))
+        for (id_flag, fn) in _sanitycheck_callbacks:
+            self.add_sanity_check_callback(id_flag, fn)
+
         self.init_ui()
 
     def init_ui(self):
@@ -204,7 +220,7 @@ class SelectTargetsMainPanel(wx.Panel):
                 target_locs_map.setdefault(group_idx, {}).setdefault(side, [])
                 # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
                 # LONELY_TARGETS: list [TargetBox_i, ...]
-                box_assocs, lonely_targets = self.compute_box_ids(boxes)
+                box_assocs, lonely_targets = compute_box_ids(boxes)
                 lonely_targets_map.setdefault(i, {}).setdefault(side, []).extend(lonely_targets)
                 # For now, just grab one exemplar image from this group
                 imgpath = self.seltargets_panel.partitions[i][0][side]
@@ -268,7 +284,8 @@ class SelectTargetsMainPanel(wx.Panel):
                                                    self.proj.target_locs_map), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
         # Warn User about lonely targets.
-        # TODO: Help the user out more for dealing with this case.
+        # Note: This is currently handled in the UI during sanitychecks,
+        #       but no harm in leaving this here too.
         _lst = []
         cnt = 0
         for i, targs_sidesMap in lonely_targets_map.iteritems():
@@ -286,41 +303,12 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
                                    style=wx.OK)
             dlg.ShowModal()
 
-    def compute_box_ids(self, boxes):
-        """ Given a list of Boxes, some of which are Targets, others
-        of which are Contests, geometrically compute the correct
-        target->contest associations.
-        Input:
-            list BOXES:
-        Output:
-            dict ASSOCS. {int contest_id, [ContestBox, [TargetBox_i, ...]]}
+    def invoke_sanity_checks(self, *args, **kwargs):
+        """ Code that actually calls each sanity-check with application
+        specific arguments. Outputs a list of statuses.
         """
-        def containing_box(box, boxes):
-            """ Returns the box in BOXES that contains BOX. """
-            w, h = box.width, box.height
-            # Allow some slack when checking which targets are contained by a contest
-            slack_fact = 0.1
-            xEps = int(round(w*slack_fact))
-            yEps = int(round(h*slack_fact))
-            for i, otherbox in enumerate(boxes):
-                if ((box.x1+xEps) >= otherbox.x1 and (box.y1+yEps) >= otherbox.y1
-                        and (box.x2-xEps) <= otherbox.x2 and (box.y2-yEps) <= otherbox.y2):
-                    return i, otherbox
-            return None, None
-        assocs = {}
-        contests = [b for b in boxes if isinstance(b, ContestBox)]
-        targets = [b for b in boxes if isinstance(b, TargetBox)]
-        lonely_targets = []
-        for t in targets:
-            id, c = containing_box(t, contests)
-            if id == None:
-                print "Warning", t, "is not contained in any box."
-                lonely_targets.append(t)
-            elif id in assocs:
-                assocs[id][1].append(t)
-            else:
-                assocs[id] = [c, [t]]
-        return assocs, lonely_targets
+        lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes)        
+        return lst_statuses
 
     def onButton_getimgpath(self, evt):
         S = self.seltargets_panel
@@ -330,11 +318,184 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
                                style=wx.OK)
         dlg.ShowModal()
 
+    """ 
+    ===============================================
+    ==== SanityCheck callback handling methods ====
+    ===============================================
+    """
+
+    def rails_show_images(self, grps, grps_data=None,
+                          btn_labels=("Stop Here", "Next Image"), 
+                          btn_fns=(lambda i, grps, grps_data: False,
+                                   lambda i, grps, grps_data: 'next'),
+                          retval_end=False,
+                          title_fn=lambda i, grps, grps_data: "Generic Dialog Title",
+                          msg_fn=lambda i, grps, grps_data: "Generic Description"):
+        """ A simple framework that takes control of the UI, and directs
+        the user to the images indicated by BTN_LABELS. In other words,
+        this is a 'rail-guided' UI flow.
+        Input:
+            list GRPS: [(int grp_idx, int side), ...]
+            dict GRPS_DATA: {(int grp_idx, int side): obj DATA}
+                (Optional) Allows you to pass additional data associated
+                with each (grp_idx, side) to relevant btn_fns or dialog
+                message fns.
+            tuple BTN_LABELS: (str LABEL_0, ..., str LABEL_N)
+                At each image in GRPS, a dialog window with N buttons
+                will be displayed to the user. You can control what each
+                button says via this argument.
+            tuple BTN_FNS: (func FN_0, ..., func FN_N)
+                The function to invoke when the user clicks button N
+                after image i is shown. Each function accepts to 
+                arguments: int i          - the index we are at in GRPS
+                           lst grps       - the input GRPS.
+                           dict grps_data - data for each group GRP.
+                It should return one of three outputs:
+                    bool True: 
+                        Stop the rail-guided tour, and signal that the
+                        user /can/ move on
+                    bool False: 
+                        Stop the rail-guided tour, and signal that the 
+                        user /can't/ move on
+                    tuple 'next':
+                        Display the next image.
+            bool retval_end: 
+                Value to return if the user reaches the end of the list
+                of images. True if the user can move on, False o.w.
+            func TITLE_FN: 
+            func MSG_FN:
+        """
+        grps_data = grps_data if grps_data != None else {}
+        panel = self.seltargets_panel
+        btn_ids = range(len(btn_labels))
+        for i, (grp_idx, side) in enumerate(grps):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            dlg_title = title_fn(i, grps, grps_data)
+            dlg_msg = msg_fn(i, grps, grps_data)
+            status = util.WarningDialog(self, dlg_msg,
+                                        btn_labels,
+                                        btn_ids,
+                                        title=dlg_title).ShowModal()
+            btn_fn = btn_fns[status]
+            result = btn_fn(i, grps, grps_data)
+            if result == True:
+                return True
+            elif result == False:
+                return False
+        return retval_end
+
+    def _sanitycheck_handle_onlyone_target(self, grps):
+        """ Guides the user to each image that only has one voting target.
+        Input:
+            list GRPS: [(int grp_idx, int side), ...]
+        Output:
+            True if the user can move on, False o.w.
+        """
+        fn_stop = lambda i, grps, grps_data: False
+        fn_nextimg = lambda i, grps, grps_data: 'next'
+        fn_skip = lambda i, grps, grps_data: True
+        btn_labels = ("I can fix this.", "Next Image", "Everything is Fine")
+        btn_fns = (fn_stop, fn_nextimg, fn_skip)
+        dlg_titlefn = lambda i,grps,grps_data: "OpenCount Warning: Only one voting target"
+        dlg_msgfn = lambda i,grps, grps_data: "This is an image with only \
+one voting target.\n\
+Image {0} out of {1}".format(i+1, len(grps))
+        return self.rails_show_images(grps, btn_labels=btn_labels,
+                                      btn_fns=btn_fns,
+                                      retval_end=True,
+                                      title_fn=dlg_titlefn,
+                                      msg_fn=dlg_msgfn)
+    
+    def _sanitycheck_handle_lonelytargets(self, lonely_targets_map):
+        """ Guide the user to each image that has a voting target(s) not
+        enclosed within a contest.
+        Input:
+            dict LONELY_TARGETS_MAP: {(int grp_idx, int side): [TargetBox_i, ...]}
+        Output:
+            False (this is a fatal error.)
+        """
+        def make_dlg_msg(i, grps, grps_data):
+            msgbase = "This is an image with {0} voting targets that are \
+not enclosed within a contest."
+            stats = "Image {0} out of {1}."
+            return msgbase.format(len(grps_data[grps[i]])) + "\n" + stats.format(i+1, total_imgs)
+
+        total_imgs = len(lonely_targets_map)
+        total_targets = sum(map(len, lonely_targets_map.values()))
+        # Sort GRPS by first grpidx, then by side
+        grps = sorted(lonely_targets_map.keys(), key=lambda t: t[0]+t[1])
+        return self.rails_show_images(grps, grps_data=lonely_targets_map,
+                                      retval_end=False,
+                                      btn_labels=("I can fix this.", "Next Image"),
+                                      btn_fns=(lambda i,grps,grpdata: False,
+                                               lambda i,grps,grpdata: 'next'),
+                                      title_fn=lambda i,grps,grpdata: "OpenCount Fatal Warning: Lonely Targets",
+                                      msg_fn=make_dlg_msg)
+
+    def _sanitycheck_handle_contest_one_target(self, contests_one_target):
+        """ Guides the user to each offending image.
+        Input:
+            dict CONTESTS_ONE_TARGET: {(int grp_idx, int side): [ContestBox_i, ...]}
+        Output:
+            False (this is a fatal error).
+        """
+        # TODO: Refactor to use self.rails_show_images
+        panel = self.seltargets_panel
+        total_imgs = len(contests_one_target)
+        total_contests = sum(map(len, contests_one_target.values()))
+        _title = "OpenCount Fatal Warning: Bad Contests Detected"
+        _msgbase = "This is an image with {0} contests that only have \
+one voting target."
+        _msgfooter = "Image {0} out of {1}"
+        ID_RESUME = 0
+        ID_NEXT_IMAGE = 1
+        for i, ((grp_idx, side), contestboxes) in enumerate(contests_one_target.iteritems()):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            msgout = _msgbase.format(len(contestboxes)) + "\n" + _msgfooter.format(i+1, total_imgs)
+            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image"),
+                                        (ID_RESUME, ID_NEXT_IMAGE), title=_title).ShowModal()
+            if status == ID_RESUME:
+                return False
+        return False
+    def _sanitycheck_handle_empty_contest(self, empty_contests):
+        """ Guides the user to each empty contest box.
+        Input:
+            dict EMPTY_CONTESTS: {(int grp_idx, int side): [ContestBox_i, ...]
+        Output:
+            False (this is a fatal error).
+        """
+        # TODO: Refactor to use self.rails_show_images
+        panel = self.seltargets_panel
+        total_imgs = len(empty_contests)
+        _title = "OpenCount Fatal Warning: Empty Contests Detected"
+        _msgbase = "This is an image with {0} contests that have no \
+voting targets enclosed."
+        _msgfooter = "Image {0} out of {1}"
+        ID_RESUME = 0
+        ID_NEXT_IMAGE = 1
+        ID_SKIPALL = 2
+        for i, ((grp_idx, side), contestboxes) in enumerate(empty_contests.iteritems()):
+            panel.txt_totalballots.SetLabel(str(len(panel.partitions[grp_idx])))
+            panel.txt_totalpages.SetLabel(str(len(panel.partitions[grp_idx][0])))
+            panel.display_image(grp_idx, 0, side)
+            msgout = _msgbase.format(len(contestboxes)) + "\n" + _msgfooter.format(i+1, total_imgs)
+            status = util.WarningDialog(self, msgout, ("I can fix this.", "Next Image", "- Ignore the empty contests -"),
+                                        (ID_RESUME, ID_NEXT_IMAGE, ID_SKIPALL), title=_title).ShowModal()
+            if status == ID_RESUME:
+                return False
+            elif status == ID_SKIPALL:
+                return True
+        # TODO: Temp. make this a non-fatal error
+        return True
+
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
     partitions
     """
-    TEMPLATE_MATCH_JOBID = 830
     
     # TM_MODE_ALL: Run template matching on all images
     TM_MODE_ALL = 901
@@ -513,9 +674,10 @@ this partition.")
             Box BOX:
             PIL IMG:
         """
+        self.Disable()
         # 1.) Do an autofit.
         patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
-        patch = util_gui.fit_image(patch_prefit, padx=0, pady=0)
+        patch = util_gui.fit_image(patch_prefit, padx=2, pady=2)
         patch_cv = pil2iplimage(patch)
         # 2.) Apply a smooth on PATCH (first adding a white border, to
         # avoid the smooth darkening PATCH, but brightening IMG).
@@ -545,10 +707,16 @@ this partition.")
             imgpaths = imgpaths[self.cur_page:] # Don't run on prior pages
         print "...Running template matching on {0} images...".format(len(imgpaths))
         queue = Queue.Queue()
-        thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img,
+        thread = TM_Thread(queue, JOBID_TEMPMATCH_TARGETS, patch, img,
                            imgpaths, self.tm_param, self.win_ballot, self.win_target,
                            self.on_tempmatch_done)
         thread.start()
+
+        gauge = util.MyGauge(self, 1, job_id=JOBID_TEMPMATCH_TARGETS,
+                             msg="Finding Voting Targets...")
+        gauge.Show()
+        num_tasks = len(imgpaths)
+        Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, JOBID_TEMPMATCH_TARGETS))
 
     def on_tempmatch_done(self, results, w, h):
         """ Invoked after template matching computation is complete. 
@@ -602,6 +770,7 @@ this partition.")
         print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
+        self.Enable()
         print "...Finished adding results from tempmatch run."
 
     def display_image(self, i, j, page, autofit=False):
@@ -854,6 +1023,7 @@ class Toolbar(wx.Panel):
         self.parent.imagepanel.boxtype = TargetBox
     def onButton_forceaddtarget(self, evt):
         self.setmode(TargetFindPanel.M_FORCEADD_TARGET)
+        self.parent.imagepanel.boxtype = TargetBox
     def onButton_addcontest(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = ContestBox
@@ -1153,10 +1323,18 @@ class BoxDrawPanel(ImagePanel):
         if self.mode_m == BoxDrawPanel.M_CREATE:
             cursor = wx.StockCursor(wx.CURSOR_CROSS)
         elif self.mode_m == BoxDrawPanel.M_IDLE:
-            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+            if self.isResize:
+                cursor = wx.StockCursor(wx.CURSOR_SIZING)
+            elif self.get_box_to_resize(self._x, self._y)[0]:
+                cursor = wx.StockCursor(wx.CURSOR_SIZING)
+            elif self.get_boxes_within(self._x, self._y, mode='any'):
+                cursor = wx.StockCursor(wx.CURSOR_HAND)
+            else:
+                cursor = wx.StockCursor(wx.CURSOR_ARROW)
         else:
             cursor = wx.StockCursor(wx.CURSOR_ARROW)
-        self.SetCursor(cursor)
+        if self.GetCursor() != cursor:
+            self.SetCursor(cursor)
         return cursor
 
     def set_boxes(self, boxes):
@@ -1262,13 +1440,14 @@ class BoxDrawPanel(ImagePanel):
         results = sorted(results, key=lambda t: t[1])
         return results
 
-    def get_box_to_resize(self, x, y, C=8.0):
+    def get_box_to_resize(self, x, y, C=5.0):
         """ Returns a Box instance if the current mouse location is
         close enough to a resize location, or None o.w.
         Input:
             int X, Y: Mouse location.
+            int C: How close the mouse has to be to a box corner.
         Output:
-            Box or None.
+            (Box, str orientation) or (None, None).
         """
         results = [] # [[orient, box, dist], ...]
         for box in self.boxes:
@@ -1303,12 +1482,14 @@ class BoxDrawPanel(ImagePanel):
             self.box_resize = box_resize
             self.resize_orient = orient
             self.Refresh()
+            self.update_cursor()
             return
 
         if self.mode_m == BoxDrawPanel.M_CREATE:
             print "...Creating Target box."
             self.clear_selected()
             self.startBox(x, y)
+            self.update_cursor()
         elif self.mode_m == BoxDrawPanel.M_IDLE:
             boxes = self.get_boxes_within(x, y, mode='any')
             if boxes:
@@ -1319,6 +1500,7 @@ class BoxDrawPanel(ImagePanel):
             else:
                 self.clear_selected()
                 self.startBox(x, y, SelectionBox)
+            self.update_cursor()
 
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
@@ -1328,15 +1510,19 @@ class BoxDrawPanel(ImagePanel):
             self.box_resize = None
             self.isResize = False
             self.dirty_all_boxes()
+            self.update_cursor()
 
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             box = self.finishBox(x, y)
             self.boxes.append(box)
+            self.update_cursor()
         elif self.mode_m == BoxDrawPanel.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
             boxes = get_boxes_within(self.boxes, box)
             print "...Selecting {0} boxes.".format(len(boxes))
             self.select_boxes(*boxes)
+            self.update_cursor()
+        
         self.Refresh()
 
     def onMotion(self, evt):
@@ -1354,6 +1540,7 @@ class BoxDrawPanel(ImagePanel):
                 self.box_resize.y2 += ydel_img
             if 'W' in self.resize_orient:
                 self.box_resize.x1 += xdel_img
+            self.update_cursor()
             self.Refresh()
             return
 
@@ -1372,6 +1559,7 @@ class BoxDrawPanel(ImagePanel):
             # a very fast operation! Very convenient.
             self.dirty_all_boxes()
             self.Refresh()
+        self.update_cursor()
 
     def onKeyDown(self, evt):
         keycode = evt.GetKeyCode()
@@ -1423,7 +1611,25 @@ class BoxDrawPanel(ImagePanel):
         if not boxes_todo:
             return
         # First draw contests, then targets on-top.
-        boxes_todo = sorted(boxes_todo, key=lambda b: 0 if type(b) == ContestBox else 1)
+        contest_boxes, target_boxes = [], []
+        for box in boxes_todo:
+            if isinstance(box, ContestBox):
+                contest_boxes.append(box)
+            else:
+                target_boxes.append(box)
+
+        # Sort contests first by x1, then by y1 (e.g roughly by columns)
+        # TODO: Doing this sort of sort on every draw routine sounds like
+        # a bad idea (plus, this is just a heuristic sloppy sort anyways) - 
+        # for now, just let the original ordering determine the color order
+        # for contests.
+        '''
+        if contest_boxes:
+            max_x1 = max([c.x1 for c in contest_boxes])
+            _decdigits = int(round(math.floor(math.log(max_x1, 10))))
+            contest_boxes = sorted(contest_boxes, key=lambda c: (c.x1 * (10**_decdigits)) + c.y1)
+        '''
+
         npimg_cpy = self.npimg.copy()
         def draw_border(npimg, box, thickness=2, color=(0, 0, 0)):
             T = thickness
@@ -1447,23 +1653,42 @@ class BoxDrawPanel(ImagePanel):
             npimg[y1:y2, max(0, (x2-T)):x2] += clr*0.8
             return npimg
 
-        for box in boxes_todo:
-            clr, thickness = box.get_draw_opts()
-            draw_border(npimg_cpy, box, thickness=thickness, color=(0, 0, 0))
-            if box.is_sel:
-                transparent_color = np.array(box.shading_selected_clr) if box.shading_selected_clr else None
+        for i, contestbox in enumerate(contest_boxes):
+            clr, thickness = contestbox.get_draw_opts()
+            draw_border(npimg_cpy, contestbox, thickness=thickness, color=(0, 0, 0))
+            if contestbox.is_sel:
+                transparent_color = np.array(contestbox.shading_selected_clr) if contestbox.shading_selected_clr else None
             else:
-                transparent_color = np.array(box.shading_clr) if box.shading_clr else None
+                #transparent_color = np.array(contestbox.shading_clr) if contestbox.shading_clr else None
+                transparent_color = np.array(contestbox.shading_clr_cycle[i % len(contestbox.shading_clr_cycle)]) if contestbox.shading_clr_cycle else None
             if transparent_color != None:
                 t = time.time()
-                _x1, _y1 = self.img2c(box.x1, box.y1)
-                _x2, _y2 = self.img2c(box.x2, box.y2)
+                _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
+                _x2, _y2 = self.img2c(contestbox.x2, contestbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
                 np_rect[:,:] *= 0.7
                 np_rect[:,:] += transparent_color*0.3
                 dur_wxbmp2np = time.time() - t
             
-            box._dirty = False
+            contestbox._dirty = False
+
+        for targetbox in target_boxes:
+            clr, thickness = targetbox.get_draw_opts()
+            draw_border(npimg_cpy, targetbox, thickness=thickness, color=(0, 0, 0))
+            if targetbox.is_sel:
+                transparent_color = np.array(targetbox.shading_selected_clr) if targetbox.shading_selected_clr else None
+            else:
+                transparent_color = np.array(targetbox.shading_clr) if targetbox.shading_clr else None
+            if transparent_color != None:
+                t = time.time()
+                _x1, _y1 = self.img2c(targetbox.x1, targetbox.y1)
+                _x2, _y2 = self.img2c(targetbox.x2, targetbox.y2)
+                np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
+                np_rect[:,:] *= 0.7
+                np_rect[:,:] += transparent_color*0.3
+                dur_wxbmp2np = time.time() - t
+            
+            targetbox._dirty = False
 
         h, w = npimg_cpy.shape[:2]
         t = time.time()
@@ -1628,6 +1853,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             self.clear_selected()
             self.startBox(x, y)
             self.Refresh()
+            self.update_cursor()
         else:
             TemplateMatchDrawPanel.onLeftDown(self, evt)
 
@@ -1650,11 +1876,13 @@ class TargetFindPanel(TemplateMatchDrawPanel):
                 box.y2 = box.y1 + h
             self.boxes.append(box)
             self.Refresh()
+            self.update_cursor()
         else:
-            TemplateMatchDrawPanel.onLeftUp(self, evt)        
+            TemplateMatchDrawPanel.onLeftUp(self, evt)
+        
 
 class TM_Thread(threading.Thread):
-    TEMPLATE_MATCH_JOBID = 48
+
     def __init__(self, queue, job_id, patch, img, imgpaths, tm_param,
                  win_ballot, win_target,
                  callback, *args, **kwargs):
@@ -1685,19 +1913,24 @@ class TM_Thread(threading.Thread):
         xwinT, ywinT = self.win_target
         # results: {str imgpath: [(x1,y1,x2,y2,score_i), ...]}
         # Note: self.patch is already smooth'd.
+
         results = tempmatch.get_tempmatches_par(self.patch, self.imgpaths,
                                                 do_smooth=tempmatch.SMOOTH_IMG_BRD,
                                                 T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
-                                                xwinI=xwinB, ywinI=ywinB)
+                                                xwinI=xwinB, ywinI=ywinB,
+                                                jobid=self.job_id)
+
         dur = time.time() - t
         print "...finished running template matching ({0} s).".format(dur)
-        self.callback(results, w, h)
+        wx.CallAfter(self.callback, results, w, h)
 
 class Box(object):
     # SHADING: (int R, int G, int B)
     #     (Optional) color of transparent shading for drawing
     shading_clr = None
     shading_selected_clr = None
+
+    shading_clr_cycle = None
 
     def __init__(self, x1, y1, x2, y2):
         self.x1, self.y1, self.x2, self.y2 = x1, y1, x2, y2
@@ -1757,6 +1990,8 @@ class TargetBox(Box):
     shading_clr = (0, 255, 0) # Green
     shading_selected_clr = (255, 0, 0) # Red
 
+    shading_clr_cycle = None
+
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
@@ -1776,7 +2011,10 @@ class TargetBox(Box):
         return TargetBox(self.x1, self.y1, self.x2, self.y2, is_sel=self.is_sel)
 class ContestBox(Box):
     shading_clr = (0, 0, 200) # Blue
-    shading_selected_clr = (161, 0, 240) # Purple
+    shading_selected_clr = (171, 0, 240) # Purple
+
+    # shading_clr_cycle := A list of colors to alternate from
+    shading_clr_cycle = ((0, 0, 200), (0, 150, 245), (0, 190, 150), (80, 0, 245))
 
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
@@ -1865,6 +2103,183 @@ def expand_box(box, factor, bounds=None):
         b.y2 = int(round(box.y2 + (box.height*factor)))
     return b
 
+def compute_box_ids(boxes):
+    """ Given a list of Boxes, some of which are Targets, others
+    of which are Contests, geometrically compute the correct
+    target->contest associations. Also outputs all voting targets
+    which are not contained in a contest.
+    Input:
+        list BOXES:
+    Output:
+        (ASSOCS, LONELY_TARGETS)
+    dict ASSOCS: {int contest_id, [ContestBox, [TargetBox_i, ...]]}
+    list LONELY_TARGETS: [TargetBox_i, ...]
+    """
+    def containing_box(box, boxes):
+        """ Returns the box in BOXES that contains BOX. """
+        w, h = box.width, box.height
+        # Allow some slack when checking which targets are contained by a contest
+        slack_fact = 0.1
+        xEps = int(round(w*slack_fact))
+        yEps = int(round(h*slack_fact))
+        for i, otherbox in enumerate(boxes):
+            if ((box.x1+xEps) >= otherbox.x1 and (box.y1+yEps) >= otherbox.y1
+                    and (box.x2-xEps) <= otherbox.x2 and (box.y2-yEps) <= otherbox.y2):
+                return i, otherbox
+        return None, None
+    assocs = {}
+    contests = [b for b in boxes if isinstance(b, ContestBox)]
+    targets = [b for b in boxes if isinstance(b, TargetBox)]
+    lonely_targets = []
+    # Ensure that each contest C is present in output ASSOCS, even if
+    # it has no contained voting targets
+    # Note: output contest ids are determined by ordering in the CONTESTS list
+    for contestid, c in enumerate(contests):
+        assocs[contestid] = (c, [])
+
+    for t in targets:
+        id, c = containing_box(t, contests)
+        if id == None:
+            #print "Warning", t, "is not contained in any box."
+            lonely_targets.append(t)
+        elif id in assocs:
+            assocs[id][1].append(t)
+        else:
+            assocs[id] = [c, [t]]
+    return assocs, lonely_targets
+
+"""
+=======================
+==== Sanity Checks ====
+=======================
+"""
+
+# There are absolutely /no/ voting targets
+ID_FLAG_NO_TARGETS = 0
+_MSG_NO_TARGETS = "Error: No voting targets have been created yet. You \
+will not be able to proceed until you select the voting targets."
+
+# There are images that have no voting targets
+ID_FLAG_EMPTY_IMAGES = 1
+
+# There are images with only one voting target
+ID_FLAG_ONLYONE_TARGET = 2
+
+# There are voting targets not within a contest
+ID_FLAG_LONELY_TARGETS = 3
+
+# There are no contests defined
+ID_FLAG_NO_CONTESTS = 4
+_MSG_NO_CONTESTS = "Error: No contests have been created. You must define \
+contests to proceed."
+
+# There are contests with no voting targets contained
+ID_FLAG_EMPTY_CONTESTS = 5
+
+# There are contests with only one voting target
+ID_FLAG_CONTEST_ONE_TARGET = 6
+
+def check_all_images_have_targets(boxes_map):
+    """
+    Input:
+        dict BOXES_MAP: {int grp_idx: [[Box_i_side0, Box_i+1_side0, ...], [Box_i_side1, ...], ...]}
+    Output:
+        [(bool isOk_i, bool isFatal_i, str msg_i, int ID_FLAG, obj data), ...]
+    """
+    PASS, NOTPASS = True, False
+    FATAL, NOTFATAL = True, False
+    out_lst = []
+    grp_contestcnts = util.Counter() # maps {(grp_idx, side): int contest_cnt}
+    grp_targetcnts = util.Counter() # maps {(grp_idx, side): int target_cnt}
+    grp_notargs = [] # [(int grp_idx, int side), ...]
+    grp_nocontests = [] # [(int grp_idx, int side), ...]
+    grp_onlyone_targ = [] # [(int grp_idx, int side), ...]
+    lonely_targets_map = {} # maps {(int grp_idx, int side): [TargetBox_i, ...]}}
+    cnt_lonely_targets = 0
+    grp_contests_one_target = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
+    grp_empty_contests = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
+    for grp_idx, boxes_tups in boxes_map.iteritems():
+        for side, boxes in enumerate(boxes_tups):
+            box_assocs, lonely_targets = compute_box_ids(boxes)
+            cnt_lonely_targets += len(lonely_targets)
+            if lonely_targets:
+                lonely_targets_map.setdefault((grp_idx, side), []).extend(lonely_targets)
+            targets = [b for b in boxes if isinstance(b, TargetBox)]
+            contests = [b for b in boxes if isinstance(b, ContestBox)]
+            grp_targetcnts[(grp_idx, side)] += len(targets)
+            grp_contestcnts[(grp_idx, side)] += len(contests)
+            if not targets:
+                grp_notargs.append((grp_idx, side))
+            if not contests:
+                grp_nocontests.append((grp_idx, side))
+            if len(targets) == 1:
+                grp_onlyone_targ.append((grp_idx, side))
+            
+            for contestid, contest_tup in box_assocs.iteritems():
+                contestbox, contest_targets = contest_tup[0], contest_tup[1]
+                if len(contest_targets) == 0:
+                    grp_empty_contests.setdefault((grp_idx, side), []).append(contestbox)
+                elif len(contest_targets) == 1:
+                    grp_contests_one_target.setdefault((grp_idx, side), []).append(contestbox)
+
+    isok_notargets = sum(grp_targetcnts.values()) > 0
+    isok_nocontests = sum(grp_contestcnts.values()) > 0
+    out_lst.append((isok_notargets, True, _MSG_NO_TARGETS, ID_FLAG_NO_TARGETS, None))
+
+    if not isok_notargets:
+        return out_lst
+
+    out_lst.append((isok_nocontests, True, _MSG_NO_CONTESTS, ID_FLAG_NO_CONTESTS, None))
+    if not isok_nocontests:
+        return out_lst
+ 
+    if grp_notargs:
+        msg_empty_images = "Warning: {0} different ballot images did not have \
+any voting targets detected. If this is a mistake, please go back and \
+correct it. \n\
+Otherwise, if these images in fact do not contain any voting \
+targets (e.g. they are blank), you may continue.".format(len(grp_notargs))
+        out_lst.append((NOTPASS, NOTFATAL, msg_empty_images, ID_FLAG_EMPTY_IMAGES, grp_notargs))
+    else:
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_EMPTY_IMAGES, None))
+    
+    if grp_onlyone_targ:
+        msg_onlyone_targ = "Warning: {0} ballot images only had one \
+voting target detected. If this is a mistake, please bo back and correct \
+the images.".format(len(grp_onlyone_targ))
+        out_lst.append((NOTPASS, NOTFATAL, msg_onlyone_targ, ID_FLAG_ONLYONE_TARGET, grp_onlyone_targ))
+    else:
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_ONLYONE_TARGET, None))
+
+    if cnt_lonely_targets > 0:
+        msg_lonelytargets = "Warning: There were {0} targets that were \
+not enclosed within a contest.".format(cnt_lonely_targets)
+        out_lst.append((NOTPASS, FATAL, msg_lonelytargets, ID_FLAG_LONELY_TARGETS, lonely_targets_map))
+    else:
+        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_LONELY_TARGETS, None))
+
+    if grp_empty_contests:
+        msg_emptycontests = "Warning: There were {0} contests that had \
+no voting targets enclosed.".format(len(grp_empty_contests))
+        out_lst.append((NOTPASS, NOTFATAL, msg_emptycontests, ID_FLAG_EMPTY_CONTESTS, grp_empty_contests))
+    else:
+        out_lst.append((PASS, NOTFATAL, "Pass", ID_FLAG_EMPTY_CONTESTS, None))
+        
+    if grp_contests_one_target:
+        msg_contests_one_target = "Warning: There were {0} contests that \
+had only one voting target.".format(len(grp_contests_one_target))
+        out_lst.append((NOTPASS, FATAL, msg_contests_one_target, ID_FLAG_CONTEST_ONE_TARGET, grp_contests_one_target))
+    else:
+        out_lst.append((PASS, FATAL, "Pass", ID_FLAG_CONTEST_ONE_TARGET, None))
+
+    return out_lst
+
+"""
+===========================
+==== END Sanity Checks ====
+===========================
+"""
+
 def img_to_wxbitmap(img, size=None):
     """ Converts IMG to a wxBitmap. """
     # TODO: Assumes that IMG is a wxImage
@@ -1941,7 +2356,7 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                     I = shared.standardImread(imgpath, flatten=True)
                     if img2flip[imgpath]:
                         I = shared.fastFlip(I)
-                    H, Ireg, err = global_align.align_image(Iref, I)
+                    H, Ireg, err = global_align.align_image(I, Iref)
                     #H, Ireg, err = global_align.align_strong(I, Iref, crop_Iref=(0.05, 0.05, 0.05, 0.05),
                     #                                         do_nan_to_num=True)
                     outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)

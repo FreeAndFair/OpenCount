@@ -5,11 +5,15 @@ from imagesAlign import *
 import cv
 import traceback, os, shutil, time
 import multiprocessing as mp
+import wx
+from wx.lib.pubsub import Publisher
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
-from util import encodepath
+from util import encodepath, GaugeID
+
+JOBID_GROUPING_IMGBASED = GaugeID("GROUPING_IMGBASED")
 
 def doWrite(finalOrder, Ip, err, attrName, patchDir, metaDir, origfullpath):
     fullpath = encodepath(origfullpath)
@@ -440,7 +444,7 @@ def groupImagesWorkerMAP(job):
         #(ballotid, imgpaths, attrName, bb, attrinfo, attr2pat,scale) = job
         # Note: In blankballot-less pipeline, IMGPATHS is always a list of
         # one element - the imgpath that is the correct side for ATTRTYPE.
-        (ballotid, imgpaths, attrtype, bb, attr2pat, isflip, scale, patchDestDir, queue) = job
+        (ballotid, imgpaths, attrtype, bb, attr2pat, isflip, scale, patchDestDir, queue, queue_progress) = job
 
         # ((obj imgpatch_i, [obj attrpatch_i, ...], str attrval_i, int side_i, int isflip_i), ...)
         patchTuples = createPatchTuplesMAP(imgpaths,attr2pat,bb,flip=isflip)
@@ -505,11 +509,12 @@ def groupImagesWorkerMAP(job):
 
         result = doWriteMAP(finalOrder, Ireg, IO[2], attrtype, patchDestDir, ballotid, bestExemplarIdx)
         queue.put(result)
+        queue_progress.put((True, ballotid))
     except Exception as e:
         print 'AAAHH'
         traceback.print_exc()
         queue.put(e.message)
-        raise e
+        queue_progress.put((False, ballotid))
 
 def listAttributes(patchesH):
     # tuple ((key=attrType, patchesH tuple))
@@ -658,6 +663,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
 
     manager = mp.Manager()
     queue = manager.Queue()
+    queue_progress = manager.Queue() # Used for MyGauge updates
     pool = mp.Pool(processes=nProc)
 
     jobs = []
@@ -667,7 +673,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         imgpath_in = imgpaths_ordered[side]
         isflip = img2flip[imgpath_in]
         jobs.append([ballotid, [imgpath_in], attrName, superRegion, attr2pat, isflip, scale,
-                     patchDestDir, queue])
+                     patchDestDir, queue, queue_progress])
 
     print "Number of jobs:", len(jobs)
     # 3.) Perform jobs.
@@ -684,6 +690,15 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
             it[0] = True
             print "I AM DONE NOW! WOW"
         pool.map_async(groupImagesWorkerMAP,jobs, callback=lambda x: imdone(it))
+
+        i = 0
+        while i < len(jobs):
+            job_status, job_ballotid = queue_progress.get() # Blocks until value is ready
+            if job_status == False:
+                print "...Uhoh, ballotid={0} had a grouping failure.".format(job_ballotid)
+            if wx.App.IsMainLoopRunning():
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_IMGBASED,))
+            i += 1
 
         while not it[0]:
             if stopped():

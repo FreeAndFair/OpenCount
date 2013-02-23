@@ -17,7 +17,8 @@ HORIZONTAL = 1
 
 def parse_patch(patch, marksize, gap=7, LEN=None,
                 BEGIN_TOL=0.3, END_TOL=0.3, MARKTOL=0.5, 
-                orient=HORIZONTAL):
+                orient=HORIZONTAL,
+                GAMMA=0.5):
     """ Interprets a patch with a tight bound.
     Input:
     IplImage PATCH:
@@ -36,6 +37,10 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
         Only relevant when LEN is some positive integer.
     int ORIENT:
         Which orientation (VERTICAL, HORIZONTAL) the barcode resides in.
+    float GAMMA: If you can't find a mark within (GAMMA*w_mark) pixels
+                 of the previous mark, then give up. If GAMMA=None, then
+                 this behavior is ignored, though, you could get some
+                 funky interpretations.
     Output:
         (list SYMS, dict PARAMS)
     list SYMS: [(str VAL, int X), ...]
@@ -54,14 +59,22 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
     pix_on, pix_off = infer_on_off(flat_np)
 
     syms = scan_line(flat_tpl, w_mark if orient == HORIZONTAL else h_mark, pix_on, pix_off, gap,
-                     LEN=LEN, MARKTOL=MARKTOL, BEGIN_TOL=BEGIN_TOL, END_TOL=END_TOL)
+                     LEN=LEN, MARKTOL=MARKTOL, BEGIN_TOL=BEGIN_TOL, END_TOL=END_TOL,
+                     GAMMA=GAMMA)
 
     return syms, {'pix_on': pix_on, 'pix_off': pix_off}
 
 def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
-              MARKTOL=0.5, BEGIN_TOL=0.3, END_TOL=0.3):
+              MARKTOL=0.5, BEGIN_TOL=0.3, END_TOL=0.3,
+              GAMMA=0.5):
     """ Walks DATA, estimating symbols '0'/'1' based on W_MARK and 
     PIX_ON/PIX_OFF.
+    Input:
+        ...
+        float GAMMA: If you can't find a mark within (GAMMA*w_mark) pixels
+                     of the previous mark, then give up. If GAMMA=None, then
+                     this behavior is ignored, though, you could get some
+                     funky interpretations.
     """
     def parse_mark_maybe(data, idx, check_on):
         """ Starting at DATA[IDX], checks to see if an ON/OFF mark
@@ -96,13 +109,18 @@ def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
             return True if dist_on < dist_off else False
     syms = [] # [(str SYM, int x), ...]
     i = 0
+    idx_prevmark = None
     while i < len(data) and ((LEN == None) or (len(syms) < LEN)):
+        if GAMMA != None and idx_prevmark != None and abs(i - (idx_prevmark+w_mark+gap)) > (GAMMA * (w_mark+gap)):
+            # Terminate 
+            return syms
         val = data[i]
         if is_on(val):
             # (Potentially) entering new mark
             is_mark, k = parse_mark_maybe(data, i, True)
             if is_mark:
                 syms.append(('1', i))
+                idx_prevmark = i
                 i += k + gap
             else:
                 i += 1
@@ -111,6 +129,7 @@ def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
             is_mark, k = parse_mark_maybe(data, i, False)
             if is_mark:
                 syms.append(('0', i))
+                idx_prevmark = i
                 i += k + gap
             else:
                 i += 1

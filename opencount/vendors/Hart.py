@@ -70,6 +70,13 @@ class HartVendor(Vendor):
         return flipmap, bbstripes_map, err_imgpaths, ioerr_imgpaths
 
     def partition_ballots(self, verified_results, manual_labeled):
+        """
+        Input:
+            dict VERIFIED_RESULTS:
+            dict MANUAL_LABELED: {str imgpath: (str bc,)}
+        Output:
+            (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
+        """
         partitions = {} # maps {partitionID: [int ballotID, ...]}
         img2decoding = {} # maps {imgpath: [str bc_i, ...]}
         imginfo_map = {} # maps {imgpath: {str PROPNAME: str PROPVAL}}
@@ -81,10 +88,12 @@ class HartVendor(Vendor):
         img_decoded_map = hart.interpret_labels(img_bc_temp)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         attrs2partitionID = {} # maps {('precinct', 'language', 'party'): int partitionID}
-        curPartitionID = 0
-        for imgpath, decoding in dict(img_decoded_map.items() + manual_labeled.items()).iteritems():
-            img2decoding[imgpath] = decoding
-            imginfo = hart.get_info([decoding])
+
+        def add_decoding(imgpath, decoding, curPartitionID):
+            """ Returns True if a new partition is created. """
+            created_new_partition = False
+            img2decoding[imgpath] = (decoding,)
+            imginfo = hart.get_info((decoding,))
             imginfo_map[imgpath] = imginfo
             tag = (imginfo['precinct'], imginfo['language'], imginfo['party'])
             if self.proj.num_pages == 1:
@@ -95,9 +104,21 @@ class HartVendor(Vendor):
             if partitionid == None:
                 partitionid = curPartitionID
                 attrs2partitionID[tag] = curPartitionID
-                curPartitionID += 1
+                created_new_partition = True
             ballotid = img2bal[imgpath]
             partitions.setdefault(partitionid, set()).add(ballotid)
+            return created_new_partition
+
+        curPartitionID = 0
+        for imgpath, decoding in img_decoded_map.iteritems():
+            added_new_partition = add_decoding(imgpath, decoding, curPartitionID)
+            if added_new_partition:
+                curPartitionID += 1
+        for imgpath, decoding_tuple in manual_labeled.iteritems():
+            added_new_partition = add_decoding(imgpath, decoding_tuple[0], curPartitionID)
+            if added_new_partition:
+                curPartitionID += 1
+
         for partitionid, ballotid_set in partitions.iteritems():
             partitions[partitionid] = sorted(list(ballotid_set))
         return partitions, img2decoding, imginfo_map

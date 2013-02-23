@@ -1,4 +1,4 @@
-import multiprocessing
+import multiprocessing, time
 from PIL import Image, ImageChops, ImageOps
 from time import clock
 import numpy as np
@@ -12,16 +12,19 @@ import grouping.partask as partask
 from pixel_reg.imagesAlign import imagesAlign
 
 def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, type='rigid',
-                  minArea=np.power(2, 16), bbs_map=None, numProcs=None):
+                  minArea=np.power(2, 16), bbs_map=None, numProcs=None,
+                  imgCache=None):
     """ A parallel-wrapper for minmax_cv_v2. 
     Note: For some reason, this is ~10X slower than just calling minmax_cv
     and doing it in a single process. Not sure why...
+    NOTE: Currently deprecated. We switched back to using a numpy-based
+          overlay-generation function, for ease (make_overlay_minmax)
     """
     if numProcs == None:
         numProcs = multiprocessing.cpu_count()
     if numProcs == 1:
         return minmax_cv(imgpaths, do_align=do_align, rszFac=rszFac, type=type,
-                         minArea=minArea, bbs_map=bbs_map)
+                         minArea=minArea, bbs_map=bbs_map, imgCache=imgCache)
     imgpaths = imgpaths[:]
     Iref_imP = imgpaths.pop()
     Imin_str, Imax_str, size = partask.do_partask(_minmax_cv_v2_wrapper, 
@@ -98,7 +101,7 @@ def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, type='rigi
     return Imin.tostring(), Imax.tostring(), cv.GetSize(Imin)
             
 def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
-              minArea=np.power(2, 16), bbs_map=None):
+              minArea=np.power(2, 16), bbs_map=None, imgCache=None):
     """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is
     True, then this also aligns every image to the first image in
     IMGPATHS.
@@ -110,11 +113,18 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
     Output:
         cvMat minimg, cvMat maximg.
     """
+    def load_image(imgpath):
+        if imgCache == None:
+            return cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        else:
+            ((img, imgpath), isHit) = imgCache.load(imgpath)
+            return img
+
     if bbs_map == None:
         bbs_map = {}
     imgpath = imgpaths[0]
     bb0 = bbs_map.get(imgpath, None)
-    Imin = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    Imin = load_image(imgpath)
     if bb0:
         coords = (bb0[0], bb0[1], bb0[2]-bb0[0], bb0[3]-bb0[1])
         coords = tuple(map(int, coords))
@@ -124,7 +134,7 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
     #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
     Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
     for imgpath in imgpaths[1:]:
-        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        I = load_image(imgpath)
         bb = bbs_map.get(imgpath, None)
         if bb:
             bb = tuple(map(int, bb))
@@ -203,11 +213,37 @@ def np2iplimage(array):
     cv.SetData(img, array.tostring(), array.dtype.itemsize * 1 * array.shape[1])
     return img
 
-def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
+def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
+                        queue_mygauge=None):
+    """ Generates the min/max overlays of a set of imagepaths.
+    If the images in IMGPATHS are of different size, then this function
+    arbitrarily chooses the first image to be the size of the output
+    IMIN, IMAX.
+    Input:
+        list IMGPATHS:
+        bool DO_ALIGN:
+            If True, then this will choose an arbitrary image A as a reference
+            image, and align every image in IMGPATHS to A.
+        float RSZFAC:
+            Which scale to perform image alignment at.
+        obj IMGCACHE:
+            If given, the function will use IMGCACHE, an instance of the
+            ImageCache class, to load images. Otherwise, it will always
+            read each image from disk.
+    Output:
+        (nparray Imin, nparray Imax).
+    """
+    # TODO: Implement with bbs_map
+    def load_image(imgpath):
+        if imgCache == None:
+            return misc.imread(imgpath, flatten=True)
+        else:
+            (img, imgpath), isHit = imgCache.load(imgpath)
+            return img
     overlayMin, overlayMax = None, None
     Iref = None
     for path in imgpaths:
-        img = misc.imread(path, flatten=1)
+        img = load_image(path)
         if do_align and Iref == None:
             Iref = img
         elif do_align:
@@ -226,10 +262,15 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
                 h, w = overlayMax.shape
                 img = resize_img_norescale(img, (w,h))
             overlayMax = np.fmax(overlayMax, img)
+        if queue_mygauge != None:
+            queue_mygauge.put(True)
 
-    #rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-    #overlayMax = sh.fastResize(overlayMax, rszFac) #/ 255.0
-    #overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
+    # HACK: To prevent auto-dynamic-rescaling bugs, where an all-white
+    # image is interpreted as all-black, artificially insert a 0.0 at (0,0).
+    # See: http://stefaanlippens.net/scipy_unscaledimsave
+    overlayMin[0,0] = 0.0
+    overlayMax[0,0] = 0.0
+
     return overlayMin, overlayMax
 
 def make_minmax_overlay2(imgs, do_align=False, rszFac=1.0):
@@ -271,7 +312,7 @@ def resize_img_norescale(img, size):
     """
     w,h = size
     shape = (h,w)
-    out = np.zeros(shape)
+    out = np.zeros(shape, dtype=img.dtype)
     i = min(img.shape[0], out.shape[0])
     j = min(img.shape[1], out.shape[1])
     out[0:i,0:j] = img[0:i, 0:j]

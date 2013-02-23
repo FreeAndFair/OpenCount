@@ -307,7 +307,7 @@ class WarningDialog(wx.Dialog):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         txt = wx.StaticText(self, label=warn_msg)
-        txt.Wrap(500)
+        txt.Wrap(600)
         btns = []
         sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
         for i, btn_label in enumerate(btn_labels):
@@ -316,10 +316,10 @@ class WarningDialog(wx.Dialog):
             btns.append(btn)
             btn_statusval = status_vals[i]
             btn._mystatusval = btn_statusval
-            sizer_btns.Add(btn)
+            sizer_btns.Add(btn, border=5, flag=wx.ALL)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(txt)
-        sizer.Add(sizer_btns, flag=wx.ALIGN_CENTER)
+        sizer.Add(txt, border=20, flag=wx.ALL)
+        sizer.Add(sizer_btns, border=10, flag=wx.BOTTOM | wx.ALIGN_CENTER)
         self.SetSizer(sizer)
         self.Fit()
         
@@ -489,6 +489,36 @@ def np2wxBitmap(nparray):
     """
     wximg = np2wxImage(nparray)
     return wximg.ConvertToBitmap()
+
+def cvImg2np(Icv):
+    """ Converts from the OpenCV ImageIpl class to a numpy array. 
+    Assumes that Icv has datatype either IPL_DEPTH_32F or IPL_DEPTH_8U. """
+    if Icv.depth == cv.IPL_DEPTH_32F:
+        dtype = 'float32'
+    else:
+        dtype = 'uint8'
+    nparray = np.fromstring(Icv.tostring(), dtype=dtype)
+    
+    w, h = cv.GetSize(Icv)
+    if Icv.channels == 3:
+        nparray = nparray.reshape((h,w,3))
+    else:
+        nparray = nparray.reshape((h,w))
+    return nparray
+
+def np2cvImg(Inp):
+    """ Converts from an nparray to a OpenCV ImageIpl. Assumes that Inp
+    has dtype either 'float32' or 'uint8'. """
+    num_channels = 3 if len(Inp.shape) == 3 else 1
+    h, w = Inp.shape[0], Inp.shape[1]
+    if Inp.dtype == 'float32':
+        depth = cv.IPL_DEPTH_32F
+    else:
+        depth = cv.IPL_DEPTH_8U
+    Icv = cv.CreateImageHeader((Inp.shape[1], Inp.shape[0]), depth, num_channels)
+    cv.SetData(Icv, Inp.tostring(), Inp.dtype.itemsize * num_channels * w)
+    return Icv
+
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
