@@ -34,6 +34,7 @@ export = True
 
 flipped = {}
 
+@pdb_on_crash
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
     pilimg.putdata([item for sublist in img for item in sublist])
@@ -751,6 +752,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     targets = [x for x in targets if area(intersect(contest, x))]
     cont_area = None
 
+    print path
     print 'targs', len(targets), targets
 
     if vendor:
@@ -760,7 +762,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
 
     l,u,r,d = contest
     blocks = []
-    print 'lenbox', len(boxes)
+    print 'lenbox', len(boxes), boxes
     for count,(upper,lower) in boxes:
         istarget = (count != 0)
         print upper, lower
@@ -1401,15 +1403,13 @@ def find_contests(t, paths, giventargets):
                 print cs
     return ballots
 
+@pdb_on_crash
 def group_given_contests_map(arg):
-    try:
-        vendor,lang_map,giventargets,(i,(f,conts)) = arg
-        print f
-        im = load_num(f)
-        lang = lang_map[f] if f in lang_map else 'eng'
-        return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
-    except:
-        traceback.print_exc()
+    vendor,lang_map,giventargets,(i,(f,conts)) = arg
+    print f
+    im = load_num(f)
+    lang = lang_map[f] if f in lang_map else 'eng'
+    return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
         
 def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map = {}):
     global tmp, flipped

@@ -87,22 +87,33 @@ class Vendor(object):
             targets: [(int left, int up, int right, int down),...]
         
         Output:
-            [(int upper, int lower),...], the upper and lower coords of each thing to extract
+            [(int count, (int upper, int lower)),...], the upper and lower coords of each thing to extract
         """
-        
+
+        target_x_pos = [x[0] for x in targets]
+        target_x_range = max(target_x_pos)-min(target_x_pos)
+        target_y_pos = [x[1] for x in targets]
+        target_y_range = max(target_y_pos)-min(target_y_pos)
         l,u,r,d = contest
         tops = sorted([a[1]-u-10 for a in targets])+[d]
         if tops[0] > 0:
             tops = [0]+tops
         else:
+            print "it was negative", tops
             tops = [0,0]+tops[1:] # In case the top is negative.
-
-        blocks = []
-        for upper,lower in enumerate(zip(tops, tops[1:])):
-            blocks.append((upper, lower))
-        
-        return blocks
-        
+        print "now tops", tops
+        if target_y_range > target_x_range:
+            # it is a vertical contest
+            blocks = []
+            for count,upperlower in enumerate(zip(tops, tops[1:])):
+                blocks.append((count, upperlower))
+            
+            return blocks
+        else:
+            print "AAAAA", list(enumerate(zip(tops, tops[1:])))
+            return [(0,(tops[0],tops[1])), #header
+                    (1,(tops[1], d)),
+                    (2,(d, d))]
         
 
     def __repr__(self):
