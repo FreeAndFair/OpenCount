@@ -256,16 +256,30 @@ class PartitionPanel(ScrolledPanel):
         self.init_ui()
 
     def init_ui(self):
-        self.sizer_stats = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer_stats = wx.BoxSizer(wx.VERTICAL)
+
+        sizer_totalnum = wx.BoxSizer(wx.HORIZONTAL)
         txt1 = wx.StaticText(self, label="Number of Partitions: ")
         self.num_partitions_txt = wx.StaticText(self)
-        self.sizer_stats.AddMany([(txt1,), (self.num_partitions_txt,)])
+        sizer_totalnum.AddMany([(txt1,), (self.num_partitions_txt,)])
+        
+        sizer_largest = wx.BoxSizer(wx.HORIZONTAL)
+        txt2 = wx.StaticText(self, label="Largest Partition Size: ")
+        self.txt_part_largest = wx.StaticText(self)
+        sizer_largest.AddMany([(txt2,), (self.txt_part_largest,)])
+
+        sizer_smallest = wx.BoxSizer(wx.HORIZONTAL)
+        txt3 = wx.StaticText(self, label="Smallest Partition Size: ")
+        self.txt_part_smallest = wx.StaticText(self)
+        sizer_smallest.AddMany([(txt3,), (self.txt_part_smallest,)])
+
+        self.sizer_stats.AddMany([(sizer_totalnum,), (sizer_largest,), (sizer_smallest,)])
         self.sizer_stats.ShowItems(False)
 
-        btn_run = wx.Button(self, label="Run Partitioning...")
-        btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
+        self.btn_run = wx.Button(self, label="Run Partitioning...")
+        self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_run,)])
+        btn_sizer.AddMany([(self.btn_run,)])
 
         msg = textwrap.fill("Would you like to skip barcode overlay \
 verification? It tends to be computationally time-consuming, not \
@@ -278,7 +292,7 @@ unnecessary.", 100)
         sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.AddMany([(self.sizer_stats,), (btn_sizer,), ((50, 50),), (sizer_skipVerify,)])
+        self.sizer.AddMany([(btn_sizer,), ((50, 50),), (sizer_skipVerify,), ((50,50),), (self.sizer_stats,)])
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
@@ -306,10 +320,9 @@ unnecessary.", 100)
             self.quarantined_bals = state['quarantined_bals']
             self.discarded_bals = state['discarded_bals']
             if self.partitioning != None:
-                self.num_partitions_txt.SetLabel(str(len(self.partitioning)))
-                self.sizer_stats.ShowItems(True)
-                self.Layout()
+                self.display_partition_stats()
         except:
+            import traceback; traceback.print_exc()
             return False
         return True
     def save_session(self):
@@ -609,6 +622,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             bad_ballotids.extend(cur_bad_ballotids)
             cur_bad_ballotids = set(cur_bad_ballotids)
             ballotids[:] = [b for b in ballotids if b not in cur_bad_ballotids]
+
         # For each 'bad' ballotid, add them into its own new partition
         print "...There were {0} ballotids with anomalous page numbers. \
 Adding to separate partitions...".format(len(bad_ballotids))
@@ -675,11 +689,35 @@ Adding to separate partitions...".format(len(bad_ballotids))
                     ballotids.pop(i)
                 else:
                     i += 1
+                    
         # Export results.
         self.GetParent().export_results()
+
+        self.display_partition_stats()
+        self.btn_run.Disable()
+        self.chkbox_skip_verify.Disable()
+        self.Layout()
+        
         wx.MessageDialog(self, style=wx.OK, caption="Partitioning Done",
                          message="Partitioning is complete. \n\n\
 You may move onto the next step.").ShowModal()
+
+    def display_partition_stats(self):
+        if not self.partitioning:
+            return
+        largest, smallest = None, None
+        for partitionid, ballotids in self.partitioning.iteritems():
+            n = len(ballotids)
+            largest = (max(largest, n) if largest != None else n)
+            smallest = (min(smallest, n) if smallest != None else n)
+    
+        num_partitions = len(self.partitioning)
+        self.num_partitions_txt.SetLabel(str(num_partitions))
+        self.txt_part_largest.SetLabel(str(largest))
+        self.txt_part_smallest.SetLabel(str(smallest))
+        self.sizer_stats.ShowItems(True)
+
+        self.Layout()
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
