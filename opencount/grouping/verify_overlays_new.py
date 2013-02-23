@@ -1143,8 +1143,8 @@ class CheckImageEqualsPanel(VerifyOverlaysPanel):
 class CheckImageEqualsFooter(VerifyOverlaysFooter):
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
-        self.btn_matches.SetLabel("Accept (All Matches)")
-        btn_no = wx.Button(self, label="Reject (Not All Matches)")
+        self.btn_matches.SetLabel("Accept (all match)")
+        btn_no = wx.Button(self, label="Reject (some don't match)")
         btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
         
         self.btn_sizer.Insert(1, (10, 10))
