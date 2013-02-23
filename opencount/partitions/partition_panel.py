@@ -268,11 +268,11 @@ class PartitionPanel(ScrolledPanel):
         btn_sizer.AddMany([(btn_run,)])
 
         msg = textwrap.fill("Would you like to skip barcode overlay \
-verification? This tends to be computationally time-consuming, not \
-very helpful for certain vendors (e.g. Hart), and unnecessary to \
-repeat.", 100)
+verification? It tends to be computationally time-consuming, not \
+very helpful for certain vendors (e.g. Hart), and and typically is \
+unnecessary.", 100)
         txt_skipHelp = wx.StaticText(self, label=msg)
-        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification?")
+        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification")
         
         sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
         sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
