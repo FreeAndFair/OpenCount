@@ -470,7 +470,7 @@ def find_squares(graph, minarea):
     #return list(set([x for x in result if x]))
     result = {}
     for i,start in enumerate(graph):
-        print 'on', i, 'of', len(graph)
+        #print 'on', i, 'of', len(graph)
         for each in dfs_square([start]):
             if each:
                 result[each] = True
@@ -508,7 +508,7 @@ def do_extract(name, img, squares, giventargets):
     for sq in sorted(squares, key=area):
         if sq in targets: continue
         inside = [t for t in targets if area(intersect(sq, t))]
-        print sq
+        #print sq
         if inside != [] and sq[3]-sq[1] > 5*(t[3]-t[1]):
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
             contests.append(sq)
@@ -600,7 +600,7 @@ def do_extract(name, img, squares, giventargets):
                 new = [x for x in new if x not in s]
 
                 
-            print "RES", len(equivs), equivs
+            #print "RES", len(equivs), equivs
 
         contests = equivs
     
@@ -618,9 +618,9 @@ def do_extract(name, img, squares, giventargets):
         for box in contests:
             c = (int(random.random()*200), int(random.random()*155+100), int(random.random()*155+100))
             imd.rectangle(box, fill=c)
-        print "GIVEN", giventargets
+        #print "GIVEN", giventargets
         for box in giventargets:
-            print box, area(box)
+            #print box, area(box)
             imd.rectangle(box, fill=(255,0,0))
         new.save(tmp+"/"+name+"-fullboxed.png")
 
@@ -630,6 +630,7 @@ def do_extract(name, img, squares, giventargets):
     #os.popen("open tmp/*")
     #exit(0)
 
+@pdb_on_crash
 def remove_contest_overlap(boxes, targets):
     #print "BOXES", boxes
     for c1 in boxes:
@@ -648,16 +649,19 @@ def remove_contest_overlap(boxes, targets):
                     if c1_area < c2_area:
                         c1, c2 = c2, c1
                     # now we know to move c2 out of the way
+                print "c1 is", c1
                 c1l,c1u,c1r,c1d = c1
                 c2l,c2u,c2r,c2d = c2
-                boxes.remove(c2)
+                fixed = list(boxes)
+                fixed.remove(c2)
+                print "old c2 is", c2
                 c2 = (c1r if c2l < c1r < c2r else c2l,
                       c1d if c2u < c1d < c2d else c2u,
                       c1l if c2l < c1l < c2r else c2r,
                       c1u if c2u < c1u < c2d else c2d)
-                #print "new c2 is", c2
-                boxes.append(c2)
-                return remove_contest_overlap(boxes, targets)
+                print "new c2 is", c2
+                fixed.append(c2)
+                return remove_contest_overlap(fixed, targets)
     
     return boxes
         
@@ -740,7 +744,11 @@ def extract_contest(args):
     final = do_extract(image_path.split("/")[-1], 
                        loadedimage, squares, giventargets)
 
-    final = remove_contest_overlap(final, giventargets)
+    #print "before"
+    #print final
+    #final = remove_contest_overlap(final, giventargets)
+    #print "after"
+    #print final
 
     #os.popen("open tmp/*")
     #exit(0)
@@ -1413,7 +1421,7 @@ def find_contests(t, paths, giventargets):
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     #args = [x for x in args if '0/bal_0_side_1' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = map(extract_contest, args)
+    ballots = pool.map(extract_contest, args)
     pool.close()
     pool.join()
     return ballots
