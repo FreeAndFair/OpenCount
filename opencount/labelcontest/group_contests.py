@@ -629,6 +629,37 @@ def do_extract(name, img, squares, giventargets):
     #print targets, contests
     #os.popen("open tmp/*")
     #exit(0)
+
+def remove_contest_overlap(boxes, targets):
+    #print "BOXES", boxes
+    for c1 in boxes:
+        for c2 in boxes:
+            if c1 == c2: continue # yeah, yeah, a contest overlaps with itself
+            if intersect(c1,c2):
+                #print "overlap exists", targets
+                targets_in_c1 = [x for x in targets if intersect(c1,x)]
+                targets_in_c2 = [x for x in targets if intersect(c2,x)]
+                targets_in_both = [x for x in targets_in_c1 if x in targets_in_c2]
+                #print c1,c2
+                if targets_in_both != []:
+                    c1_area = sum(area(intersect(c1,x)) for x in targets_in_both)
+                    c2_area = sum(area(intersect(c2,x)) for x in targets_in_both)
+                    #print "areas", c1_area, c2_area
+                    if c1_area < c2_area:
+                        c1, c2 = c2, c1
+                    # now we know to move c2 out of the way
+                c1l,c1u,c1r,c1d = c1
+                c2l,c2u,c2r,c2d = c2
+                boxes.remove(c2)
+                c2 = (c1r if c2l < c1r < c2r else c2l,
+                      c1d if c2u < c1d < c2d else c2u,
+                      c1l if c2l < c1l < c2r else c2r,
+                      c1u if c2u < c1u < c2d else c2d)
+                #print "new c2 is", c2
+                boxes.append(c2)
+                return remove_contest_overlap(boxes, targets)
+    
+    return boxes
         
 """
 def extract_contest(args):
@@ -708,6 +739,9 @@ def extract_contest(args):
 
     final = do_extract(image_path.split("/")[-1], 
                        loadedimage, squares, giventargets)
+
+    final = remove_contest_overlap(final, giventargets)
+
     #os.popen("open tmp/*")
     #exit(0)
     
@@ -1379,7 +1413,7 @@ def find_contests(t, paths, giventargets):
     args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
     #args = [x for x in args if '0/bal_0_side_1' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = pool.map(extract_contest, args)
+    ballots = map(extract_contest, args)
     pool.close()
     pool.join()
     return ballots
