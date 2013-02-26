@@ -14,7 +14,7 @@ from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 from panel_opencount import OpenCountPanel
-import util_gui, util
+import util_gui, util, graphcolour
 import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
 import pixel_reg.shared as shared
@@ -652,10 +652,14 @@ voting target on this ballot.")
     def restore_session(self):
         try:
             state = pickle.load(open(self.stateP, 'rb'))
-            self.inv_map = state['inv_map']
-            self.boxes = state['boxes']
-            self.boxsize = state['boxsize']
-            self.partitions = state['partitions']
+            inv_map = state['inv_map']
+            boxes = state['boxes']
+            boxsize = state['boxsize']
+            partitions = state['partitions']
+            self.inv_map = inv_map
+            self.boxes = boxes
+            self.boxsize = boxsize
+            self.partitions = partitions
         except:
             return False
         return True
@@ -974,6 +978,7 @@ voting target on this ballot.")
             contest_boxes = []
             for (x1,y1,x2,y2) in contests:
                 contest_boxes.append(ContestBox(x1,y1,x2,y2))
+            recolour_contests(contest_boxes)
             self.boxes[partition_idx][page] = justtargets+contest_boxes
         # 2.) Update self.IMAGEPANEL.BOXES (i.e. the UI)
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
@@ -1618,18 +1623,6 @@ class BoxDrawPanel(ImagePanel):
             else:
                 target_boxes.append(box)
 
-        # Sort contests first by x1, then by y1 (e.g roughly by columns)
-        # TODO: Doing this sort of sort on every draw routine sounds like
-        # a bad idea (plus, this is just a heuristic sloppy sort anyways) - 
-        # for now, just let the original ordering determine the color order
-        # for contests.
-        '''
-        if contest_boxes:
-            max_x1 = max([c.x1 for c in contest_boxes])
-            _decdigits = int(round(math.floor(math.log(max_x1, 10))))
-            contest_boxes = sorted(contest_boxes, key=lambda c: (c.x1 * (10**_decdigits)) + c.y1)
-        '''
-
         npimg_cpy = self.npimg.copy()
         def draw_border(npimg, box, thickness=2, color=(0, 0, 0)):
             T = thickness
@@ -1653,14 +1646,20 @@ class BoxDrawPanel(ImagePanel):
             npimg[y1:y2, max(0, (x2-T)):x2] += clr*0.8
             return npimg
 
+        # Handle legacy-ContestBoxes that don't have the .colour property
+        # TODO: This can be eventually removed. This is more for internal
+        #       purposes, to not crash-and-burn on projects created before
+        #       this feature was pushed to the repo. Harmless to leave in.
+        if contest_boxes and not hasattr(contest_boxes[0], 'colour'):
+            recolour_contests(contest_boxes)
+
         for i, contestbox in enumerate(contest_boxes):
             clr, thickness = contestbox.get_draw_opts()
             draw_border(npimg_cpy, contestbox, thickness=thickness, color=(0, 0, 0))
             if contestbox.is_sel:
                 transparent_color = np.array(contestbox.shading_selected_clr) if contestbox.shading_selected_clr else None
             else:
-                #transparent_color = np.array(contestbox.shading_clr) if contestbox.shading_clr else None
-                transparent_color = np.array(contestbox.shading_clr_cycle[i % len(contestbox.shading_clr_cycle)]) if contestbox.shading_clr_cycle else None
+                transparent_color = np.array(contestbox.colour) if contestbox.colour else None
             if transparent_color != None:
                 t = time.time()
                 _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
@@ -1833,6 +1832,14 @@ Either draw a bigger box, or zoom-in to better-select the targets.")
 
 class TargetFindPanel(TemplateMatchDrawPanel):
     M_FORCEADD_TARGET = 3
+
+    def finishBox(self, *args, **kwargs):
+        toret = TemplateMatchDrawPanel.finishBox(self, *args, **kwargs)
+        if isinstance(toret, ContestBox):
+            recolour_contests([b for b in self.boxes if isinstance(b, ContestBox)]+[toret])
+            self.dirty_all_boxes()
+        self.Refresh()
+        return toret
 
     def update_cursor(self, *args, **kwargs):
         if self.mode_m == TargetFindPanel.M_FORCEADD_TARGET:
@@ -2014,11 +2021,13 @@ class ContestBox(Box):
     shading_selected_clr = (171, 0, 240) # Purple
 
     # shading_clr_cycle := A list of colors to alternate from
-    shading_clr_cycle = ((0, 0, 200), (0, 150, 245), (0, 190, 150), (80, 0, 245))
+    shading_clr_cycle = ((0, 0, 200), (100, 0, 0), (0, 150, 245), (0, 230, 150), (100, 0, 190))
 
     def __init__(self, x1, y1, x2, y2, is_sel=False):
         Box.__init__(self, x1, y1, x2, y2)
         self.is_sel = is_sel
+        self.colour = None
+
     def __str__(self):
         return "ContestBox({0},{1},{2},{3},is_sel={4})".format(self.x1, self.y1, self.x2, self.y2, self.is_sel)
     def __repr__(self):
@@ -2147,6 +2156,83 @@ def compute_box_ids(boxes):
         else:
             assocs[id] = [c, [t]]
     return assocs, lonely_targets
+
+def recolour_contests(contests):
+    """ Performs a five-colouring on CONTESTS to improve UI experience.
+    Input:
+        list CONTESTS: [ContestBox_i, ...]
+    Output:
+        None. Mutates the input contests.
+    """
+    def contests2graph():
+        contest2node = {} # maps {ContestBox: Node}
+        node2contest = {} # maps {Node: ContestBox}
+        for i, contest in enumerate(contests):
+            node = graphcolour.Node((contest.x1,contest.y1, contest.x2, contest.y2, id(contest)))
+            contest2node[contest] = node
+            node2contest[node] = contest
+        for i, contest0 in enumerate(contests):
+            for j, contest1 in enumerate(contests):
+                if i == j: continue
+                if is_adjacent(contest0, contest1):
+                    contest2node[contest0].add_neighbor(contest2node[contest1])
+        return graphcolour.AdjListGraph(contest2node.values()), node2contest
+
+    graph, node2contest = contests2graph()
+    colouring = graphcolour.fivecolour_planar(graph, colours=ContestBox.shading_clr_cycle)
+    if not colouring:
+        print "Graph isn't planar, that's odd! Running general colouring algo..."
+        colouring = graphcolour.graphcolour(graph, colours=ContestBox.shading_clr_cycle)
+    for node, colour in colouring.iteritems():
+        cbox = node2contest[node]
+        cbox.colour = colour
+
+def is_line_overlap_horiz(a, b):
+    left = a if a[0] <= b[0] else b
+    right = a if a[0] > b[0] else b
+    if (left[0] < right[0] and left[1] < right[0]):
+        return False
+    return True
+def is_line_overlap_vert(a, b):
+    top = a if a[0] <= b[0] else b
+    bottom = a if a[0] > b[0] else b
+    if (top[0] < bottom[0] and top[1] < bottom[0]):
+        return False
+    return True
+
+def is_adjacent(contest0, contest1, C=0.2):
+    """ Returns True if the input ContestBoxes are adjacent. """
+    def check_topbot(top, bottom):
+        return (abs(top.y2 - bottom.y1) < thresh_h and 
+                is_line_overlap_horiz((top.x1, top.x2), (bottom.x1, bottom.x2)))
+
+    def check_leftright(left, right):
+        return (abs(left.x2 - right.x1) < thresh_w and
+                is_line_overlap_vert((left.y1,left.y2), (right.y1,right.y2)))
+    thresh_w = C * min(contest0.width, contest1.width)
+    thresh_h = C * min(contest0.height, contest1.height)
+    left = contest0 if contest0.x1 <= contest1.x1 else contest1
+    right = contest0 if contest0.x1 > contest1.x1 else contest1
+    top = left if left.y1 <= right.y1 else right
+    bottom = left if left.y1 > right.y1 else right
+
+    if check_topbot(top, bottom):
+        return True
+    elif check_leftright(left, right):
+        return True
+    return False
+
+def test_recolour_contests():
+    A = ContestBox(50, 50, 75, 100)
+    B = ContestBox(77, 48, 117, 102)
+    C = ContestBox(200, 50, 250, 100)
+    D = ContestBox(51, 100, 76, 121)
+
+    contests = [A, B, C, D]
+    recolour_contests(contests)
+    for contest in contests:
+        print "Contest ({0},{1}) Colour: {2}".format(contest.x1, contest.y1, contest.colour)
+    pdb.set_trace()
 
 """
 =======================
@@ -2528,4 +2614,5 @@ def main():
     app.MainLoop()
 
 if __name__ == '__main__':
-    main()
+    #main()
+    test_recolour_contests()
