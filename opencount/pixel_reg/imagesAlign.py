@@ -76,6 +76,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         return (np.eye(3),Iout,-1)
 
     if rszFac==1:
+        t0 = time.clock()
         (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
@@ -85,6 +86,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         S=np.eye(3); S[0,0]=1/rszFac; S[1,1]=1/rszFac;
         H0=np.eye(3)
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
+        t0 = time.clock()
         (H,err)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
