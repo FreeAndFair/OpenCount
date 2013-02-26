@@ -1,14 +1,17 @@
 import sys
 import numpy as np
+import time
 
 sys.path.append('..')
 import pixel_reg.imagesAlign as imagesAlign
+
+import pixel_reg.shared as sh
 
 """
 Functions that globally-align ballot images together.
 """
 
-def align_image(I, Iref, crop=True):
+def align_image(I, Iref, crop=True, verbose=False):
     """ Aligns I to IREF (e.g. 'global' alignment). Both IREF and I
     must be correctly 'flipped' before you pass it to this function.
     Input:
@@ -24,10 +27,11 @@ def align_image(I, Iref, crop=True):
     if crop == True:
         Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
         Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
-    H, Ireg_crop, err = imagesAlign.imagesAlign(Icrop, Iref_crop, type='rigid', rszFac=0.15)
-    print "Alignment Err: ", err
+    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, type='rigid', rszFac=0.15, applyWarp=False)
+    if verbose:
+        print "Alignment Err: ", err
     Ireg = imagesAlign.imtransform(I, H)
-    Ireg = np.nan_to_num(Ireg)
+    #Ireg = np.nan_to_num(Ireg)
     return H, Ireg, err
 
 def cropout_stuff(I, top, bot, left, right):

@@ -10,7 +10,7 @@ import cv
 import shared as sh
 from scipy.ndimage import gaussian_filter
 
-def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False, minArea=None):
+def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac=1,verbose=False, minArea=None, applyWarp=True):
     """ Aligns I to IREF.
     Input:
         np.array I: Image you want to align. I must be larger than IREF.
@@ -25,6 +25,12 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
             image, followed by stitching. Appears to rarely be used.
         float rszFac: Amount by which to scale the image - for
             performance, you want to scale down (i.e. 0.75).
+        applyWarp: Causes imagesAlign to apply the found transformation
+        to the input image I and return it. Without applyWarp, the function
+        will only return the transformation matrix. This is used when
+        cropped images are passed to the function, so the warp should not
+        yet be applied to the cropped image but rather the original image,
+        which is now the responsibility of the caller.
     Output:
         (H, Ireg, err). H is the transformation matrix that was found
         to best align I to Iref. Ireg is the result of aligning I to
@@ -70,7 +76,6 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         return (np.eye(3),Iout,-1)
 
     if rszFac==1:
-        t0=time.clock()
         (H,err)=imagesAlign1(I1,Iref1,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
@@ -80,13 +85,14 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
         S=np.eye(3); S[0,0]=1/rszFac; S[1,1]=1/rszFac;
         H0=np.eye(3)
         H0=np.dot(np.dot(np.linalg.inv(S),H0),S)
-        t0=time.clock()
         (H,err)=imagesAlign1(I1,Iref1,H0=H0,type=type,verbose=verbose, minArea=minArea)
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
         H=np.dot(S,np.dot(H,np.linalg.inv(S)))
-    
-    return (H,imtransform(np.copy(I),H,fillval=fillval),err);
+    if applyWarp:
+        return (H,imtransform(np.copy(I),H,fillval=fillval),err)
+    else:
+        return (H,err)
 
 def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=None):
     """
@@ -130,7 +136,6 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
     # pad image with NaNs
     ws=np.concatenate(([0],[0],range(wh[0]),[wh[0]-1],[wh[0]-1]))
     hs=np.concatenate(([0],[0],range(wh[1]),[wh[1]-1],[wh[1]-1]))
-
     try:
         Iref=Iref[np.ix_(ws,hs)]
         I=I[np.ix_(ws,hs)]
@@ -138,7 +143,6 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
         traceback.print_exc()
         print '...Iref.shape:', Iref.shape
         print '...I.shape:', I.shape
-        t = time.time()
         misc.imsave("_Iref_{0}.png".format(str(t)), Iref)
         misc.imsave("_I_{0}.png".format(str(t)), I)
         raise e
@@ -186,7 +190,6 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
     Lbda=lbda*np.prod(Iref.shape)*np.eye(Ds.shape[0])
     err=np.Inf
     ds=np.zeros([8,1])
-
     for i in range(100):
         # warp image with current esimate
         Ip=imtransform(I,H)
@@ -230,7 +233,6 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
             print I.shape," i=",i," err=",err," del=",delta
         if delta<eps:
             break
-
     return (H,err)
 
 def ds2H(ds,wts):
@@ -283,10 +285,12 @@ def imtransform(I,H0,fillval=np.nan):
         Icv=cv.fromarray(np.copy(I))
         I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
 
-        cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=-1);
+        H = H[:2]
+        H = cv.fromarray(np.copy(H))
+        #cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=-1);
+        cv.WarpAffine(Icv,I1cv,H)#,fillval=-1);
         I1=np.asarray(I1cv)
-        I1[np.nonzero(I1<0)]=fillval
-
+        #I1[np.nonzero(I1<0)]=fillval
         return I1
 
 def imtransform2(I,H0,fillval=3.0):

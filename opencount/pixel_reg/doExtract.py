@@ -496,7 +496,7 @@ def convertImagesWorkerMAP(job):
             flipped = balL_flips[side]
             writeMAP(extractTargetsRegions(balImg,tplImg,bbs,
                                            balP=balP,do_grid_opt=True,
-                                           vCells=4,hCells=4), 
+                                           vCells=4,hCells=4, verbose=False), 
                      targetDir, targetDiffDir, 
                      targetMetaDir, imageMetaDir, balP, tplImgPath,
                      flipped, side, voted_rootdir, projdir, result_queue)
