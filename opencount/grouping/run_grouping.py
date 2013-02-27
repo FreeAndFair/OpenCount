@@ -360,6 +360,9 @@ def run_grouping_digitbased(proj, digitdist):
     try:
         os.remove(digpatch2imgpath_outP)
     except: pass
+    for filename in os.listdir(proj.projdir_path):
+        if filename.startswith('_state_verifyoverlays_'):
+            os.remove(pathjoin(proj.projdir_path, filename))
     print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
                                                GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
     voteddir_root = proj.voteddir

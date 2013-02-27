@@ -69,7 +69,7 @@ class VerifyGroupingMainPanel(wx.Panel):
 
         self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
                                 patch2imgpath, digpatch2imgpath,
-                                ondone=self.on_verify_done, do_align=True, 
+                                ondone=self.on_verify_done, do_align=False, 
                                 verifypanelClass=VerifyBallotAttributesPanel)
         self.Layout()
 
