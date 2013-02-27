@@ -741,6 +741,8 @@ class VerifyOverlays(SplitOverlays):
             self.rankedlist_map = rlist_map
             self.finished_groups = {}
             self.exmplidx_sel = 0
+            for tag in group_exemplars.keys():
+                self.possible_tags.add(tag)
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = VerifyGroup(imgpaths, tag=tag, do_align=do_align)
                 self.possible_tags.add(group.tag)
@@ -749,6 +751,10 @@ class VerifyOverlays(SplitOverlays):
                     for trimmed_group in trimmed_groups:
                         self.add_group(trimmed_group)
             self.possible_tags = tuple(self.possible_tags)
+            for tag in self.possible_tags:
+                # Make sure that /all/ tags are present in self.cbox_grplabel
+                if str(tag) not in self.cbox_grplabel.GetItems():
+                    self.cbox_grplabel.Append(str(tag))
         if len(self.groups) == 0:
             self.handle_nomoregroups()
         else:
