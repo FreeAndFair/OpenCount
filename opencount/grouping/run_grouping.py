@@ -1,4 +1,4 @@
-import sys, time, threading
+import sys, time, threading, shutil, os
 try:
     import cPickle as pickle
 except:
@@ -250,6 +250,8 @@ You may proceed to the next task.".format(dur_total),
         util_gui.remove_files(pathjoin(self.proj.projdir_path,
                                        '_state_verifyoverlays.p'),
                               pathjoin(self.proj.projdir_path,
+                                       '_state_correct_grouping.p'),
+                              pathjoin(self.proj.projdir_path,
                                        self.proj.ballot_to_group),
                               pathjoin(self.proj.projdir_path,
                                        self.proj.group_to_ballots),
@@ -352,6 +354,12 @@ def run_grouping_digitbased(proj, digitdist):
     MODE = get_digitgroup_mode(proj)
     digitpatch_dir = pathjoin(proj.projdir_path, proj.digitpatch_dir)
     digpatch2imgpath_outP = pathjoin(proj.projdir_path, proj.digpatch2imgpath)
+    try:
+        shutil.rmtree(digitpatch_dir)
+    except: pass
+    try:
+        os.remove(digpatch2imgpath_outP)
+    except: pass
     print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
                                                GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
     voteddir_root = proj.voteddir
