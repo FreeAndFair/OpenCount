@@ -313,16 +313,21 @@ unnecessary.", 100)
     def restore_session(self):
         try:
             state = pickle.load(open(self.stateP, 'rb'))
-            self.voteddir = state['voteddir']
-            self.partitioning = state['partitioning']
-            self.img2decoding = state['img2decoding']
-            self.imginfo = state['imginfo']
-            self.quarantined_bals = state['quarantined_bals']
-            self.discarded_bals = state['discarded_bals']
+            voteddir = state['voteddir']
+            partitioning = state['partitioning']
+            img2decoding = state['img2decoding']
+            imginfo = state['imginfo']
+            quarantined_bals = state['quarantined_bals']
+            discarded_bals = state['discarded_bals']
+            self.voteddir = voteddir
+            self.partitioning = partitioning
+            self.img2decoding = img2decoding
+            self.imginfo = imginfo
+            self.quarantined_bals = quarantined_bals
+            self.discarded_bals = discarded_bals
             if self.partitioning != None:
                 self.display_partition_stats()
         except:
-            import traceback; traceback.print_exc()
             return False
         return True
     def save_session(self):
