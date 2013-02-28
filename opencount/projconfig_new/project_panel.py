@@ -51,7 +51,7 @@ class ProjectPanel(wx.Panel):
             str PROJDIR: Root directory where all projects reside.
         """
         self.projdir = projdir
-        projects = load_projects(projdir)
+        projects = sorted(load_projects(projdir), key=lambda proj: proj.name)
         for proj in projects:
             self.add_project(proj)
     def can_move_on(self):
