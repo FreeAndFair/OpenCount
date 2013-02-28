@@ -259,6 +259,9 @@ You may proceed to the next task.".format(dur_total),
                                        self.proj.group_infomap),
                               pathjoin(self.proj.projdir_path,
                                        self.proj.group_exmpls))
+        for filename in os.listdir(self.proj.projdir_path):
+            if filename.startswith('_state_verifyoverlays_'):
+                os.remove(pathjoin(self.proj.projdir_path, filename))
         print "...Starting Grouping..."
         self._t_total = time.time()
         self.btn_rungrouping.Disable()
@@ -360,9 +363,6 @@ def run_grouping_digitbased(proj, digitdist):
     try:
         os.remove(digpatch2imgpath_outP)
     except: pass
-    for filename in os.listdir(proj.projdir_path):
-        if filename.startswith('_state_verifyoverlays_'):
-            os.remove(pathjoin(proj.projdir_path, filename))
     print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
                                                GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
     voteddir_root = proj.voteddir
