@@ -236,7 +236,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
 
     curid = str(id(mp.current_process()))
     radix_sort_dir = os.path.join(os.path.abspath(projdir), "extracted_radix/"+curid)
-    print radix_sort_dir
+    #print radix_sort_dir
     try: os.makedirs(radix_sort_dir)
     except: pass
 
