@@ -258,7 +258,17 @@ You may proceed to the next task.".format(dur_total),
                               pathjoin(self.proj.projdir_path,
                                        self.proj.group_infomap),
                               pathjoin(self.proj.projdir_path,
-                                       self.proj.group_exmpls))
+                                       self.proj.group_exmpls),
+                              pathjoin(self.proj.projdir_path,
+                                       '_state_selecttargets.p'),
+                              pathjoin(self.proj.projdir_path,
+                                       '_state_selecttargetsMain.p'),
+                              pathjoin(self.proj.projdir_path,
+                                       self.proj.target_locs_map),
+                              self.proj.contest_internal,
+                              self.proj.contest_grouping_data,
+                              self.proj.contest_text,
+                              self.proj.contest_id)
         for filename in os.listdir(self.proj.projdir_path):
             if filename.startswith('_state_verifyoverlays_'):
                 os.remove(pathjoin(self.proj.projdir_path, filename))

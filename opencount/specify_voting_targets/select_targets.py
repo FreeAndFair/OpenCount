@@ -177,8 +177,10 @@ class SelectTargetsMainPanel(OpenCountPanel):
     def restore_session(self):
         try:
             state = pickle.load(open(self.stateP, 'rb'))
-            self.i2groupid = state['i2groupid']
-            self.displayed_imgpaths = state['displayed_imgpaths']
+            i2groupid = state['i2groupid']
+            displayed_imgpaths = state['displayed_imgpaths']
+            self.i2groupid = i2groupid
+            self.displayed_imgpaths = displayed_imgpaths
         except:
             return False
         return True
