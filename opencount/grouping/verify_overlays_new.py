@@ -1344,7 +1344,7 @@ class SeparateImages(VerifyOverlays):
         if self.realign_callback:
             self.GetParent().footer.btn_realign_imgs.Show()
         if not self.restore_session():
-            exemplars = [] # No need for exemplars
+            exemplars = {} # No need for exemplars
             VerifyOverlays.start(self, imggroups, exemplars, None, 
                                  bbs_map=bbs_map, ondone=ondone, stateP=stateP,
                                  auto_ondone=auto_ondone)
