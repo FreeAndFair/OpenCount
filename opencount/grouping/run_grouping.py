@@ -1,4 +1,4 @@
-import sys, time, threading, shutil, os
+import sys, time, threading, shutil, os, pdb
 try:
     import cPickle as pickle
 except:
@@ -359,8 +359,15 @@ def run_grouping_digitbased(proj, digitdist):
                                          proj.image_to_page), 'rb'))
     img2flip = pickle.load(open(pathjoin(proj.projdir_path,
                                          proj.image_to_flip), 'rb'))
-    digitexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
-                                                   proj.digit_exemplars_map), 'rb'))
+    # TODO: Consider only calling compute_digit_exemplars if necessary (e.g.
+    #       don't re-compute digit exemplars if nothing has changed)
+    # dict DIGITMULTEXEMPLARS_MAP: {str digit: [(regionpath, (x1,y1,x2,y2), exemplarpath), ...]}
+    digitmultexemplars_map = digit_group_new.compute_digit_exemplars(proj)
+    pickle.dump(digitmultexemplars_map, open(pathjoin(proj.projdir_path,
+                                                      proj.digitmultexemplars_map), 'wb'))
+    for digit, tups in sorted(digitmultexemplars_map.iteritems(), key=lambda t: t[0]):
+        print "Digit {0} had: {1} exemplars".format(digit, len(tups))
+        
     # Grab the quarantined/discarded ballot ids
     badballotids = get_quarantined_bals(proj) + get_discarded_bals(proj) + get_ioerr_bals(proj)
     all_results = {} # maps {str attrtype: dict results}
@@ -387,7 +394,7 @@ def run_grouping_digitbased(proj, digitdist):
                                                      partitions_invmap, partition_exmpls,
                                                      badballotids,
                                                      img2page, img2flip, attrinfo,
-                                                     digitexemplars_map, digitpatch_dir,
+                                                     digitmultexemplars_map, digitpatch_dir,
                                                      voteddir_root,
                                                      digpatch2imgpath_outP,
                                                      mode=MODE)

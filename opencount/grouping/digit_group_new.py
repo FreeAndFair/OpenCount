@@ -29,7 +29,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
         dict IMG2PAGE:
         dict IMG2FLIP: maps {str imgpath: bool isflip}
         dict ATTRINFO: [x1,y1,x2,y2,attrtype,page,numdigits,digitdist]
-        dict DIGITEXEMPLARS_MAP: maps {str digitval: [[str regionP, score, (y1,y2,x1,x2), str digitpatch_i], ...]}
+        dict DIGITEXEMPLARS_MAP: maps {str digitval: [[str regionP, (y1,y2,x1,x2), str digitpatch_i], ...]}
         str DIGITPATCH_OUTDIR: Root dir of extracted digit patches.
         str VOTEDDIR_ROOT: Root dir of voted ballots.
         int MODE:
@@ -60,7 +60,7 @@ def do_digit_group(b2imgs, img2b, partitions_map, partitions_invmap,
     # 1.) Load the digit exemplars
     digit_ex_imgs = {} # maps {(str digit, str meta): nparray digit_img}
     for digit, exemplars in digitexemplars_map.iteritems():
-        for i, (regionP, score, bb, digitpatch) in enumerate(exemplars):
+        for i, (regionP, bb, digitpatch) in enumerate(exemplars):
             I = shared.standardImread(digitpatch, flatten=True)
             digit_ex_imgs[(digit, i)] = I
 
