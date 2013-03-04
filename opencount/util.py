@@ -11,6 +11,7 @@ import hashlib
 from operator import itemgetter
 from heapq import nlargest
 from itertools import repeat, ifilter
+import sys
 
 class MyGauge(wx.Frame):
     """
@@ -192,7 +193,7 @@ class MyGauge(wx.Frame):
             print "Likely that there were more tasks than functions given."
             return
         fnc = self.funs[self.ontask-1]
-        if fnc:
+        if fnc != None:
             self.val = fnc()
             self.gauge.SetValue(self.val)
             if self.tofile != None: 
@@ -212,8 +213,10 @@ class MyGauge(wx.Frame):
         self.update()
 
     def _pubsub_tick(self, msg):
+        sys.stderr.write('okay')
         if not self.is_event_relevant(msg):
             return
+        sys.stderr.write('good')
         if self.tofile != None: self.tofile.write("tick " + str(time.time()) + "\n")
         self.finishedon = time.time()
         self.val += 1

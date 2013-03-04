@@ -971,24 +971,40 @@ voting target on this ballot.")
                     targets.append(style_boxes)
 
         # CONTEST_RESULTS: [[box_i, ...], ...], each subtuple_i is for imgpath_i.
-        contest_results = group_contests.find_contests(self.ocrtempdir, imgpaths_exs, targets)
-        # 1.) Update my self.BOXES
-        for i, contests in enumerate(contest_results):
-            partition_idx, j, page = self.inv_map[imgpaths_exs[i]]
+        def infercontest_finish(contest_results):
+            # 1.) Update my self.BOXES
+            for i, contests in enumerate(contest_results):
+                partition_idx, j, page = self.inv_map[imgpaths_exs[i]]
             # Remove previous contest boxes
-            justtargets = [b for b in self.boxes[partition_idx][page] if not isinstance(b, ContestBox)]
-            contest_boxes = []
-            for (x1,y1,x2,y2) in contests:
-                contest_boxes.append(ContestBox(x1,y1,x2,y2))
-            recolour_contests(contest_boxes)
-            self.boxes[partition_idx][page] = justtargets+contest_boxes
+                justtargets = [b for b in self.boxes[partition_idx][page] if not isinstance(b, ContestBox)]
+                contest_boxes = []
+                for (x1,y1,x2,y2) in contests:
+                    contest_boxes.append(ContestBox(x1,y1,x2,y2))
+                recolour_contests(contest_boxes)
+                self.boxes[partition_idx][page] = justtargets+contest_boxes
         # 2.) Update self.IMAGEPANEL.BOXES (i.e. the UI)
-        self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
+            self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         # 3.) Finally, update the self.proj.infer_bounding_boxes flag, 
         #     so that LabelContests does the right thing.
-        self.GetParent().proj.infer_bounding_boxes = True
-        self.Refresh()
+            self.GetParent().proj.infer_bounding_boxes = True
+            self.Refresh()
 
+        ocrtempdir = self.ocrtempdir
+
+        class RunThread(threading.Thread):
+            def __init__(self, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
+                
+            def run(self):
+                self.tt = group_contests.find_contests(ocrtempdir, imgpaths_exs, targets)
+
+        tt = RunThread()
+        tt.start()
+
+        gauge = util.MyGauge(self, 1, ondone=lambda: infercontest_finish(tt.tt))
+        gauge.Show()
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(imgpaths_exs))
+        
 class Toolbar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)

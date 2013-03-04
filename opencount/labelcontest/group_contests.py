@@ -13,6 +13,10 @@ import itertools
 import time
 from grouping.partask import do_partask
 from vendors import Vendor
+import threading
+import util
+import wx
+from wx.lib.pubsub import Publisher
 
 def pdb_on_crash(f):
     """
@@ -676,11 +680,11 @@ def extract_contest(args):
         print "Fail on", args[0]
 """
 def extract_contest(args):
-    if len(args) == 2:
-        image_path, giventargets = args
+    if len(args) == 3:
+        image_path, giventargets, queue = args
         returnimage = True
-    elif len(args) == 3:
-        image_path, giventargets, returnimage = args
+    elif len(args) == 4:
+        image_path, giventargets, returnimage, queue = args
     else:
         raise Error("Wrong number of args")
 
@@ -754,6 +758,7 @@ def extract_contest(args):
     #exit(0)
     
     print "Took", time.time()-now
+    queue.put(1)
 
     if returnimage:
         return data, final
@@ -1418,13 +1423,27 @@ def find_contests(t, paths, giventargets):
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
-    args = [(f, sum(giventargets[i],[]), False) for i,f in enumerate(paths)]
+
+    manager = mp.Manager()
+    queue = manager.Queue()
+    args = [(f, sum(giventargets[i],[]), False, queue) for i,f in enumerate(paths)]
     #args = [x for x in args if '0/bal_0_side_1' in x[0]]
     pool = mp.Pool(mp.cpu_count())
-    ballots = pool.map(extract_contest, args)
+    res = [None]
+    def done(x): res[0] = x
+    pool.map_async(extract_contest, args, callback=done)
+    got = 0
+    print "---"*1000
+    while got < len(args):
+        sys.stderr.write('.')
+        val = queue.get(block=True)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+        got += 1
+
     pool.close()
     pool.join()
-    return ballots
+    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+    return res[0]
     #print "RETURNING", ballots
     reverse = sorted(enumerate(paths), key=lambda x: x[1])
     for i in range(0,len(reverse),4):
