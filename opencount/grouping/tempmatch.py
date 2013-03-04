@@ -17,7 +17,7 @@ SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
 def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
-              xwinI=3, ywinI=3, prevmatches=None, jobid=None):
+              xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None):
     """ Runs template matching on IMGPATHS, searching for best match
     for A. 
     Input:
@@ -27,7 +27,10 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             Search window to do template matching over.
         dict IMG2FLIP: maps {str imgpath: bool isflipped}
         int DO_SMOOTH:
-        dict  PREVMATCHES: {imgpath: [(x_i, y_i), ...]}. Matches to ignore.
+        dict PREVMATCHES: {imgpath: [(x_i, y_i), ...]}. Matches to ignore.
+        obj QUEUE_MYGAUGE:
+            Used to signal to a running MyGauge instance that one job has
+            completed. (Typically, this gauge lives in a separate process)
     Output:
         dict {str IMGPATH: (x1, y1, float score)}.
     """
@@ -74,25 +77,30 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             x += bb[0]
             y += bb[1]
         results[imgpath] = (x, y, maxResp)
-        if jobid and wx.App.IsMainLoopRunning():    
+        if jobid and wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+        if queue_mygauge != None:
+            queue_mygauge.put(True)
 
     return results
 
-def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth, xwinA, ywinA, xwinI, ywinI, w, h, prevmatches, jobid)):
+def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth,
+                             xwinA, ywinA, xwinI, ywinI, w, h,
+                             prevmatches,
+                             jobid, queue_mygauge)):
     A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
         result = bestmatch(A_cv, imgpaths, bb=bb, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
                            ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches,
-                           jobid=jobid)
+                           jobid=jobid, queue_mygauge=queue_mygauge)
         return result
     except:
         traceback.print_exc()
         return {}
 
 def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
-                  xwinI=3, ywinI=3, prevmatches=None, jobid=None):
+                  xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None):
     """ Find the best match for A in each image in IMGPATHS, using NP
     processes. A multiprocessing-wrapper for bestmatch (see doc for
     bestmatch for more details).
@@ -112,10 +120,8 @@ def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwi
     w, h = cv.GetSize(A)
     result = partask.do_partask(_do_bestmatch, imgpaths,
                                 _args=(A_str, bb, img2flip, do_smooth, xwinA, ywinA,
-                                       xwinI, ywinI, w, h, prevmatches, jobid),
-                                combfn='dict', N=None)
-    if jobid and wx.App.IsMainLoopRunning():
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+                                       xwinI, ywinI, w, h, prevmatches, jobid, queue_mygauge),
+                                combfn='dict', N=NP)
     return result
 
 def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,

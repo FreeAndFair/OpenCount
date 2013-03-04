@@ -138,6 +138,9 @@ class RunGroupingMainPanel(wx.Panel):
                                                          self.proj.partition_exmpls), 'rb'))
             b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
             # dict MULTEXEMPLARS_MAP: maps {attrtype: {attrval: [(subpatchP, blankpathP, (x1,y1,x2,y2)), ...]}}
+            #     subpatchP := This should point to the exemplar patch itself
+            #     blankpathP := Points to the (entire) voted image that subpatchP came from
+            #     (x1,y1,x2,y2) := BB that, from blankpathP, created subpatchP
             multexemplars_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                           self.proj.multexemplars_map), 'rb'))
             img2page = pickle.load(open(pathjoin(self.proj.projdir_path,

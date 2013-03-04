@@ -327,6 +327,7 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
     of the imgpaths {str label: (imgpath_i, ...)} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
     mapping. 
+    NOTE: bb's here are in [y1,y2,x1,x2] format.
     Input:
         dict mapping: {label: ((imgpath_i, bb_i), ...)}
         int MAXCAP: Maximum number of exemplars per label (optional).

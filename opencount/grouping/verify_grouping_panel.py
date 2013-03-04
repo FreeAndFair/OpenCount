@@ -9,7 +9,7 @@ from os.path import join as pathjoin
 import wx
 
 from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
-import digit_group_new
+import digit_group_new, cust_attrs
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
 
@@ -66,11 +66,16 @@ class VerifyGroupingMainPanel(wx.Panel):
             digpatch2imgpath = {}
 
         verifyoverlays_stateP = pathjoin(proj.projdir_path, '_state_verifyoverlays.p')
-
-        self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
-                                patch2imgpath, digpatch2imgpath,
-                                ondone=self.on_verify_done, do_align=False, 
-                                verifypanelClass=VerifyBallotAttributesPanel)
+        if self.imgpath_groups:
+            self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
+                                    patch2imgpath, digpatch2imgpath,
+                                    ondone=self.on_verify_done, do_align=False, 
+                                    verifypanelClass=VerifyBallotAttributesPanel)
+        else:
+            print "VerifyGrouping: No img/digit-based attrs."
+            wx.MessageDialog(self, message="It is not necessary to verify any groups. Please move onto the \
+next step.", style=wx.OK).ShowModal()
+            
         self.Layout()
 
     def stop(self):
@@ -110,8 +115,9 @@ class VerifyGroupingMainPanel(wx.Panel):
             {int groupID: [int ballotID_i, ...]}
         """
         if not self.verify_results:
-            print "...Can't export GroupingPanel results without self.verify_results..."
-            return
+            print "...self.verify_results is empty, implies no img/digit-based attrs."
+            self.verify_results = {}
+
         b2g = {}
         g2b = {}
         group_infomap = {}
@@ -134,7 +140,11 @@ class VerifyGroupingMainPanel(wx.Panel):
 
         # 1.) First, mark each ballot with its attribute properties
         ballot_attrvals = {} # maps {int ballotID: {attrtype: attrval}}
-
+        # Prepopulate this with each ballots partition id
+        for partitionid, ballotids in partitions_map.iteritems():
+            for ballotid in ballotids:
+                ballot_attrvals[ballotid] = {'pid': partitionid}
+            
         # Note: If groupingmode was PER_PARTITION, then self.VERIFY_RESULTS
         # will only have information about one ballot from each partition.
         for attrtype, attrvaldict in self.verify_results.iteritems():
@@ -146,14 +156,11 @@ class VerifyGroupingMainPanel(wx.Panel):
                     else:
                         ballotids = [ballotid]
                     for ballotid in ballotids:
-                        # Don't forget to add in the partition id!
-                        partitionID = partitions_invmap[ballotid]
                         ballot_attrvals.setdefault(ballotid, {})[attrtype] = attrval
-                        ballot_attrvals[ballotid]['pid'] = partitionID
 
         # 1.b.) Add CUSTOM_ATTRIBUTE mapping
         ss_dicts = {} # maps {str attrtype: dict ss_dict}
-        for attrtype, cattrprops in attrprops['CUSTATTR'].iteritems():
+        for attrtype, cattrprops in attrprops.get('CUSTATTR', {}).iteritems():
             if cattrprops['type'] == cust_attrs.TYPE_SPREADSHEET:
                 ssdict = ss_dicts.get(attrtype, None)
                 if ssdict == None:
@@ -169,7 +176,6 @@ class VerifyGroupingMainPanel(wx.Panel):
                     matches = re.search(cattrprops['filename_regex'], imgname)
                     outval = matches.groups()[0]
                     ballotprops[attrtype] = outval
-
         # 2.) Create each group, based on the unique ballot property values
         group_idx_map = {} # maps {((attrtype,attrval), ...): int groupIdx}
         group_cnt = 0
@@ -475,6 +481,8 @@ def create_groups(proj):
         dict IMGPATH_GROUPS. IMGPATH_GROUPS maps
             {attrtype: {attrval: [imgpath_i, ...]}}
     """
+    if not os.path.exists(pathjoin(proj.projdir_path, proj.extract_results)):
+        return {}
     extract_results = pickle.load(open(pathjoin(proj.projdir_path,
                                                 proj.extract_results), 'rb'))
     digitgroup_results = pickle.load(open(pathjoin(proj.projdir_path,

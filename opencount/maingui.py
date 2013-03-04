@@ -14,8 +14,7 @@ from projconfig_new.config_panel import ConfigPanel
 from partitions.partition_panel import PartitionMainPanel
 from specify_voting_targets.select_targets import SelectTargetsMainPanel
 from labelcontest.labelcontest import LabelContest
-from grouping.define_attributes_new import DefineAttributesMainPanel
-from grouping.select_attributes import SelectAttributesMasterPanel
+from grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
 from digits_ui.digits_ui import LabelDigitsPanel
 from grouping.run_grouping import RunGroupingMainPanel
 from grouping.verify_grouping_panel import VerifyGroupingMainPanel
@@ -45,17 +44,16 @@ class MainFrame(wx.Frame):
     PROJECT = 0
     CONFIG = 1
     PARTITION = 2
-    DEFINE_ATTRS = 3
-    LABEL_ATTRS = 4
-    LABEL_DIGATTRS = 5
-    RUN_GROUPING = 6
-    CORRECT_GROUPING = 7
-    SELTARGETS = 8
-    LABEL_CONTESTS = 9
-    TARGET_EXTRACT = 10
-    SET_THRESHOLD = 11
-    QUARANTINE = 12
-    PROCESS = 13
+    BALLOT_ATTRIBUTES = 3
+    LABEL_DIGATTRS = 4
+    RUN_GROUPING = 5
+    CORRECT_GROUPING = 6
+    SELTARGETS = 7
+    LABEL_CONTESTS = 8
+    TARGET_EXTRACT = 9
+    SET_THRESHOLD = 10
+    QUARANTINE = 11
+    PROCESS = 12
 
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, title="OpenCount", *args, **kwargs)
@@ -81,8 +79,7 @@ class MainFrame(wx.Frame):
         self.panel_projects = ProjectPanel(self.notebook)
         self.panel_config = ConfigPanel(self.notebook)
         self.panel_partition = PartitionMainPanel(self.notebook)
-        self.panel_define_attrs = DefineAttributesMainPanel(self.notebook)
-        self.panel_label_attrs = SelectAttributesMasterPanel(self.notebook)
+        self.panel_ballot_attributes = BallotAttributesPanel(self.notebook)
         self.panel_label_digitattrs = LabelDigitsPanel(self.notebook)
         self.panel_run_grouping = RunGroupingMainPanel(self.notebook)
         self.panel_correct_grouping = VerifyGroupingMainPanel(self.notebook)
@@ -95,8 +92,7 @@ class MainFrame(wx.Frame):
         self.pages = [(self.panel_projects, "Projects", "Projects"),
                       (self.panel_config, "Import Files", "Import"),
                       (self.panel_partition, "Partition Ballots", "Partition"),
-                      (self.panel_define_attrs, "Define Ballot Attributes", "Define Attrs"),
-                      (self.panel_label_attrs, "Label Ballot Attributes", "Label Attrs"),
+                      (self.panel_ballot_attributes, "Ballot Attributes", "Attrs"),
                       (self.panel_label_digitattrs, "Label Digit-Based Attributes", "Label Digit Attrs"),
                       (self.panel_run_grouping, "Run Grouping", "Group"),
                       (self.panel_correct_grouping, "Correct Grouping", "Correct Grouping"),
@@ -144,10 +140,8 @@ proceed. Please address the prior warnings first.",
             self.panel_config.stop()
         elif old == MainFrame.PARTITION:
             self.panel_partition.stop()
-        elif old == MainFrame.DEFINE_ATTRS:
-            self.panel_define_attrs.stop()
-        elif old == MainFrame.LABEL_ATTRS:
-            self.panel_label_attrs.stop()
+        elif old == MainFrame.BALLOT_ATTRIBUTES:
+            self.panel_ballot_attributes.stop()
         elif old == MainFrame.LABEL_DIGATTRS:
             self.panel_label_digitattrs.stop()
         elif old == MainFrame.RUN_GROUPING:
@@ -254,19 +248,9 @@ proceed. Please address the prior warnings first.",
         elif new == MainFrame.PARTITION:
             self.panel_partition.start(self.project, pathjoin(self.project.projdir_path,
                                                               '_state_partition.p'))
-        elif new == MainFrame.DEFINE_ATTRS:
-            self.panel_define_attrs.start(self.project, pathjoin(self.project.projdir_path,
-                                                                 '_state_defineattrs.p'))
-        elif new == MainFrame.LABEL_ATTRS:
-            # Skip if there are no defined attributes
-            if not exists_imgattr(self.project):
-                dlg = wx.MessageDialog(self, message="There are no Image-based Attributes defined \
-in this election -- skipping to the next relevant task.", style=wx.OK)
-                dlg.ShowModal()
-                self.notebook.ChangeSelection(self.LABEL_DIGATTRS)
-                self.notebook.SendPageChangedEvent(self.LABEL_ATTRS, self.LABEL_DIGATTRS)
-            else:
-                self.panel_label_attrs.start(self.project)
+        elif new == MainFrame.BALLOT_ATTRIBUTES:
+            self.panel_ballot_attributes.start(self.project, pathjoin(self.project.projdir_path,
+                                                                      '_state_ballot_attributes.p'))
         elif new == MainFrame.LABEL_DIGATTRS:
             # Skip if there are no digit-based attributes
             if not exists_digitbasedattr(self.project):
@@ -282,13 +266,14 @@ Attributes in this election -- skipping to the next page.", style=wx.OK)
                 dlg = wx.MessageDialog(self, message="There are no attributes \
 to group in this election -- skipping to the next page.", style=wx.OK)
                 dlg.ShowModal()
-                self.notebook.ChangeSelection(self.SELTARGETS)
-                self.notebook.SendPageChangedEvent(self.RUN_GROUPING, self.SELTARGETS)
+                dst_page = self.SELTARGETS if not exists_custattr(self.project) else self.CORRECT_GROUPING
+                self.notebook.ChangeSelection(dst_page)
+                self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
             else:
                 self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
                                                                      '_state_run_grouping.p'))
         elif new == MainFrame.CORRECT_GROUPING:
-            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
+            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project) and not exists_custattr(self.project):
                 dlg = wx.MessageDialog(self, message="There are no attributes \
 to verify grouping for in this election -- skipping to the next page.", style=wx.OK)
                 dlg.ShowModal()
@@ -329,8 +314,6 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
         """
         if self.project:
             self.project.save()
-        if self.notebook.GetCurrentPage() == self.panel_define_attrs:
-            self.panel_define_attrs.stop()
         for fn in Project.closehook:
             fn()
         evt.Skip()
@@ -351,8 +334,12 @@ def exists_imgattr(proj):
         if not attr['is_digitbased']:
             return True
     return False
+def exists_custattr(proj):
+    attrprops = pickle.load(open(pathjoin(proj.projdir_path, proj.attrprops), 'rb'))
+    return len(attrprops[ATTRMODE_CUSTOM]) != 0
 
 def exists_attrs(proj):
+    """ Doesn't account for custom attrs. """
     if not os.path.exists(proj.ballot_attributesfile):
         return False
     ballot_attributesfile = pickle.load(open(proj.ballot_attributesfile, 'rb'))
