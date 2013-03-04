@@ -1442,7 +1442,6 @@ def find_contests(t, paths, giventargets):
 
     pool.close()
     pool.join()
-    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
     return res[0]
     #print "RETURNING", ballots
     reverse = sorted(enumerate(paths), key=lambda x: x[1])
