@@ -476,6 +476,7 @@ class GridShow(wx.ScrolledWindow):
 
     def setLine(self, which, evt=None):
         if evt == None:
+            if which not in self.index_to_visible: return
             imgIdx = self.index_to_visible[which] - (self.index_to_visible[which]%self.numcols)
         else:
             imgIdx = which
