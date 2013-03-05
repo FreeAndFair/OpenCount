@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import traceback
+import traceback, pdb, time
 import numpy as np
 import cv
 import csv
@@ -47,10 +47,19 @@ def fastResize(I,rszFac,sig=-1):
     if rszFac==1:
         return I
     else:
-        Icv=cv.fromarray(np.copy(I))
+        # Almost certain that this np.copy(I) is not necessary, since cv.Resize
+        # will interpolate new pixel values in Iout. Removing np.copy(I) didn't
+        # seem to affect results, and speeds things up. -- EK
+        #Icv=cv.fromarray(np.copy(I))
+        if not I.flags.c_contiguous:
+            # numpy requires arrays be contiguous in memory - when you
+            # pass it to OpenCV, then try to re-convert back to numpy,
+            # you get an error in np.asarray if I isn't contiguous.
+            I = np.copy(I) # Makes I contiguous
+        Icv = cv.fromarray(I)
         I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),int(math.floor(I.shape[1]*rszFac)),Icv.type)
         cv.Resize(Icv,I1cv,interpolation=cv.CV_INTER_AREA)
-        Iout=np.asarray(I1cv)
+        Iout = np.asarray(I1cv)
         if sig>0:
             Iout=gaussian_filter(Iout,sig);
 

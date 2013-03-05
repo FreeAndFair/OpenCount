@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.misc as misc
-import math, traceback
+import math, traceback, pdb
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -70,7 +70,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
                 Ic=I2[i1p:i2p,j1p:j2p]
                 Irefc=Iref1[i1p:i2p,j1p:j2p]
                 (H,err)=imagesAlign1(Ic,Irefc,type=type,verbose=verbose, minArea=minArea)
-                IcT=imtransform(np.copy(Ic),H)
+                IcT=imtransform(Ic, H)
                 Iout[i1:i2,j1:j2]=IcT[i1-i1p:(i1-i1p)+(i2-i1),j1-j1p:(j1-j1p)+(j2-j1)]
 
         return (np.eye(3),Iout,-1)
@@ -92,7 +92,7 @@ def imagesAlign(I,Iref,fillval=np.nan,type='similarity',vCells=1,hCells=1,rszFac
             print 'alignment time:',time.clock()-t0,'(s)'
         H=np.dot(S,np.dot(H,np.linalg.inv(S)))
     if applyWarp:
-        return (H,imtransform(np.copy(I),H,fillval=fillval),err)
+        return (H,imtransform(I,H,fillval=fillval),err)
     else:
         return (H,err)
 
@@ -192,7 +192,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
     Lbda=lbda*np.prod(Iref.shape)*np.eye(Ds.shape[0])
     err=np.Inf
     ds=np.zeros([8,1])
-    for i in range(100):
+    for i in xrange(100):
         # warp image with current esimate
         Ip=imtransform(I,H)
         M=(Ms & ~np.isnan(Ip)) & ~np.isnan(Iref)
@@ -216,16 +216,7 @@ def imagesAlign1(I,Iref,H0=np.eye(3),type='similarity',verbose=False, minArea=No
 
         _A = np.dot(D0, D0.T)
         _B = np.linalg.inv(_A + Lbda)
-        try:
-            _C = np.dot(D0, dI1)
-        except Exception as e:
-            print e
-            print "D0.shape:", D0.shape
-            print "dI1.shape:", dI1.shape
-            print "_B shape:", _B.shape
-            print "_C shape:", _C.shape
-            traceback.print_exc()
-            raise Exception("_C computation failed")
+        _C = np.dot(D0, dI1)
         ds1 = np.dot(_B, _C)
         #ds1=np.dot(np.linalg.inv(np.dot(D0,D0.T)+Lbda),np.dot(D0,dI1))
         ds[keep]=ds1;
@@ -284,14 +275,17 @@ def imtransform(I,H0,fillval=np.nan):
         H=np.dot(np.dot(T0,H0),T1)
 
         # transform each channel separately
-        Icv=cv.fromarray(np.copy(I))
+        if not I.flags.c_contiguous:
+            I = np.copy(I)
+
+        Icv=cv.fromarray(I)
         I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
 
         H = H[:2]
-        H = cv.fromarray(np.copy(H))
+        H = cv.fromarray(H)
         #cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=-1);
         cv.WarpAffine(Icv,I1cv,H)#,fillval=-1);
-        I1=np.asarray(I1cv)
+        I1 = np.asarray(I1cv)
         #I1[np.nonzero(I1<0)]=fillval
         return I1
 

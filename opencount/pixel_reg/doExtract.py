@@ -191,22 +191,23 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                 rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
                 IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid',minArea=np.power(2,18))
                 Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
+                H1_inv = np.linalg.inv(H1)
+                Hc1_inv = np.linalg.inv(Hc1)
                 for k in range(bbsOff.shape[0]):
                     bbOff1=bbsOff[k,:]
                     iLen=bbOff1[1]-bbOff1[0]
                     jLen=bbOff1[3]-bbOff1[2]
-                    targ=np.copy(sh.cropBb(Ic1,bbOff1))
+                    #targ=np.copy(sh.cropBb(Ic1,bbOff1))
+                    targ = sh.cropBb(Ic1, bbOff1)
                     # unwind the transformations to get the global location of the target
-                    rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbOut[2],bbOut[0],1]))
-                    rOff_tr=pttransform(Ic,np.linalg.inv(Hc1),np.array([bbOff1[2],bbOff1[0],1]))
-                    targLocGl=np.zeros(4)
-                    targLocGl[0]=round(rOut_tr[1]+rOff_tr[1])
-                    targLocGl[1]=round(rOut_tr[1]+rOff_tr[1]+iLen)
-                    targLocGl[2]=round(rOut_tr[0]+rOff_tr[0])
-                    targLocGl[3]=round(rOut_tr[0]+rOff_tr[0]+jLen)
-
+                    rOut_tr=pttransform(I, H1_inv, np.array([bbOut[2],bbOut[0],1]))
+                    rOff_tr=pttransform(Ic, Hc1_inv, np.array([bbOff1[2],bbOff1[0],1]))
+                    targLocGl = (int(round(rOut_tr[1]+rOff_tr[1])),
+                                 int(round(rOut_tr[1]+rOff_tr[1]+iLen)),
+                                 int(round(rOut_tr[0]+rOff_tr[0])),
+                                 int(round(rOut_tr[0]+rOff_tr[0]+jLen)))
                     # weird bug in imsave where if the matrix is all ones, it saves as pure black
-                    result.append((bbs1[k,4],targ,map(int,tuple(targLocGl)),err))
+                    result.append((bbs1[k,4],targ, targLocGl,err))
 
     if(verbose):
         print 'total extract time = ',time.clock()-t0,'(s)'
