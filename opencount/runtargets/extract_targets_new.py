@@ -288,7 +288,7 @@ def spawn_jobs(queue, rootdir, dirList):
     
 def main():
     args = sys.argv[1:]
-    projdir = args[0]
+    projdir = args[-1]
     do_profile = '--profile' in args
     try:
         profile_out = args[args.index('--profile')+1]
