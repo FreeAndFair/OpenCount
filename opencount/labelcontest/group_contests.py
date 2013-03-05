@@ -17,6 +17,8 @@ import threading
 import util
 import wx
 from wx.lib.pubsub import Publisher
+import numpy as np
+from scipy.optimize import fmin
 
 def pdb_on_crash(f):
     """
@@ -634,40 +636,45 @@ def do_extract(name, img, squares, giventargets):
     #os.popen("open tmp/*")
     #exit(0)
 
-@pdb_on_crash
+#@pdb_on_crash
 def remove_contest_overlap(boxes, targets):
-    #print "BOXES", boxes
-    for c1 in boxes:
-        for c2 in boxes:
-            if c1 == c2: continue # yeah, yeah, a contest overlaps with itself
-            if intersect(c1,c2):
-                #print "overlap exists", targets
-                targets_in_c1 = [x for x in targets if intersect(c1,x)]
-                targets_in_c2 = [x for x in targets if intersect(c2,x)]
-                targets_in_both = [x for x in targets_in_c1 if x in targets_in_c2]
-                #print c1,c2
-                if targets_in_both != []:
-                    c1_area = sum(area(intersect(c1,x)) for x in targets_in_both)
-                    c2_area = sum(area(intersect(c2,x)) for x in targets_in_both)
-                    #print "areas", c1_area, c2_area
-                    if c1_area < c2_area:
-                        c1, c2 = c2, c1
-                    # now we know to move c2 out of the way
-                print "c1 is", c1
-                c1l,c1u,c1r,c1d = c1
-                c2l,c2u,c2r,c2d = c2
-                fixed = list(boxes)
-                fixed.remove(c2)
-                print "old c2 is", c2
-                c2 = (c1r if c2l < c1r < c2r else c2l,
-                      c1d if c2u < c1d < c2d else c2u,
-                      c1l if c2l < c1l < c2r else c2r,
-                      c1u if c2u < c1u < c2d else c2d)
-                print "new c2 is", c2
-                fixed.append(c2)
-                return remove_contest_overlap(fixed, targets)
+    print "INPUT", boxes, targets
+
+    boxes = np.array(boxes)
+
+    def fn(delta):
+        delta = np.reshape(delta, boxes.shape)
+        #print "D",delta
+        #print "B",boxes
+        bxs = delta+boxes
+        r = 0
+        for i,box1 in enumerate(bxs):
+            for j,box2 in enumerate(bxs):
+                if all(box1 == box2): continue # yeah, yeah, a contest overlaps with itself
+                r += area(intersect(box1,box2))*100
+        r += (delta**2).sum()
+        return r
+
+    #def pr(x): print np.reshape(x,boxes.shape)
+
+    zeros = np.zeros(boxes.shape)
+    last = [None]
+    #print 'aaa'
+    def checkdiff(x):
+        if last[0] != None:
+            print np.abs(last[0]-x).sum(),
+        last[0] = np.array(x)
+        
     
-    return boxes
+    #print 'bbb'
+    #print zeros+boxes
+    v = fmin(fn, x0=zeros)
+    #print "done", v
+    
+    return [map(int,x) for x in map(list,np.reshape(v,boxes.shape)+boxes)]
+
+remove_contest_overlap([(601, 425, 1094, 753), (118, 1479, 607, 1876), (1088, 425, 1575, 880), (1088, 874, 1575, 1450), (118, 1870, 607, 2479), (118, 425, 607, 1394), (601, 838, 1094, 2012)], [(620, 552, 690, 593), (1107, 1331, 1177, 1372), (621, 1750, 691, 1791), (620, 1199, 690, 1240), (621, 1614, 691, 1655), (621, 1098, 691, 1139), (1107, 819, 1177, 860), (621, 1399, 691, 1440), (621, 1887, 691, 1928), (136, 916, 206, 957), (137, 2030, 207, 2071), (138, 2348, 208, 2389), (137, 1751, 207, 1792), (135, 516, 205, 557), (136, 1085, 206, 1126), (136, 1269, 206, 1310), (136, 782, 206, 823), (620, 652, 690, 693), (620, 963, 690, 1004), (621, 1500, 691, 1541), (137, 1604, 207, 1645), (1107, 762, 1177, 803), (621, 1300, 691, 1341), (137, 2200, 207, 2241), (136, 649, 206, 690), (1108, 1389, 1178, 1430)])
+exit(0)
         
 """
 def extract_contest(args):
@@ -750,7 +757,7 @@ def extract_contest(args):
 
     #print "before"
     #print final
-    #final = remove_contest_overlap(final, giventargets)
+    final = remove_contest_overlap(final, giventargets)
     #print "after"
     #print final
 
