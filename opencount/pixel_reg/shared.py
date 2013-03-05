@@ -631,6 +631,18 @@ def standardImread(fNm,flatten=False):
         I=rgb2gray(I)
     return I
 
+def standardImread_v2(imgpath, flatten=False):
+    """ Reads in IMGPATH, and outputs a numpy array with pix. intensity
+    values as floats from [0.0, 1.0].
+    """
+    cvmode = cv.CV_LOAD_IMAGE_GRAYSCALE if flatten else cv.CV_LOAD_IMAGE_COLOR
+    Icv = cv.LoadImageM(imgpath, cvmode)
+    #minval, maxval, minloc, maxloc = cv.MinMaxLoc(Icv)
+    #cv.Div(None, Icv, Icv, maxval)
+    Inp = np.asarray(Icv, dtype='float32')
+    Inp = Inp / 255.0
+    return Inp
+
 def remove_border_topleft(A):
     """ Removes black border from the top+left  of A - created due to
     the straightener adding padding to voted ballots.

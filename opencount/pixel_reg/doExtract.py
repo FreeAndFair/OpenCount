@@ -467,7 +467,7 @@ def convertImagesWorkerMAP(job):
         # need to load the template images
         tplImL=[]
         for i, tplP in enumerate(tplL):
-            tplImg = sh.standardImread(tplP, flatten=True)
+            tplImg = sh.standardImread_v2(tplP, flatten=True)
             if tplL_flips[i]:
                 tplImg = sh.fastFlip(tplImg)
             tplImL.append(tplImg)
@@ -478,7 +478,7 @@ def convertImagesWorkerMAP(job):
         for i, imP in enumerate(balL):
             #if '329_672_157_3_3' in b:
             #    pdb.set_trace()
-            balImg = sh.standardImread(imP, flatten=True)
+            balImg = sh.standardImread_v2(imP, flatten=True)
             if balL_flips[i]:
                 balImg = sh.fastFlip(balImg)
             balImL.append(balImg)
