@@ -296,6 +296,14 @@ def main():
         profile_out = None
     proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
     os.chdir('..')
+    if os.path.exists(proj.extracted_dir): shutil.rmtree(proj.extracted_dir)
+    if os.path.exists(proj.extracted_metadata): shutil.rmtree(proj.extracted_metadata)
+    if os.path.exists(proj.ballot_metadata): shutil.rmtree(proj.ballot_metadata)
+    if os.path.exists(pathjoin(proj.projdir_path, proj.targetextract_quarantined)):
+        os.remove(pathjoin(proj.projdir_path, proj.targetextract_quarantined))
+    if os.path.exists(pathjoin(proj.projdir_path, "extracted_radix")): 
+        shutil.rmtree(pathjoin(proj.projdir_path, "extracted_radix"))
+
     t = RunThread(proj, do_profile=do_profile, profile_out=profile_out)
     t.start()
     print "Done."
