@@ -355,9 +355,9 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
     Errs=[];K=0
     
     for K in range(len(jobs)):
-        # job := [tplL_i, tplFlips, bbsL_i, balL_i, balL_flips, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDir_i]
+        # job := [tplImgs, tplPaths, tplFlips, bbsL_i, balL_i, balL_flips, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDir_i, voteddir, projdir, queue, result_queue]
         job=jobs[K]
-        balL=job[3]
+        balL=job[4]
         for side, balP in enumerate(balL):
             ballotid = img2bal[balP]
             try:
@@ -461,35 +461,27 @@ def convertImagesWorkerMAP(job):
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
     #print "START"
     try:
-        (tplL, tplL_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
+        (tplImgs, tplPaths, tpl_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
         t0=time.clock();
-
-        # need to load the template images
-        tplImL=[]
-        for i, tplP in enumerate(tplL):
-            tplImg = sh.standardImread_v2(tplP, flatten=True)
-            if tplL_flips[i]:
-                tplImg = sh.fastFlip(tplImg)
-            tplImL.append(tplImg)
 
         # load images
         balImL=[]
-
         for i, imP in enumerate(balL):
-            #if '329_672_157_3_3' in b:
-            #    pdb.set_trace()
             balImg = sh.standardImread_v2(imP, flatten=True)
             if balL_flips[i]:
                 balImg = sh.fastFlip(balImg)
             balImL.append(balImg)
 
-        #print 'load bal: ', time.clock()-t0
         # check if ballot is flipped
         t0=time.clock();
 
-        # TODO: extend to more than two pages at some point
-        for side, tplImg in enumerate(tplImL):
-            tplImgPath = tplL[side]
+        for side, tplImg in enumerate(tplImgs):
+            if tplImg == None:
+                # This group didn't have its 'template' images pre-loaded
+                tplImg = sh.standardImread_v2(tplPaths[side], flatten=True)
+                if tpl_flips[side]:
+                    tplImg = sh.fastFlip(tplImg)
+            tplImgPath = tplPaths[side]
             balImg = balImL[side]
             balP = balL[side]
             bbs = bbsL[side]
@@ -686,20 +678,33 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     result_queue = manager.Queue()
     imgcount = 0
     print "Creating blank ballots; go up to", len(group_to_ballots)
-    for i,(groupID, ballotIDs) in enumerate(group_to_ballots.iteritems()):
+    MAX_SIZE = 950 * (1e6) # In Bytes, e.g. 950 MB. Limit memory usage of template pre-loading
+    cur_size = 0
+    for i,(groupID, ballotIDs) in enumerate(sorted(group_to_ballots.iteritems(), key=lambda t: -len(t[1]))):
         bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Create 'blank ballots'. This might not work so well...
         exmpl_id = group_exmpls[groupID][0]
         blankpaths = b2imgs[exmpl_id]
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
         blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+        blankimgs = []
+        for i, blankpath in enumerate(blankpaths_ordered):
+            isflip = blankpaths_flips[i]
+            if cur_size >= MAX_SIZE:
+                blankimgs.append(None)
+            else:
+                Iblank = sh.standardImread_v2(blankpath, flatten=True)
+                if isflip:
+                    Iblank = sh.fastFlip(Iblank)
+                cur_size += Iblank.nbytes
+                blankimgs.append(Iblank)
         for ballotid in ballotIDs:
             if ballotid in bad_ballotids:
                 continue
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-            job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, 
+            job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, 
                    imgpaths_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
                    voted_rootdir, projdir, queue, result_queue]
             jobs.append(job)
