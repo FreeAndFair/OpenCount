@@ -1,4 +1,4 @@
-import sys, os, threading, multiprocessing, math, array, time, shutil
+import sys, os, threading, multiprocessing, math, array, time, shutil, cProfile
 try:
     import cPickle as pickle
 except ImportError:
@@ -91,12 +91,20 @@ Extraction, but you just want to create the Image File:")
         self.Enable()
 
 class RunThread(threading.Thread):
-    def __init__(self, proj, skip_extract=False, *args, **kwargs):
+    def __init__(self, proj, skip_extract=False, do_profile=False, profile_out='profile_targetextract.out', *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.proj = proj
         self.skip_extract = skip_extract
+        self.do_profile = do_profile
+        self.profile_out = profile_out
 
     def run(self):
+        if self.do_profile:
+            cProfile.runctx('self.do_target_extract()', {}, {'self': self}, self.profile_out)
+        else:
+            self.do_target_extract()
+
+    def do_target_extract(self):
         group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                      self.proj.group_to_ballots), 'rb'))
         group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -117,6 +125,7 @@ class RunThread(threading.Thread):
             discarded_ballotids = quarantinepanel.get_discarded_ballots(self.proj)
             ioerr_ballotids = run_grouping.get_ioerr_bals(self.proj)
             bad_ballotids = list(set(qballotids + discarded_ballotids + ioerr_ballotids))
+            nProc = 1 if self.do_profile else None
             avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                                                      target_locs_map, group_exmpls,
                                                                      bad_ballotids,
@@ -126,7 +135,8 @@ class RunThread(threading.Thread):
                                                                      pathjoin(self.proj.projdir_path,
                                                                               self.proj.targetextract_quarantined),
                                                                      self.proj.voteddir,
-                                                                     self.proj.projdir_path)
+                                                                     self.proj.projdir_path,
+                                                                     nProc=nProc)
             pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
                                                        'targetextract_avg_intensities.p'), 'wb'),
                         pickle.HIGHEST_PROTOCOL)
@@ -160,7 +170,8 @@ class RunThread(threading.Thread):
         time_doandgetAvg = time.time()
         #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
         tmp = avg_intensities # TMP: [[imgpath, float avg_intensity], ...]
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
         print "...Starting a find-longest-prefix thing...", time.time()
         time_longestPrefix = time.time()
         fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
@@ -214,8 +225,9 @@ class RunThread(threading.Thread):
         dur_imageFileMake = time.time() - time_imageFileMake
         print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 
-        wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+        if wx.App.IsMainLoopRunning():
+            wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         
         dur_post = time.time() - time_post
         print "...Finished post-target-extraction work ({0} s).".format(dur_post)
@@ -274,4 +286,19 @@ def spawn_jobs(queue, rootdir, dirList):
     pool.close()
     pool.join()
     
-    
+def main():
+    args = sys.argv[1:]
+    projdir = args[0]
+    do_profile = '--profile' in args
+    try:
+        profile_out = args[args.index('--profile')+1]
+    except:
+        profile_out = None
+    proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
+    os.chdir('..')
+    t = RunThread(proj, do_profile=do_profile, profile_out=profile_out)
+    t.start()
+    print "Done."
+
+if __name__ == '__main__':
+    main()

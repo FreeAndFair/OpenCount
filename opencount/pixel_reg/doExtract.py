@@ -510,7 +510,7 @@ def convertImagesWorkerMAP(job):
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, 
                            img2bal, stopped, queue, result_queue,
                            num_imgs2process,
-                           verbose=False):
+                           verbose=False, nProc=None):
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
@@ -538,8 +538,9 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
     create_dirs(targetMetaDir)
     create_dirs(imageMetaDir)
 
-    nProc=sh.numProcs()
-    #nProc = 1
+    if nProc == None:
+        nProc = sh.numProcs()
+
     num_jobs = len(jobs)
     
     if nProc < 2:
@@ -630,7 +631,8 @@ def hack_stopped():
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
                     group_exmpls, bad_ballotids,
                     targetDir, targetMetaDir, imageMetaDir,
-                    targetextract_quarantined, voted_rootdir, projdir, stopped=None):
+                    targetextract_quarantined, voted_rootdir, projdir, stopped=None,
+                    nProc=None):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
         dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
@@ -702,8 +704,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                    voted_rootdir, projdir, queue, result_queue]
             jobs.append(job)
             imgcount += len(imgpaths_ordered)
-            
-    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue, imgcount)
+    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue, imgcount, nProc=nProc)
     if avg_intensities:
         # Quarantine any ballots with large error
         t = time.time()
