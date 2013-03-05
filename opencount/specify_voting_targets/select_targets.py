@@ -997,6 +997,7 @@ voting target on this ballot.")
                 
             def run(self):
                 self.tt = group_contests.find_contests(ocrtempdir, imgpaths_exs, targets)
+                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
 
         tt = RunThread()
         tt.start()
