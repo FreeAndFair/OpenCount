@@ -303,6 +303,12 @@ def main():
         os.remove(pathjoin(proj.projdir_path, proj.targetextract_quarantined))
     if os.path.exists(pathjoin(proj.projdir_path, "extracted_radix")): 
         shutil.rmtree(pathjoin(proj.projdir_path, "extracted_radix"))
+    if os.path.exists(pathjoin(proj.projdir_path, "extractedfile")):
+        os.remove(pathjoin(proj.projdir_path, "extractedfile"))
+    if os.path.exists(pathjoin(proj.projdir_path, "extractedfile.size")):
+        os.remove(pathjoin(proj.projdir_path, "extractedfile.size"))
+    if os.path.exists(pathjoin(proj.projdir_path, "extractedfile.type")):
+        os.remove(pathjoin(proj.projdir_path, "extractedfile.type"))
 
     t = RunThread(proj, do_profile=do_profile, profile_out=profile_out)
     t.start()
