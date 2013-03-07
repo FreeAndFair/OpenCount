@@ -6,7 +6,7 @@ except ImportError:
 from os.path import join as pathjoin
 
 import wx
-import cv
+import cv, numpy as np
 from wx.lib.pubsub import Publisher
 
 sys.path.append('..')
@@ -285,17 +285,8 @@ def spawn_jobs(queue, rootdir, dirList):
         pool.apply_async(doandgetAvgs, args=(imgpaths, rootdir, queue))
     pool.close()
     pool.join()
-    
-def main():
-    args = sys.argv[1:]
-    projdir = args[-1]
-    do_profile = '--profile' in args
-    try:
-        profile_out = args[args.index('--profile')+1]
-    except:
-        profile_out = None
-    proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
-    os.chdir('..')
+
+def _run_target_extract(proj, do_profile, profile_out):
     if os.path.exists(proj.extracted_dir): shutil.rmtree(proj.extracted_dir)
     if os.path.exists(proj.extracted_metadata): shutil.rmtree(proj.extracted_metadata)
     if os.path.exists(proj.ballot_metadata): shutil.rmtree(proj.ballot_metadata)
@@ -312,6 +303,36 @@ def main():
 
     t = RunThread(proj, do_profile=do_profile, profile_out=profile_out)
     t.start()
+    t.join()
+    
+def main():
+    args = sys.argv[1:]
+    projdir = args[-1]
+    do_profile = '--profile' in args
+    try:
+        N = int(args[args.index('-n')+1])
+    except:
+        N = 3
+    try:
+        profile_out = args[args.index('--profile')+1]
+        print "Profiling with cProfile -> {0}".format(profile_out)
+        N = 1 # Only profile once
+    except:
+        profile_out = None
+    print "    (Best of {0} trials)".format(N)
+    proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
+    os.chdir('..')
+    times = []
+    for i in xrange(N):
+        t = time.time()
+        _run_target_extract(proj, do_profile, profile_out)
+        dur = time.time() - t
+        times.append(dur)
+    tot_time = sum(times)
+    print "Total Time: {0:.6f}s (Out of {1} trials)".format(tot_time, N)
+    print "    Mean   : {0:.8f}s".format(np.mean(times))
+    print "    Std.Dev: {0:.8f}s".format(np.std(times))
+    
     print "Done."
 
 if __name__ == '__main__':
