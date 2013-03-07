@@ -213,10 +213,8 @@ class MyGauge(wx.Frame):
         self.update()
 
     def _pubsub_tick(self, msg):
-        sys.stderr.write('okay')
         if not self.is_event_relevant(msg):
             return
-        sys.stderr.write('good')
         if self.tofile != None: self.tofile.write("tick " + str(time.time()) + "\n")
         self.finishedon = time.time()
         self.val += 1

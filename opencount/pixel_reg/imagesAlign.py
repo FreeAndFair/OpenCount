@@ -86,7 +86,7 @@ def imagesAlign(I,Iref,fillval=np.nan,trfm_type='similarity',
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
 
-        print 'alignment time:',time.clock()-t0,'(s)'            
+        #print 'alignment time:',time.clock()-t0,'(s)'            
     else:
         I1=sh.fastResize(I1,rszFac)
         Iref1=sh.fastResize(Iref1,rszFac)
@@ -99,10 +99,10 @@ def imagesAlign(I,Iref,fillval=np.nan,trfm_type='similarity',
         if verbose:
             print 'alignment time:',time.clock()-t0,'(s)'
 
-        print 'alignment time:',time.clock()-t0,'(s)'
+        #print 'alignment time:',time.clock()-t0,'(s)'
         H=np.dot(S,np.dot(H,np.linalg.inv(S)))
 
-    print "overall time: ", time.clock() - t1
+    #print "overall time: ", time.clock() - t1
     if applyWarp:
         return (H,sh.imtransform(I,H,fillval=fillval),err)
     else:
