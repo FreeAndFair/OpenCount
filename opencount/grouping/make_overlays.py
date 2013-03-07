@@ -11,7 +11,7 @@ sys.path.append('..')
 import grouping.partask as partask
 from pixel_reg.imagesAlign import imagesAlign
 
-def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, type='rigid',
+def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
                   minArea=np.power(2, 16), bbs_map=None, numProcs=None,
                   imgCache=None):
     """ A parallel-wrapper for minmax_cv_v2. 
@@ -23,7 +23,7 @@ def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, type='rigid',
     if numProcs == None:
         numProcs = multiprocessing.cpu_count()
     if numProcs == 1:
-        return minmax_cv(imgpaths, do_align=do_align, rszFac=rszFac, type=type,
+        return minmax_cv(imgpaths, do_align=do_align, rszFac=rszFac, trfm_type=type,
                          minArea=minArea, bbs_map=bbs_map, imgCache=imgCache)
     imgpaths = imgpaths[:]
     Iref_imP = imgpaths.pop()
@@ -58,7 +58,7 @@ def str2iplimage(A_str, size):
 
 def _minmax_cv_v2_wrapper(imgpaths, *args, **kwargs):
     return minmax_cv_v2(imgpaths, *args, **kwargs)
-def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, type='rigid',
+def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, trfm_type='rigid',
                  minArea=np.power(2, 16), bbs_map=None):
     """ Computes the overlays of IMGPATHS, but uses the IREF_IMP as the
     reference image to align against, if DO_ALIGN is True. Mainly a 
@@ -92,7 +92,7 @@ def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, type='rigi
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
-            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
+            H, Ireg, err = imagesAlign(tmp_np, Iref, trfm_type=type, fillval=0, rszFac=rszFac, minArea=minArea)
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)
@@ -100,7 +100,7 @@ def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, type='rigi
         cv.Min(Iout, Imin, Imin)
     return Imin.tostring(), Imax.tostring(), cv.GetSize(Imin)
             
-def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
+def minmax_cv(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
               minArea=np.power(2, 16), bbs_map=None, imgCache=None):
     """ Generates min/max overlays for IMGPATHS. If DO_ALIGN is
     True, then this also aligns every image to the first image in
@@ -142,7 +142,7 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
-            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
+            H, Ireg, err = imagesAlign(tmp_np, Iref, trfm_type=trfm_type, fillval=0, rszFac=rszFac, minArea=minArea)
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)
@@ -150,7 +150,7 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, type='rigid',
         cv.Min(Iout, Imin, Imin)
     return Imin, Imax
 
-def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, type='rigid',
+def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, trfm_type='rigid',
                  minArea=np.power(2, 16)):
     """ Just like minmax_cv(), but accepts a list of cvMat's instead
     of a list of imgpaths. If you're planning on generating overlays
@@ -166,7 +166,7 @@ def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, type='rigid',
         Iout = matchsize(I, Imax)
         if do_align:
             tmp_np = iplimage2np(cv.CloneImage(Iout)) / 255.0
-            H, Ireg, err = imagesAlign(tmp_np, Iref, type=type, fillval=0, rszFac=rszFac, minArea=minArea)
+            H, Ireg, err = imagesAlign(tmp_np, Iref, trfm_type=trfm_type, fillval=0, rszFac=rszFac, minArea=minArea)
             Ireg *= 255.0
             Ireg = Ireg.astype('uint8')
             Iout = np2iplimage(Ireg)

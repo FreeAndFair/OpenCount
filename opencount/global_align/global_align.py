@@ -27,10 +27,10 @@ def align_image(I, Iref, crop=True, verbose=False):
     if crop == True:
         Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
         Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
-    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, type='rigid', rszFac=0.15, applyWarp=False)
+    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
     if verbose:
         print "Alignment Err: ", err
-    Ireg = imagesAlign.imtransform(I, H)
+    Ireg = sh.imtransform(I, H)
     #Ireg = np.nan_to_num(Ireg)
     return H, Ireg, err
 
@@ -69,14 +69,14 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     H_best, Ireg_best, err_best = None, None, None
     scale_best = None
     for scale in scales:
-        H, Ireg, err = imagesAlign.imagesAlign(Icrop, Iref_crop, fillval=1, type='rigid', rszFac=scale)
+        H, Ireg, err = imagesAlign.imagesAlign(Icrop, Iref_crop, fillval=1, trfm_type='rigid', rszFac=scale)
         if err_best == None or err < err_best:
             H_best = H
             Ireg_best = Ireg
             err_best = err
             scale_best = scale
     # Finally, apply H_BEST to I
-    Ireg = imagesAlign.imtransform(I, H_best)
+    Ireg = sh.imtransform(I, H_best)
     if do_nan_to_num:
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best

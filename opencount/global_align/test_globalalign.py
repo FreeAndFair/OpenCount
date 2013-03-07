@@ -67,7 +67,7 @@ def global_align(Iref, imgpaths):
     for imgpath in imgpaths:
         I = shared.standardImread(imgpath, flatten=True)
         Icrop = cropout_stuff(I, 0.2, 0.2, 0.2, 0.2)
-        H, Ireg, err = imagesAlign(Icrop, Iref, type='rigid', rszFac=0.25)
+        H, Ireg, err = imagesAlign(Icrop, Iref, trfm_type='rigid', rszFac=0.25)
 
         Ireg = np.nan_to_num(Ireg)
         Iouts.append((imgpath, H, Ireg, err))

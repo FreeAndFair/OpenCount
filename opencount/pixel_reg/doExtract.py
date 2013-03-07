@@ -31,7 +31,7 @@ def extractTargets(I,Iref,bbs,verbose=False):
     IrefM = Iref # Currently don't mask out targets, found it helps global alignment
     t0=time.clock();
     
-    IO=imagesAlign(I,IrefM,fillval=1,type='translation',rszFac=rszFac)
+    IO=imagesAlign(I,IrefM,fillval=1,trfm_type='translation',rszFac=rszFac)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
 
@@ -50,7 +50,7 @@ def extractTargets(I,Iref,bbs,verbose=False):
         Irefc=sh.cropBb(IrefM,bbOut)
 
         rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-        IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid')
+        IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid')
 
         Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
         targ=np.copy(sh.cropBb(Ic1,bbOff))
@@ -131,7 +131,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     t0=time.clock()
 
     # GlobalAlign (V1): Simple scheme.
-    #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, type='rigid', rszFac=0.25)
+    #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
     #I1 = imtransform(I, H1)
 
     # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
@@ -152,7 +152,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
             IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
             rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
             H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
-                                            rszFac=rszFac, type='rigid', minArea=np.power(2, 18))
+                                            rszFac=rszFac, trfm_type='rigid', minArea=np.power(2, 18))
             targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
             # 2.) Unwind transformation to get the global location of TARG
             rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
@@ -189,7 +189,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                 IrefcNOMASK=sh.cropBb(Iref,bbOut)
                 Irefc=sh.cropBb(IrefM,bbOut)
                 rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,type='rigid',minArea=np.power(2,18))
+                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,18))
                 Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
                 H1_inv = np.linalg.inv(H1)
                 Hc1_inv = np.linalg.inv(Hc1)

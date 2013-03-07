@@ -102,7 +102,7 @@ def evalPatchSimilarity(I,patch, debug=False):
     i1=YX[0]; i2=YX[0]+patch.shape[0]
     j1=YX[1]; j2=YX[1]+patch.shape[1]
     I1c=I[i1:i2,j1:j2]
-    IO=imagesAlign(I1c,patch,type='rigid', minArea=np.power(2, 20))
+    IO=imagesAlign(I1c,patch,trfm_type='rigid', minArea=np.power(2, 20))
 
     Ireg=IO[1]
     #Ireg = np.nan_to_num(Ireg)
@@ -241,7 +241,7 @@ def evalPatchSimilarity2(I,patch, debug=False):
     #vCells = max(int(round(I1c.shape[0] / 200)), 1)
     hCells, vCells = 1, 1
     
-    IO=imagesAlign(I1c,patchPad,type='rigid',hCells=hCells, vCells=vCells, minArea=np.power(2, 15))
+    IO=imagesAlign(I1c,patchPad,trfm_type='rigid',hCells=hCells, vCells=vCells, minArea=np.power(2, 15))
     if debug:
         pdb.set_trace()
     Ireg=IO[1]
@@ -503,7 +503,7 @@ def groupImagesWorkerMAP(job):
             print 'WEIRD CASE:', P1.shape, I1c.shape
             misc.imsave("_weird_{0}.png".format(str(P1.shape)), P1_a)
 
-        IO=imagesAlign(I1c,P1,type='rigid',rszFac=rszFac, minArea=np.power(2, 15))
+        IO=imagesAlign(I1c,P1,trfm_type='rigid',rszFac=rszFac, minArea=np.power(2, 15))
         Ireg = np.nan_to_num(IO[1])
         # RESULT: [[int ballotid, attrtype, dict outdict], ...]
 

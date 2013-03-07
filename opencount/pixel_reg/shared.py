@@ -20,6 +20,56 @@ MAX_DIFF_HEIGHT=10
 # The minimum required dimension of any image dimension.
 MIN_IMG_DIM = 4
 
+def imtransform(I,H0,fillval=np.nan):
+    # transform image using center as origin
+    if len(I.shape)==3:
+        Iout=np.copy(I)
+        Iout[:,:,0]=imtransform(I[:,:,0],H0,fillval=fillval)
+        Iout[:,:,1]=imtransform(I[:,:,1],H0,fillval=fillval)
+        Iout[:,:,2]=imtransform(I[:,:,2],H0,fillval=fillval)
+        return Iout
+    else:
+        T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
+        T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
+        H=np.dot(np.dot(T0,H0),T1)
+
+        # transform each channel separately
+        if not I.flags.c_contiguous:
+            I = np.copy(I)
+
+        Icv=cv.fromarray(I)
+        I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
+
+        H = H[:2]
+        H = cv.fromarray(H)
+        #cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=-1);
+        cv.WarpAffine(Icv,I1cv,H)#,fillval=fillval);
+        I1 = np.asarray(I1cv)
+        #I1[np.nonzero(I1<0)]=fillval
+        return I1
+
+def imtransform2(I,H0,fillval=3.0):
+    # transform image using center as origin
+    if len(I.shape)==3:
+        Iout=np.copy(I)
+        Iout[:,:,0]=imtransform2(I[:,:,0],H0,fillval=fillval)
+        Iout[:,:,1]=imtransform2(I[:,:,1],H0,fillval=fillval)
+        Iout[:,:,2]=imtransform2(I[:,:,2],H0,fillval=fillval)
+        return Iout
+    else:
+        T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
+        T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
+        H=np.dot(np.dot(T0,H0),T1)
+
+        # transform each channel separately
+        Icv=cv.fromarray(np.copy(I))
+        I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
+
+        cv.WarpPerspective(Icv,I1cv,cv.fromarray(np.copy(H)),fillval=1.0);
+        I1=np.asarray(I1cv)
+        I1[np.nonzero(I1<0)]=fillval
+        return I1
+
 def joinImages(I1,I2):
     newHeight = max(I1.shape[0],I2.shape[0])
     canvas = np.zeros((newHeight,I1.shape[1]+I2.shape[1]))
@@ -183,7 +233,7 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=None):
     
     Ic = IPad[i1:i2+2*pixPad,j1:j2+2*pixPad]
 
-    IO=lk.imagesAlign(Ic,patchPad,type='rigid',fillval=Ibg, minArea=minArea)
+    IO=lk.imagesAlign(Ic,patchPad,trfm_type='rigid',fillval=Ibg, minArea=minArea)
     Ireg = IO[1]
     Ireg = Ireg[pixPad:patch.shape[0]+pixPad,
                 pixPad:patch.shape[1]+pixPad]

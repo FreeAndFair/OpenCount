@@ -32,7 +32,7 @@ def gridAlign(I,Iref,r,fac1=1.5,fac2=.5,vCells=3,hCells=5,verbose=False):
     Iref2=Iref1[rOut[0]:rOut[1],rOut[2]:rOut[3]]
     I2=I1T[rOut[0]:rOut[1],rOut[2]:rOut[3]]
 
-    I2T=imagesAlign(I2,Iref2,type='projective',vCells=vCells,hCells=hCells)[1]
+    I2T=imagesAlign(I2,Iref2,trfm_type='projective',vCells=vCells,hCells=hCells)[1]
 
     # part 3
     Ipt=I2T[rOff[0]:rOff[1],rOff[2]:rOff[3]]

@@ -1,32 +1,44 @@
+import cProfile
+import cv2
 from scipy import misc
-from imagesAlign import *
+from shared import standardImread
+from imagesAlign import imagesAlign, pttransform
+import pdb
+import numpy as np
+import matplotlib.pyplot as plt
+
+import pstats
 
 # convert to double
-I=misc.imread('lena_t.jpg')/255.0;
-Iref=misc.imread('lena.jpg')/255.0;
+I=standardImread('lena_t.png')
+Iref=standardImread('lena.png')
+
 IO=imagesAlign(I,Iref)
-H=IO[0]
-viz=1
+#p = pstats.Stats('profile_imagesalign1')
+#p.strip_dirs().sort_stats('cumulative').print_stats(25)
+
+viz=True
 if viz:
+    H=IO[0]
     # figure(0)
     # imshow(np.abs(Iref-I),cmap='gray');
 
-    # figure(1)
-    # imshow(np.abs(Iref-IO[1]),cmap='gray');
+    plt.figure(1)
+    plt.imshow(np.abs(Iref-IO[1]),cmap='gray');
 
     pt0=np.array([155,65,1])
-    figure(2)
-    imshow(I,cmap='gray');
-    annotate('x',[pt0[0],pt0[1]])
+    plt.figure(2)
+    plt.imshow(I,cmap='gray');
+    plt.annotate('x',[pt0[0],pt0[1]])
 
-    figure(3)
-    imshow(IO[1],cmap='gray');
-    annotate('x',[pt0[0],pt0[1]])
+    plt.figure(3)
+    plt.imshow(IO[1],cmap='gray');
+    plt.annotate('x',[pt0[0],pt0[1]])
 
-    figure(4)
-    imshow(I,cmap='gray');
+    plt.figure(4)
+    plt.imshow(I,cmap='gray');
 
     pt1=pttransform(I,np.linalg.inv(H),pt0);
-    annotate('x',[pt1[0],pt1[1]])
+    plt.annotate('x',[pt1[0],pt1[1]])
 
-    show();
+    plt.show();

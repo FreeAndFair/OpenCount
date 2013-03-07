@@ -143,7 +143,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
         prev = M[i-1]
         shiftH = np.eye(3)
         shiftH[0,2] = hspace
-        prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
+        prevT = sh.imtransform(prev,shiftH,fillval=prev.max());
         # shift
         #t1=time.clock()    
         # old
@@ -161,7 +161,7 @@ def pm1(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
     prev = M[nDigits-2]
     shiftH = np.eye(3)
     shiftH[0,2] = hspace
-    prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
+    prevT = sh.imtransform(prev,shiftH,fillval=prev.max());
     M[nDigits-1] = prevT+unary
     # get best root position
     rootM = M[nDigits-1]
@@ -283,7 +283,7 @@ def pm2(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
         prev = M[i-1]
         shiftH = np.eye(3)
         shiftH[0,2] = hspace
-        prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
+        prevT = sh.imtransform(prev,shiftH,fillval=prev.max());
         # shift
         #t1=time.clock()    
         # old
@@ -301,7 +301,7 @@ def pm2(digit_hash,I,nDigits,hspace,hackConstant=250,rejected_hash=None,accepted
     prev = M[nDigits-2]
     shiftH = np.eye(3)
     shiftH[0,2] = hspace
-    prevT = lk.imtransform(prev,shiftH,fillval=prev.max());
+    prevT = sh.imtransform(prev,shiftH,fillval=prev.max());
     M[nDigits-1] = prevT+unary
     # get best root position
     rootM = M[nDigits-1]

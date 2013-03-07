@@ -80,7 +80,7 @@ def align(groupid, dat):
             I=I_orig[:,left_border:]
             Inorm = make_norm(I, Iref)
         
-            (H,imres,err)=imagesAlign.imagesAlign(Inorm,Iref,type='translation')
+            (H,imres,err)=imagesAlign.imagesAlign(Inorm,Iref,trfm_type='translation')
             
             r_img.append((make_norm(I_orig, Iref_orig), H))
             r.append(translate(group[i]))
@@ -100,7 +100,7 @@ def align(groupid, dat):
         print arr
         """
         for img,H in contest:
-            translated = imagesAlign.imtransform(np.copy(img), H, fillval=np.nan)
+            translated = sh.imtransform(np.copy(img), H, fillval=np.nan)
             align_res = np.nan_to_num(translated)
             c_res.append(align_res)
         translated_images.append(c_res)
