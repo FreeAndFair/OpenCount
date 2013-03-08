@@ -757,7 +757,7 @@ def extract_contest(args):
 
     #print "before"
     #print final
-    final = remove_contest_overlap(final, giventargets)
+    #final = remove_contest_overlap(final, giventargets)
     #print "after"
     #print final
 
