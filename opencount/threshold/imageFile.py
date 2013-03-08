@@ -30,7 +30,7 @@ def makeOneFile(prefix, src, radix, dst):
         which = "%02x"%index
         data = []
         names = []
-        print 'iter', index
+        #print 'iter', index
         n = time.time()
         a = b = c = 0
         for directory in os.listdir(radix):
@@ -45,7 +45,7 @@ def makeOneFile(prefix, src, radix, dst):
                 b += time.time()-nn; nn=time.time();
                 names.extend(open(fullpath+".index").read().split("\0")[:-1])
                 c += time.time()-nn; nn=time.time();
-        print '    took', time.time()-n,a,b,c
+        #print '    took', time.time()-n,a,b,c
         sm += len(names)
         #print names
         #print [reverse_mapping[x] for x in names]

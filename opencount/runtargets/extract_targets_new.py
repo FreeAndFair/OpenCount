@@ -162,7 +162,7 @@ class RunThread(threading.Thread):
         # Just add it to there once. Code will be faster.
         
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
-        print "...Doing a zip...", time.time()
+        #print "...Doing a zip...", time.time()
 
         total = len(bal2targets)
         manager = multiprocessing.Manager()
@@ -172,7 +172,7 @@ class RunThread(threading.Thread):
         tmp = avg_intensities # TMP: [[imgpath, float avg_intensity], ...]
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
-        print "...Starting a find-longest-prefix thing...", time.time()
+        #print "...Starting a find-longest-prefix thing...", time.time()
         time_longestPrefix = time.time()
         fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
         fulllst = [(x,int(y)) for x,y in fulllst]
@@ -196,9 +196,9 @@ class RunThread(threading.Thread):
         
         dur_longestPrefix = time.time() - time_longestPrefix
         open(self.proj.classified+".prefix", "w").write(prefix)
-        print "...Finished find-longest-prefix ({0} s).".format(dur_longestPrefix)
+        #print "...Finished find-longest-prefix ({0} s).".format(dur_longestPrefix)
 
-        print "...Starting classifiedWrite...", time.time()
+        #print "...Starting classifiedWrite...", time.time()
         time_classifiedWrite = time.time()
         out = open(self.proj.classified, "w")
         offsets = array.array('L')
@@ -213,9 +213,9 @@ class RunThread(threading.Thread):
 
         offsets.tofile(open(self.proj.classified+".index", "w"))
         dur_classifiedWrite = time.time() - time_classifiedWrite
-        print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
+        #print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
 
-        print "...Starting imageFileMake...", time.time()
+        #print "...Starting imageFileMake..."
         time_imageFileMake = time.time()
 
         threshold.imageFile.makeOneFile('',
@@ -223,7 +223,7 @@ class RunThread(threading.Thread):
                                         pathjoin(self.proj.projdir_path,'extracted_radix/'),
                                         self.proj.extractedfile)
         dur_imageFileMake = time.time() - time_imageFileMake
-        print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
+        #print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")
