@@ -39,7 +39,7 @@ def merge(args):
     return res
 
 def make_norm(I, Iref):
-    Inorm = np.zeros(Iref.shape)
+    Inorm = np.zeros(Iref.shape, dtype=Iref.dtype)
     # make patch the same size as Iref
         
     min0 = min(I.shape[0],Iref.shape[0])
@@ -79,7 +79,7 @@ def align(groupid, dat):
             I_orig=sh.standardImread(group[i],flatten=True)
             I=I_orig[:,left_border:]
             Inorm = make_norm(I, Iref)
-        
+            
             (H,imres,err)=imagesAlign.imagesAlign(Inorm,Iref,trfm_type='translation')
             
             r_img.append((make_norm(I_orig, Iref_orig), H))
