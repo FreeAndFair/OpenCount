@@ -1,4 +1,4 @@
-import sys, os, threading, multiprocessing, math, array, time, shutil, cProfile
+import sys, os, threading, multiprocessing, math, array, time, shutil, cProfile, pdb
 try:
     import cPickle as pickle
 except ImportError:
@@ -153,10 +153,6 @@ class RunThread(threading.Thread):
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
         print "...Doing post-target-extraction work..."
         time_post = time.time()
-        try:
-            os.makedirs(self.proj.extracted_dir)
-        except:
-            pass
 
         # This will always be a common prefix. 
         # Just add it to there once. Code will be faster.
@@ -218,10 +214,28 @@ class RunThread(threading.Thread):
         #print "...Starting imageFileMake..."
         time_imageFileMake = time.time()
 
+        def get_target_size():
+            # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
+            #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
+            #     box := [x1, y1, width, height, id, contest_id]
+            widgh, height = None, None
+            for groupid, pagedict in target_locs_map.iteritems():
+                for page, contests in pagedict.iteritems():
+                    for contest in contests:
+                        targetboxes = contest[1:]
+                        for (x1,y1,w,h,id,contest_id) in targetboxes:
+                            return w, h
+            return None, None
+
+        w, h = get_target_size()
+        if w == None:
+            raise Exception("Woah, No targets in this election??")
+
         threshold.imageFile.makeOneFile('',
                                         fulllst, 
                                         pathjoin(self.proj.projdir_path,'extracted_radix/'),
-                                        self.proj.extractedfile)
+                                        self.proj.extractedfile,
+                                        (w,h))
         dur_imageFileMake = time.time() - time_imageFileMake
         #print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 

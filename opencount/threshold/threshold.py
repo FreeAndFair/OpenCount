@@ -9,7 +9,8 @@ import util
 from time import time
 import imageFile
 import array
-import pickle
+try: import cPickle as pickle
+except: import pickle
 import math
 
 import numpy as np
@@ -136,6 +137,9 @@ class GridShow(wx.ScrolledWindow):
         # data-structs linear in the # of voting targets...
         # Recall: targetname is {imgname}.{uid}.png
         # Note: To save space, TARGETPATH must be joined with self.PREFIX
+        # NOTE: TARGETPATH is NOT actually saved to disk (we stopped saving
+        # individual target images to disk to save space+time. Fortunately,
+        # none of the components actually needs these individual target patches.
         targetpath_full = self.prefix + targetpath
         targetname = os.path.splitext(os.path.split(targetpath_full)[1])[0]
         imgname = targetname.split('.')[0]
@@ -332,8 +336,6 @@ class GridShow(wx.ScrolledWindow):
                     if text == "Mark Row Wrong":
                         for ct in range(self.numcols):
                             self.markWrong(i+ct)
-                    if text == "Generate Overlays Starting Here...":
-                        self.show_overlays(ii, event1)
 
                 a = m.Append(-1, "Set Threshold")
                 self.Bind(wx.EVT_MENU, decide, a)
@@ -341,8 +343,6 @@ class GridShow(wx.ScrolledWindow):
                 self.Bind(wx.EVT_MENU, decide, b)
                 c = m.Append(-1, "Mark Row Wrong")
                 self.Bind(wx.EVT_MENU, decide, c)
-                d = m.Append(-1, "Generate Overlays Starting Here...")
-                self.Bind(wx.EVT_MENU, decide, d)
                 pos = event1.GetPosition()
                 pos = self.ScreenToClient(pos)
                 m.Bind(wx.EVT_CONTEXT_MENU, decide)
@@ -584,15 +584,26 @@ class GridShow(wx.ScrolledWindow):
         Get a list of all the images.
         """
 
-        path = self.proj.extracted_dir
-        for dirpath, dirnames, filenames in os.walk(path):
-            done = False
-            for imgname in (f for f in filenames if is_image_ext(f)):
-                imgpath = pathjoin(dirpath, imgname)
-                self.basetargetw, self.basetargeth = Image.open(imgpath).size
-                done = True
-                break
-            if done: break
+        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                    self.proj.target_locs_map), 'rb'))
+        
+        def get_target_size():
+            # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
+            #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
+            #     box := [x1, y1, width, height, id, contest_id]
+            widgh, height = None, None
+            for groupid, pagedict in target_locs_map.iteritems():
+                for page, contests in pagedict.iteritems():
+                    for contest in contests:
+                        targetboxes = contest[1:]
+                        for (x1,y1,w,h,id,contest_id) in targetboxes:
+                            return w, h
+            return None, None
+
+        w, h = get_target_size()
+        if w == None:
+            raise Exception("Woah, No targets in this election??")
+        self.basetargetw, self.basetargeth = w, h
 
         self.targetResize = 1
 

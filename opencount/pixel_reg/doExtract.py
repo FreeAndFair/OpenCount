@@ -225,15 +225,12 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     targetdiffout_rootdir = os.path.normpath(os.path.join(targetDiffDir, relpath_root, imgname, "page{0}".format(page)))
     imgmetaout_rootdir = os.path.normpath(os.path.join(imageMetaDir, relpath_root, imgname, "page{0}".format(page)))
     
-    try: os.makedirs(targetout_rootdir)
-    except: pass
     try: os.makedirs(targetmetaout_rootdir)
     except: pass
     try: os.makedirs(targetdiffout_rootdir)
     except: pass
     try: os.makedirs(imgmetaout_rootdir)
     except: pass
-
 
     curid = str(id(mp.current_process()))
     radix_sort_dir = os.path.join(os.path.abspath(projdir), "extracted_radix/"+curid)
@@ -259,7 +256,6 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
             _INTEREST = img[:, 15:img.shape[1]-20]
             avg_intensity = 255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))
         avg_intensities.append((targetoutpath, avg_intensity))
-        sh.imsave(targetoutpath, img)
 
         diffoutname = imgname + "." + str(int(uid)) + ".npy"
         np.save(pathjoin(targetdiffout_rootdir, diffoutname), Idiff)

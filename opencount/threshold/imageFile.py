@@ -1,4 +1,4 @@
-import os
+import os, pdb
 from PIL import Image
 from wx.lib.pubsub import Publisher
 import wx
@@ -14,7 +14,7 @@ def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
     return os.path.splitext(filename)[1].lower() in IMG_EXTS
 
-def makeOneFile(prefix, src, radix, dst):
+def makeOneFile(prefix, src, radix, dst, targetdims):
     reverse_mapping = {}
     for i,x in enumerate(src):
         reverse_mapping[x[0]] = i
@@ -22,8 +22,7 @@ def makeOneFile(prefix, src, radix, dst):
     tout = open(dst+".type", "wb")
     sm = 0
 
-    imgSize = Image.open(os.path.join(prefix,src[0][0])).size
-    imgSize = imgSize[0]*imgSize[1]
+    imgSize = targetdims[0] * targetdims[1]
 
     print len(src)
     for index in range(256):
@@ -58,7 +57,7 @@ def makeOneFile(prefix, src, radix, dst):
         tout.write("A"*len(sorted_data))
 
     if src:
-        open(dst+".size", "w").write(str(Image.open(src[0][0]).size))
+        open(dst+".size", "w").write(str(targetdims))
 
     out.close()
     tout.close()
