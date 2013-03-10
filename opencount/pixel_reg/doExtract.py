@@ -213,7 +213,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         print 'total extract time = ',time.clock()-t0,'(s)'
     return result
 
-def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
+def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
              balP, tplP, flipped, page,
              voted_rootdir, projdir, result_queue):
     imgname = os.path.splitext(os.path.split(balP)[1])[0]
@@ -221,12 +221,12 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     relpath_root = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voted_rootdir))
     relpath_root = os.path.normpath(relpath_root)
     targetout_rootdir = os.path.normpath(os.path.join(targetDir, relpath_root, imgname, "page{0}".format(page)))
-    targetmetaout_rootdir = os.path.normpath(os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page)))
+    #targetmetaout_rootdir = os.path.normpath(os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page)))
     targetdiffout_rootdir = os.path.normpath(os.path.join(targetDiffDir, relpath_root, imgname, "page{0}".format(page)))
     imgmetaout_rootdir = os.path.normpath(os.path.join(imageMetaDir, relpath_root, imgname, "page{0}".format(page)))
     
-    try: os.makedirs(targetmetaout_rootdir)
-    except: pass
+    #try: os.makedirs(targetmetaout_rootdir)
+    #except: pass
     try: os.makedirs(targetdiffout_rootdir)
     except: pass
     try: os.makedirs(imgmetaout_rootdir)
@@ -242,12 +242,12 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
 
     # 1.) First, save target patches, target diff data, and target meta
     #     data to disk, and reconstruct directory structure.
-    targets = [] # [str targetpath_i, ...]
+    targets = [] # [str _i, ...]
+    bboxes = []
 
     for uid,img,bbox,Idiff in imgs:
-        targetoutname = imgname+"."+str(int(uid))+".png"
-        targetoutpath = pathjoin(targetout_rootdir, targetoutname)
-        targets.append(targetoutpath)
+        targetoutname = str(balId)+"\0"+str(page)+"\0"+str(int(uid))
+        targets.append((balId, page, int(uid)))
         img = np.nan_to_num(img)
         if not HACK_SANTACRUZ:
             avg_intensity = 255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1]))
@@ -255,27 +255,32 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
             avg_intensity = 255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))
-        avg_intensities.append((targetoutpath, avg_intensity))
+        avg_intensities.append((targetoutname, avg_intensity))
 
         diffoutname = imgname + "." + str(int(uid)) + ".npy"
         np.save(pathjoin(targetdiffout_rootdir, diffoutname), Idiff)
 
-        metaoutname = imgname + '.' + str(int(uid))
-        metafile = pathjoin(targetmetaout_rootdir, metaoutname)
-        pickle.dump({'bbox':bbox}, open(metafile, "w"))
+        #metaoutname = imgname + '.' + str(int(uid))
+        #metafile = pathjoin(targetmetaout_rootdir, metaoutname)
+        #pickle.dump({'bbox':bbox}, open(metafile, "w"))
+        bboxes.append(bbox)
 
         placefile = os.path.join(radix_sort_dir, "%02x"%int(avg_intensity))
         data = array.array("B", np.floor(img.flatten()*255.0).astype(np.uint8)).tostring()
         if os.path.exists(placefile):
             open(placefile, "a").write(data)
-            open(placefile+".index", "a").write(targetoutpath+"\0")
+            open(placefile+".index", "a").write(targetoutname+"\n")
         else:
             open(placefile, "w").write(data)
-            open(placefile+".index", "w").write(targetoutpath+"\0")
+            open(placefile+".index", "w").write(targetoutname+"\n")
     
     # 2.) Finally, save image meta-data to disk.
     imgmeta_outpath = os.path.join(imgmetaout_rootdir, "{0}_meta.p".format(imgname))
-    toWrite={"flipped": flipped, "targets":targets, "ballot": balP, "template": tplP}
+    toWrite={"flipped": flipped, 
+             "targets":targets, 
+             "target_bboxes":bboxes,
+             "ballot": balP, 
+             "template": tplP}
     # store the grouping and local alignment error with the ballot metadata.
     # use this for quarintine purposes.
     #bbox_errs=[];
@@ -284,7 +289,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, targetMetaDir, imageMetaDir,
     #toWrite["bbox_errs"]=str(bbox_errs);
     pickle.dump(toWrite, open(imgmeta_outpath, "w"))
     result_queue.put([avg_intensities, balP, page, targetout_rootdir, 
-                      targetmetaout_rootdir, targetdiffout_rootdir, imgmeta_outpath])
+                      targetdiffout_rootdir, imgmeta_outpath])
 
 def debugWorker(job):
     (Iref, bbs, fIn, destDir, extractedMeta, contestMeta, f1) = job
@@ -352,13 +357,13 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
     Errs=[];K=0
     
     for K in range(len(jobs)):
-        # job := [tplImgs, tplPaths, tplFlips, bbsL_i, balL_i, balL_flips, targetDiri, targetDiffDir_i, targetMetaDir_i, imageMetaDir_i, voteddir, projdir, queue, result_queue]
+        # job := [tplImgs, tplPaths, tplFlips, bbsL_i, balL_i, balid, balL_flips, targetDiri, targetDiffDir_i, imageMetaDir_i, voteddir, projdir, queue, result_queue]
         job=jobs[K]
         balL=job[4]
         for side, balP in enumerate(balL):
             ballotid = img2bal[balP]
             try:
-                _, _, diffdir, imgmetapath = bal2targets[ballotid][side]
+                _, diffdir, imgmetapath = bal2targets[ballotid][side]
             except:
                 traceback.print_exc()
                 pdb.set_trace()
@@ -458,7 +463,7 @@ def convertImagesWorkerMAP(job):
     #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
     #print "START"
     try:
-        (tplImgs, tplPaths, tpl_flips, bbsL, balL, balL_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
+        (tplImgs, tplPaths, tpl_flips, bbsL, balL, balId, balL_flips, targetDir, targetDiffDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
         t0=time.clock();
 
         # load images
@@ -487,7 +492,7 @@ def convertImagesWorkerMAP(job):
                                            balP=balP,do_grid_opt=True,
                                            vCells=4,hCells=4, verbose=False), 
                      targetDir, targetDiffDir, 
-                     targetMetaDir, imageMetaDir, balP, tplImgPath,
+                     imageMetaDir, balId, balP, tplImgPath,
                      flipped, side, voted_rootdir, projdir, result_queue)
 
         queue.put(True)
@@ -578,11 +583,11 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
 
     while cnt < num_imgs2process:
         (avg_intensities_cur, balP, page, target_rootdir,
-         targetmeta_rootdir, targetdiff_rootdir, imgmeta_rootdir) = result_queue.get(block=True)
+         targetdiff_rootdir, imgmeta_rootdir) = result_queue.get(block=True)
         avg_intensities.extend(avg_intensities_cur)
         ballotid = img2bal[balP]
         #print "...finished ballotid {0}".format(ballotid)
-        bal2targets.setdefault(ballotid, {})[page] = (target_rootdir, targetmeta_rootdir,
+        bal2targets.setdefault(ballotid, {})[page] = (target_rootdir,
                                                       targetdiff_rootdir, imgmeta_rootdir)
         cnt += 1
     print 'done.'
@@ -701,8 +706,8 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             imgpaths = b2imgs[ballotid]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-            job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, 
-                   imgpaths_flips, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, 
+            job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered,
+                   ballotid, imgpaths_flips, targetDir, targetDiffDir, imageMetaDir, 
                    voted_rootdir, projdir, queue, result_queue]
             jobs.append(job)
             imgcount += len(imgpaths_ordered)
@@ -714,29 +719,20 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         qballotids = quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, bal2targets, imageMetaDir=imageMetaDir)
         # Remove all quarantined ballots from AVG_INTENSITIES, BAL2TARGETS
         def is_quarantined(targetpath, voteddir, extractdir, qballotids, img2b):
-            votedimgpath = target_to_image(targetpath, voteddir, extractdir)
+            votedimgpath = target_to_image(targetpath, b2imgs)
             ballotid = img2b[votedimgpath]
             #if ballotid in qballotids:
             #    print "    CAUGHT QBALLOTID", ballotid
             return ballotid in qballotids
             
-        avg_intensities = [tup for tup in avg_intensities if not is_quarantined(tup[0], voted_rootdir, targetDir, qballotids, img2b)]
+        avg_intensities = [tup for tup in avg_intensities if not is_quarantined(tup, voted_rootdir, targetDir, qballotids, img2b)]
         for qballotid in qballotids:
             bal2targets.pop(qballotid)
         dur = time.time() - t
         print "...Finished quarantineCheckMAP ({0} s).".format(dur)
     return avg_intensities, bal2targets
 
-def target_to_image(targetpath, voteddir, extracteddir):
-    # Recall: TARGETNAME is {imgname}.{uid}.png
-    #     TARGETPATH: {extractdir}/{ballotdirstruct}/{imgname}/{pageN}/TARGETNAME
-    relpath = os.path.relpath(os.path.abspath(targetpath), os.path.abspath(extracteddir))
-    rootdir, targetname = os.path.split(relpath)
-    rootdir = os.path.split(os.path.split(rootdir)[0])[0] # peel off {imgname},{pageN}
-    targetname_noext = os.path.splitext(targetname)[0]
-    splitted = targetname_noext.split('.')
-    uid = splitted[-1]
-    votedname = ''.join(splitted[:-1]) # Account for additional possible dots '.'
-    votedimgpath = os.path.join(voteddir, rootdir, votedname+'.png')
-    return votedimgpath
-
+def target_to_image(target, b2imgs):
+    print target
+    bid, side, _= target[0].split("\0")
+    return b2imgs[int(bid)][int(side)]

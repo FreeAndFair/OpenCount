@@ -14,10 +14,11 @@ def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
     return os.path.splitext(filename)[1].lower() in IMG_EXTS
 
-def makeOneFile(prefix, src, radix, dst, targetdims):
+def makeOneFile(src, radix, dst, targetdims):
     reverse_mapping = {}
     for i,x in enumerate(src):
         reverse_mapping[x[0]] = i
+    print src
     out = open(dst, "wb")
     tout = open(dst+".type", "wb")
     sm = 0
@@ -42,7 +43,7 @@ def makeOneFile(prefix, src, radix, dst, targetdims):
                 a += time.time()-nn; nn=time.time();
                 data.extend([content[i*imgSize:(i+1)*imgSize] for i in range(len(content)/imgSize)])
                 b += time.time()-nn; nn=time.time();
-                names.extend(open(fullpath+".index").read().split("\0")[:-1])
+                names.extend(open(fullpath+".index").read().split("\n")[:-1])
                 c += time.time()-nn; nn=time.time();
         #print '    took', time.time()-n,a,b,c
         sm += len(names)
@@ -50,9 +51,11 @@ def makeOneFile(prefix, src, radix, dst, targetdims):
         #print [reverse_mapping[x] for x in names]
         #print sm
         #print len(names), len(data)
+        print names
+        #exit(0)
         sort_order = sorted([x for x in range(len(data)) if names[x] in reverse_mapping], key=lambda x: reverse_mapping[names[x]])
         sorted_data = [data[i] for i in sort_order]
-        #print data
+        #print sorted_data
         out.write("".join(sorted_data))
         tout.write("A"*len(sorted_data))
 

@@ -82,91 +82,33 @@ class GridShow(wx.ScrolledWindow):
     basejpgs = {}
     images = {}
     numcols = 20
-    preloaded_fulllist = None
-    inverse_fulllist = None
 
     def lookupFullList(self, i):
         return self.classified_file[i]
 
-        if self.classifiedindex:
-            prefix = open(self.proj.classified+".prefix").read()
-            fin = open(self.proj.classified)
-            fin.seek(self.classifiedindex[i])
-            sofar = ""
-            while True:
-                nxt = fin.read(1000)
-                if '\n' in nxt:
-                    sofar += nxt[:nxt.index('\n')]
-                    break
-                else:
-                    sofar += nxt
-            res = sofar.split('\0')
-            res[0] = prefix+res[0]
-            return tuple(res)
-            
-        else:
-            for j,each in enumerate(self.enumerateOverFullList()):
-                if i == j: 
-                    return each
-        raise RuntimeError("NOT FOUND INDEX " + str(i))
-
     def enumerateOverFullList(self, force=False):
-        if self.preloaded_fulllist:
-            print 'case a'
-            for each in self.preloaded_fulllist:
-                yield each
-        elif not force:
-            print 'case b'
-            it = self.enumerateOverFullList(True)
-            first = next(it)
-            if len(str(first))*self.numberOfTargets < (1<<30):
-                self.preloaded_fulllist = [first]
-                self.preloaded_fulllist.extend(it)
-                for each in self.preloaded_fulllist:
-                    yield each
-        else:
-            print 'case c'
-            prefix = open(self.proj.classified+".prefix").read()
-            for line in open(self.proj.classified):
-                d = line[:-1].split('\0') 
-                d[0] = prefix+d[0]
-                yield tuple(d)
+        for target,fill in self.classified_file:
+            yield (target,fill)
 
     def target_to_sample(self, targetpath):
-        # Has to be a bit hackier, since I don't want to construct in-memory
-        # data-structs linear in the # of voting targets...
-        # Recall: targetname is {imgname}.{uid}.png
-        # Note: To save space, TARGETPATH must be joined with self.PREFIX
-        # NOTE: TARGETPATH is NOT actually saved to disk (we stopped saving
-        # individual target images to disk to save space+time. Fortunately,
-        # none of the components actually needs these individual target patches.
-        targetpath_full = self.prefix + targetpath
-        targetname = os.path.splitext(os.path.split(targetpath_full)[1])[0]
-        imgname = targetname.split('.')[0]
-        # (also removes the 'pageN/' off of the targetpath_full)
-        rootdir = os.path.split(os.path.split(os.path.split(targetpath_full)[0])[0])[0]
-        relpath = os.path.normpath(os.path.relpath(os.path.abspath(rootdir),
-                                                   os.path.abspath(self.proj.extracted_dir)))
-        ballotpath = os.path.normpath(pathjoin(self.proj.voteddir, relpath, imgname+".png"))
-        page = self.img2page[ballotpath]
-        ballotid = self.img2bal[ballotpath]
-
-        z=self.get_meta(ballotid, page)['ballot']
-        return z
+        return self.bal2imgs[targetpath[0]][targetpath[1]]
 
     def get_meta(self, ballotid, page):
-        print ballotid #REMOVE
         if page not in self.bal2targets[ballotid]:
-            _,_,_, imgmeta_path = self.bal2targets[ballotid].values()[0]
+            _,_, imgmeta_path = self.bal2targets[ballotid].values()[0]
         else:
-            _,_,_, imgmeta_path = self.bal2targets[ballotid][page]
-        print imgmeta_path #REMOVE
+            _,_, imgmeta_path = self.bal2targets[ballotid][page]
         return pickle.load(open(imgmeta_path, 'rb'))
 
     def sample_to_targets(self, ballotpath):
         page = self.img2page[ballotpath]
         ballotid = self.img2bal[ballotpath]
         return self.get_meta(ballotid, page)['targets']
+
+    def sample_to_target_bboxes(self, ballotpath):
+        page = self.img2page[ballotpath]
+        ballotid = self.img2bal[ballotpath]
+        return self.get_meta(ballotid, page)['target_bboxes']
 
     @util.pdb_on_crash
     def lightBox(self, i, evt=None):
@@ -177,9 +119,8 @@ class GridShow(wx.ScrolledWindow):
         i = i+evt.GetPositionTuple()[0]/self.targetw
 
         targetpath = self.lookupFullList(i)[0]
-        try:
-            ballotpath = self.target_to_sample(targetpath)
-        except:
+        ballotpath = self.bal2imgs[targetpath[0]][targetpath[1]]
+        if not os.path.exists(ballotpath):
             dlg = wx.MessageDialog(self, message="Oh no. We couldn't open this ballot for some reason ...", style=wx.ID_OK)
             dlg.ShowModal()
 
@@ -208,8 +149,8 @@ class GridShow(wx.ScrolledWindow):
         temp = before.copy()
         draw = ImageDraw.Draw(temp)
 
-        targetname = os.path.split(self.prefix+targetpath)[-1]
         ballotid = self.img2bal[ballotpath]
+        input_target_id = targetpath[1]
 
         dur = time() - _t
         print "    Phase 2: {0} s".format(dur)
@@ -218,51 +159,23 @@ class GridShow(wx.ScrolledWindow):
         indexs = []
         other_stuff = [] 
         
-        targetpaths = self.sample_to_targets(ballotpath)
+        targetids = self.sample_to_targets(ballotpath)
+        target_bboxes = self.sample_to_target_bboxes(ballotpath)
         page = self.img2page[ballotpath]
-        if page in self.bal2targets[ballotid]:
-            _,targetmeta_dir,_,_ = self.bal2targets[ballotid][page]
-        else:
-            _,targetmeta_dir,_,_ = self.bal2targets[ballotid].values()[0]
 
-        if self.inverse_fulllist == None:
-            self.inverse_fulllist = {}
-            for ind, (p, _) in enumerate(self.enumerateOverFullList()):
-                self.inverse_fulllist[p] = ind
-        #for ind, (p, _) in enumerate(self.enumerateOverFullList()):
-        for p in targetpaths:
-            # P is path to a target image
-            # Note to self:
-            # when adding target-adjustment from here, you need to some how map
-            # targetID name -> index in the list to find if it is 'wrong' or not.
-            ind = self.inverse_fulllist[p]
-            pname = os.path.split(p)[-1]
-            #if pname in targetpaths:
-            if p in targetpaths:
-                # Recall: targetname is {imgname}.{uid}.png
-                #         metaname is {imgname}.{uid}
-                imgname, uid, ext = pname.split(".")
-                metaname = "{0}.{1}".format(imgname, uid)
-                targetmeta_path = pathjoin(targetmeta_dir, metaname)
-                dat = pickle.load(open(targetmeta_path, 'rb'))
-                locs = dat['bbox']
-                indexs.append(([a / fact for a in locs], ind))
-                other_stuff.append((ind, locs, pname))
+        for tid,bbox in zip(targetids,target_bboxes):
+            ind = self.classified_lookup[tid]
+            indexs.append(([a / fact for a in bbox], ind))
+            other_stuff.append((ind, bbox, tid))
 
         print "    Phase 3: {0} s".format(time() - _t)
         _t = time()
 
-        #for each in self.sample_to_targets(encodepath(ballotpath)):
-        for (ind, locs, pname) in other_stuff:
+        for (ind, locs, tid) in other_stuff:
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
-            #ind = next(i for i,(p,_) in enumerate(self.enumerateOverFullList()) if each in p)
-            #n = os.path.split(each)[-1][:-4]
-            #dat = pickle.load(open(os.path.join(self.proj.extracted_metadata,n)))
-            #locs = dat['bbox']
-            #indexs.append(([a/fact for a in locs], ind))
-            color = (0,255,0) if pname == targetname else (0, 0, 200)
+            color = (0,255,0) if tid[1] == input_target_id else (0, 0, 200)
             draw.rectangle(((locs[2])/fact-1, (locs[0])/fact-1, 
                             (locs[3])/fact+1, (locs[1])/fact+1),
                            outline=color)
@@ -291,14 +204,14 @@ class GridShow(wx.ScrolledWindow):
         def remove(x):
             pan.Destroy()
 
-        ifflipped = "\n\n\n(auto-flipped)" if doflip else ""
+        ifflipped = "(auto-flipped)" if doflip else ""
         def lines(x):
             if len(x) < 60: return x
             return x[:60]+"\n"+lines(x[60:])
 
         
         templatepath = self.get_meta(self.img2bal[ballotpath], page)['template']
-        wx.StaticText(pan, label="Ballot image:\n"+lines(ballotpath)+"\n\nTemplate image:\n"+lines(templatepath)+"\n\nTarget image:\n"+lines(targetpath)+ifflipped, 
+        wx.StaticText(pan, label="Ballot image:\n"+lines(ballotpath)+"\n\nTemplate image:\n"+lines(templatepath)+"\n\n"+ifflipped, 
                       pos=(before.size[0],before.size[1]/3))
 
         b = wx.Button(pan, label="Back", pos=(before.size[0], 2*before.size[1]/3))
@@ -358,15 +271,9 @@ class GridShow(wx.ScrolledWindow):
             ballotpath = self.target_to_sample(targetpath)
         if ballotpath not in self.quarantined:
             self.quarantined.append(ballotpath)
-        #for each in self.sample_to_targets(encodepath(ballotpath)):
         for each in self.sample_to_targets(ballotpath):
-            each_minusprefix = each[len(self.prefix):]
-            if each_minusprefix in self.classified_lookup:
-                #print 'A'
-                self.markQuarantineSingle(self.classified_lookup[each_minusprefix])
-            #for j,line in enumerate(open(self.proj.classified)):
-            #    if each == line.split('\0')[0]:
-            #        self.markQuarantineSingle(j)
+            if each in self.classified_lookup:
+                self.markQuarantineSingle(self.classified_lookup[each])
 
     def markQuarantineSingle(self, i):
         self.quarantined_targets.append(i)
@@ -505,10 +412,10 @@ class GridShow(wx.ScrolledWindow):
 
         self.drawThreshold()
 
+    """
     def show_overlays(self, ii, evt):
-        """ Starting at the place where the user right-clicked, generate 
-        min/max overlays from all voting targets, up to the last target.
-        """
+        #Starting at the place where the user right-clicked, generate 
+        #min/max overlays from all voting targets, up to the last target.
         start_idx = ii+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
 
         print 'start_idx:', start_idx
@@ -519,6 +426,7 @@ class GridShow(wx.ScrolledWindow):
 
         frame = ViewOverlays.SimpleOverlayFrame(self, imgpaths)
         frame.Show()
+    """
 
     def __init__(self, parent, proj):
         """
@@ -529,6 +437,7 @@ class GridShow(wx.ScrolledWindow):
         self.proj = proj
         self.proj.addCloseEvent(self.dosave)
         self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
+        self.bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
         self.img2page = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
         self.img2flip = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_flip), 'rb'))
         self.bal2targets = pickle.load(open(pathjoin(proj.projdir_path, proj.ballot_to_targets), 'rb'))
@@ -550,12 +459,12 @@ class GridShow(wx.ScrolledWindow):
         self.proj.removeCloseEvent(self.dosave)
 
     def setFilter(self):
-        gr = OverlayGrid(self, range(0,self.threshold), 
-                         range(self.threshold,self.numberOfTargets))
-        gr.Show()
-        return
+        #gr = OverlayGrid(self, range(0,self.threshold), 
+        #                 range(self.threshold,self.numberOfTargets))
+        #gr.Show()
+        #return
 
-        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", ["Show All", "Show only even", "Show only filled", "Open Overlay Selection"]);
+        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", ["Show All", "Show only even", "Show only filled", "Show only overvotes"]);
         dlg.ShowModal()
 
         self.jpgs = {}
@@ -573,6 +482,8 @@ class GridShow(wx.ScrolledWindow):
         elif dlg.GetValue()[0] == 2:
             self.visibleTargets = range(0,self.threshold)
         elif dlg.GetValue()[0] == 3:
+            target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                        self.proj.target_locs_map), 'rb'))
             pass
 
         self.numberOfVisibleTargets = len(self.visibleTargets)
@@ -617,11 +528,8 @@ class GridShow(wx.ScrolledWindow):
         #             "signals.MyGauge.nextjob", 
         #             len(self.classifiedindex)/1000)
         #gauge.Show()
-        for i,(_,v) in enumerate(self.enumerateOverFullList()):
-            #if i%1000 == 0:
-                # Don't want to slow it down too much
-                #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
-            hist[int(v)] += 1
+        for _,v in classified_file:
+            hist[v] += 1
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         #print list(enumerate(hist))
 
@@ -711,7 +619,7 @@ class GridShow(wx.ScrolledWindow):
         self.images = {}
 
     def setup(self):
-        self.somethingHasChanged = False
+        self.somethingHasChanged = True
         i = 0
 
         self.Bind(wx.EVT_SCROLLWIN_THUMBTRACK, 
@@ -728,14 +636,17 @@ class GridShow(wx.ScrolledWindow):
                   lambda x: self.onScroll(self.lastpos+self.numcols*self.numrows))
 
 
-        self.numberOfTargets = 0
-        for _ in self.enumerateOverFullList():
-            self.numberOfTargets += 1
+        self.classified_file = [l.split("\0") for l in open(self.proj.classified)]
+        print self.classified_file[0]
+        self.classified_file = [((int(bid),int(side),int(tid)),int(value)) for bid,side,tid,value in self.classified_file]
+        self.classified_lookup = dict([(l, i) for i,(l,_) in enumerate(self.classified_file)])
+
+        self.numberOfTargets = len(self.classified_file)
         self.visibleTargets = range(self.numberOfTargets)
         self.numberOfVisibleTargets = len(self.visibleTargets)
 
-        self.classified_file = [l.split("\0") for l in open(self.proj.classified)]
-        self.classified_lookup = dict([(l.split("\0")[0], i) for i,l in enumerate(open(self.proj.classified))])
+
+        """
         if os.path.exists(self.proj.classified+".index"):
             try:
                 is64bit = (sys.maxsize > (2**32))
@@ -751,7 +662,7 @@ class GridShow(wx.ScrolledWindow):
         else:
             print "Could not load index file. Doing it the slow way. err2"
             self.classifiedindex = None
-
+        """
 
         self.getImageList()
 
@@ -880,10 +791,10 @@ class GridShow(wx.ScrolledWindow):
 
         for i,(t,_) in enumerate(self.enumerateOverFullList()):
             if i in filled:
-                f.write(t+", 1\n")
+                f.write(", ".join(map(str,t))+", 1\n")
         for i,(t,_) in enumerate(self.enumerateOverFullList()):
             if i in unfilled:
-                f.write(t+", 0\n")
+                f.write(", ".join(map(str,t))+", 0\n")
         f.close()
 
         pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets, self.lastpos), open(self.proj.threshold_internal, "w"))
@@ -939,8 +850,8 @@ class ThresholdPanel(wx.Panel):
         button3.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos-tabOne.numcols*(tabOne.numrows-5)))
         button4 = wx.Button(self, label="Scroll Down")
         button4.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos+tabOne.numcols*(tabOne.numrows-5)))
-        #button5 = wx.Button(self, label="Set Filter")
-        #button5.Bind(wx.EVT_BUTTON, lambda x: tabOne.setFilter())
+        button5 = wx.Button(self, label="Set Filter")
+        button5.Bind(wx.EVT_BUTTON, lambda x: tabOne.setFilter())
         top.Add(button1)
         top.Add(button2)
         top.Add(button3)

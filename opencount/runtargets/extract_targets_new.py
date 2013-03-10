@@ -31,7 +31,7 @@ Extraction, but you just want to create the Image File:")
         txt.Hide()
         btn_createImageFile = wx.Button(self, label="Advanced: Only create Image File...")
         btn_createImageFile.Bind(wx.EVT_BUTTON, self.onButton_createImageFile)
-        btn_createImageFile.Hide()
+        #btn_createImageFile.Hide()
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(self.btn_run)
 
@@ -154,9 +154,6 @@ class RunThread(threading.Thread):
         print "...Doing post-target-extraction work..."
         time_post = time.time()
 
-        # This will always be a common prefix. 
-        # Just add it to there once. Code will be faster.
-        
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         #print "...Doing a zip...", time.time()
 
@@ -165,49 +162,22 @@ class RunThread(threading.Thread):
         queue = manager.Queue()
         time_doandgetAvg = time.time()
         #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
-        tmp = avg_intensities # TMP: [[imgpath, float avg_intensity], ...]
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
-        #print "...Starting a find-longest-prefix thing...", time.time()
-        time_longestPrefix = time.time()
-        fulllst = sorted(tmp, key=lambda x: x[1])  # sort by avg. intensity
+        fulllst = sorted(avg_intensities, key=lambda x: x[1])  # sort by avg. intensity
         fulllst = [(x,int(y)) for x,y in fulllst]
         
         #print "FULLLST:", fulllst
 
-        # Find the longest prefix
-        prefix = fulllst[0][0]
-        for a,_ in fulllst:
-            if not a.startswith(prefix):
-                new = ""
-                for x,y in zip(prefix,a):
-                    if x == y:
-                        new += x
-                    else:
-                        break
-                prefix = new
-
-        l = len(prefix)
-        #prefix = pathjoin(self.proj.extracted_dir,prefix)
-        
-        dur_longestPrefix = time.time() - time_longestPrefix
-        open(self.proj.classified+".prefix", "w").write(prefix)
-        #print "...Finished find-longest-prefix ({0} s).".format(dur_longestPrefix)
-
         #print "...Starting classifiedWrite...", time.time()
         time_classifiedWrite = time.time()
+
         out = open(self.proj.classified, "w")
-        offsets = array.array('L')
-        sofar = 0
         # Store imgpath \0 avg_intensity to output file OUT
         for a,b in fulllst:
-            line = a[l:] + "\0" + str(b) + "\n"
-            out.write(line)
-            offsets.append(sofar)
-            sofar += len(line)
+            out.write(a + "\0" + str(b) + "\n")
         out.close()
 
-        offsets.tofile(open(self.proj.classified+".index", "w"))
         dur_classifiedWrite = time.time() - time_classifiedWrite
         #print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
 
@@ -231,8 +201,7 @@ class RunThread(threading.Thread):
         if w == None:
             raise Exception("Woah, No targets in this election??")
 
-        threshold.imageFile.makeOneFile('',
-                                        fulllst, 
+        threshold.imageFile.makeOneFile(fulllst, 
                                         pathjoin(self.proj.projdir_path,'extracted_radix/'),
                                         self.proj.extractedfile,
                                         (w,h))
@@ -252,8 +221,6 @@ class RunThread(threading.Thread):
         print "    doExtract: {0:.3f}%  |  {1:.3f} s".format(frac, dur_doExtract)
         frac = (dur_post / dur_totalTime) * 100
         print "    post-work: {0:.3f}%  |  {1:.3f} s".format(frac, dur_post)
-        frac = (dur_longestPrefix / dur_post) * 100
-        print "        longestPrefix: {0:.3f}%  |  {1:.3f} s".format(frac, dur_longestPrefix)
         frac = (dur_classifiedWrite / dur_post) * 100
         print "        classifiedWrite: {0:.3f}%  |  {1:.3f} s".format(frac, dur_classifiedWrite)
         frac = (dur_imageFileMake / dur_post) * 100

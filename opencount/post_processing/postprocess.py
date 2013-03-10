@@ -166,7 +166,7 @@ class ResultsPanel(ScrolledPanel):
     def process(self):
         # target -> voted yes/no
         isvoted = open(self.proj.targets_result).read().split("\n")[:-1]
-        isvoted = set([x.split(",")[0] for x in isvoted if x[-1] == '1'])
+        isvoted = set([tuple(map(int,x.split(",")[:-1])) for x in isvoted if x[-1] == '1'])
         
         templatemap = self.get_templatemap()
 
@@ -232,7 +232,8 @@ class ResultsPanel(ScrolledPanel):
                 voted = {}
 
                 for target in targets:
-                    targetid = int(target.split(".")[1])
+                    print "TARGET", target
+                    targetid = target[2]
                     #print 'targetid', targetid
                     try:
                         contest = templatemap[template][targetid]
@@ -346,7 +347,8 @@ class ResultsPanel(ScrolledPanel):
                     out.write("\n\t"+votes[-1])
                 out.write("\n")
             out.close()
-            
+
+    @util.pdb_on_crash
     def final_tally(self, cvr, name=None):
         """Aggregrate tallies to form a final tally.
         
@@ -367,11 +369,7 @@ class ResultsPanel(ScrolledPanel):
                     overunder[cid] = [0,0]
                     total[cid] = 0
                 for i,each in enumerate(ballot_cvr[ocid][:-1]):
-                    try:
-                        res[cid][text[ocid][i+2]] += int(each)
-                    except Exception as e:
-                        print e
-                        pdb.set_trace()
+                    res[cid][text[ocid][i+2]] += int(each)
                 if ballot_cvr[ocid][-1] == 'OVERVOTED':
                     overunder[cid][0] += 1
                 elif ballot_cvr[ocid][-1] == 'UNDERVOTED':
