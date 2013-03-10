@@ -114,9 +114,10 @@ class GridShow(wx.ScrolledWindow):
     def lightBox(self, i, evt=None):
         # Which target we clicked on
         _t = time()
-        print "...Starting LightBox..."
 
-        i = i+evt.GetPositionTuple()[0]/self.targetw
+        i = self.visible_to_index[i+evt.GetPositionTuple()[0]/self.targetw]
+
+        print "...Starting LightBox...", i
 
         targetpath = self.lookupFullList(i)[0]
         ballotpath = self.bal2imgs[targetpath[0]][targetpath[1]]
@@ -150,7 +151,7 @@ class GridShow(wx.ScrolledWindow):
         draw = ImageDraw.Draw(temp)
 
         ballotid = self.img2bal[ballotpath]
-        input_target_id = targetpath[1]
+        input_target_id = targetpath[2]
 
         dur = time() - _t
         print "    Phase 2: {0} s".format(dur)
@@ -175,7 +176,7 @@ class GridShow(wx.ScrolledWindow):
             # Note to self:
             # when adding target-adjustment from here, you need to some how map
             # targetID name -> index in the list to find if it is 'wrong' or not.
-            color = (0,255,0) if tid[1] == input_target_id else (0, 0, 200)
+            color = (0,255,0) if tid[2] == input_target_id else (0, 0, 200)
             draw.rectangle(((locs[2])/fact-1, (locs[0])/fact-1, 
                             (locs[3])/fact+1, (locs[1])/fact+1),
                            outline=color)
@@ -484,6 +485,28 @@ class GridShow(wx.ScrolledWindow):
         elif dlg.GetValue()[0] == 3:
             target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                         self.proj.target_locs_map), 'rb'))
+            ballot_to_group = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                        self.proj.ballot_to_group), 'rb'))
+            #contest_text = pickle.load(open(self.proj.contest_text, 'rb'))
+            # TODO it's only an overvote if the contest is out of 1...
+            over_count = {}
+            self.visibleTargets = []
+            for each in range(self.numberOfTargets):
+                (bid, side, tid), _ = self.classified_file[each]
+                targets = dict((x[4],x[5]) for y in target_locs_map[ballot_to_group[bid]][side] for x in y[1:])
+                contest = targets[tid]
+                if (bid,contest) not in over_count:
+                    over_count[bid,contest] = []
+                if each < self.threshold ^ (each in self.wrong):
+                    #print 'there a target', each, bid, ballot_to_group[bid], tid, contest
+                    over_count[bid,contest].append(each)
+            for k,v in over_count.items():
+                if len(v) >= 2:
+                    print v
+                    self.visibleTargets.extend(v)
+            self.visibleTargets = sorted(self.visibleTargets)
+                
+                
             pass
 
         self.numberOfVisibleTargets = len(self.visibleTargets)
@@ -856,7 +879,7 @@ class ThresholdPanel(wx.Panel):
         top.Add(button2)
         top.Add(button3)
         top.Add(button4)
-        #top.Add(button5)
+        top.Add(button5)
 
         sizer.Add(top)
         tabOne.setup()
