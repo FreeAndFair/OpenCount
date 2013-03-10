@@ -50,15 +50,15 @@ class ConfigPanel(wx.Panel):
         self.box_samples.sizer.Add(self.box_samples.txt_samplespath)
         self.box_samples.sizer.Add((0, 20))
 
-        self.lower_scroll = wx.ListBox(self) # Voted Skipped ListBox
-        self.lower_scroll.box = wx.StaticBox(self, label="For the voted ballots, the following files were skipped:")
-        sboxsizer0 = wx.StaticBoxSizer(self.lower_scroll.box, orient=wx.VERTICAL)
-        sboxsizer0.Add(self.lower_scroll, 1, flag=wx.EXPAND)
+        #self.lower_scroll = wx.ListBox(self) # Voted Skipped ListBox
+        #self.lower_scroll.box = wx.StaticBox(self, label="For the voted ballots, the following files were skipped:")
+        #sboxsizer0 = wx.StaticBoxSizer(self.lower_scroll.box, orient=wx.VERTICAL)
+        #sboxsizer0.Add(self.lower_scroll, 1, flag=wx.EXPAND)
 
         sizer0 = wx.BoxSizer(wx.HORIZONTAL)
         sizer0.Add(self.box_samples.sizer, proportion=1, flag=wx.EXPAND)
         sizer0.Add((50, 0))
-        sizer0.Add(sboxsizer0, proportion=1, flag=wx.EXPAND)
+        #sizer0.Add(sboxsizer0, proportion=1, flag=wx.EXPAND)
         
         txt_numpages = wx.StaticText(self, label="Number of pages: ")
         self.numpages_txtctrl = wx.TextCtrl(self, value="2")
@@ -96,11 +96,11 @@ class ConfigPanel(wx.Panel):
         sizer_vendor = wx.BoxSizer(wx.HORIZONTAL)
         sizer_vendor.AddMany([(txt_vendor,), (self.vendor_dropdown,)])
 
-        self.btn_run = wx.Button(self, label="Run sanity check")
-        self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_runsanitycheck)
-        self.btn_run.box = wx.StaticBox(self)
-        sboxsizer1 = wx.StaticBoxSizer(self.btn_run.box, orient=wx.VERTICAL)
-        sboxsizer1.Add(self.btn_run)
+        #self.btn_run = wx.Button(self, label="Run sanity check")
+        #self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_runsanitycheck)
+        #self.btn_run.box = wx.StaticBox(self)
+        #sboxsizer1 = wx.StaticBoxSizer(self.btn_run.box, orient=wx.VERTICAL)
+        #sboxsizer1.Add(self.btn_run)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizer0)
@@ -113,7 +113,7 @@ class ConfigPanel(wx.Panel):
         self.sizer.Add((0, 25))
         self.sizer.Add(sizer_vendor)
         self.sizer.Add((0, 25))
-        self.sizer.Add(sboxsizer1)
+        #self.sizer.Add(sboxsizer1)
         
         self.SetSizer(self.sizer)
         self.Layout()
