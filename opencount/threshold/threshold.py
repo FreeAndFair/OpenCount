@@ -551,7 +551,7 @@ class GridShow(wx.ScrolledWindow):
         #             "signals.MyGauge.nextjob", 
         #             len(self.classifiedindex)/1000)
         #gauge.Show()
-        for _,v in classified_file:
+        for _,v in self.classified_file:
             hist[v] += 1
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
         #print list(enumerate(hist))
