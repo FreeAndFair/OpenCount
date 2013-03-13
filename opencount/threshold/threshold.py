@@ -497,7 +497,7 @@ class GridShow(wx.ScrolledWindow):
                 contest = targets[tid]
                 if (bid,contest) not in over_count:
                     over_count[bid,contest] = []
-                if each < self.threshold ^ (each in self.wrong):
+                if (each < self.threshold) ^ (each in self.wrong):
                     #print 'there a target', each, bid, ballot_to_group[bid], tid, contest
                     over_count[bid,contest].append(each)
             for k,v in over_count.items():
