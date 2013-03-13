@@ -11,11 +11,12 @@ import cv
 sys.path.append('..')
 
 import util
-from vendors import Hart, ES_S, Sequoia, Diebold
+from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate
 
-BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold")
+BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold", "Single Template (generic)")
 VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor,
+                  "single template (generic)": SingleTemplate.SingleTemplateVendor,
                   "diebold": Diebold.DieboldVendor}
 
 # int BALLOT_LIMIT := Set to an integer N if you'd like to only include the

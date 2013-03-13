@@ -445,7 +445,7 @@ class GridShow(wx.ScrolledWindow):
 
         self.somethingHasChanged = False
 
-        self.prefix = open(self.proj.classified+".prefix").read()
+        #self.prefix = open(self.proj.classified+".prefix").read()
         
         self.parent = parent
 

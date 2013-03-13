@@ -99,9 +99,7 @@ class Vendor(object):
         if tops[0] > 0:
             tops = [0]+tops
         else:
-            print "it was negative", tops
             tops = [0,0]+tops[1:] # In case the top is negative.
-        print "now tops", tops
         if target_y_range > target_x_range:
             # it is a vertical contest
             blocks = []
@@ -110,7 +108,6 @@ class Vendor(object):
             
             return blocks
         else:
-            print "AAAAA", list(enumerate(zip(tops, tops[1:])))
             return [(0,(tops[0],tops[1])), #header
                     (1,(tops[1], d)),
                     (2,(d, d))]
