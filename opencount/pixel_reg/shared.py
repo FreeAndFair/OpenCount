@@ -72,7 +72,7 @@ def imtransform2(I,H0,fillval=3.0):
 
 def joinImages(I1,I2):
     newHeight = max(I1.shape[0],I2.shape[0])
-    canvas = np.zeros((newHeight,I1.shape[1]+I2.shape[1]))
+    canvas = np.zeros((newHeight,I1.shape[1]+I2.shape[1]), dtype=I1.dtype)
     canvas[0:I1.shape[0],0:I1.shape[1]]=I1
     canvas[0:I2.shape[0],I1.shape[1]:canvas.shape[1]]=I2
     return canvas
@@ -182,7 +182,7 @@ def variableDiffThr(I,patch):
 
 def padWithBorderHandling(M,i1exp,i2exp,j1exp,j2exp):
     Mpad = np.zeros((M.shape[0]+i1exp+i2exp,
-                     M.shape[1]+j1exp+j2exp))
+                     M.shape[1]+j1exp+j2exp), dtype='float32')
     Mpad[i1exp:i1exp+M.shape[0],
          j1exp:j1exp+M.shape[1]] = M
 
@@ -216,9 +216,9 @@ def padWithBorderHandling(M,i1exp,i2exp,j1exp,j2exp):
 '''
 expand patch by pixPad with nans
 '''
-def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=None):
+def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=np.power(2, 17)):
     patchPad = np.empty((patch.shape[0]+2*pixPad,
-                         patch.shape[1]+2*pixPad))
+                         patch.shape[1]+2*pixPad), dtype='float32')
 
     patchPad[:] = np.nan
     patchPad[pixPad:patch.shape[0]+pixPad,
@@ -226,7 +226,7 @@ def lkSmallLarge(patch,I,i1,i2,j1,j2,pixPad=5, minArea=None):
 
     Ibg = estimateBg(I);
     IPad = Ibg * np.ones((I.shape[0]+2*pixPad,
-                          I.shape[1]+2*pixPad))
+                          I.shape[1]+2*pixPad), dtype='float32')
 
     IPad[pixPad:I.shape[0]+pixPad,
          pixPad:I.shape[1]+pixPad] = I

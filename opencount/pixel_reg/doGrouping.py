@@ -205,7 +205,7 @@ def evalPatchSimilarity2(I,patch, debug=False):
 
     pixPad = round(.25 * min(patch.shape));
     patchPad = np.empty((patch.shape[0]+2*pixPad,
-                         patch.shape[1]+2*pixPad))
+                         patch.shape[1]+2*pixPad), dtype='float32')
     patchPad[:] = np.nan
     patchPad[pixPad:patch.shape[0]+pixPad,
              pixPad:patch.shape[1]+pixPad] = patch
