@@ -952,12 +952,20 @@ class LabelContest(wx.Panel):
             # We haven't filled anything in yet. Just abort.
             return
         v = [self.text_title.GetValue()]+[x.GetValue() for x in self.text_targets]
+
+        # Make sure no other contest on this ballot is the same
+        for contest in self.currentcontests:
+            if contest in self.text and sorted(self.text[contest]) == sorted(v):
+                dlg = wx.MessageDialog(self, message="Did not save; contest is a duplicate of previous contest on this ballot.", style=wx.OK)
+                dlg.ShowModal()
+                return
+
         if not all(x == '' for x in v):
             # We have entered at least something ... save it
             self.text[self.currentcontests[self.count]] = v
         else:
             self.text[self.currentcontests[self.count]] = []
-        self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()
+        self.voteupto[self.currentcontests[self.count]] = self.text_upto.GetValue()        
 
         # Change the below 'if' test to 'True' if you want to disable
         # automated population of equiv-contests.

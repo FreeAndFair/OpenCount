@@ -12,6 +12,7 @@ import array
 try: import cPickle as pickle
 except: import pickle
 import math
+import csv
 
 import numpy as np
 import wx.lib
@@ -487,23 +488,32 @@ class GridShow(wx.ScrolledWindow):
                                                         self.proj.target_locs_map), 'rb'))
             ballot_to_group = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                         self.proj.ballot_to_group), 'rb'))
-            #contest_text = pickle.load(open(self.proj.contest_text, 'rb'))
-            # TODO it's only an overvote if the contest is out of 1...
+            group_examples  = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                        self.proj.group_exmpls), 'rb'))
+
+            has_contest_data = False
+            if os.path.exists(self.proj.contest_text):
+                has_contest_data = True
+                contest_text = dict((x[0],x[1:]) for x in csv.reader(open(self.proj.contest_text, 'rb')))
+                contest_id = dict((tuple(x[:2]),x[2:]) for x in csv.reader(open(self.proj.contest_id, 'rb')))
             over_count = {}
             self.visibleTargets = []
             for each in range(self.numberOfTargets):
                 (bid, side, tid), _ = self.classified_file[each]
                 targets = dict((x[4],x[5]) for y in target_locs_map[ballot_to_group[bid]][side] for x in y[1:])
                 contest = targets[tid]
-                if (bid,contest) not in over_count:
-                    over_count[bid,contest] = []
+                if (bid,side,contest) not in over_count:
+                    over_count[bid,side,contest] = []
                 if (each < self.threshold) ^ (each in self.wrong):
                     #print 'there a target', each, bid, ballot_to_group[bid], tid, contest
-                    over_count[bid,contest].append(each)
-            for k,v in over_count.items():
-                if len(v) >= 2:
-                    print v
-                    self.visibleTargets.extend(v)
+                    over_count[bid,side,contest].append(each)
+            for (bid,side,contest),targs in over_count.items():
+                upto = 1
+                if has_contest_data:
+                    global_cid = contest_id[self.bal2imgs[group_examples[ballot_to_group[bid]][0]][side],str(contest)][0]
+                    upto = int(contest_text[global_cid][0])
+                if len(targs) > upto:
+                    self.visibleTargets.extend(targs)
             self.visibleTargets = sorted(self.visibleTargets)
                 
                 
