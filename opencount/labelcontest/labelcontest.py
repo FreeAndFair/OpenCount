@@ -955,7 +955,7 @@ class LabelContest(wx.Panel):
 
         # Make sure no other contest on this ballot is the same
         for contest in self.currentcontests:
-            if contest in self.text and sorted(self.text[contest]) == sorted(v):
+            if contest in self.text and sorted(self.text[contest]) == sorted(v) and contest != self.currentcontests[self.count]:
                 dlg = wx.MessageDialog(self, message="Did not save; contest is a duplicate of previous contest on this ballot.", style=wx.OK)
                 dlg.ShowModal()
                 return
