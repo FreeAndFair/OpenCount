@@ -1494,7 +1494,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     #print paths, giventargets, contests
     #print paths[11], giventargets[11], contests[11]
     #exit(0)
-    ballots = map(group_given_contests_map, args)
+    ballots = pool.map(group_given_contests_map, args)
     pool.close()
     pool.join()
     #ballots = map(group_given_contests_map, args)
