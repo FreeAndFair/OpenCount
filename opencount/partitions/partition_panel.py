@@ -837,7 +837,7 @@ class LabelDialog(wx.Dialog):
     def __init__(self, parent, imageslist, captions=None, possibles=None, 
                  outfile=None, *args, **kwargs):
         wx.Dialog.__init__(self, parent, title="Label These Images", 
-                           size=(800, 600), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER, 
+                           size=(1000, 800), style=wx.CAPTION | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.RESIZE_BORDER, 
                            *args, **kwargs)
         
         self.labelpanel = LabelOrDiscardPanel(self)
