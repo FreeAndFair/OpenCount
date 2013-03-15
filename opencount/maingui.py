@@ -198,6 +198,8 @@ proceed. Please address the prior warnings first.",
 
         if self.project:
             self.project.save()
+        if config.TIMER:
+            config.TIMER.dump()
 
         if old != -1:
             curpanel = self.notebook.GetPage(old)

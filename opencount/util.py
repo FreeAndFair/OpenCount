@@ -249,7 +249,6 @@ class GaugeID(object):
 class MyTimer(object):
     def __init__(self, filepath):
         self.filepath = filepath
-        self.file = open(filepath, 'a')
         
         self.start_times = {} # {str task: int starttime}
 
@@ -257,17 +256,15 @@ class MyTimer(object):
 
         self.total_times = {} # {str task: int dur}
 
-        self.prelude()
-
-    def prelude(self):
+    def prelude(self, f):
         """
         Include a separator indicating that we're starting to log
         to the logfile for this session.
         """
-        print >>self.file, "="*16
-        print >>self.file, "Beginning new log session, on:"
-        print >>self.file, datetime.datetime.now()
-        print >>self.file, "="*16
+        print >>f, "="*16
+        print >>f, "Beginning new log session, on:"
+        print >>f, datetime.datetime.now()
+        print >>f, "="*16
 
     def start_task(self, task):
         self.start_times[task] = time.time()
@@ -283,26 +280,24 @@ class MyTimer(object):
                 self.total_times[task] = dur
             else:
                 self.total_times[task] += dur
-    def write_msg(self, msg):
-        """
-        Insert some custom text.
-        """
-        print >>self.file, msg
 
     def dump(self):
         """
         Outputs all timing information to the logfile.
         """
+        f = open(self.filepath, 'w')
+        self.prelude(f)
         # First, sum up all times within each task
         for task in self.tasks_ordered:
             dur = self.total_times.get(task, "UNKNOWN")
-            print >>self.file, "Task '{0}':".format(task)
+            print >>f, "Task '{0}':".format(task)
             if dur == "UNKNOWN":
-                print >>self.file, "    UNKNOWN"
+                print >>f, "    UNKNOWN"
             else:
-                print >>self.file, "    {0:.8f} seconds".format(dur)
+                print >>f, "    {0:.8f} seconds".format(dur)
         print "(MyTimer) Writing timing statistics to: {0}".format(os.path.abspath(self.filepath))
-        self.file.flush()
+        f.flush()
+        f.close()
 
 class WarningDialog(wx.Dialog):
     """
