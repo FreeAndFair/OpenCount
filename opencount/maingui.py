@@ -360,8 +360,11 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
                 config.TIMER.start_task("Quarantine_Total")
             self.panel_quarantine.start(self.project)
         elif new == MainFrame.PROCESS:
+            if config.TIMER:
+                config.TIMER.start_task("GenerateResults_Total")
             self.panel_process.start(self.project)
             if config.TIMER:
+                config.TIMER.stop_task("GenerateResults_Total")
                 config.TIMER.stop_task("TOTALTIME")
                 config.TIMER.dump()
 
@@ -371,6 +374,9 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
         """
         if self.project:
             self.project.save()
+        if config.TIMER:
+            config.TIMER.stop_task("TOTALTIME")
+            config.TIMER.dump()
         for fn in Project.closehook:
             fn()
         evt.Skip()
