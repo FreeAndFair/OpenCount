@@ -408,7 +408,10 @@ def main():
     if '-h' in args or '--help' in args or '-help' in args:
         print USAGE
         return 0
-    if '--time' in args:
+    # NOTE: For now, always record the timing information. This is
+    #       to avoid accidentally not passing in the '--time' option,
+    #       which would really suck when recording timing data for the paper.
+    if '--time' in args or True:
         try:
             try:
                 prefix = args[args.index('--time')+1]
