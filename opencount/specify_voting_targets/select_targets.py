@@ -1,4 +1,4 @@
-import sys, os, time, math, pdb, traceback, threading, Queue, copy
+import sys, os, time, math, pdb, traceback, threading, Queue, copy, textwrap
 import multiprocessing, csv
 try:
     import cPickle as pickle
@@ -844,6 +844,29 @@ voting target on this ballot.")
         self.Refresh()
         return (self.cur_i,self.cur_j,self.cur_page)
 
+    def resize_targets(self, x1_del, y1_del, x2_del, y2_del):
+        """ Resizes all voting targets by shifting each corner by input
+        X1_DEL, Y1_DEL, X2_DEL, Y2_DEL.
+        """
+        if not self.boxsize:
+            print "Can't call resize_targets() when no targets exist."
+            return
+        w_new = self.boxsize[0] - x1_del + x2_del
+        h_new = self.boxsize[1] - y1_del + y2_del
+        if w_new <= 1 or h_new <= 1:
+            print "New dimensions are degenerate: w,h=({0},{1})".format(w_new, h_new)
+            return
+        self.boxsize = w_new, h_new
+        for partition_idx, pages_tpl in self.boxes.iteritems():
+            for page, boxes in enumerate(pages_tpl):
+                for target in [b for b in boxes if isinstance(b, TargetBox)]:
+                    target.x1 += x1_del
+                    target.y1 += y1_del
+                    target.x2 += x2_del
+                    target.y2 += y2_del
+        self.imagepanel.dirty_all_boxes()
+        self.Refresh()
+
     def display_nextpartition(self):
         next_idx = self.cur_i + 1
         if next_idx >= len(self.partitions):
@@ -1034,14 +1057,16 @@ class Toolbar(wx.Panel):
         self.btn_modify = wx.Button(self, label="Modify")
         self.btn_zoomin = wx.Button(self, label="Zoom In")
         self.btn_zoomout = wx.Button(self, label="Zoom Out")
-        self.btn_infercontests = wx.Button(self, label="Infer Contest Regions..")
-        self.btn_opts = wx.Button(self, label="Advanced: Options...")
+        self.btn_infercontests = wx.Button(self, label="Infer Contest Regions...")
+        self.btn_opts = wx.Button(self, label="Advanced: Options")
+        self.btn_resize_targets = wx.Button(self, label="Resize Voting Targets")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_forceaddtarget,), 
                            (self.btn_addcontest), (self.btn_modify,),
                            (self.btn_zoomin,), (self.btn_zoomout,),
-                           (self.btn_infercontests,), (self.btn_opts,)])
+                           (self.btn_infercontests,), (self.btn_opts,),
+                           (self.btn_resize_targets,)])
         self.sizer.Add(btn_sizer)
         self.SetSizer(self.sizer)
 
@@ -1054,6 +1079,7 @@ class Toolbar(wx.Panel):
         self.btn_zoomout.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomout())
         self.btn_infercontests.Bind(wx.EVT_BUTTON, lambda evt: self.parent.infercontests())
         self.btn_opts.Bind(wx.EVT_BUTTON, self.onButton_opts)
+        self.btn_resize_targets.Bind(wx.EVT_BUTTON, self.onButton_resizetargets)
     def onButton_addtarget(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = TargetBox
@@ -1074,7 +1100,105 @@ class Toolbar(wx.Panel):
         self.parent.win_ballot = dlg.win_ballot
         self.parent.win_target = dlg.win_target
         self.parent.tm_mode = dlg.tm_mode
+    def onButton_resizetargets(self, evt):
+        if not self.parent.boxsize:
+            wx.MessageDialog(self, style=wx.OK, caption="Must create voting targets first",
+                             message="Please first create voting targets on the ballot. \
+Then, you may resize the voting targets here.").ShowModal()
+            return
+        dlg = ResizeTargetsDialog(self, self.parent.boxsize)
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        x1_del, y1_del, x2_del, y2_del = dlg.x1_del, dlg.y1_del, dlg.x2_del, dlg.y2_del
+        self.parent.resize_targets(x1_del, y1_del, x2_del, y2_del)
         
+class ResizeTargetsDialog(wx.Dialog):
+    def __init__(self, parent, boxsize, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, size=(475, 350), title="Resizing Voting Targets",
+                           style=wx.CAPTION | wx.RESIZE_BORDER | wx.SYSTEM_MENU, *args, **kwargs)
+        
+        self.boxsize = boxsize
+        self.x1_del, self.y1_del = None, None
+        self.x2_del, self.y2_del = None, None
+
+        msg_inst = (textwrap.fill("Please indicate (in pixels) \
+how much to shift the x1, y1 (Upper-left corner) and x2, y2 (Lower-right corner) \
+by.", 75) + "\n\n" + textwrap.fill("Positive X values shift to the Right, negative X values shift to the Left.", 75)
+                    + "\n\n" + textwrap.fill("Positive Y values shift Downwards, negative Y values shift Upward.", 75))
+
+        txt_inst = wx.StaticText(self, label=msg_inst)
+
+        txt_boxsize_old = wx.StaticText(self, label="Current Target Size (width,height): ({0}, {1})".format(boxsize[0], boxsize[1]))
+        
+        szh_upperleft = wx.BoxSizer(wx.HORIZONTAL)
+        txt_upperleft = wx.StaticText(self, label="UpperLeft Corner: ")
+        szv_x1y1 = wx.BoxSizer(wx.VERTICAL)
+
+        szh_x1 = wx.BoxSizer(wx.HORIZONTAL)
+        txt_x1 = wx.StaticText(self, label="Shift X1 by: ")
+        self.txtctrl_x1del = wx.TextCtrl(self, value='0')
+        szh_x1.AddMany([(txt_x1,), (self.txtctrl_x1del,)])
+
+        szh_y1 = wx.BoxSizer(wx.HORIZONTAL)
+        txt_y1 = wx.StaticText(self, label="Shift Y1 by: ")
+        self.txtctrl_y1del = wx.TextCtrl(self, value='0')
+        szh_y1.AddMany([(txt_y1,), (self.txtctrl_y1del,)])
+
+        szv_x1y1.AddMany([(szh_x1,), (szh_y1,)])
+
+        szh_upperleft.AddMany([(txt_upperleft,), (szv_x1y1,)])
+
+        szh_lowerright = wx.BoxSizer(wx.HORIZONTAL)
+        txt_lowerright = wx.StaticText(self, label="LowerRight Corner: ")
+        szv_x2y2 = wx.BoxSizer(wx.VERTICAL)
+
+        szh_x2 = wx.BoxSizer(wx.HORIZONTAL)
+        txt_x2 = wx.StaticText(self, label="Shift X2 by: ")
+        self.txtctrl_x2del = wx.TextCtrl(self, value='0')
+        szh_x2.AddMany([(txt_x2,), (self.txtctrl_x2del,)])
+
+        szh_y2 = wx.BoxSizer(wx.HORIZONTAL)
+        txt_y2 = wx.StaticText(self, label="Shift Y2 by: ")
+        self.txtctrl_y2del = wx.TextCtrl(self, value='0')
+        szh_y2.AddMany([(txt_y2,), (self.txtctrl_y2del,)])
+
+        szv_x2y2.AddMany([(szh_x2,), (szh_y2,)])
+        
+        szh_lowerright.AddMany([(txt_lowerright,), (szv_x2y2)])
+
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_ok = wx.Button(self, label="Resize All Targets")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
+        btn_sizer.AddMany([(btn_ok,), ((30, 0),), (btn_cancel,)])
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(txt_inst)
+        self.sizer.Add((0, 15))
+        self.sizer.Add(txt_boxsize_old, flag=wx.ALIGN_CENTER)
+        self.sizer.Add((0, 15))
+        self.sizer.AddMany([(szh_upperleft,), (szh_lowerright,)])
+        self.sizer.Add((0, 15))
+        self.sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+    def onButton_ok(self, evt):
+        def alert_bad_number(self):
+            wx.MessageDialog(self, style=wx.OK,
+                             message="Must enter valid integer values for each field.").ShowModal()
+        try:
+            self.x1_del = int(self.txtctrl_x1del.GetValue())
+            self.y1_del = int(self.txtctrl_y1del.GetValue())
+            self.x2_del = int(self.txtctrl_x2del.GetValue())
+            self.y2_del = int(self.txtctrl_y2del.GetValue())
+        except:
+            alert_bad_number()
+            return
+        self.EndModal(wx.ID_OK)
+
 class OptionsDialog(wx.Dialog):
     ID_APPLY = 42
 
@@ -1619,7 +1743,9 @@ class BoxDrawPanel(ImagePanel):
                 box.y1 += ydel_img
                 box.x2 += xdel_img
                 box.y2 += ydel_img
+            self.dirty_all_boxes()
             self.Refresh()
+            
 
     def onPaint(self, evt):
         total_t = time.time()
