@@ -1470,7 +1470,6 @@ def find_contests(t, paths, giventargets):
                 print cs
     return ballots
 
-@pdb_on_crash
 def group_given_contests_map(arg):
     vendor,lang_map,giventargets,(i,(f,conts)) = arg
     print f
