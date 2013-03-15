@@ -1,4 +1,4 @@
-import os, sys, csv
+import os, sys, csv, datetime
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -24,17 +24,28 @@ from quarantine.quarantinepanel import QuarantinePanel
 from post_processing.postprocess import ResultsPanel
 
 import specify_voting_targets.util_gui as util_gui
+import config, util
 
 """
 The main module for OpenCount.
 
 Usage:
-    $ python maingui.py [-h --help -help]
+    $ python maingui.py [-h --help -help] [--time [PREFIX]]
 """
 
 USAGE = """Usage:
 
-    $ python maingui.py [-h --help -help]
+    $ python maingui.py [-h --help -help] [--time [PREFIX]]
+
+-h, --help, -help
+    Print this usage information, and exit.
+
+--time [PREFIX_FILENAME]
+    If '--time' is given, then OpenCount will output timing statistics
+    to a logfile. If PREFIX is given as 'foo', then the output filename
+    is:
+        foo_YEAR_MONTH_DAY_HOUR_MINUTE.log
+    Otherwise, the filename defaults PREFIX to be empty ''.
 
 """
 
@@ -140,24 +151,44 @@ proceed. Please address the prior warnings first.",
             self.panel_config.stop()
         elif old == MainFrame.PARTITION:
             self.panel_partition.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_Total")
         elif old == MainFrame.BALLOT_ATTRIBUTES:
             self.panel_ballot_attributes.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("BallotAttributes_Total")
         elif old == MainFrame.LABEL_DIGATTRS:
             self.panel_label_digitattrs.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("LabelDigitAttrs_Total")
         elif old == MainFrame.RUN_GROUPING:
             self.panel_run_grouping.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("RunGrouping_Total")
         elif old == MainFrame.CORRECT_GROUPING:
             self.panel_correct_grouping.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("CorrectGrouping_Total")
         elif old == MainFrame.SELTARGETS:
             self.panel_seltargets.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("SelectTargets_Total")
         elif old == MainFrame.LABEL_CONTESTS:
             self.panel_label_contests.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("LabelContests_Total")
         elif old == MainFrame.TARGET_EXTRACT:
             self.panel_target_extract.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("TargetExtract_Total")
         elif old == MainFrame.SET_THRESHOLD:
             self.panel_set_threshold.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("SetThreshold_Total")
         elif old == MainFrame.QUARANTINE:
             self.panel_quarantine.stop()
+            if config.TIMER:
+                config.TIMER.stop_task("Quarantine_Total")
         elif old == MainFrame.PROCESS:
             pass
 
@@ -173,7 +204,6 @@ proceed. Please address the prior warnings first.",
             self.notebook.SetPageText(old, self.titles[curpanel][1])
         newpanel = self.notebook.GetPage(new)
         self.notebook.SetPageText(new, self.titles[newpanel][0])
-
 
         if new >= MainFrame.SELTARGETS:
             if not os.path.exists(pathjoin(self.project.projdir_path,
@@ -246,12 +276,20 @@ proceed. Please address the prior warnings first.",
             self.panel_config.start(self.project, pathjoin(self.project.projdir_path,
                                                            '_state_config.p'))
         elif new == MainFrame.PARTITION:
+            if config.TIMER:
+                config.TIMER.start_task("TOTALTIME")
+            if config.TIMER:
+                config.TIMER.start_task("Partition_Total")
             self.panel_partition.start(self.project, pathjoin(self.project.projdir_path,
                                                               '_state_partition.p'))
         elif new == MainFrame.BALLOT_ATTRIBUTES:
+            if config.TIMER:
+                config.TIMER.start_task("BallotAttributes_Total")
             self.panel_ballot_attributes.start(self.project, pathjoin(self.project.projdir_path,
                                                                       '_state_ballot_attributes.p'))
         elif new == MainFrame.LABEL_DIGATTRS:
+            if config.TIMER:
+                config.TIMER.start_task("LabelDigitAttrs_Total")
             # Skip if there are no digit-based attributes
             if not exists_digitbasedattr(self.project):
                 dlg = wx.MessageDialog(self, message="There are no Digit-Based \
@@ -262,6 +300,8 @@ Attributes in this election -- skipping to the next page.", style=wx.OK)
             else:
                 self.panel_label_digitattrs.start(self.project)
         elif new == MainFrame.RUN_GROUPING:
+            if config.TIMER:
+                config.TIMER.start_task("RunGrouping_Total")
             if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
                 dlg = wx.MessageDialog(self, message="There are no attributes \
 to group in this election -- skipping to the next page.", style=wx.OK)
@@ -273,6 +313,8 @@ to group in this election -- skipping to the next page.", style=wx.OK)
                 self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
                                                                      '_state_run_grouping.p'))
         elif new == MainFrame.CORRECT_GROUPING:
+            if config.TIMER:
+                config.TIMER.start_task("CorrectGrouping_Total")
             if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project) and not exists_custattr(self.project):
                 dlg = wx.MessageDialog(self, message="There are no attributes \
 to verify grouping for in this election -- skipping to the next page.", style=wx.OK)
@@ -283,6 +325,8 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
                 self.panel_correct_grouping.start(self.project, pathjoin(self.project.projdir_path,
                                                                          '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
+            if config.TIMER:
+                config.TIMER.start_task("SelectTargets_Total")
             self.panel_seltargets.start(self.project, pathjoin(self.project.projdir_path,
                                                                '_state_selecttargetsMain.p'),
                                         self.project.ocr_tmp_dir)
@@ -291,6 +335,8 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
                 proj.target_locs_dir -- Location of targets
                 proj.patch_loc_dir -- For language, and *something* else.
             """
+            if config.TIMER:
+                config.TIMER.start_task("LabelContests_Total")
             self.panel_label_contests.proj = self.project
             img2flip = pickle.load(open(pathjoin(self.project.projdir_path,
                                                  self.project.image_to_flip), 'rb'))
@@ -298,15 +344,24 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
             self.panel_label_contests.start(sz)
             self.SendSizeEvent()
         elif new == MainFrame.TARGET_EXTRACT:
+            if config.TIMER:
+                config.TIMER.start_task("TargetExtract_Total")
             self.panel_target_extract.start(self.project)
         elif new == MainFrame.SET_THRESHOLD:
+            if config.TIMER:
+                config.TIMER.start_task("SetThreshold_Total")
             sz = self.GetSize()
             self.panel_set_threshold.start(self.project, size=sz)
             self.SendSizeEvent()
         elif new == MainFrame.QUARANTINE:
+            if config.TIMER:
+                config.TIMER.start_task("Quarantine_Total")
             self.panel_quarantine.start(self.project)
         elif new == MainFrame.PROCESS:
             self.panel_process.start(self.project)
+            if config.TIMER:
+                config.TIMER.stop_task("TOTALTIME")
+                config.TIMER.dump()
 
     def onClose(self, evt):
         """
@@ -353,6 +408,24 @@ def main():
     if '-h' in args or '--help' in args or '-help' in args:
         print USAGE
         return 0
+    if '--time' in args:
+        try:
+            try:
+                prefix = args[args.index('--time')+1]
+            except:
+                prefix = ''
+            now = datetime.datetime.now()
+            date_suffix = "{0}_{1}_{2}_{3}_{4}".format(now.year, now.month, now.day,
+                                                       now.hour, now.minute)
+            # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
+            timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
+            config.TIMER = util.MyTimer(timing_filepath)
+            print "User passed in '--time': Saving timing statistics to {0}".format(timing_filepath)
+        except Exception as e:
+            print "Warning: Malformed '--time' argument passed."
+            print "    {0}".format(e.message)
+            print USAGE
+            return 1
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())

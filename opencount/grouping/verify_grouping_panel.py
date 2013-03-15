@@ -12,6 +12,7 @@ from verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysF
 import digit_group_new, cust_attrs
 sys.path.append('..')
 import specify_voting_targets.util_gui as util_gui
+import config
 
 class VerifyGroupingMainPanel(wx.Panel):
     # Number of exemplars to grab for each group
@@ -47,6 +48,9 @@ class VerifyGroupingMainPanel(wx.Panel):
         self.proj.addCloseEvent(self.save_session)
         self.stateP = stateP
 
+        if config.TIMER:
+            config.TIMER.start_task("VerifyGrouping_Verify_H")
+
         if not self.restore_session():
             self.group_exemplars = get_group_exemplars(proj)
             self.imgpath_groups = create_groups(proj)
@@ -66,6 +70,7 @@ class VerifyGroupingMainPanel(wx.Panel):
             digpatch2imgpath = {}
 
         verifyoverlays_stateP = pathjoin(proj.projdir_path, '_state_verifyoverlays.p')
+
         if self.imgpath_groups:
             self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
                                     patch2imgpath, digpatch2imgpath,
@@ -254,6 +259,8 @@ next step.", style=wx.OK).ShowModal()
             dict QUARANTINED_RESULTS: {attrtype: [patchpath_i, ...]}
         """
         print "...Verify Done!..."
+        if config.TIMER:
+            config.TIMER.stop_task("VerifyGrouping_Verify_H")
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
         if exists_imgattr(self.proj):
             # Convert the attrpatchpaths in VERIFY_RESULTS back into 

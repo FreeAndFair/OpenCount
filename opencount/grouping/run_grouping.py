@@ -16,6 +16,7 @@ import pixel_reg.doGrouping as doGrouping
 import pixel_reg.part_match as part_match
 import grouping.digit_group_new as digit_group_new
 import specify_voting_targets.util_gui as util_gui
+import config
 
 GRP_PER_BALLOT = 0
 GRP_PER_PARTITION = 1 
@@ -128,6 +129,8 @@ class RunGroupingMainPanel(wx.Panel):
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def run_imgbased_grouping(self):
+        if config.TIMER:
+            config.TIMER.start_task("Grouping_ImgBased_CPU")
         self._t_imggrp = time.time()
         if exists_imgattr(self.proj):
             partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -183,6 +186,8 @@ class RunGroupingMainPanel(wx.Panel):
         """ Image-based grouping is finished. Now, run digit-based
         grouping if necessary.
         """
+        if config.TIMER:
+            config.TIMER.stop_task("Grouping_ImgBased_CPU")
         self._dur_imggrp = time.time() - self._t_imggrp
         print "...Finished ImgBased-Grouping ({0:.4f}s)".format(self._dur_imggrp)
         self.extract_results = imggrouping_results
@@ -191,6 +196,8 @@ class RunGroupingMainPanel(wx.Panel):
         self.run_digitbased_grouping()
 
     def run_digitbased_grouping(self):
+        if config.TIMER:
+            config.TIMER.start_task("Grouping_DigitBased_CPU")
         self._t_digitgrp = time.time()
         if exists_digattr(self.proj):
             thread = Thread_RunGrpDigitBased(self.proj, self.digitdist, self.on_digitgrouping_done)
@@ -222,6 +229,8 @@ class RunGroupingMainPanel(wx.Panel):
             self.on_digitgrouping_done((None, None))
 
     def on_digitgrouping_done(self, digitgrouping_results_tpl):
+        if config.TIMER:
+            config.TIMER.stop_task("Grouping_DigitBased_CPU")
         digitgrouping_results, digit_dist = digitgrouping_results_tpl
         if digit_dist != None:
             self.digitdist = digit_dist

@@ -11,7 +11,7 @@ from wx.lib.pubsub import Publisher
 
 sys.path.append('..')
 
-import util
+import util, config
 import threshold.imageFile
 import pixel_reg.doExtract as doExtract
 import quarantine.quarantinepanel as quarantinepanel
@@ -105,6 +105,8 @@ class RunThread(threading.Thread):
             self.do_target_extract()
 
     def do_target_extract(self):
+        if config.TIMER:
+            config.TIMER.start_task("TargetExtract_DoTargetExtract_CPU")
         group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                      self.proj.group_to_ballots), 'rb'))
         group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -151,8 +153,13 @@ class RunThread(threading.Thread):
             print "    (skip_extract was True - not running doExtract)"
         dur_doExtract = time.time() - time_doExtract
         print "...Finished doExtract ({0} s)...".format(dur_doExtract)
+        if config.TIMER:
+            config.TIMER.stop_task("TargetExtract_DoTargetExtract_CPU")
         print "...Doing post-target-extraction work..."
         time_post = time.time()
+
+        if config.TIMER:
+            config.TIMER.start_task("TargetExtract_DoPostWork_CPU")
 
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
         #print "...Doing a zip...", time.time()
@@ -207,6 +214,9 @@ class RunThread(threading.Thread):
                                         (w,h))
         dur_imageFileMake = time.time() - time_imageFileMake
         #print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
+
+        if config.TIMER:
+            config.TIMER.stop_task("TargetExtract_DoPostWork_CPU")
 
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "broadcast.rundone")

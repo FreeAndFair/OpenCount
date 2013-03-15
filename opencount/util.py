@@ -1,4 +1,4 @@
-import time, math, datetime, re
+import time, math, datetime, re, pdb
 import wx
 from wx.lib.pubsub import Publisher
 import numpy as np
@@ -251,8 +251,11 @@ class MyTimer(object):
         self.filepath = filepath
         self.file = open(filepath, 'a')
         
-        self.times = []
-        self.curtiming = {}
+        self.start_times = {} # {str task: int starttime}
+
+        self.tasks_ordered = [] # [str task0, ..., str taskN]
+
+        self.total_times = {} # {str task: int dur}
 
         self.prelude()
 
@@ -266,24 +269,20 @@ class MyTimer(object):
         print >>self.file, datetime.datetime.now()
         print >>self.file, "="*16
 
-    def _add_task(self, task, t):
-        """
-        Go through this trouble in order to maintain ordering.
-        """
-        for idx, (this_task, _t) in enumerate(self.times[:]):
-            if this_task == task:
-                self.times[idx] = (task, _t + t)
-                return
-        self.times.append((task, t))
-
     def start_task(self, task):
-        self.curtiming[task] = time.time()
+        self.start_times[task] = time.time()
+        if task not in self.tasks_ordered:
+            self.tasks_ordered.append(task)
+
     def stop_task(self, task):
-        if task not in self.curtiming:
+        if task not in self.start_times:
             print "Warning -- task {0} was not found in MyTimer.".format(task)
         else:
-            t = time.time() - self.curtiming[task]
-            self._add_task(task, t)
+            dur = time.time() - self.start_times.pop(task)
+            if task not in self.total_times:
+                self.total_times[task] = dur
+            else:
+                self.total_times[task] += dur
     def write_msg(self, msg):
         """
         Insert some custom text.
@@ -294,9 +293,15 @@ class MyTimer(object):
         """
         Outputs all timing information to the logfile.
         """
-        for task, t in self.times:
-            print >>self.file, "For task {0}:".format(task)
-            print >>self.file, "    Time: {0} seconds".format(t)
+        # First, sum up all times within each task
+        for task in self.tasks_ordered:
+            dur = self.total_times.get(task, "UNKNOWN")
+            print >>self.file, "Task '{0}':".format(task)
+            if dur == "UNKNOWN":
+                print >>self.file, "    UNKNOWN"
+            else:
+                print >>self.file, "    {0:.8f} seconds".format(dur)
+        print "(MyTimer) Writing timing statistics to: {0}".format(os.path.abspath(self.filepath))
         self.file.flush()
 
 class WarningDialog(wx.Dialog):

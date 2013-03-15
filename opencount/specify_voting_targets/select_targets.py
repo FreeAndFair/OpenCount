@@ -14,7 +14,7 @@ from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 from panel_opencount import OpenCountPanel
-import util_gui, util, graphcolour
+import util_gui, util, graphcolour, config
 import grouping.tempmatch as tempmatch
 import labelcontest.group_contests as group_contests
 import pixel_reg.shared as shared
@@ -139,6 +139,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
         if not self.restore_session():
             manager = multiprocessing.Manager()
             queue = manager.Queue()
+            if config.TIMER:
+                config.TIMER.start_task("SelectTargets_GlobalAlign_CPU")
             tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
             workthread = GlobalAlignThread(groups, self.img2flip, align_outdir, ocrtmpdir, 
                                            manager, queue, self.on_align_done, 
@@ -155,6 +157,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
             self.seltargets_panel.start(None, self.img2flip, seltargets_stateP, ocrtmpdir)
 
     def on_align_done(self, groups_align_map, ocrtmpdir):
+        if config.TIMER:
+            config.TIMER.stop_task("SelectTargets_GlobalAlign_CPU")
         groups_align = []
         for groupid in sorted(groups_align_map.keys()):
             ballots = groups_align_map[groupid]
@@ -681,6 +685,8 @@ voting target on this ballot.")
             PIL IMG:
         """
         self.Disable()
+        if config.TIMER:
+            config.TIMER.start_task("SelectTargets_TempMatch_CPU")
         # 1.) Do an autofit.
         patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
         patch = util_gui.fit_image(patch_prefit, padx=2, pady=2)
@@ -748,6 +754,8 @@ voting target on this ballot.")
                      abs(b1.y1 - b2.y1) <= h / 2.0) or
                     is_overlap(b1, b2) or 
                     is_overlap(b2, b1))
+        if config.TIMER:
+            config.TIMER.stop_task("SelectTargets_TempMatch_CPU")
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
         # matches.
@@ -943,6 +951,8 @@ voting target on this ballot.")
         self.display_image(self.cur_i, self.cur_j, idx)
 
     def infercontests(self):
+        if config.TIMER:
+            config.TIMER.start_task("SelectTargets_InferContestRegions_CPU")
         imgpaths_exs = [] # list of [imgpath_i, ...]
         # Arbitrarily choose the first one Ballot from each partition
         for partition_idx, imgpaths_sides in enumerate(self.partitions):
@@ -988,6 +998,8 @@ voting target on this ballot.")
         #     so that LabelContests does the right thing.
             self.GetParent().proj.infer_bounding_boxes = True
             self.Refresh()
+            if config.TIMER:
+                config.TIMER.stop_task("SelectTargets_InferContestRegions_CPU")
 
         ocrtempdir = self.ocrtempdir
 

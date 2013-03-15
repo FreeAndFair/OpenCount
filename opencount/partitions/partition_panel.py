@@ -13,7 +13,7 @@ from wx.lib.pubsub import Publisher
 sys.path.append('..')
 
 import extract_patches
-import util
+import util, config
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
 
@@ -416,6 +416,8 @@ unnecessary.", 100)
         numtasks = len(img2b)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
+        if config.TIMER:
+            config.TIMER.start_task("Partition_Decode_CPU")
         tlisten.start()
         t.start()
         gauge.Show()
@@ -434,6 +436,8 @@ unnecessary.", 100)
                 due to a read/load error (e.g. IOError).
         """
         print "...Decoding Done!"
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_Decode_CPU")
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
         print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
@@ -450,6 +454,8 @@ unnecessary.", 100)
             self.ioerr_imgpaths = ioerr_imgpaths
             errpath = os.path.join(self.proj.projdir_path, 
                                    'ioerr_imgpaths.txt')
+            if config.TIMER:
+                config.TIMER.start_task("Partition_HandleErrs_H")
             dlg = wx.MessageDialog(self, message="Warning: {0} images \
 were unable to be read by OpenCount. These images (and associated \
 images from that ballot) will not be processed by further steps of the \
@@ -457,6 +463,8 @@ OpenCount pipeline. \n\
 The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath),
                                    style=wx.ID_OK)
             dlg.ShowModal()
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_HandleErrs_H")
             try:
                 with open(errpath, 'w') as errf:
                     errf = open(errpath, 'w')
@@ -538,6 +546,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                                                        manager, queue_mygauge,
                                                        thread_updateMyGauge,
                                                        callback=self.on_extract_done)
+        if config.TIMER:
+            config.TIMER.start_task("Partition_ExtractBarcodePatches_CPU")
         thread_doextract.start()
 
         gauge = util.MyGauge(self, 1, thread=thread_doextract,
@@ -557,6 +567,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             dict FLIPMAP: {imgpath: bool isFlipped}
         """
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS,))
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_ExtractBarcodePatches_CPU")
         cattag = 'BarcodeCategory'
         imgcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -566,6 +578,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 patchpath = img2patch[(imgpath, (bc_val, userdata, id))]
                 imgcats.setdefault(cattag, {}).setdefault(bc_val, []).append(patchpath)
         callback = lambda verifyRes: self.on_verify_done(verifyRes, patch2stuff, flipmap, verifypatch_bbs)
+        if config.TIMER:
+            config.TIMER.start_task("Partition_VerifyBarcodeMarks_H")
         f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
         f.Maximize()
         f.Show()
@@ -582,6 +596,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             of imgpaths that the user claimed is part of GROUPTAG.
         """
         print "...barcode patch verification done!"
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_VerifyBarcodeMarks_H")
         verified_decodes = {} # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
         if skipVerify:
             verified_decodes = verifypatch_bbs
@@ -601,7 +617,11 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 manual_labeled[imgpath] = decodings
         print "...generating partitions..."
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
+        if config.TIMER:
+            config.TIMER.start_task("Partition_GeneratePartitions_CPU")
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_GeneratePartitions_CPU")
         print "...done generating partitions..."
         # Add in manually-corrected flipped
         for imgpath, isflip in self.errs_flipmap.iteritems():

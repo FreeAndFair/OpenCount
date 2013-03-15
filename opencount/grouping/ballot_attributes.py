@@ -11,7 +11,7 @@ from wx.lib.pubsub import Publisher
 from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
-import util, tempmatch, group_attrs, common
+import util, tempmatch, group_attrs, common, config
 import specify_voting_targets.select_targets as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
@@ -291,6 +291,8 @@ Would you like to review the ballot annotations?",
             queue = manager.Queue()
             tlisten = ThreadListener(queue, JOBID_COMPUTE_MULT_EXEMPLARS)
             tlisten.start()
+            if config.TIMER:
+                config.TIMER.start_task("BallotAttributes_ComputeMultExemplars_CPU")
             t = ThreadComputeMultExemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
                                            self.patch2bal, self.bal2patches,
                                            queue, JOBID_COMPUTE_MULT_EXEMPLARS,
@@ -304,6 +306,8 @@ Would you like to review the ballot annotations?",
         else:
             self.on_compute_mult_exemplars_done(None)
     def on_compute_mult_exemplars_done(self, multexemplars_map):
+        if config.TIMER:
+            config.TIMER.stop_task("BallotAttributes_ComputeMultExemplars_CPU")
         if multexemplars_map != None:
             pickle.dump(multexemplars_map, open(pathjoin(self.proj.projdir_path,
                                                          self.proj.multexemplars_map), 'wb'))
@@ -497,6 +501,8 @@ Would you like to review the ballot annotations?",
                                     OVERLAY_EXEMPLAR_IMGNAME)
 
         self.Disable()
+        if config.TIMER:
+            config.TIMER.start_task("BallotAttributes_FindAttrMatches_CPU")
         manager = multiprocessing.Manager()
         queue_mygauge = manager.Queue()
         jobid = JOBID_FIND_ATTR_MATCHES
@@ -525,6 +531,8 @@ Would you like to review the ballot annotations?",
             dict PATCHPATH2BAL: {str patchpath: int ballotid}
             obj ATTRBOX:
         """
+        if config.TIMER:
+            config.TIMER.stop_task("BallotAttributes_FindAttrMatches_CPU")
         # Filter matches for only high-quality matches (w.r.t. self.tm_threshold)
         patchpaths_filtered = []
         patchpaths_bad = []
@@ -538,6 +546,8 @@ Would you like to review the ballot annotations?",
         for patchpath_bad in patchpaths_bad:
             os.remove(patchpath_bad)
 
+        if config.TIMER:
+            config.TIMER.start_task("BallotAttributes_VerifyMatches_H")
         callback = lambda verifyresults: self.on_verifymatches_done(verifyresults, matches, patchpath2bal, attrbox)
         exemplar_imgpath = pathjoin(self.proj.projdir_path,
                                     OVERLAY_EXEMPLAR_IMGNAME)
@@ -555,6 +565,8 @@ Would you like to review the ballot annotations?",
             dict PATCHPATH2BAL: {str patchpath: int ballotid}
             obj ATTRBOX:
         """
+        if config.TIMER:
+            config.TIMER.stop_task("BallotAttributes_VerifyMatches_H")
         self.f.Close()
         self.Enable()
         good_matches = verifyresults[CheckImageEquals.TAG_YES]
@@ -986,7 +998,7 @@ class AddAttributeDialog(wx.Dialog):
             dict ATTRTYPES_MAP: {str attrtype: [AttrBox_i, ...]}
                 The previously-created attribute boxes.
         """
-        wx.Dialog.__init__(self, parent, *args, **kwargs)
+        wx.Dialog.__init__(self, parent, style=wx.CAPTION | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX, *args, **kwargs)
 
         self.attrbox_cur = attrbox
         self.attrtypes_map = attrtypes_map
