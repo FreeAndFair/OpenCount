@@ -30,7 +30,7 @@ class SequoiaVendor(Vendor):
                                                                                            manager=manager,
                                                                                            pass_queue=queue,
                                                                                            N=None)
-        # BACKSMAP: maps {int ballotID: [imgpath_i, ...]}
+        # BACKSMAP: maps {int ballotID: [imgpath_i, ...]}. Stores all backside imagepaths for each ballotid
         self.backsmap = backsmap
         return (flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths)
 
@@ -96,7 +96,11 @@ class SequoiaVendor(Vendor):
             if ballotid in history:
                 continue
             imgpaths = bal2imgs[ballotid]
-            imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
+            try:
+                imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
+            except Exception as e:
+                traceback.print_exc()
+                pdb.set_trace()
             # Only the front-page has barcode information
             decoding = img2decoding[imgpaths_ordered[0]]
             partitionid = decoding2partition.get(decoding, None)

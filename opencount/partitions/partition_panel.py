@@ -442,8 +442,12 @@ unnecessary.", 100)
         print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         if err_imgpaths:
+            if config.TIMER:
+                config.TIMER.start_task("Partition_HandleErrs_H")
             dlg = LabelDialog(self, err_imgpaths)
             status = dlg.ShowModal()
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_HandleErrs_H")
             # dict ERRS_CORRECTED: {str imgpath: str label or ID_Quarantine/ID_Discard}
             self.errs_corrected = dlg.label_res
             self.errs_flipmap = dlg.imgflips
@@ -454,8 +458,6 @@ unnecessary.", 100)
             self.ioerr_imgpaths = ioerr_imgpaths
             errpath = os.path.join(self.proj.projdir_path, 
                                    'ioerr_imgpaths.txt')
-            if config.TIMER:
-                config.TIMER.start_task("Partition_HandleErrs_H")
             dlg = wx.MessageDialog(self, message="Warning: {0} images \
 were unable to be read by OpenCount. These images (and associated \
 images from that ballot) will not be processed by further steps of the \
@@ -463,8 +465,6 @@ OpenCount pipeline. \n\
 The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath),
                                    style=wx.ID_OK)
             dlg.ShowModal()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_HandleErrs_H")
             try:
                 with open(errpath, 'w') as errf:
                     errf = open(errpath, 'w')
@@ -504,16 +504,29 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
 
         # For a ballot B in ERRS_CORRECTED, if any of its sides was
         # quarantined/discarded, then don't process the rest of B.
-
-        for imgpath, label in self.errs_corrected.iteritems():
-            ballotid = img2bal[imgpath]
-            if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
-                # Remove all mentions of this ballot from relevant data structs
-                verifypatch_bbs, flipmap = nuke_ballot(ballotid, verifypatch_bbs, flipmap)
-            if label == LabelDialog.ID_Quarantine:
-                self.quarantine_ballot(ballotid)
-            elif label == LabelDialog.ID_Discard:
-                self.discard_ballot(ballotid)
+        def handle_err_ballots():
+            for imgpath, label in self.errs_corrected.iteritems():
+                ballotid = img2bal[imgpath]
+                # (case) Avoid case where sideA is quarantined/discarded, yet sideB has a manually-entered label
+                if ballotid in self.quarantined_bals and label != LabelDialog.ID_Quarantine:
+                    self.errs_corrected[imgpath] = LabelDialog.ID_Quarantine
+                elif ballotid in self.discarded_bals and label != LabelDialog.ID_Discard:
+                    self.errs_corrected[imgpath] = LabelDialog.ID_Discard
+                    
+                if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
+                    # Remove all mentions of this ballot from relevant data structs
+                    nuke_ballot(ballotid, verifypatch_bbs, flipmap)
+                if label == LabelDialog.ID_Quarantine:
+                    self.quarantine_ballot(ballotid)
+                elif label == LabelDialog.ID_Discard:
+                    # If sideA is quarantined, but sideB is discarded, then
+                    # for now discard both sides (e.g. the entire ballot).
+                    # TODO: Perhaps warn the user about this behavior?
+                    try: self.unquarantine_ballot(ballotid)
+                    except: pass
+                    self.discard_ballot(ballotid)
+        handle_err_ballots()
+        handle_err_ballots() # Second pass to ensure that (case) never happens
         # For a ballot B that had an image in IOERR_IMGPATHS, nuke
         # the rest of the images in B - the entire ballot B is hosed.
         for imgpath in self.ioerr_imgpaths:
@@ -611,8 +624,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         manual_labeled = {} # maps {str imgpath: (str label_i, ...)}
         for imgpath, label in self.errs_corrected.iteritems():
             if label not in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
-                # TODO: Officially document (or modify textentry widget) 
-                # that commas separate barcode values
+                # The Manual Label widget states that commas separate
+                # barcode values.
                 decodings = tuple([s.strip() for s in label.split(",")])
                 manual_labeled[imgpath] = decodings
         print "...generating partitions..."
@@ -746,8 +759,12 @@ You may move onto the next step.").ShowModal()
 
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
+    def unquarantine_ballot(self, ballotid):
+        self.quarantined_bals.remove(ballotid)
     def discard_ballot(self, ballotid):
         self.discarded_bals.add(ballotid)
+    def undiscard_ballot(self, ballotid):
+        self.discarded_bals.remove(ballotid)
 
 class VerifyOverlaysFrame(wx.Frame):
     def __init__(self, parent, imgcategories, exmplcategories, ondone, *args, **kwargs):
