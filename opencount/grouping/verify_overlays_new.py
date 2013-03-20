@@ -20,7 +20,7 @@ sys.path.append('..')
 import util
 
 # Max. allowable size of each group
-MAX_GROUP_SIZE = 50000
+MAX_GROUP_SIZE = 75000
 
 # Max size of ImageCache (in MB)
 MAX_CACHE_SIZE = 2000
@@ -747,7 +747,7 @@ class VerifyOverlays(SplitOverlays):
                 group = VerifyGroup(imgpaths, tag=tag, do_align=do_align)
                 self.possible_tags.add(group.tag)
                 if imgpaths:
-                    trimmed_groups = trim_group(group, MAX_GROUP_SIZE)
+                    trimmed_groups = trim_group(group, None)
                     for trimmed_group in trimmed_groups:
                         self.add_group(trimmed_group)
             self.possible_tags = tuple(self.possible_tags)
@@ -1746,6 +1746,8 @@ def trim_group(group, max_group_size):
     no larger than max_group_size.
     """
     out_groups = []
+    if max_group_size == None:
+        return [group]
     i = 0
     while i < len(group.imgpaths):
         j = min(len(group.imgpaths), i+max_group_size)
