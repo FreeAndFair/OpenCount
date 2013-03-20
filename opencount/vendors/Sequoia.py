@@ -100,6 +100,20 @@ class SequoiaVendor(Vendor):
                 imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
             except Exception as e:
                 traceback.print_exc()
+                dumped = {'img2decoding': img2decoding,
+                          'imgpath': imgpath,
+                          'decoding': decoding,
+                          'ballotid': ballotid,
+                          'imgpaths': imgpaths,
+                          'imginfo_map': imginfo_map,
+                          'backsmap': self.backsmap,
+                          'verified_results': verified_results,
+                          'manual_labeled': manual_labeled,
+                          'decodings_tmp': decodings_tmp,
+                          'history': history,
+                          'curPartitionID': curPartitionID}
+                pickle.dump(dumped, open('crash_dumpstate.p', 'wb'))
+                print "CRASH -- dumping relevant state to: 'crash_dumpstate.p'"
                 pdb.set_trace()
             # Only the front-page has barcode information
             decoding = img2decoding[imgpaths_ordered[0]]
