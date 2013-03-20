@@ -45,8 +45,9 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer2 = wx.BoxSizer(wx.HORIZONTAL)
         self.imgpatch = wx.StaticBitmap(self)
 
+        self.txt_inst = wx.StaticText(self, label="Please enter the label for this image.")
         labeltxt = wx.StaticText(self, label='Label:')
-        self.inputctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.inputctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER, size=(250,-1))
         self.inputctrl.Bind(wx.EVT_TEXT_ENTER, self.onInputEnter, self.inputctrl)
         nextbtn = wx.Button(self, label="Next")
         prevbtn = wx.Button(self, label="Previous")
@@ -59,6 +60,7 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         inputsizer.Add(self.inputctrl)
         self.progress_txt = wx.StaticText(self, label='')
         self.btn_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.btn_sizer.Add(self.txt_inst)
         self.btn_sizer.Add(inputsizer)
         self.btn_sizer.Add(nextbtn)
         self.btn_sizer.Add(prevbtn)

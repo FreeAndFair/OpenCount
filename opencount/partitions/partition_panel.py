@@ -798,6 +798,21 @@ class LabelOrDiscardPanel(label_imgs.LabelPanel):
     def _init_ui(self):
         label_imgs.LabelPanel._init_ui(self)
 
+        inst = (textwrap.fill("""Please enter the barcode(s) for each \
+ballot, or mark as quarantined/discarded.""") + "\n\n" +
+                textwrap.fill("""(Sequoia) -- Please enter the two \
+8-bit barcode-values as comma-separated bitstrings, in Left to Right order. \
+Within each barcode, interpret the bits in Top to Down order. E.g: 01000000, 00001111.""") + "\n" + 
+                textwrap.fill("""    Note: If the image is the backside \
+of a ballot, then enter the special label: '0,' (no quotes).""") + "\n\n" + 
+                textwrap.fill("""(Hart) -- Please enter the decimal digits \
+displayed below the upper-left barcode. Enter the digits starting from the \
+bottom-most digit.""") + "\n\n" +
+                textwrap.fill("""(Diebold) -- Please enter the 32-bit \
+bitstring along the bottom of the ballot page, from Left to Right order. \
+Do not include the left-most and right-most marks.""") + "\n\n")
+        self.txt_inst.SetLabel(inst)
+
         self.radio_quarantine = wx.RadioButton(self, label="Quarantine (Process Later)", 
                                                style=wx.RB_GROUP)
         self.radio_discard = wx.RadioButton(self, label="Discard (Don't Process)")
