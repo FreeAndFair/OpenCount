@@ -1,4 +1,4 @@
-import sys, os, threading, multiprocessing, Queue, time, textwrap, pdb
+import sys, os, threading, multiprocessing, Queue, time, textwrap, pdb, shutil
 from Queue import Empty
 try:
     import cPickle as pickle
@@ -393,10 +393,18 @@ unnecessary.", 100)
                      pathjoin(self.proj.projdir_path, self.proj.partition_quarantined),
                      pathjoin(self.proj.projdir_path, self.proj.partition_discarded),
                      pathjoin(self.proj.projdir_path, self.proj.image_to_page),
-                     pathjoin(self.proj.projdir_path, self.proj.image_to_flip)):
+                     pathjoin(self.proj.projdir_path, self.proj.image_to_flip),
+                     pathjoin(self.proj.projdir_path, '_state_ballot_attributes.p'),
+                     pathjoin(self.proj.projdir_path, '_state_selecttargetsMain.p'),
+                     pathjoin(self.proj.projdir_path, '_state_selecttargets.p'),
+                     pathjoin(self.proj.projdir_path, self.proj.group_to_ballots),
+                     pathjoin(self.proj.projdir_path, self.proj.ballot_to_group),
+                     pathjoin(self.proj.projdir_path, 'groupsAlign_seltargs')):
             try: 
-                shutil.rmtree(path)
-                print "REMOVING:", path
+                if os.path.isfile(path):
+                    os.remove(path)
+                else:
+                    shutil.rmtree(path)
             except: pass
         self.partitioning = None
         self.img2decoding = None
@@ -527,6 +535,9 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                     self.discard_ballot(ballotid)
         handle_err_ballots()
         handle_err_ballots() # Second pass to ensure that (case) never happens
+        print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
+                                                                      len(self.discarded_bals))
+                                                                          
         # For a ballot B that had an image in IOERR_IMGPATHS, nuke
         # the rest of the images in B - the entire ballot B is hosed.
         for imgpath in self.ioerr_imgpaths:
@@ -832,13 +843,80 @@ Do not include the left-most and right-most marks.""") + "\n\n")
 
         self.radio_quarantine = wx.RadioButton(self, label="Quarantine (Process Later)", 
                                                style=wx.RB_GROUP)
+        self.radio_quarantine.Bind(wx.EVT_RADIOBUTTON, self.onRadioBtn_quar)
         self.radio_discard = wx.RadioButton(self, label="Discard (Don't Process)")
+        self.radio_discard.Bind(wx.EVT_RADIOBUTTON, self.onRadioBtn_discard)
         self.radio_normal = wx.RadioButton(self, label="Normal Ballot (Process Normally)")
+        self.radio_normal.Bind(wx.EVT_RADIOBUTTON, self.onRadioBtn_normal)
         radiobtn_sizer = wx.BoxSizer(wx.VERTICAL)
         radiobtn_sizer.AddMany([(self.radio_quarantine,), (self.radio_discard,),
                                 (self.radio_normal,)])
         self.chkbox_isflip = wx.CheckBox(self, label="Is the ballot flipped (upside down)?")
-        self.btn_sizer.AddMany([(radiobtn_sizer,), (self.chkbox_isflip,)])
+
+        btn_quarantine_all = wx.Button(self, label="Quarantine REST of images")
+        btn_quarantine_all.Bind(wx.EVT_BUTTON, self.onButton_quarAll)
+        btn_discard_all = wx.Button(self, label="Discard REST of images")
+        btn_discard_all.Bind(wx.EVT_BUTTON, self.onButton_discardAll)
+        self.btn_sizer.AddMany([(radiobtn_sizer,), (self.chkbox_isflip,),
+                                ((0,50),),
+                                (btn_quarantine_all,), ((0,10),),
+                                (btn_discard_all,)])
+
+    def onButton_quarAll(self, evt):
+        total = len(self.imagepaths)
+        num_rest = total - self.cur_imgidx
+        status = wx.MessageDialog(self, style=wx.YES_NO | wx.CAPTION, caption="Are you sure?",
+                                  message="Are you sure you want to Quarantine \
+all {0} images starting from here?\n\n\
+When a ballot B is quarantined, you will have to manually enter in all ballot \
+information, such as voter marks and contest information.".format(num_rest)).ShowModal()
+        if status != wx.ID_YES:
+            return
+        for imgpath in self.imagepaths[self.cur_imgidx:]:
+            try: self.discard_imgpaths.remove(imgpath)
+            except: pass
+            self.quar_imgpaths.add(imgpath)
+        self.callback(self.imagelabels)
+        
+    def onButton_discardAll(self, evt):
+        total = len(self.imagepaths)
+        num_rest = total - self.cur_imgidx
+        status = wx.MessageDialog(self, style=wx.YES_NO | wx.CAPTION, caption="Are you sure?",
+                                  message="Are you sure you want to Discard \
+all {0} images starting from here?\n\n\
+When a ballot B is Discarded, then B is omitted from ALL subsequent OpenCount \
+steps, and will not be included in the final results.".format(num_rest)).ShowModal()
+        if status != wx.ID_YES:
+            return
+        for imgpath in self.imagepaths[self.cur_imgidx:]:
+            try: self.quar_imgpaths.remove(imgpath)
+            except: pass
+            self.discard_imgpaths.add(imgpath)
+        self.callback(self.imagelabels)
+
+    def onRadioBtn_quar(self, evt):
+        evt.Skip()
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        self.quar_imgpaths.add(curimgpath)
+        try: self.discard_imgpaths.remove(curimgpath)
+        except: pass
+        self.onButton_next(None)
+
+    def onRadioBtn_discard(self, evt):
+        evt.Skip()
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        self.discard_imgpaths.add(curimgpath)
+        try: self.quar_imgpaths.remove(curimgpath)
+        except: pass
+        self.onButton_next(None)
+
+    def onRadioBtn_normal(self, evt):
+        evt.Skip()
+        curimgpath = self.imagepaths[self.cur_imgidx]
+        try: self.discard_imgpaths.remove(curimgpath)
+        except: pass
+        try: self.quar_imgpaths.remove(curimgpath)
+        except: pass
 
     def add_label(self, imgpath, label):
         curimgpath = self.imagepaths[self.cur_imgidx]
