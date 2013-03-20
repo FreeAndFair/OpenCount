@@ -30,12 +30,12 @@ import config, util
 The main module for OpenCount.
 
 Usage:
-    $ python maingui.py [-h --help -help] [--time [PREFIX]]
+    $ python maingui.py [-h --help -help] [--time [PREFIX]] [-n BALLOT_LIMIT]
 """
 
 USAGE = """Usage:
 
-    $ python maingui.py [-h --help -help] [--time [PREFIX]]
+    $ python maingui.py [-h --help -help] [--time [PREFIX]] [-n BALLOT_LIMIT]
 
 -h, --help, -help
     Print this usage information, and exit.
@@ -46,6 +46,11 @@ USAGE = """Usage:
     is:
         foo_YEAR_MONTH_DAY_HOUR_MINUTE.log
     Otherwise, the filename defaults PREFIX to be empty ''.
+
+-n BALLOT_LIMIT
+    Adds an upper-bound on how many ballots OpenCount will process. For
+    instance, running OpenCount with 'maingui.py -n 1000' will process
+    an election with (at most) 1000 ballots. Used for testing/dev purposes.
 
 """
 
@@ -416,6 +421,15 @@ def main():
     if '-h' in args or '--help' in args or '-help' in args:
         print USAGE
         return 0
+    if '-n' in args:
+        try:
+            n = int(args[args.index('-n')+1])
+        except:
+            print "Invalid handling of '-n' option."
+            print USAGE
+            return 0
+        print "(OpenCount) -- User passed '-n {0}', processing first {0} ballots".format(n)
+        config.BALLOT_LIMIT = n
     # NOTE: For now, always record the timing information. This is
     #       to avoid accidentally not passing in the '--time' option,
     #       which would really suck when recording timing data for the paper.

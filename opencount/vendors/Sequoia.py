@@ -187,6 +187,11 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
     IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
     backsmap = {} # maps {ballotid: [backpath_i, ...]}
 
+    def mygauge_tick(N=1):
+        """ Add N ticks to the progress bar. """
+        for _ in xrange(N):
+            queue.put(True)
+
     if num_pages == 1:
         return handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE, queue)
     else:
@@ -207,6 +212,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                     ioerr_imgpaths.add(imgpath1)
                     is_ioerror = True
                 if is_ioerror:
+                    mygauge_tick(N=2)
                     continue
 
                 side0, isflip0 = sequoia.get_side(I0, IsymA, IsymB, IsymC, IsymD, IsymE)
@@ -216,7 +222,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
                     if queue:
-                        queue.put(True)
+                        mygauge_tick(N=2)
                     print "Craziness here, run!"
                     continue
                 if side0 != None:
@@ -245,7 +251,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
                     if queue:
-                        queue.put(True)
+                        mygauge_tick(N=2)
                     print "Craziness here, decodings == None"
                     continue
                 elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
@@ -268,7 +274,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                         mark_bbs_map.setdefault(marktype, []).extend(tups)
                     fronts.append(imgpath0)
                 if queue: 
-                    queue.put(True)
+                    mygauge_tick(N=2)
             backsmap[ballotid] = backs
 
         return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap

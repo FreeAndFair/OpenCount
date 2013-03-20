@@ -11,6 +11,7 @@ import cv
 sys.path.append('..')
 
 import util
+import config
 from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate
 
 BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold", "Single Template (generic)")
@@ -18,10 +19,6 @@ VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor,
                   "single template (generic)": SingleTemplate.SingleTemplateVendor,
                   "diebold": Diebold.DieboldVendor}
-
-# int BALLOT_LIMIT := Set to an integer N if you'd like to only include the
-#                     first N ballots in an election. For testing purposes.
-BALLOT_LIMIT = None
 
 class ConfigPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -209,7 +206,7 @@ match the regular expressions.".format(imgpath)
                 print "Warning -- found Ballot with {0} sides, yet project \
 specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()))
                 weirdballots.append(imgpaths)
-            elif BALLOT_LIMIT != None and i >= BALLOT_LIMIT:
+            elif config.BALLOT_LIMIT != None and i >= config.BALLOT_LIMIT:
                 break
             else:
                 ballot_to_images[curballotid] = imgpaths
