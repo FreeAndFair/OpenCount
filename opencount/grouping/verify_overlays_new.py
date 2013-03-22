@@ -1,4 +1,4 @@
-import os, sys, traceback, time, pdb, threading, multiprocessing
+import os, sys, traceback, time, pdb, threading, multiprocessing, math
 try:
     import cPickle as pickle
 except:
@@ -19,8 +19,11 @@ from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_G
 sys.path.append('..')
 import util
 
-# Max. allowable size of each group
-MAX_GROUP_SIZE = 75000
+# Max. allowable size of each group. If None, then no upper-limit.
+GLOB_MAX_GROUP_SIZE = 75000
+# Max. memory that K-means split is allowed to use (in MB). None if no limit.
+#     Note: This upper-limit overrides GLOB_MAX_GROUP_SIZE if required.
+GLOB_MAX_KMEANS_MEM = 1250
 
 # Max size of ImageCache (in MB)
 MAX_CACHE_SIZE = 2000
@@ -571,7 +574,7 @@ class SplitOverlays(ViewOverlays):
             self.bbs_map = bbs_map if bbs_map != None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = SplitGroup(imgpaths, tag=tag, do_align=do_align)
-                trimmed_groups = trim_group(group, MAX_GROUP_SIZE)
+                trimmed_groups = trim_group(group, GLOB_MAX_GROUP_SIZE)
                 for trimmed_group in trimmed_groups:
                     self.add_group(trimmed_group)
         self.select_group(0)
@@ -590,7 +593,7 @@ class SplitOverlays(ViewOverlays):
             self.GetParent().footer.btn_split.Enable()
         return idx
 
-    def do_split(self, MAX_GROUP_SIZE=MAX_GROUP_SIZE):
+    def do_split(self, MAX_GROUP_SIZE=None):
         curgroup = self.get_current_group()
         t = time.time()
         self.disable_ui()
@@ -1564,6 +1567,8 @@ class Group(object):
 class SplitGroup(Group):
     def midsplit(self):
         """ Laziest split method: Split down the middle. """
+        if len(self.imgpaths) == 1:
+            return [type(self)(self.imgpaths, tag=self.tag, do_align=self.do_align)]
         mid = len(self.imgpaths) / 2
         imgsA, imgsB = self.imgpaths[:mid], self.imgpaths[mid:]
         return [type(self)(imgsA, tag=self.tag, do_align=self.do_align),
@@ -1660,7 +1665,9 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
                     i += 1
             for big_grp in grps_toobig:
                 input_groups.extend(trim_group(big_grp, MAX_GROUP_SIZE))
-        
+
+        input_groups = trim_groups_by_mem(input_groups, GLOB_MAX_KMEANS_MEM)
+
         out_groups = []
         if mode == 'midsplit':
             out_groups = sum([g.midsplit() for g in input_groups], [])
@@ -1755,6 +1762,62 @@ def trim_group(group, max_group_size):
         new_group = type(group)(new_imgpaths, tag=group.tag, do_align=group.do_align)
         out_groups.append(new_group)
         i = j
+    return out_groups
+
+def trim_groups_by_mem(groups, max_mem_usage):
+    """ Given a list of groups, pare the group down into smaller groups
+    such that the images in each group does not exceed max_mem_usage.
+    Input:
+        list GROUPS: [Group, ...]
+        int MAX_MEM_USAGE: An integer specifying MB's. If None, then no
+            limit.
+    Output:
+        list OUT_GROUPS.
+    """
+    if max_mem_usage == None:
+        return groups
+    out_groups = []
+    mem_limit_kbytes = max_mem_usage * 1000
+    for group in groups:
+        if not group.imgpaths:
+            out_groups.append(group)
+            continue
+        I = scipy.misc.imread(group.imgpaths[0], flatten=True)
+        if I.nbytes <= 0:
+            # Would be bit of a strange case, but let it go
+            out_groups.append(group)
+            continue
+        n_kbytes = I.nbytes / 1000
+        group_size_kbytes = len(group.imgpaths) * n_kbytes
+        print "Group_Size (MB) = {0}    (Limit: {1} MB)".format(group_size_kbytes / 1000, max_mem_usage)
+        if group_size_kbytes >= mem_limit_kbytes:
+            num_groups = min(int(math.ceil(group_size_kbytes / mem_limit_kbytes)),
+                             len(group.imgpaths))
+            out_groups.extend(groupsplit_by_n(group, num_groups))
+        else:
+            out_groups.append(group)
+    return out_groups
+
+def groupsplit_by_n(group, n):
+    """ Splits a group up into N (roughly) equally-sized groups.
+    Assumes that 1 <= N <= len(group.imgpaths).
+    Input:
+        Group group
+        int groupsize
+    Output:
+        list OUT_GROUPS.
+    """
+    out_groups = []
+    grpsize = int(math.ceil(len(group.imgpaths) / n))
+    for grpnum in xrange(n):
+        start_i = (grpnum*grpsize)
+        if grpnum == (n-1):
+            imgpaths_cur = group.imgpaths[start_i:]
+        else:
+            end_i = start_i + grpsize
+            imgpaths_cur = group.imgpaths[start_i:end_i]
+        group_new = type(group)(imgpaths_cur, tag=group.tag, do_align=group.do_align)
+        out_groups.append(group_new)
     return out_groups
 
 class ManualRelabelDialog(wx.Dialog):
@@ -2138,9 +2201,9 @@ def test_separateimages():
 
 def main():
     #test_verifyoverlays()
-    #test_checkimgequal()
+    test_checkimgequal()
     #test_verifycategories()
-    test_separateimages()
+    #test_separateimages()
 
 if __name__ == '__main__':
     main()

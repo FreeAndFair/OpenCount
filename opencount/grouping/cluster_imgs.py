@@ -114,11 +114,12 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     """
     t_total = time.time()
 
-    MIN_DIM = 50
+    MIN_DIM = 25
     MAX_DIM = 300
     t = time.time()
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
                            MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache)
+    print "(Kmeans) data.nbytes: {0}    ({1} MB)".format(data.nbytes, data.nbytes / 1e6)
     dur_imgs2mat = time.time() - t
     '''
     if bb_map == None:
@@ -281,14 +282,16 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
         if h_big <= MIN_DIM or w_big <= MIN_DIM:
             rszFac = 1.0
         else:
-            rszFac = min(1.0, MAX_DIM / float(min(w_big, h_big)))
+            rszFac = min(1.0, MAX_DIM / float(max(w_big, h_big)))
+            if (rszFac * w_big) <= MIN_DIM or (rszFac * h_big) <= MIN_DIM:
+                rszFac = float(MIN_DIM / float(min(w_big, h_big)))
         w_out, h_out = int(round(rszFac * w_big)), int(round(rszFac * h_big))
     else:
         w_out, h_out = w_big, h_big
             
     print "imgpaths_to_mat -- using rszFac={0}".format(rszFac)
 
-    data = np.zeros((len(imgpaths), h_out*w_out))
+    data = np.zeros((len(imgpaths), h_out*w_out), dtype='float32')
     Iref = None
     if return_align_errs:
         alignerrs = [None] * len(imgpaths) # [float err_i, ...]
