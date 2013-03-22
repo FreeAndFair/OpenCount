@@ -518,7 +518,7 @@ Would you like to review the ballot annotations?",
         thread.start()
 
         num_tasks = len(self.ballots_todo)
-        gauge = util.MyGauge(self, 2, msg="Finding Attribute Matches...",
+        gauge = util.MyGauge(self, 1, msg="Finding Attribute Matches...",
                              thread=thread, job_id=jobid)
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, jobid))
