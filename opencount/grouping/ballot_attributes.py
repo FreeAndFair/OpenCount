@@ -1371,6 +1371,9 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
     cv.SetImageROI(I, (attrbox.x1, attrbox.y1, attrbox.x2 - attrbox.x1, attrbox.y2 - attrbox.y1))
     w_attr, h_attr = cv.GetSize(I)
 
+    attrtype = '_'.join(sorted(attrbox.attrtypes))
+    attrval = '_'.join(sorted(attrbox.attrvals))
+
     cv.SaveImage(exemplar_outpath, I)
     
     imgpaths_toSearch = []
@@ -1383,34 +1386,28 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
                  min(w-1, int(round(attrbox.x2 + (EXPAND*w_attr)))),
                  min(h-1, int(round(attrbox.y2 + (EXPAND*h_attr)))))
 
-    # dict TM_MATCHES: {str imgpath: (x1,y1, float response)}
-    tm_matches = tempmatch.bestmatch_par(I, imgpaths_toSearch, img2flip=img2flip,
-                                         bb=bb_search, do_smooth=tempmatch.SMOOTH_BOTH_BRD,
-                                         xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=None,
-                                         jobid=jobid, queue_mygauge=queue_mygauge)
-    
-    attrtype = '_'.join(sorted(attrbox.attrtypes))
-    attrval = '_'.join(sorted(attrbox.attrvals))
-
-    # Save imgpatches to disk
-    num_tasks = len(tm_matches)
-    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, jobid))
-    patchpath2bal = {} # maps {str patchpath: int ballotid}
-    matches = {}  # maps {int ballotid: ((x1,y1,x2,y2), float score, str patchpath)}
-    for imgpath, (x1,y1,response) in tm_matches.iteritems():
-        I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        cv.SetImageROI(I, (x1,y1,w_attr,h_attr))
+    patch_outpaths = {} # maps {str imgpath: str patch_outpath}
+    patchpath2bal = {} # maps {str patch_outpath: int ballotid}
+    for imgpath in imgpaths_toSearch:
         rp = os.path.relpath(os.path.abspath(imgpath),
                              os.path.abspath(voteddir))
         outname = "{0}_{1}.png".format(attrtype, attrval)
         outpath = pathjoin(attrpatch_outdir, rp, outname)
-        try: os.makedirs(os.path.split(outpath)[0])
-        except: pass
-        cv.SaveImage(outpath, I)
+        patch_outpaths[imgpath] = outpath
+        patchpath2bal[outpath] = img2bal[imgpath]
+
+    # dict TM_MATCHES: {str imgpath: (x1,y1, float response)}
+    tm_matches = tempmatch.bestmatch_par(I, imgpaths_toSearch, img2flip=img2flip,
+                                         bb=bb_search, do_smooth=tempmatch.SMOOTH_BOTH_BRD,
+                                         xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=None,
+                                         jobid=jobid, queue_mygauge=queue_mygauge,
+                                         patch_outpaths=patch_outpaths)
+
+    matches = {}  # maps {int ballotid: ((x1,y1,x2,y2), float score, str patchpath)}
+    for imgpath, (x1,y1,response) in tm_matches.iteritems():
         ballotid = img2bal[imgpath]
-        patchpath2bal[outpath] = ballotid
+        outpath = patch_outpaths[imgpath]
         matches[ballotid] = ((x1,y1,x1+w_attr,y1+h_attr),response,outpath)
-        queue_mygauge.put(True)
 
     return matches, patchpath2bal, attrbox
 

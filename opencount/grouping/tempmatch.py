@@ -1,4 +1,4 @@
-import traceback, threading, multiprocessing
+import traceback, threading, multiprocessing, pdb, os
 import cv, numpy as np
 
 from wx.lib.pubsub import Publisher
@@ -17,7 +17,8 @@ SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
 def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
-              xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None):
+              xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None,
+              patch_outpaths=None):
     """ Runs template matching on IMGPATHS, searching for best match
     for A. 
     Input:
@@ -31,6 +32,9 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
         obj QUEUE_MYGAUGE:
             Used to signal to a running MyGauge instance that one job has
             completed. (Typically, this gauge lives in a separate process)
+        dict PATCH_OUTPATHS: {str imgpath: str patch_outpath}
+            If given, then save each patch to disk given by the patchpath in
+            PATCH_OUTPATHS.
     Output:
         dict {str IMGPATH: (x1, y1, float score)}.
     """
@@ -47,8 +51,10 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
     for i, imgpath in enumerate(imgpaths):
         if type(imgpath) in (str, unicode):
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            Iorig = I
         else:
             I = imgpath
+            Iorig = I
             imgpath = i
         if do_smooth in (SMOOTH_BOTH_BRD, SMOOTH_IMG_BRD):
             I = smooth(I, xwinI, ywinI, bordertype='const', val=255)
@@ -56,6 +62,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             I = smooth(I, xwinI, ywinI)
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
+            Iorig = I
         if bb != None:
             new_roi = tuple(map(int, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])))
             cv.SetImageROI(I, new_roi)
@@ -77,6 +84,15 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             x += bb[0]
             y += bb[1]
         results[imgpath] = (x, y, maxResp)
+        # Save the patch to disk if necessary
+        if patch_outpaths:
+            outpath = patch_outpaths.get(imgpath, None)
+            if outpath:
+                try: os.makedirs(os.path.split(outpath)[0])
+                except: pass
+                cv.SetImageROI(Iorig, (int(x), int(y),
+                                       int(w_A), int(h_A)))
+                cv.SaveImage(outpath, Iorig)
         if jobid and wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
         if queue_mygauge != None:
@@ -87,20 +103,22 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
 def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth,
                              xwinA, ywinA, xwinI, ywinI, w, h,
                              prevmatches,
-                             jobid, queue_mygauge)):
+                             jobid, queue_mygauge, patch_outpaths)):
     A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
         result = bestmatch(A_cv, imgpaths, bb=bb, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
                            ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, prevmatches=prevmatches,
-                           jobid=jobid, queue_mygauge=queue_mygauge)
+                           jobid=jobid, queue_mygauge=queue_mygauge,
+                           patch_outpaths=patch_outpaths)
         return result
     except:
         traceback.print_exc()
         return {}
 
 def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
-                  xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None):
+                  xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None,
+                  patch_outpaths=None):
     """ Find the best match for A in each image in IMGPATHS, using NP
     processes. A multiprocessing-wrapper for bestmatch (see doc for
     bestmatch for more details).
@@ -120,7 +138,8 @@ def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwi
     w, h = cv.GetSize(A)
     result = partask.do_partask(_do_bestmatch, imgpaths,
                                 _args=(A_str, bb, img2flip, do_smooth, xwinA, ywinA,
-                                       xwinI, ywinI, w, h, prevmatches, jobid, queue_mygauge),
+                                       xwinI, ywinI, w, h, prevmatches, jobid, queue_mygauge,
+                                       patch_outpaths),
                                 combfn='dict', N=NP)
     return result
 
