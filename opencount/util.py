@@ -280,6 +280,7 @@ class MyTimer(object):
                 self.total_times[task] = dur
             else:
                 self.total_times[task] += dur
+        self.dump()
 
     def dump(self):
         """

@@ -50,6 +50,8 @@ class PartitionMainPanel(wx.Panel):
         Also, choose a set of exemplars for each partition and save
         them as PARTITION_EXMPLS: {partitionID: [int BallotID_i, ...]}
         """
+        t_total = time.time()
+
         # partitioning: {int partitionID: [int ballotID_i, ...]}
         partitions_map = {} 
         partitions_invmap = {}
@@ -234,6 +236,9 @@ The page counts are:\n{2}\n\
                     pickle.HIGHEST_PROTOCOL)
         pickle.dump(partition_exmpls, open(partition_exmpls_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+
+        dur_total = time.time() - t_total
+        print "(Partition) Total Time to Export Results: {0:.8f}s".format(dur_total)
         
 class PartitionPanel(ScrolledPanel):
     PARTITION_JOBID = util.GaugeID("PartitionJobId")
@@ -446,9 +451,11 @@ unnecessary.", 100)
         print "...Decoding Done!"
         if config.TIMER:
             config.TIMER.stop_task("Partition_Decode_CPU")
+            config.TIMER.start_task("Partition_HandleDecodingResults")
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
         print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         if err_imgpaths:
             if config.TIMER:
                 config.TIMER.start_task("Partition_HandleErrs_H")
@@ -490,8 +497,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         pickle.dump(ioerr_balids, open(pathjoin(self.proj.projdir_path,
                                                 self.proj.partition_ioerr), 'wb'))
         
-        def nuke_ballot(ballotid, verifypatch_bbs, flipmap):
-            """ Removes all images from BALLOTID from the relevant
+        def nuke_ballots(ballotids, verifypatch_bbs, flipmap):
+            """ Removes all references to ballotids in BALLOTIDS from
             data structs VERIFYPATCH_BBS and FLIPMAP.
             Mutates input VERIFYPATCH_BBS, FLIPMAP.
             """
@@ -500,50 +507,45 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 while i < len(tups):
                     tup_imP, tup_bb, tup_userdata = tups[i]
                     tup_balid = img2bal[tup_imP]
-                    if tup_balid == ballotid:
+                    if tup_balid in ballotids:
                         tups.pop(i)
                     else:
                         i += 1
             for flipmap_imP in flipmap.keys():
                 flipmap_bid = img2bal[flipmap_imP]
-                if flipmap_bid == ballotid:
+                if flipmap_bid in ballotids:
                     flipmap.pop(flipmap_imP)
             return verifypatch_bbs, flipmap
 
-        # For a ballot B in ERRS_CORRECTED, if any of its sides was
-        # quarantined/discarded, then don't process the rest of B.
-        def handle_err_ballots():
-            for imgpath, label in self.errs_corrected.iteritems():
-                ballotid = img2bal[imgpath]
-                # (case) Avoid case where sideA is quarantined/discarded, yet sideB has a manually-entered label
-                if ballotid in self.quarantined_bals and label != LabelDialog.ID_Quarantine:
-                    self.errs_corrected[imgpath] = LabelDialog.ID_Quarantine
-                elif ballotid in self.discarded_bals and label != LabelDialog.ID_Discard:
-                    self.errs_corrected[imgpath] = LabelDialog.ID_Discard
-                    
-                if label in (LabelDialog.ID_Quarantine, LabelDialog.ID_Discard):
-                    # Remove all mentions of this ballot from relevant data structs
-                    nuke_ballot(ballotid, verifypatch_bbs, flipmap)
-                if label == LabelDialog.ID_Quarantine:
-                    self.quarantine_ballot(ballotid)
-                elif label == LabelDialog.ID_Discard:
-                    # If sideA is quarantined, but sideB is discarded, then
-                    # for now discard both sides (e.g. the entire ballot).
-                    # TODO: Perhaps warn the user about this behavior?
-                    try: self.unquarantine_ballot(ballotid)
-                    except: pass
-                    self.discard_ballot(ballotid)
-        handle_err_ballots()
-        handle_err_ballots() # Second pass to ensure that (case) never happens
+        bal2errlabel = {} # maps {int ballotid: ID_Quarantine/ID_Discard}
+        for imgpath, label in self.errs_corrected.iteritems():
+            ballotid = img2bal[imgpath]
+            if ballotid not in bal2errlabel:
+                bal2errlabel[ballotid] = label
+            elif bal2errlabel[ballotid] == LabelDialog.ID_Quarantine and label == LabelDialog.ID_Discard:
+                # ID_Discard overrides ID_Quarantine
+                bal2errlabel[ballotid] = label
+            elif ballotid in ioerr_balids:
+                continue
+        # Populate the quarantined/discarded data structures
+        self.quarantined_bals = set()
+        self.discarded_bals = set()
+        for balid, errlabel in bal2errlabel.iteritems():
+            imgpaths = bal2imgs[balid]
+            for imgpath in imgpaths:
+                self.errs_corrected[imgpath] = errlabel
+                if errlabel == LabelDialog.ID_Quarantine:
+                    self.quarantine_ballot(balid)
+                elif errlabel == LabelDialog.ID_Discard:
+                    self.discard_ballot(balid)
+
+        nuke_ballotids = set(tuple(bal2errlabel.keys()) + tuple([img2bal[imP] for imP in self.ioerr_imgpaths]))
+        nuke_ballots(nuke_ballotids, verifypatch_bbs, flipmap)
+
         print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
                                                                       len(self.discarded_bals))
-                                                                          
-        # For a ballot B that had an image in IOERR_IMGPATHS, nuke
-        # the rest of the images in B - the entire ballot B is hosed.
-        for imgpath in self.ioerr_imgpaths:
-            ballotid = img2bal[imgpath]
-            verifypatch_bbs, flipmap = nuke_ballot(ballotid, verifypatch_bbs, flipmap)
-
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_HandleDecodingResults")
         self.start_verify(flipmap, verifypatch_bbs)
 
     def start_verify(self, flipmap, verifypatch_bbs):
@@ -740,7 +742,11 @@ Adding to separate partitions...".format(len(bad_ballotids))
                     i += 1
                     
         # Export results.
+        if config.TIMER:
+            config.TIMER.start_task("PartitionPanel_ExportResults")
         self.GetParent().export_results()
+        if config.TIMER:
+            config.TIMER.stop_task("PartitionPanel_ExportResults")
 
         self.display_partition_stats()
         self.btn_run.Disable()
