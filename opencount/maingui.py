@@ -403,6 +403,8 @@ def exists_imgattr(proj):
             return True
     return False
 def exists_custattr(proj):
+    if not exists_attrs(proj):
+        return False
     attrprops = pickle.load(open(pathjoin(proj.projdir_path, proj.attrprops), 'rb'))
     return len(attrprops[ATTRMODE_CUSTOM]) != 0
 
