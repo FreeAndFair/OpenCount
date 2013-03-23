@@ -74,7 +74,8 @@ class LabelDigitsPanel(wx.Panel):
         self.project = None
         
         # NUM_EXMPLS: Number of randomly-chosen ballots to choose when
-        # searching for digit exemplars.
+        # searching for digit exemplars IF the digit attribute is NOT
+        # consistent within a partition.
         self.NUM_EXMPLS = 1000
 
     def start(self, project):
@@ -1247,7 +1248,8 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
     in the proj.extracted_digitpatch_dir directory.
     Input:
         obj proj:
-        int NUM_EXMPLS: Number of ballots to randomly select.
+        int NUM_EXMPLS: Number of ballots to randomly select IF the 
+            digit attr is NOT consistent within a single partition.
     Output:
         Returns a dict mapping {str patchpath: (imgpath, attrtype, bb, int side)}
     """
@@ -1262,7 +1264,10 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
             x2 = attrbox_dict['x2']
             y2 = attrbox_dict['y2']
             side = attrbox_dict['side']
-            digit_attrtypes.append((attrs,x1,y1,x2,y2,side))
+            is_part_consistent = attrbox_dict['grp_per_partition']
+            digit_attrtypes.append((attrs,x1,y1,x2,y2,side,is_part_consistent))
+    if len(digit_attrtypes) >= 2:
+        raise Exception("Only one digit attribute may exist.")
     bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
     # PARTITIONS_MAP: maps {int partitionID: [int ballotID, ...]}
     partitions_map = pickle.load(open(pathjoin(proj.projdir_path,
@@ -1271,20 +1276,23 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
                                          proj.image_to_page), 'rb'))
     img2flip = pickle.load(open(pathjoin(proj.projdir_path,
                                          proj.image_to_flip), 'rb'))
-    # Randomly choose NUM_EXMPLS ballots from the election
-    candidate_balids = sum(partitions_map.values(), [])
-    num_ballots = len(candidate_balids)
-    chosen_bids = set()
-    if num_ballots <= NUM_EXMPLS:
-        chosen_bids = set(candidate_balids)
+    if digit_attrtypes[0][6]:
+        # Digit attr is consistent within each partition -- only choose
+        # one ballot from each partition
+        chosen_bids = set()
+        for partitionid, ballotids in partitions_map.iteritems():
+            if ballotids:
+                chosen_bids.add(ballotids[0])
+        print "...Digit attribute is consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
     else:
-        _cnt = 0
-        while _cnt < NUM_EXMPLS:
-            idx = random.randrange(num_ballots)
-            balid = candidate_balids[idx]
-            if balid not in chosen_bids:
-                chosen_bids.add(balid)
-                _cnt += 1
+        # Randomly choose NUM_EXMPLS ballots from the election
+        candidate_balids = sum(partitions_map.values(), [])
+        chosen_bids = set()
+        if len(candidate_balids) <= NUM_EXMPLS:
+            chosen_bids = set(candidate_balids)
+        else:
+            chosen_bids = set(random.sample(candidate_balids, NUM_EXMPLS))
+        print "...Digit attribute is NOT consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
 
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.partition_exmpls), 'rb'))
@@ -1299,7 +1307,7 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
                               combfn=_my_combfn,
                               init={},
                               pass_idx=True,
-                              N=1)
+                              N=None)
 
 def _my_combfn(results, subresults):
     return dict(results.items() + subresults.items())
@@ -1308,7 +1316,7 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
     i = 0
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
     patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, int side)}
-    for (attrs,x1,y1,x2,y2,side) in digit_attrtypes:
+    for (attrs,x1,y1,x2,y2,side,is_part_consistent) in digit_attrtypes:
         for templateid, imgpaths in tasks:
             imgpath = imgpaths[side]
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)

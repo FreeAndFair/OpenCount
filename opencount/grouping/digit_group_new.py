@@ -154,7 +154,7 @@ def compute_digit_exemplars(proj, LIMIT=100):
     for digit, tuples in digit_exemplars_map.iteritems():
         # TUPLES := [(regionpath, float score, (x1,y1,x2,y2), patchpath), ...]
         dig_exampletuples = []
-        if LIMIT == None or len(TUPLES) <= LIMIT:
+        if LIMIT == None or len(tuples) <= LIMIT:
             # Consider ALL images
             for (regionpath, score, bb, patchpath) in tuples:
                 dig_exampletuples.append((regionpath, bb))
