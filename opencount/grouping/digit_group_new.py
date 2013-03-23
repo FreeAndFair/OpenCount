@@ -1,4 +1,4 @@
-import sys, os, pickle, time, multiprocessing
+import sys, os, pickle, time, multiprocessing, random
 from os.path import join as pathjoin
 
 sys.path.append('..')
@@ -133,11 +133,14 @@ def extract_digitpatch(jobs):
         cv.SaveImage(outpath, I)
     return True
     
-def compute_digit_exemplars(proj):
+def compute_digit_exemplars(proj, LIMIT=100):
     """ Computes multiple digit exemplars, in order to enhance the
     digit grouping.
     Input:
         obj proj
+        int LIMIT:
+            For each digit, only consider up-to LIMIT images when
+            computing exemplars. If None, then consider all images.
     Output:
         A dict, mapping {str digit: [(regionpath_i, (x1,y1,x2,y2), exemplarpath), ...]}
     """
@@ -149,10 +152,16 @@ def compute_digit_exemplars(proj):
     # 0.) Munge digit_exemplars_map into compatible-format
     mapping = {} # maps {str digit: ((regionpath_i, bb_i), ...)}
     for digit, tuples in digit_exemplars_map.iteritems():
-        thing = []
-        for (regionpath, score, bb, patchpath) in tuples:
-            thing.append((regionpath, bb))
-        mapping[digit] = thing
+        # TUPLES := [(regionpath, float score, (x1,y1,x2,y2), patchpath), ...]
+        dig_exampletuples = []
+        if LIMIT == None or len(TUPLES) <= LIMIT:
+            # Consider ALL images
+            for (regionpath, score, bb, patchpath) in tuples:
+                dig_exampletuples.append((regionpath, bb))
+        else:
+            # Randomly sample LIMIT images
+            dig_exampletuples = list(random.sample(tuples, LIMIT))
+        mapping[digit] = dig_exampletuples
 
     # exemplars := maps {str digit: ((regionpath_i, bb_i), ...)}
     exemplars = group_attrs.compute_exemplars_fullimg(mapping, MAXCAP=10)

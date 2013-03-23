@@ -608,10 +608,7 @@ def get_digit_exemplars(proj):
         # Means there are no digit attributes in this election
         return {}
     # dict DIGIT_EXEMPLARS: maps {str digit: [(regionpath_i, (x1,y1,x2,y2), exemplarpath_i), ...]}
-    if os.path.exists(pathjoin(proj.projdir_path, proj.digitmultexemplars_map)):
-        digit_exemplars = pickle.load(open(pathjoin(proj.projdir_path, proj.digitmultexemplars_map), 'rb'))
-    else:
-        digit_exemplars = digit_group_new.compute_digit_exemplars(proj)
+    digit_exemplars = pickle.load(open(pathjoin(proj.projdir_path, proj.digitmultexemplars_map), 'rb'))
     group_exemplars = {}
     for digit, exemplars_info in digit_exemplars.iteritems():
         exemplar_imgpaths = []

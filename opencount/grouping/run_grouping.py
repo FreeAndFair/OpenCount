@@ -374,7 +374,7 @@ def run_grouping_digitbased(proj, digitdist):
     # TODO: Consider only calling compute_digit_exemplars if necessary (e.g.
     #       don't re-compute digit exemplars if nothing has changed)
     # dict DIGITMULTEXEMPLARS_MAP: {str digit: [(regionpath, (x1,y1,x2,y2), exemplarpath), ...]}
-    digitmultexemplars_map = digit_group_new.compute_digit_exemplars(proj)
+    digitmultexemplars_map = digit_group_new.compute_digit_exemplars(proj, LIMIT=100)
     pickle.dump(digitmultexemplars_map, open(pathjoin(proj.projdir_path,
                                                       proj.digitmultexemplars_map), 'wb'))
     for digit, tups in sorted(digitmultexemplars_map.iteritems(), key=lambda t: t[0]):
