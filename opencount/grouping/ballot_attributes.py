@@ -682,6 +682,28 @@ Please move to the next step.").ShowModal()
     def prev_img(self):
         # Not sure what to do here...
         pass
+    def mark_all_ballots_done(self):
+        """ Marks all ballots as done -- if any ballot still has attributes
+        to label, then this halt at that ballot(s) and tell the user to label
+        them.
+        """
+        while self.ballots_todo:
+            balid = self.ballots_todo[0]
+            if not self.is_ballot_done(balid):
+                wx.MessageDialog(self, style=wx.OK,
+                                 message="There still exist ballots that \
+lack attribute annotations. Please continue annotating those ballots.").ShowModal()
+                self.display_image(0, balid)
+                return
+            else:
+                balid = self.mark_ballot_done(balid)
+                if self.am_i_done():
+                    wx.MessageDialog(self, style=wx.OK,
+                                     message="All ballot attributes have been \
+labeled - this step is now complete.\n\n\
+Please move to the next step.").ShowModal()
+                    self.stop()
+                    return
 
 class ToolBar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -840,6 +862,9 @@ class MyFooter(wx.Panel):
         btn_prev_page = wx.Button(self, label="Previous Page")
         btn_prev_page.Bind(wx.EVT_BUTTON, self.onButton_prevPage)
         sizer_pages_btns.AddMany([(btn_next_page,), (btn_prev_page,)])
+
+        btn_mark_all_done = wx.Button(self, label="Mark All Ballots Done")
+        btn_mark_all_done.Bind(wx.EVT_BUTTON, self.onButton_markAllBallotsDone)
         
         sizer_pages_txt = wx.BoxSizer(wx.HORIZONTAL)
         stxt_num_pages_info = wx.StaticText(self, label="Page: ")
@@ -855,7 +880,7 @@ class MyFooter(wx.Panel):
         
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.sizer.AddMany([(sizer_bals,), (sizer_pages,)])
+        self.sizer.AddMany([(sizer_bals,), (sizer_pages,), ((25,0),), (btn_mark_all_done,)])
 
         self.SetSizer(self.sizer)
         self.Layout()
@@ -868,6 +893,8 @@ class MyFooter(wx.Panel):
         self.GetParent().next_side()
     def onButton_prevPage(self, evt):
         self.GetParent().prev_side()
+    def onButton_markAllBallotsDone(self, evt):
+        self.GetParent().mark_all_ballots_done()
 
 class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
     def __init__(self, parent, *args, **kwargs):
