@@ -17,6 +17,8 @@ import util, config
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
 
+JOBID_EXPORT_RESULTS = util.GaugeID("PartitioningExportResults")
+
 class PartitionMainPanel(wx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
     NUM_EXMPLS = 5
@@ -43,13 +45,15 @@ class PartitionMainPanel(wx.Panel):
         self.partitionpanel.save_session()
         self.proj.removeCloseEvent(self.partitionpanel.save_session)
 
-    def export_results(self):
+    def export_results(self, queue_mygauge, thread_listen):
         """ Export the partitions_map and partitions_invmap, where
         PARTITIONS_MAP maps {partitionID: [int BallotID_i, ...]}, and
         PARTITIONS_INVMAP maps {int BallotID: partitionID}.
         Also, choose a set of exemplars for each partition and save
         them as PARTITION_EXMPLS: {partitionID: [int BallotID_i, ...]}
         """
+        if config.TIMER:
+            config.TIMER.start_task("Partition_ExportResults_CPU")
         t_total = time.time()
 
         # partitioning: {int partitionID: [int ballotID_i, ...]}
@@ -66,9 +70,12 @@ class PartitionMainPanel(wx.Panel):
 
         # 0.) Record all pages outputted by the decoder, in order to
         # normalize the pages to start at 0.
+        num_tasks = len(self.partitionpanel.imginfo) * 2
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
         pages_counter = util.Counter()
         for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
             pages_counter[imginfo['page']] += 1
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pages_norm_map = {} # maps {int decoderPage: int normPage}
         _prev_count = None
         flag_uneven_pages = False
@@ -81,13 +88,14 @@ class PartitionMainPanel(wx.Panel):
                 flag_uneven_pages = True
             _prev_count = pages_counter[decoderPage]
             pages_norm_map[decoderPage] = i
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
 
         #######################
         #### Sanity Checks ####
         #######################
 
         # 1.) Perform a few sanity checks if this is a single-sided 
-        #     election. 
+        #     election.
         if not self.proj.is_varnum_pages and self.proj.num_pages == 1 and len(pages_norm_map) != self.proj.num_pages:
             print "...Uhoh, detected {0} pages, but election specifies {1} pages.".format(len(pages_norm_map), self.proj.num_pages)
             msg = "Warning: The user specified \
@@ -98,7 +106,11 @@ sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
                 msg += "\n"
             msg += "What should OpenCount do?"
             dlg = BadPagesDialog(self, msg, pages_counter)
+            if config.TIMER:
+                config.TIMER.start_task("Partition_DialogBadPages_H")
             status = dlg.ShowModal()
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_DialogBadPages_H")
             if status == BadPagesDialog.ID_TREATNORMAL:
                 # map everything to the 0 page
                 for decoderPage in pages_norm_map.keys()[:]:
@@ -129,7 +141,11 @@ sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
 is an election with {0} pages, yet partitioning only discovered {1} pages.\n\
 Please go back and correct the 'Number of Pages' option in the previous step.".format(self.proj.num_pages,
                                                                                       len(set(pages_norm_map.values()))))
+            if config.TIMER:
+                config.TIMER.start_task("Partition_DialogIncorrectNumPages_H")
             dlg.ShowModal()
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_DialogIncorrectNumPages_H")
             return
 
         #### END Sanity Checks
@@ -139,6 +155,8 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
         # with either no ballotids, or ballotids that are all quarantined/discarded.
         # Take care to detect these cases.
         ballots_unevenpages = []
+        num_tasks = len(img2b)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
         for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
             if not ballotIDs:
                 continue
@@ -155,6 +173,7 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     page_normed = pages_norm_map[decoderPage]
                     pages_set.add(page_normed)
                     _img2page[imgpath] = page_normed
+                    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
                 if not self.proj.is_varnum_pages and len(pages_set) != self.proj.num_pages:
                     # We have a ballot with a weird number of sides
                     ballots_unevenpages.append((ballotID, _img2page))
@@ -167,6 +186,8 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
             if atLeastOne:
                 curPartID += 1
         # 2.) Grab NUM_EXMPLS number of exemplars from each partition
+        num_tasks = len(partitions_map)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
         for partitionID, ballotIDs in partitions_map.iteritems():
             exmpls = set()
             for ballotID in ballotIDs:
@@ -174,6 +195,7 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     exmpls.add(ballotID)
             if exmpls:
                 partition_exmpls[partitionID] = sorted(list(exmpls))
+            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
 
         if not self.proj.is_varnum_pages and ballots_unevenpages:
             _msg = 'Page Counts:\n'
@@ -191,6 +213,8 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     print "    {0} -> Page {1}".format(_imP, pg)
                     print >>_errf, "    {0} -> Page {1}".format(_imP, pg)
             _errf.close()
+            if config.TIMER:
+                config.TIMER.start_task("Partition_DialogUnevenPagesPerSide_H")
             dlg = wx.MessageDialog(self, style=wx.ID_OK,
                                    message="Warning: OpenCount detected \
 an uneven number of images per side. This violates the assumption that \
@@ -204,7 +228,8 @@ The page counts are:\n{2}\n\
 (Detailed info on these ballots have been saved to: \n\
     opencount/<projdir>/_ballots_unevenpages.txt".format(self.proj.num_pages, len(ballots_unevenpages), _msg))
             dlg.ShowModal()
-
+            if config.TIMER:
+                config.TIMER.stop_task("Partition_DialogUnevenPagesPerSide_H")
         for (ballotid, _img2page) in ballots_unevenpages:
             self.partitionpanel.quarantined_bals.add(ballotid)
 
@@ -214,32 +239,50 @@ The page counts are:\n{2}\n\
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
         # Finally, also output the quarantined/discarded ballots
+        num_tasks = 8
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
+
         pickle.dump(tuple(self.partitionpanel.quarantined_bals), 
                     open(pathjoin(self.proj.projdir_path, self.proj.partition_quarantined), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(tuple(self.partitionpanel.discarded_bals),
                     open(pathjoin(self.proj.projdir_path, self.proj.partition_discarded), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(partitions_map, open(partitions_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(self.partitionpanel.img2decoding, open(img2decoding_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(self.partitionpanel.imginfo, open(imginfo_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(image_to_page, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_page), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(image_to_flip, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_flip), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
         pickle.dump(partition_exmpls, open(partition_exmpls_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
 
         dur_total = time.time() - t_total
         print "(Partition) Total Time to Export Results: {0:.8f}s".format(dur_total)
+
+        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (JOBID_EXPORT_RESULTS,))
+
+        if config.TIMER:
+            config.TIMER.stop_task("Partition_ExportResults_CPU")
         
+        wx.CallAfter(self.partitionpanel.on_export_done)
+
 class PartitionPanel(ScrolledPanel):
     PARTITION_JOBID = util.GaugeID("PartitionJobId")
     JOBID_EXTRACT_BARCODE_MARKS = util.GaugeID("ExtractBarcodeMarks")
@@ -451,7 +494,7 @@ unnecessary.", 100)
         print "...Decoding Done!"
         if config.TIMER:
             config.TIMER.stop_task("Partition_Decode_CPU")
-            config.TIMER.start_task("Partition_HandleDecodingResults")
+            config.TIMER.start_task("Partition_HandleDecodingResults_CPU")
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
         print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
@@ -545,7 +588,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
                                                                       len(self.discarded_bals))
         if config.TIMER:
-            config.TIMER.stop_task("Partition_HandleDecodingResults")
+            config.TIMER.stop_task("Partition_HandleDecodingResults_CPU")
         self.start_verify(flipmap, verifypatch_bbs)
 
     def start_verify(self, flipmap, verifypatch_bbs):
@@ -556,7 +599,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         """
         if self.chkbox_skip_verify.GetValue():
             print "...Skipping Barcode Overlay Verification..."
-            self.on_verify_done(None, None, flipmap, verifypatch_bbs, skipVerify=True)
+            wx.CallAfter(self.on_verify_done, None, None, flipmap, verifypatch_bbs, skipVerify=True)
             return
 
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
@@ -741,13 +784,37 @@ Adding to separate partitions...".format(len(bad_ballotids))
                 else:
                     i += 1
                     
-        # Export results.
-        if config.TIMER:
-            config.TIMER.start_task("PartitionPanel_ExportResults")
-        self.GetParent().export_results()
-        if config.TIMER:
-            config.TIMER.stop_task("PartitionPanel_ExportResults")
-
+        class ThreadExport(threading.Thread):
+            def __init__(self, fn_tocall, thread_listen, queue_mygauge, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
+                self.fn_tocall = fn_tocall
+                self.queue_mygauge = queue_mygauge
+                self.thread_listen = thread_listen
+            def run(self):
+                self.fn_tocall(self.queue_mygauge, self.thread_listen)
+        class ThreadListen(threading.Thread):
+            def __init__(self, queue_mygauge, jobid, *args, **kwargs):
+                threading.Thread.__init__(self, *args, **kwargs)
+                self.queue_mygauge = queue_mygauge
+                self.jobid = jobid
+            def run(self):
+                while True:
+                    try:
+                        val = self.queue_mygauge.get(block=True, timeout=1)
+                        if val == True:
+                            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                    except Queue.Empty:
+                        pass
+        manager = multiprocessing.Manager()
+        queue_mygauge = manager.Queue()
+        t_listen = ThreadListen(queue_mygauge, JOBID_EXPORT_RESULTS)
+        #t_listen.start()
+        t_export = ThreadExport(self.GetParent().export_results, t_listen, queue_mygauge)
+        t_export.start()
+        mygauge = util.MyGauge(self, 4, thread=t_export, msg="Exporting Results...", job_id=JOBID_EXPORT_RESULTS)
+        mygauge.Show()
+        
+    def on_export_done(self):
         self.display_partition_stats()
         self.btn_run.Disable()
         self.chkbox_skip_verify.Disable()
@@ -815,7 +882,7 @@ class VerifyOverlaysFrame(wx.Frame):
     
     def on_verify_done(self, verify_results):
         self.Close()
-        self.ondone(verify_results)
+        wx.CallAfter(self.ondone, verify_results)
 
 class LabelOrDiscardPanel(label_imgs.LabelPanel):
     """
