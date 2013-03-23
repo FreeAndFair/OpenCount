@@ -103,6 +103,20 @@ class BallotAttributesPanel(OpenCountPanel):
     def export_results(self):
         pass
 
+    def invoke_sanity_checks(self, *args, **kwargs):
+        """ Code that actually calls each sanity-check with application
+        specific arguments. Outputs a list of statuses, like:
+
+            [(bool isOk, bool isFatal, str msg, int id_flag, obj data), ...]
+        """
+        ID_IS_DONE = 0
+        if self.attr_panel.am_i_done():
+            return [(True, True, "", ID_IS_DONE, None)]
+        else:
+            msg = "Please finish annotating all ballot attributes. If \
+you are on the last ballot, please click the 'Next' button one more time."
+            return [(False, True, msg, ID_IS_DONE, None)]
+
 class DefineAttributesPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
