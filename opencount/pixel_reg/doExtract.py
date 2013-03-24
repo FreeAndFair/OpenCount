@@ -733,6 +733,5 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     return avg_intensities, bal2targets
 
 def target_to_image(target, b2imgs):
-    print target
     bid, side, _= target[0].split("\0")
     return b2imgs[int(bid)][int(side)]

@@ -232,7 +232,6 @@ class ResultsPanel(ScrolledPanel):
                 voted = {}
 
                 for target in targets:
-                    print "TARGET", target
                     targetid = target[2]
                     #print 'targetid', targetid
                     try:

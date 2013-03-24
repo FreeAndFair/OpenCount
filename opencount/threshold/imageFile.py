@@ -18,14 +18,14 @@ def makeOneFile(src, radix, dst, targetdims):
     reverse_mapping = {}
     for i,x in enumerate(src):
         reverse_mapping[x[0]] = i
-    print src
+    #print src
     out = open(dst, "wb")
     tout = open(dst+".type", "wb")
     sm = 0
 
     imgSize = targetdims[0] * targetdims[1]
 
-    print len(src)
+    #print len(src)
     for index in range(256):
         which = "%02x"%index
         data = []
@@ -51,7 +51,7 @@ def makeOneFile(src, radix, dst, targetdims):
         #print [reverse_mapping[x] for x in names]
         #print sm
         #print len(names), len(data)
-        print names
+        #print names
         #exit(0)
         sort_order = sorted([x for x in range(len(data)) if names[x] in reverse_mapping], key=lambda x: reverse_mapping[names[x]])
         sorted_data = [data[i] for i in sort_order]
