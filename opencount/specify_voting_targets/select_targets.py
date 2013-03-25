@@ -1060,13 +1060,14 @@ class Toolbar(wx.Panel):
         self.btn_infercontests = wx.Button(self, label="Infer Contest Regions...")
         self.btn_opts = wx.Button(self, label="Advanced: Options")
         self.btn_resize_targets = wx.Button(self, label="Resize Voting Targets")
+        self.btn_detect_errors = wx.Button(self, label="Detect Errors")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_forceaddtarget,), 
                            (self.btn_addcontest), (self.btn_modify,),
                            (self.btn_zoomin,), (self.btn_zoomout,),
                            (self.btn_infercontests,), (self.btn_opts,),
-                           (self.btn_resize_targets,)])
+                           (self.btn_resize_targets,), (self.btn_detect_errors,)])
         self.sizer.Add(btn_sizer)
         self.SetSizer(self.sizer)
 
@@ -1080,6 +1081,7 @@ class Toolbar(wx.Panel):
         self.btn_infercontests.Bind(wx.EVT_BUTTON, lambda evt: self.parent.infercontests())
         self.btn_opts.Bind(wx.EVT_BUTTON, self.onButton_opts)
         self.btn_resize_targets.Bind(wx.EVT_BUTTON, self.onButton_resizetargets)
+        self.btn_detect_errors.Bind(wx.EVT_BUTTON, self.onButton_detecterrors)
     def onButton_addtarget(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = TargetBox
@@ -1112,6 +1114,47 @@ Then, you may resize the voting targets here.").ShowModal()
             return
         x1_del, y1_del, x2_del, y2_del = dlg.x1_del, dlg.y1_del, dlg.x2_del, dlg.y2_del
         self.parent.resize_targets(x1_del, y1_del, x2_del, y2_del)
+    def onButton_detecterrors(self, evt):
+        events = {}
+        lookup = {}
+        votes_for_errors = {}
+        def set_events(ee):
+            for e in ee: events[e] = {}
+            for e in ee: lookup[e] = {}
+        def observe(e, obs, uid): 
+            if obs not in events[e]: 
+                events[e][obs] = 0
+                lookup[e][obs] = []
+            events[e][obs] += 1
+            lookup[e][obs].append(uid)
+            votes_for_errors[uid] = 0
+        
+        set_events(["exists", "target count", "columns"])
+        
+        for pid,partition in self.parent.boxes.items():
+            for i,page in enumerate(partition):
+                targets = [x for x in page if type(x) == TargetBox]
+                observe("exists", True, (pid,i))
+                observe("target count", len(targets), (pid,i))
+                leftcoord = sorted([x.x1 for x in targets])
+                width = abs(targets[0].x1-targets[0].x2)
+                #print "width", width
+                cols = [[]]
+                for i,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
+                    cols[-1].append(i)
+                    if abs(x1-x2) > width/2:
+                        cols.append([])
+                observe("columns", len(cols)-1, (pid,i))
+        
+        for evtname,obs in events.items():
+            count = sum(obs.values())
+            for what,c in obs.items():
+                for ballot in lookup[evtname][what]:
+                    votes_for_errors[ballot] += math.log(float(c)/count)
+        for ballot,votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
+            print ballot, votes
+        print events
+                
         
 class ResizeTargetsDialog(wx.Dialog):
     def __init__(self, parent, boxsize, *args, **kwargs):
