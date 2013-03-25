@@ -106,7 +106,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 print '...Globally-aligning a subset of each partition...'
                 t = time.time()
                 groups_align_map = do_align_partitions(self.groups, self.img2flip,
-                                                       self.align_outdir, self.manager, self.queue)
+                                                       self.align_outdir, self.manager, self.queue,
+                                                       N=None)
                 dur = time.time() - t
                 print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
@@ -2583,7 +2584,7 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
             ballotRef = ballots[0]
             Irefs = []
             for side, imP in enumerate(ballotRef):
-                I = shared.standardImread(imP, flatten=True)
+                I = shared.standardImread_v2(imP, flatten=True)
                 if img2flip[imP]:
                     I = shared.fastFlip(I)
                 Irefs.append((imP, I))
@@ -2600,12 +2601,10 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                 curBallot = []
                 for side, imgpath in enumerate(ballot):
                     Iref_imgP, Iref = Irefs[side]
-                    I = shared.standardImread(imgpath, flatten=True)
+                    I = shared.standardImread_v2(imgpath, flatten=True)
                     if img2flip[imgpath]:
                         I = shared.fastFlip(I)
                     H, Ireg, err = global_align.align_image(I, Iref)
-                    #H, Ireg, err = global_align.align_strong(I, Iref, crop_Iref=(0.05, 0.05, 0.05, 0.05),
-                    #                                         do_nan_to_num=True)
                     outname = 'bal_{0}_side_{1}.png'.format(i + 1, side)
                     outpath = pathjoin(outdir, outname)
                     scipy.misc.imsave(outpath, Ireg)
@@ -2624,7 +2623,7 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
             result_queue.put({})
         return None
 
-def do_align_partitions(partitions, img2flip, outrootdir, manager, queue):
+def do_align_partitions(partitions, img2flip, outrootdir, manager, queue, N=None):
     """
     Input:
         list PARTITIONS[i][j][k] := i-th partition, j-th ballot, k-th side. 
@@ -2633,18 +2632,22 @@ def do_align_partitions(partitions, img2flip, outrootdir, manager, queue):
         dict PARTITIONS_ALIGN. maps {int partitionID: [[imgpath_i, ...], ...]}
     """
     try:
-        N = min(multiprocessing.cpu_count(), len(partitions))
+        if N == None:
+            N = min(multiprocessing.cpu_count(), len(partitions))
         # Evenly-distribute partitions by partition size.
         partitions_evenly = divy_lists(partitions, N)
         pool = multiprocessing.Pool()
         result_queue = manager.Queue()
 
-        for i,task in enumerate(partitions_evenly):
-            # TASK := [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
-            pool.apply_async(align_partitions, args=(task, (outrootdir, img2flip), 
-                                                     queue, result_queue))
-        pool.close()
-        pool.join()
+        if N == 1:
+            align_partitions(partitions_evenly[0], (outrootdir, img2flip), queue, result_queue)
+        else:
+            for i,task in enumerate(partitions_evenly):
+                # TASK := [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
+                pool.apply_async(align_partitions, args=(task, (outrootdir, img2flip), 
+                                                         queue, result_queue))
+            pool.close()
+            pool.join()
 
         cnt = 0; num_tasks = len(partitions_evenly)
         partitions_align = {} 
