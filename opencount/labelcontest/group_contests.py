@@ -36,7 +36,7 @@ black = 200
 
 do_save = True
 do_test = True
-export = True
+export = False
 
 flipped = {}
 
@@ -102,7 +102,7 @@ def load_threshold(image):
     dorem(dat, block, boxes, replacewith=255)
     
     dat = [[0 if x else 255 for x in y] for y in dat]
-    if do_save:
+    if do_save and False:
         # TODO: This assumes that the dir 'tmp/' exists.
         load_pil(image).save(tmp+"/%s-a.png"%image.split("/")[1])
         num2pil(dat).save(tmp+"/%s-b.png"%image.split("/")[1])
@@ -252,7 +252,7 @@ def find_lines(data):
                     #LST.append((l,y,r,y))
                     lines.append(("H", (l,yy-3,r,yy+3)))
     
-    if do_save:
+    if do_save and False:
         num2pil(data).save(tmp+"/it.png")
         ct = Counter(LST)
         im = Image.new("RGB", (width, height), (255,255,255))
@@ -714,6 +714,7 @@ def extract_contest(args):
     #print lines
     #print squares
 
+    filename = ".".join(image_path.split("/")[-2:])[:-4]
     if do_save:
         show = num2pil(data)
         new = Image.new("RGB", show.size, (255, 255, 255))#load_pil(image_path).copy().convert("RGB")#
@@ -725,7 +726,7 @@ def extract_contest(args):
     
         print len(squares), "NUM"
     
-        new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-line.png")
+        new.save(tmp+"/"+filename+"-line.png")
     
         new = Image.new("RGB", show.size, (255, 255, 255))
         imd = ImageDraw.Draw(new)
@@ -736,23 +737,23 @@ def extract_contest(args):
     
         print len(squares), "NUM"
     
-        new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-line-2.png")
+        new.save(tmp+"/"+filename+"-line-2.png")
     
         for l,u,r,d in squares:
             c = (int(random.random()*255), int(random.random()*255), int(random.random()*255))
             imd.rectangle((l,u,r,d), fill=c)
-        new.save(tmp+"/"+image_path.split("/")[-1][:-4]+"-box.png")
+        new.save(tmp+"/"+filename+"-box.png")
 
     if do_save or export or do_test:
         loadedimage = load_pil(image_path)
     else:
         loadedimage = None
 
-    print "GET ARG", image_path, image_path.split("/")[-1]
+    #print "GET ARG", image_path, image_path.split("/")[-1]
 
     print len(giventargets), giventargets
 
-    final = do_extract(image_path.split("/")[-1], 
+    final = do_extract(filename,
                        loadedimage, squares, giventargets)
 
     #print "before"
