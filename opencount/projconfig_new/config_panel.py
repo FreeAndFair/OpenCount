@@ -20,6 +20,11 @@ VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "single template (generic)": SingleTemplate.SingleTemplateVendor,
                   "diebold": Diebold.DieboldVendor}
 
+SEPARATE_MODE_SINGLE_SIDED = 42
+SEPARATE_MODE_ALTERNATING = 43
+SEPARATE_MODE_REGEX_SIMPLE = 44
+SEPARATE_MODE_REGEX_CTR = 45
+
 class ConfigPanel(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
@@ -77,8 +82,12 @@ class ConfigPanel(wx.Panel):
         sizer_regexDiff = wx.BoxSizer(wx.HORIZONTAL)
         sizer_regexShr.AddMany([(txt_regex_shr,), ((10,0),), (self.regexShr_txtctrl,)])
         sizer_regexDiff.AddMany([(txt_regex_diff,), ((10,0),), (self.regexDiff_txtctrl,)])
+        self.regex_ctr_chkbox = wx.CheckBox(self, label="Does the filenames end in \
+two incrementing counters? (Typically 'Yes' for Hart-style ballots)")
+        self.regex_ctr_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_regexCtr)
         sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
         sizer_regex1.AddMany([((0, 10),), (sizer_regexShr,), ((0,10),), (sizer_regexDiff,)])
+        sizer_regex1.AddMany([((0, 10),), (self.regex_ctr_chkbox)])
 
         txt_or = wx.StaticText(self, label="- Or -")
 
@@ -140,64 +149,23 @@ class ConfigPanel(wx.Panel):
         data structures. Also, set the proj.voteddir, proj.imgsize,
         proj.is_multipage, proj.num_pages, and proj.vendor_obj properties.
         """
-        def separate_imgs(voteddir, num_pages, regexShr=None, regexDiff=None,
-                          is_alternating=None):
-            """ Separates images into sets of Ballots.
-            Input:
-                str VOTEDDIR: Root directory of voted ballots.
-            Output:
-                list BALLOTS. [Ballot0, Ballot1, ...], where each Ballot_i
-                    is a list of [imgpath_side0, imgpath_side1, ...].
-            """
-            ballots = []
-            for dirpath, dirnames, filenames in os.walk(voteddir):
-                imgnames = [f for f in filenames if util.is_image_ext(f)]
-                if is_alternating:
-                    imgnames_ordered = util.sorted_nicely(imgnames)
-                    if len(imgnames_ordered) % num_pages != 0:
-                        print "Uh oh -- there are {0} images in directory {1}, \
-which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, num_pages)
-                        pdb.set_trace()
-                        raise RuntimeError
-                    i = 0
-                    while imgnames_ordered:
-                        curballot = []
-                        for j in xrange(num_pages):
-                            imgpath = pathjoin(dirpath, imgnames_ordered.pop(0))
-                            curballot.append(imgpath)
-                        ballots.append(curballot)
-                elif num_pages == 1:
-                    for imgname in imgnames:
-                        imgpath = pathjoin(dirpath, imgname)
-                        ballots.append([imgpath])
-                else:
-                    shrPat = re.compile(regexShr)
-                    diffPat = re.compile(regexDiff)
-                    curmats = {} # maps {str sim_pat: [(str imgpath, str diff_pat), ...]}
-                    for imgname in imgnames:
-                        imgpath = pathjoin(dirpath, imgname)
-                        sim_match = shrPat.match(imgname)
-                        diff_match = diffPat.match(imgname)
-                        if sim_match == None or diff_match == None:
-                            print "Warning: ballot {0} was skipped because it didn't \
-match the regular expressions.".format(imgpath)
-                            continue
-                        sim_part = sim_match.groups()[0]
-                        diff_part = diff_match.groups()[0]
-                        curmats.setdefault(sim_part, []).append((imgpath, diff_part))
-                    for sim_pat, tuples in curmats.iteritems():
-                        # sort by diffPart
-                        tuples_sorted = sorted(tuples, key=lambda t: t[1])
-                        imgpaths_sorted = [t[0] for t in tuples_sorted]
-                        ballots.append(imgpaths_sorted)
-            return ballots
         # BALLOT_TO_IMAGES: maps {int ballotID: [imgpath_side0, imgpath_side1, ...]}
         ballot_to_images = {}
         image_to_ballot = {} # maps {imgpath: int ballotID}
+        def get_separate_mode():
+            if self.alternate_chkbox.GetValue():
+                return SEPARATE_MODE_ALTERNATING
+            elif int(self.numpages_txtctrl.GetValue()) == 1:
+                return SEPARATE_MODE_SINGLE_SIDED
+            elif self.regex_ctr_chkbox.IsEnabled() and self.regex_ctr_chkbox.GetValue():
+                return SEPARATE_MODE_REGEX_CTR
+            else:
+                return SEPARATE_MODE_REGEX_SIMPLE
+        MODE = get_separate_mode()
         by_ballots = separate_imgs(self.voteddir, int(self.numpages_txtctrl.GetValue()),
+                                   MODE,
                                    regexShr=self.regexShr_txtctrl.GetValue(),
-                                   regexDiff=self.regexDiff_txtctrl.GetValue(),
-                                   is_alternating=self.alternate_chkbox.GetValue())
+                                   regexDiff=self.regexDiff_txtctrl.GetValue())
         curballotid = 0
         weirdballots = []
         for i, imgpaths in enumerate(by_ballots):
@@ -276,6 +244,7 @@ new images.".format(self.project.voteddir),
             self.varnumpages_chkbox.SetValue(state['varnumpages'])
             self.regexShr_txtctrl.SetValue(state['regexShr'])
             self.regexDiff_txtctrl.SetValue(state['regexDiff'])
+            self.regex_ctr_chkbox.SetValue(state['is_regex_ctr'])
             self.alternate_chkbox.SetValue(state['is_alternating'])
             self.vendor_dropdown.SetStringSelection(state['vendor'])
             if self.varnumpages_chkbox.GetValue():
@@ -283,6 +252,8 @@ new images.".format(self.project.voteddir),
             if self.alternate_chkbox.GetValue():
                 self.regexShr_txtctrl.Disable()
                 self.regexDiff_txtctrl.Disable()
+                self.regex_ctr_chkbox.Disable()
+            self.onCheckBox_regexCtr(None)
         except:
             return False
         return True
@@ -293,6 +264,7 @@ new images.".format(self.project.voteddir),
                  'varnumpages': self.varnumpages_chkbox.GetValue(),
                  'regexShr': self.regexShr_txtctrl.GetValue(),
                  'regexDiff': self.regexDiff_txtctrl.GetValue(),
+                 'is_regex_ctr': self.regex_ctr_chkbox.GetValue(),
                  'is_alternating': self.alternate_chkbox.GetValue(),
                  'vendor': self.vendor_dropdown.GetStringSelection()}
         pickle.dump(state, open(stateP, 'wb'))
@@ -349,14 +321,22 @@ new images.".format(self.project.voteddir),
                                   args=(self.voteddir, self))
         thread.start()
 
+    def onCheckBox_regexCtr(self, evt):
+        if self.regex_ctr_chkbox.GetValue():
+            self.regexDiff_txtctrl.Disable()
+        else:
+            self.regexDiff_txtctrl.Enable()
+
     def onCheckBox_alternate(self, evt):
         if self.alternate_chkbox.GetValue():
             # We're going from False -> True
             self.regexShr_txtctrl.Disable()
             self.regexDiff_txtctrl.Disable()
+            self.regex_ctr_chkbox.Disable()
         else:
             self.regexShr_txtctrl.Enable()
             self.regexDiff_txtctrl.Enable()
+            self.regex_ctr_chkbox.Enable()
 
     def onCheckBox_varnumpages(self, evt):
         if self.varnumpages_chkbox.GetValue():
@@ -404,3 +384,132 @@ class DoubleSideDialog(wx.Dialog):
         self.EndModal(wx.ID_OK)
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
+def separate_imgs(voteddir, num_pages, 
+                  MODE,
+                  regexShr=None, regexDiff=None):
+    """ Separates images into sets of Ballots.
+    Input:
+    str VOTEDDIR: Root directory of voted ballots.
+    Output:
+    list BALLOTS. [Ballot0, Ballot1, ...], where each Ballot_i
+    is a list of [imgpath_side0, imgpath_side1, ...].
+    """
+    if MODE == SEPARATE_MODE_SINGLE_SIDED:
+        return separate_singlesided(voteddir)
+    elif MODE == SEPARATE_MODE_ALTERNATING:
+        return separate_alternating(voteddir, num_pages)
+    elif MODE == SEPARATE_MODE_REGEX_SIMPLE:
+        return separate_regex_simple(voteddir, regexShr, regexDiff)
+    elif MODE == SEPARATE_MODE_REGEX_CTR:
+        return separate_regex_ctr(voteddir, regexShr)
+    else:
+        print "Fatal Error: Unrecognized separate_imgs mode: '{0}'".format(MODE)
+        raise Exception("Bad mode: '{0}'".fomrat(MODE))
+
+def separate_singlesided(voteddir):
+    ballots = []
+    for dirpath, dirnames, filenames in os.walk(voteddir):
+        imgnames = [f for f in filenames if util.is_image_ext(f)]
+        for imgname in imgnames:
+            imgpath = pathjoin(dirpath, imgname)
+            ballots.append([imgpath])
+    return ballots
+def separate_alternating(voteddir, num_pages):
+    ballots = []
+    for dirpath, dirnames, filenames in os.walk(voteddir):
+        imgnames = [f for f in filenames if util.is_image_ext(f)]
+        imgnames_ordered = util.sorted_nicely(imgnames)
+        if len(imgnames_ordered) % num_pages != 0:
+            print "Uh oh -- there are {0} images in directory {1}, \
+which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, num_pages)
+            pdb.set_trace()
+            raise RuntimeError
+        i = 0
+        while imgnames_ordered:
+            curballot = []
+            for j in xrange(num_pages):
+                imgpath = pathjoin(dirpath, imgnames_ordered.pop(0))
+                curballot.append(imgpath)
+            ballots.append(curballot)
+    return ballots
+def separate_regex_simple(voteddir, regexShr, regexDiff):
+    ballots = []
+    for dirpath, dirnames, filenames in os.walk(voteddir):
+        imgnames = [f for f in filenames if util.is_image_ext(f)]
+        shrPat = re.compile(regexShr)
+        diffPat = re.compile(regexDiff)
+        curmats = {} # maps {str sim_pat: [(str imgpath, str diff_pat), ...]}
+        for imgname in imgnames:
+            imgpath = pathjoin(dirpath, imgname)
+            sim_match = shrPat.match(imgname)
+            diff_match = diffPat.match(imgname)
+            if sim_match == None or diff_match == None:
+                print "Warning: ballot {0} was skipped because it didn't \
+match the regular expressions.".format(imgpath)
+                continue
+            sim_part = sim_match.groups()[0]
+            diff_part = diff_match.groups()[0]
+            curmats.setdefault(sim_part, []).append((imgpath, diff_part))
+        for sim_pat, tuples in curmats.iteritems():
+            # sort by diffPart
+            tuples_sorted = sorted(tuples, key=lambda t: t[1])
+            imgpaths_sorted = [t[0] for t in tuples_sorted]
+            ballots.append(imgpaths_sorted)
+    return ballots
+def separate_regex_ctr(voteddir, regexShr):
+    """ Separates ballots whose filenames start with a shared prefix
+    REGEXSHR, but then contain two incrementing counters (very-much
+    Hart-specific), e.g.:
+        339_1436_5_211_1.png
+        339_1436_5_212_2.png
+        339_1436_5_213_3.png
+        ...
+    """
+    ballots = []
+    for dirpath, dirnames, filenames in os.walk(voteddir):
+        imgnames = [f for f in filenames if util.is_image_ext(f)]
+        shrPat = re.compile(regexShr)
+        curmats = {} # maps {str sim_pat: [(str imgpath, tuple ctr_vals), ...]}
+        for imgname in imgnames:
+            imgpath = pathjoin(dirpath, imgname)
+            sim_match = shrPat.match(imgname)
+            if sim_match == None:
+                print "Warning: ballot {0} was skipped because it didn't \
+match the regular expressions.".format(imgpath)
+                continue
+            sim_part = sim_match.groups()[0]
+            # Assumes filename is := <SIM_PART>_N1_N2.png
+            ctr_vals = [int(n) for n in os.path.splitext(imgname)[0][len(sim_part):].split("_")]
+            curmats.setdefault(sim_part, []).append((imgpath, ctr_vals))
+        for sim_pat, tuples in curmats.iteritems():
+            # tuple TUPLES := [(str imgpath, (int N1, int N2)), ...]
+            consecs = get_consecutives(tuples)
+            for imgpaths in consecs:
+                ballots.append(imgpaths)
+    return ballots
+    
+def get_consecutives(tuples):
+    """
+    Input:
+        tuple TUPLES: [(str imgpath, (int N1, int N2)), ...]
+    Output:
+        (tuple IMGPATHS0, tuple IMGPATHS1, ...)
+    """
+    # sort by images with consecutive ctr_vals
+    tuples_sorted = sorted(tuples, key=lambda t: t[1][0])    
+    imgpath_groups = [] # [tuple IMGPATHS0, ...]
+    cur_group = []
+    prev_val = None
+
+    for (imgpath, (N1, N2)) in tuples_sorted:
+        if prev_val == None or (prev_val + 1) == N1:
+            cur_group.append(imgpath)
+            prev_val = N1
+        else:
+            imgpath_groups.append(cur_group)
+            cur_group = [imgpath]
+            prev_val = N1
+    if cur_group:
+        imgpath_groups.append(cur_group)
+    return imgpath_groups
