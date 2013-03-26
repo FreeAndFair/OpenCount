@@ -264,7 +264,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             """ Given initial boundingboxes around each mark, compute
             new bbs such that each 'on' mark is at the upper-left corner.
             """
-            def find_black(I, x, BLACK=120, y1_start=0):
+            def find_black(I, x, BLACK=100, y1_start=0):
                 """ Find y1 of first black pixel, starting from (X, 0). """
                 w, h = cv.GetSize(I)
                 for y1 in xrange(y1_start, h):
@@ -298,10 +298,8 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                 x1s = [x for x in x1s if x < w_img]
                 if i == 0 or i == len(bbs)-1:
                     _y1 = 0
-                elif i < int(len(bbs)/2.0):
-                    _y1 = y1s_leftright[0] - int(h_rect*0.5)
                 else:
-                    _y1 = y1s_leftright[1] - int(h_rect*0.5)
+                    _y1 = max(int(round(y1 - (h_markfull / 4.0))), 0)
                 y1s = [find_black(I, x1_cur, y1_start=_y1) for x1_cur in x1s]
                 #y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
                 y1_out = int(round(np.median(y1s)))
@@ -334,7 +332,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                                                   LEN=34,
                                                   orient=scan_bars.HORIZONTAL, MARKTOL=0.7,
                                                   BEGIN_TOL=0.3, END_TOL=0.3,
-                                                  GAMMA=0.5)
+                                                  GAMMA=0.7)
             decoding = ''.join([t[0] for t in syms])
             if not sanitycheck_decoding_v2(decoding):
                 continue
@@ -351,7 +349,6 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             # Add the compute_border offsets
             #bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
             bbs_out = [(x1+j1_blk, y1+i1_blk, (x1+W_MARK-1)+j1_blk, (y1+H_MARK-1)+i1_blk) for (x1,y1,x2,y2) in bbs_out]
-
             if DEBUG_SAVEIMGS:
                 print_dbg("==== decoding ({0}): {1}".format(len(decoding), decoding))
                 Icolor = draw_bbs(imgpath, decoding, bbs_out, isflip)
@@ -372,7 +369,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             if sanitycheck_decoding_v2(decoding):
                 candidates.append((decoding, isflip, bbs_out))
         if candidates:
-            result = most_popular(candidates)
+            result = most_popular(candidates, W_MARK=W_MARK, H_MARK=H_MARK)
         if result != None:
             break
         print_dbg("==== Trying another bb_rough")
@@ -428,9 +425,8 @@ def sanitycheck_decoding_v2(decoding):
     ALL_ONES = '1'*34
     is_good = True
     # Side-agnostic checks
-    is_good = (decoding and len(decoding) == 34 and decoding[0] == '1'
-               and decoding[-1] == '1'
-               and decoding != ALL_ONES)
+    is_good = (decoding and len(decoding) == 34 and
+               decoding != ALL_ONES)
     dec = decoding[1:-1]
     # Side-specific checks
     if get_page(dec) == 0:
