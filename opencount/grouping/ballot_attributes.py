@@ -239,8 +239,10 @@ Would you like to review the ballot annotations?",
 
         list proj.ballot_attributesfile: [dict attrbox_marsh_i, ...]
             Only needs one AttrBox for each attrtype (ignores attrvals)
-        dict proj.attrprops: {str ATTRMODE: dict PROPS}
+        dict proj.attrprops: {str ATTRMODE: {str attrtype: dict PROPS}}
             where ATTRMODE in ('DIGITBASED', 'IMGBASED', 'CUSTATTR')
+            and PROPS has keys: 'attrtype', 'x1','y1','x2','y2', 'is_tabulationonly',
+                                'side', 'grp_per_partition', 'num_digits'
         
         ==== 'Label Attributes' stuff:
         
@@ -308,7 +310,7 @@ Would you like to review the ballot annotations?",
             if config.TIMER:
                 config.TIMER.start_task("BallotAttributes_ComputeMultExemplars_CPU")
             t = ThreadComputeMultExemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
-                                           self.patch2bal, self.bal2patches,
+                                           self.patch2bal, self.bal2patches, attrprops,
                                            queue, JOBID_COMPUTE_MULT_EXEMPLARS,
                                            self.on_compute_mult_exemplars_done, tlisten)
             t.start()
@@ -1452,7 +1454,8 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
 
     return matches, patchpath2bal, attrbox
 
-def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2patches, queue_mygauge=None):
+def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2patches, attrprops,
+                           queue_mygauge=None):
     """
     Input:
         obj PROJ:
@@ -1461,12 +1464,19 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
         dict IMG2PAGE:
         dict PATCH2BAL: {str patchpath: (int ballotid, attrtype, attrval)}
         dict BAL2PATCHES: {int ballotid: [(patchpath, attrtype, attrval), ...]}
+        dict ATTRPROPS: {str ATTRMODE: {str attrtype: dict PROPS}}
+            where ATTRMODE in ('DIGITBASED', 'IMGBASED', 'CUSTATTR')
+            and PROPS has keys: 'attrtype', 'x1','y1','x2','y2', 'is_tabulationonly',
+                                'side', 'grp_per_partition', 'num_digits'
     Output:
         dict MULTEXEMPLARS_MAP: {str attrtype: {str attrval: [(subpatchP, blankpath, (x1,y1,x2,y2)), ...]}}
             subpatchP := This should point to the exemplar patch itself
             blankpathP := Points to the (entire) voted image that subpatchP came from
             (x1,y1,x2,y2) := BB that, from blankpathP, created subpatchP
     """
+    def is_part_consistent(attrtype):
+        return attrprops['IMGBASED'][attrtype]['grp_per_partition']
+
     if not common.exists_imgattrs(proj):
         return None
     
@@ -1477,6 +1487,10 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
         type2valpatches.setdefault(attrtype, {}).setdefault(attrval, []).append((patchpath, None))
     attrtype_exemplars = {} # maps {str attrtype: {attrval: [(imgpath_i, (y1,y2,x1,x2)), ...]}}
     for attrtype, attrvalpatches in type2valpatches.iteritems():
+        if is_part_consistent(attrtype):
+            print "(Info) Attribute '{0}' is consistent within partitions, \
+no need to compute multiple exemplars for this.".format(attrtype)
+            continue
         print "...attr '{0}': Finding multiple exemplars...".format(attrtype)
         exemplars = group_attrs.compute_exemplars_fullimg(attrvalpatches)
         print "...attr '{0}': {1} exemplars were found.".format(attrtype, sum(map(len, exemplars.values())))
@@ -1557,14 +1571,16 @@ class ThreadFindAttrMatches(threading.Thread):
 
 class ThreadComputeMultExemplars(threading.Thread):
     def __init__(self, proj, boxes_map, bal2imgs, img2page, patch2bal,
-                 bal2patches, queue_mygauge, jobid, callback, tlisten, *args, **kwargs):
+                 bal2patches, attrprops, queue_mygauge, jobid, callback, tlisten, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.proj, self.boxes_map, self.bal2imgs, self.img2page = proj, boxes_map, bal2imgs, img2page
-        self.patch2bal, self.bal2patches, self.queue_mygauge, self.jobid = patch2bal, bal2patches, queue_mygauge, jobid
+        self.patch2bal, self.bal2patches, self.attrprops = patch2bal, bal2patches, attrprops
+        self.queue_mygauge, self.jobid = queue_mygauge, jobid
         self.callback, self.tlisten = callback, tlisten
     def run(self):
         multexemplars_map = compute_mult_exemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
-                                                   self.patch2bal, self.bal2patches, queue_mygauge=self.queue_mygauge)
+                                                   self.patch2bal, self.bal2patches, self.attrprops,
+                                                   queue_mygauge=self.queue_mygauge)
         self.tlisten.stop_listening()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
         wx.CallAfter(self.callback, multexemplars_map)

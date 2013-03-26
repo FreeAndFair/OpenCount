@@ -135,13 +135,39 @@ next step.", style=wx.OK).ShowModal()
                                                    self.proj.partitions_map), 'rb'))
         partitions_invmap = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                       self.proj.partitions_invmap), 'rb'))
+        """
+        dict attrprops: {str ATTRMODE: dict PROPS}
+            where ATTRMODE in ('DIGITBASED', 'IMGBASED', 'CUSTATTR')
+            and PROPS has keys: 'attrtype', 'x1','y1','x2','y2', 'is_tabulationonly',
+                                'side', 'grp_per_partition', 'num_digits'
+        """                   
         attrprops = pickle.load(open(pathjoin(self.proj.projdir_path, 
                                               self.proj.attrprops), 'rb'))
-
+        # dict part2attrs: {int partitionid: [(imgpath,x1,y1,w,h,attrtype,attrval,side,isdigitbased,istabonly),...]}
+        part2attrs = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                               self.proj.partition_attrmap), 'rb'))
+        
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
-        attrmap = {} # maps {str attrtype: dict attr}
+        attrmap = {} # maps {str attrtype: dict attr_marsh}
         for attr in attrs:
             attrmap['_'.join(sorted(attr['attrs']))] = attr
+
+        def is_part_consistent(attrtype):
+            return attrmap[attrtype]['grp_per_partition']
+        if not attrprops['DIGITBASED']:
+            part2digitattrval = {}
+        else:
+            # dict DIGITATTRVALS_BLANKS: {str imgpath: {str digattrtype: (str digitval, bb, side)}}
+            digitattrvals_blanks = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                             self.proj.digitattrvals_blanks)))
+            part2digitattrval = {} # maps {int partitionid: str digitval}
+            for imgpath, digittypemap in digitattrvals_blanks.iteritems():
+                balid = img2b[imgpath]
+                partitionid = partitions_invmap[balid]
+                for digitattrtype, (digitval, bb, side) in digittypemap.iteritems():
+                    part2digitattrval[partitionid] = digitval
+        def get_digit_val(partitionid):
+            return part2digitattrval[partitionid]
 
         # 1.) First, mark each ballot with its attribute properties
         ballot_attrvals = {} # maps {int ballotID: {attrtype: attrval}}
@@ -150,18 +176,25 @@ next step.", style=wx.OK).ShowModal()
             for ballotid in ballotids:
                 ballot_attrvals[ballotid] = {'pid': partitionid}
             
-        # Note: If groupingmode was PER_PARTITION, then self.VERIFY_RESULTS
-        # will only have information about one ballot from each partition.
+        # Note: For an attr, if groupingmode was PER_PARTITION, then
+        # grouping was not done -- use the per-partition labeling.
+        for partitionid, attrtupls in part2attrs.iteritems():
+            for (_,_,_,_,_, attrtype, attrval, _,isdigitbased,istabonly) in attrtupls:
+                if is_part_consistent(attrtype):
+                    ballotids = partitions_map[partitionid]
+                    if isdigitbased:
+                        attrval = get_digit_val(partitionid)
+                    for balid in ballotids:
+                        ballot_attrvals.setdefault(balid, {})[attrtype] = attrval
+                    
         for attrtype, attrvaldict in self.verify_results.iteritems():
+            if is_part_consistent(attrtype):
+                # Grouping isn't done for partition-consistent attrs
+                continue
             for attrval, imgpaths in attrvaldict.iteritems():
                 for imgpath in imgpaths:
                     ballotid = img2b[imgpath]
-                    if attrmap[attrtype]['grp_per_partition']:
-                        ballotids = partitions_map[partitions_invmap[ballotid]]
-                    else:
-                        ballotids = [ballotid]
-                    for ballotid in ballotids:
-                        ballot_attrvals.setdefault(ballotid, {})[attrtype] = attrval
+                    ballot_attrvals.setdefault(ballotid, {})[attrtype] = attrval
 
         # 1.b.) Add CUSTOM_ATTRIBUTE mapping
         ss_dicts = {} # maps {str attrtype: dict ss_dict}
@@ -607,6 +640,9 @@ def get_digit_exemplars(proj):
     if digattrtype == None:
         # Means there are no digit attributes in this election
         return {}
+    elif is_part_consistent(proj, digattrtype):
+        # Means digit-based grouping was not run, as it is per-partition consistent
+        return {}
     # dict DIGIT_EXEMPLARS: maps {str digit: [(regionpath_i, (x1,y1,x2,y2), exemplarpath_i), ...]}
     digit_exemplars = pickle.load(open(pathjoin(proj.projdir_path, proj.digitmultexemplars_map), 'rb'))
     group_exemplars = {}
@@ -616,6 +652,14 @@ def get_digit_exemplars(proj):
             exemplar_imgpaths.append(exemplarpath)
         group_exemplars.setdefault(digattrtype, {})[digit] = exemplar_imgpaths
     return group_exemplars
+
+def is_part_consistent(proj, attrtype):
+    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+    for attr in attrs:
+        attrtype_str = '_'.join(sorted(attr['attrs']))
+        if attrtype_str == attrtype:
+            return attr['grp_per_partition']
+    raise Exception("Attribute '{0}' doesn't exist in ballot_attributesfile?!".format(attrtype))
 
 def get_rlist_map(proj):
     """

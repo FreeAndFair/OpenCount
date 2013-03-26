@@ -132,7 +132,9 @@ class RunGroupingMainPanel(wx.Panel):
         if config.TIMER:
             config.TIMER.start_task("Grouping_ImgBased_CPU")
         self._t_imggrp = time.time()
-        if exists_imgattr(self.proj):
+        if not exists_imgattr(self.proj):
+            self.on_imggrouping_done(None)
+        else:
             partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                        self.proj.partitions_map), 'rb'))
             partition_attrmap = pickle.load(open(pathjoin(self.proj.projdir_path,
@@ -179,12 +181,18 @@ class RunGroupingMainPanel(wx.Panel):
             print "Number of img-based grouping tasks:", num_tasks
             Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, doGrouping.JOBID_GROUPING_IMGBASED))
             gauge.Show()
-        else:
-            self.on_imggrouping_done(None)
 
     def on_imggrouping_done(self, imggrouping_results):
         """ Image-based grouping is finished. Now, run digit-based
         grouping if necessary.
+        Input:
+            dict RESULTS: {int ballotID: {str attrtype: dict outdict}}, where
+            OUTDICT maps {'attrOrder':,
+                          'err': float err,
+                          'exemplar_idx': int,
+                          'patchpath': str path}
+            Note: Only contains grouping-results for attributes that are NOT
+                  consistent within each partition.
         """
         if config.TIMER:
             config.TIMER.stop_task("Grouping_ImgBased_CPU")
@@ -198,8 +206,21 @@ class RunGroupingMainPanel(wx.Panel):
     def run_digitbased_grouping(self):
         if config.TIMER:
             config.TIMER.start_task("Grouping_DigitBased_CPU")
+
+        def is_digit_part_consistent(proj):
+            attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+            for attr in attrs:
+                if attr['is_digitbased']:
+                    return attr['grp_per_partition']
+            raise Exception("Digit Attrbute Must Exist!")
+
         self._t_digitgrp = time.time()
-        if exists_digattr(self.proj):
+        if not exists_digattr(self.proj):
+            self.on_digitgrouping_done((None, None))
+        elif is_digit_part_consistent(self.proj):
+            # Simple case -- each partition is already labeled
+            self.on_digitgrouping_done((None, None))
+        else:
             thread = Thread_RunGrpDigitBased(self.proj, self.digitdist, self.on_digitgrouping_done)
             thread.start()
 
@@ -225,10 +246,15 @@ class RunGroupingMainPanel(wx.Panel):
                     num_tasks += _num_ballots - num_badballots
             print "Number of Digit-based grouping tasks:", num_tasks
             Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, part_match.JOBID_GROUPING_DIGITBASED))
-        else:
-            self.on_digitgrouping_done((None, None))
 
     def on_digitgrouping_done(self, digitgrouping_results_tpl):
+        """
+        Input:
+            (dict RESULTS: {str digitattrtype: {int ID: [str digitstr, imgpath, 
+                                                        [[str digit_i, (x1,y1,x2,y2), score_i, digpatchP_i], ...]]},
+                           where ID is partitionID/ballotID depending on MODE.
+             int DIGITDIST)
+        """
         if config.TIMER:
             config.TIMER.stop_task("Grouping_DigitBased_CPU")
         digitgrouping_results, digit_dist = digitgrouping_results_tpl
@@ -327,6 +353,14 @@ def run_grouping_imgbased(b2imgs, part2b, partition_exmpls, multexemplars_map,
                           img2flip, badballotids, attrprops,
                           patchDestDir_root,
                           proj):
+    """
+    Output:
+        dict RESULTS: {int ballotID: {str attrtype: dict outdict}}, where
+        OUTDICT maps {'attrOrder':,
+                      'err': float err,
+                      'exemplar_idx': int,
+                      'patchpath': str path}
+    """
     # dict PATCHES: maps {str exmplpath: [[(y1,y2,x1,x2), attrtype,attrval, side, is_digit, is_tabulationonly, is_grp_partition], ...]}
     patches = {}
     grpmode_map = {} # maps {attrtype: is_grp_per_partition}
@@ -334,6 +368,8 @@ def run_grouping_imgbased(b2imgs, part2b, partition_exmpls, multexemplars_map,
         side = attrpropdict['side']
         grp_per_partition = attrpropdict['grp_per_partition']
         grpmode_map[attrtype] = grp_per_partition
+        if grp_per_partition:
+            continue # No need to run grouping on partition-consistent attrs
         for attrval, exmpls in multexemplars_map[attrtype].iteritems():
             for (subpatchP, exmplpath, (x1,y1,x2,y2)) in exmpls:
                 patches.setdefault(exmplpath, []).append([(y1,y2,x1,x2), attrtype, attrval, side])

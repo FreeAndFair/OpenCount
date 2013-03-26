@@ -743,6 +743,8 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
       obj proj: 
     Output:
       dict RESULTS. maps {int ballotid: {attrtype: dict outdict}}
+      Only contains results for attributes that are NOT consistent within
+      each partition.
     """
     # NOTE: assuming each ballot has same number of attributes
 
@@ -754,22 +756,20 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
     results = {} 
     for attrtype in attrMap.keys():
         side = attrMap[attrtype].values()[0][1]
-        print "...Running Grouping on Attribute {0}, side {1}...".format(attrtype, side)
         in_bal2imgs = {}
         if grpmode_map[attrtype]:
-            # Run grouping only on one ballot per partition
-            print "...Running grouping on only one ballot per partition..."
-            for partitionid, ballotids in partition_exmpls.iteritems():
-                exmpl_bid = ballotids[0]
-                imgpaths = bal2imgs[exmpl_bid]
-                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-                in_bal2imgs[exmpl_bid] = imgpaths_ordered
+            # This attribute is consistent within each partition, so
+            # don't run grouping.
+            print "(Info) Attribute '{0}' is consistent within partitions \
+-- not running grouping for this.".format(attrtype)
+            continue
         else:
             # Run grouping on /every/ voted ballot, minus quarantined/discarded ballots
             print "...Running grouping on every ballot..."
             in_bal2imgs = bal2imgs.copy()
             for badballotid in badballotids:
                 in_bal2imgs.pop(badballotid)
+        print "...Running Grouping on Attribute {0}, side {1}...".format(attrtype, side)
         patchDestDir = patchDir_root + '-' + attrtype
         # list RESULT: [[ballotid, attrtype, outdict], ...]
         result = groupByAttr(in_bal2imgs,img2page,img2flip,attrtype, side, attrMap,
