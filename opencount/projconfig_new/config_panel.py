@@ -82,8 +82,8 @@ class ConfigPanel(wx.Panel):
         sizer_regexDiff = wx.BoxSizer(wx.HORIZONTAL)
         sizer_regexShr.AddMany([(txt_regex_shr,), ((10,0),), (self.regexShr_txtctrl,)])
         sizer_regexDiff.AddMany([(txt_regex_diff,), ((10,0),), (self.regexDiff_txtctrl,)])
-        self.regex_ctr_chkbox = wx.CheckBox(self, label="Does the filenames end in \
-two incrementing counters? (Typically 'Yes' for Hart-style ballots)")
+        self.regex_ctr_chkbox = wx.CheckBox(self, label="Do the filenames end in \
+incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.regex_ctr_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_regexCtr)
         sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
         sizer_regex1.AddMany([((0, 10),), (sizer_regexShr,), ((0,10),), (sizer_regexDiff,)])
