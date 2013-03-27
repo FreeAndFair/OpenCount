@@ -430,7 +430,8 @@ def sanitycheck_decoding_v2(decoding):
     dec = decoding[1:-1]
     # Side-specific checks
     if get_page(dec) == 0:
-        is_good = is_good and (get_startbit(dec) == '1' and 
+        is_good = is_good and (get_startbit(dec) == '1' and
+                               get_seqnum(dec) == '00' and
                                verify_checksum(dec))
     else:
         is_good = is_good and (get_endercode(dec) == '01111011110')
@@ -577,7 +578,7 @@ def get_precinct(decoding):
 def get_cardnum(decoding):
     return decoding[4:17]
 def get_seqnum(decoding):
-    return decoding[1:4]
+    return decoding[1:3]
 def get_startbit(decoding):
     return decoding[0]
 
