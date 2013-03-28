@@ -274,13 +274,13 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             """ Given initial boundingboxes around each mark, compute
             new bbs such that each 'on' mark is at the upper-left corner.
             """
-            def find_black(I, x, BLACK=100, y1_start=0):
+            def find_black(I, x, BLACK=130, y1_start=0):
                 """ Find y1 of first black pixel, starting from (X, 0). """
                 w, h = cv.GetSize(I)
                 for y1 in xrange(y1_start, h):
                     if I[y1,x] <= BLACK:
                         return y1
-                return 0 # Default to fairly-sensible value
+                return None
             w_img, h_img = cv.GetSize(I)
             bbs_out = []
             y1s_ons = []
@@ -295,7 +295,11 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                 x1s = (x1+int(w_rect*0.15), x1+int(w_rect/4.0), x1+int(w_rect/2.0), x1+int((3*w_rect)/4.0), (x2-1)-int(w_rect*0.1))
                 x1s = [x for x in x1s if x < w_img]
                 y1s = [find_black(I, x1_cur, y1_start=0) for x1_cur in x1s]
-                y1_out = int(round(np.median(y1s)))
+                y1s = [_y1 for _y1 in y1s if _y1 != None]
+                if not y1s:
+                    y1_out = 0 # Default to sensible value
+                else:
+                    y1_out = int(round(np.median(y1s)))
                 y1s_leftright.append(y1_out)
 
             for i, (x1,y1,x2,y2) in enumerate(bbs):
@@ -310,9 +314,15 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                     _y1 = 0
                 else:
                     _y1 = max(int(round(y1 - (h_markfull / 4.0))), 0)
+
                 y1s = [find_black(I, x1_cur, y1_start=_y1) for x1_cur in x1s]
+                y1s = [_y1 for _y1 in y1s if _y1 != None] # Filter out the bad results
+            
                 #y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
-                y1_out = int(round(np.median(y1s)))
+                if not y1s:
+                    y1_out = 0 # Default to sensible value
+                else:
+                    y1_out = int(round(np.median(y1s)))
                 y2_out = y1_out + (y2-y1) - 1
                 y1s_ons.append(y1_out)
                 bbs_out.append((x1, y1_out-1, x2, y2_out-1))
