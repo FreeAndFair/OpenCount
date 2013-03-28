@@ -515,7 +515,7 @@ def do_extract(name, img, squares, giventargets):
         if sq in targets: continue
         inside = [t for t in targets if area(intersect(sq, t))]
         #print sq
-        if inside != [] and sq[3]-sq[1] > 5*(t[3]-t[1]):
+        if inside != [] and sq[3]-sq[1] > 2*(t[3]-t[1]):
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
             contests.append(sq)
             targets = [x for x in targets if x not in inside]
@@ -552,8 +552,9 @@ def do_extract(name, img, squares, giventargets):
             elif len(tomerge) < 1:
                 print "Target", target, "Not in any contest on ballot", name
 
+
     def samecolumn(a, b):
-        if (abs(a[0]-b[0]) < 10 or abs(a[2]-b[2])<10):
+        if (abs(a[0]-b[0]) < 30 or abs(a[2]-b[2]) < 30):
             if abs((a[0]+a[2])/2-(b[0]+b[2])/2) < 100:
                 return True
         return False
@@ -1441,7 +1442,6 @@ def find_contests(t, paths, giventargets):
     def done(x): res[0] = x
     pool.map_async(extract_contest, args, callback=done)
     got = 0
-    print "---"*1000
     while got < len(args):
         sys.stderr.write('.')
         val = queue.get(block=True)

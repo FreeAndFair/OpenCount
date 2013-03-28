@@ -466,7 +466,7 @@ class GridShow(wx.ScrolledWindow):
         #gr.Show()
         #return
 
-        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", ["Show All", "Show only even", "Show only filled", "Show only overvotes"]);
+        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", ["Show All", "Show only even", "Show only filled", "Show only overvotes", "Show strange cases"]);
         dlg.ShowModal()
 
         self.jpgs = {}
@@ -515,9 +515,47 @@ class GridShow(wx.ScrolledWindow):
                 if len(targs) > upto:
                     self.visibleTargets.extend(targs)
             self.visibleTargets = sorted(self.visibleTargets)
-                
-                
-            pass
+        elif dlg.GetValue()[0] == 4 or dlg.GetValue()[0] == 5:
+            infile = open(self.proj.extractedfile)
+            dims = map(int,open(self.proj.extractedfile+".size").read().strip()[1:-1].split(","))
+            size = dims[0]*dims[1]
+            counts = np.zeros((size,256),dtype=np.uint32)
+            e = np.eye(size)
+            while True:
+                target = np.fromstring(infile.read(size), dtype='uint8')
+                if len(target):
+                    counts[np.arange(size),target] += 1
+                else:
+                    break
+            
+            sigmas = []
+            for i in range(size):
+                mu = np.sum(counts[i,:]*np.arange(256))/np.sum(counts[i,:])
+                sigma = (np.sum(counts[i,:]*(np.arange(256)-mu)**2)/np.sum(counts[i,:]))**.5
+                sigmas.append(sigma)
+            print sigmas
+            sigmas = np.array(sigmas)
+
+            infile.seek(0)
+            targets = []
+            while True:
+                target = np.fromstring(infile.read(size), dtype='uint8')
+                if len(target):
+                    targets.append(np.dot(target,sigmas))
+                else:
+                    break
+            targets = np.array(targets)
+            hist = np.bincount((((targets-np.min(targets))/(np.max(targets)-np.min(targets)))*256).astype(np.int32))
+            print hist
+
+            bound,_ = self.findBoundry(hist)
+            argsorted = np.argsort(targets)
+            weird = argsorted > self.threshold
+            weird = list(np.arange(bound)[weird[:bound]])+list(np.arange(bound,len(weird))[np.logical_not(weird[bound:])])
+            print weird
+            print len(weird)
+            self.visibleTargets = sorted(weird)
+            
 
         self.numberOfVisibleTargets = len(self.visibleTargets)
 
@@ -554,20 +592,18 @@ class GridShow(wx.ScrolledWindow):
         self.changeSize(1, False)
 
 
-    def findBoundry(self):
-        hist = [0]*256
-        gaguge = MyGauge(self, 1)
-        #wx.CallAfter(Publisher().sendMessage, 
-        #             "signals.MyGauge.nextjob", 
-        #             len(self.classifiedindex)/1000)
-        #gauge.Show()
-        for _,v in self.classified_file:
-            hist[v] += 1
-        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
-        #print list(enumerate(hist))
+    def findBoundry(self, usedata=None):
+        if usedata == None:
+            hist = [0]*256
+            gaguge = MyGauge(self, 1)
+            for _,v in self.classified_file:
+                hist[v] += 1
+        else:
+            hist = usedata
 
         # I'm going to assume there are two normal dist. variables 
         #  which combine to make the histogram.
+
 
         # I'll go through all possible thresholds, and find the one which
         #  allows two normal dist. to match the best.
