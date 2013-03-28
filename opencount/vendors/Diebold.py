@@ -158,6 +158,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         h_gap_cur = int(round(h_gap_cur * c))
         w_mark = int(round(w_mark * c))
         h_mark = int(round(h_mark * c))
+
     for ballotid, imgpaths in ballots.iteritems():
         for imgpath in imgpaths:
             try:

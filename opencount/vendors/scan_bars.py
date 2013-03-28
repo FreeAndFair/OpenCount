@@ -18,7 +18,8 @@ HORIZONTAL = 1
 def parse_patch(patch, marksize, gap=7, LEN=None,
                 BEGIN_TOL=0.3, END_TOL=0.3, MARKTOL=0.5, 
                 orient=HORIZONTAL,
-                GAMMA=0.5):
+                GAMMA=0.5,
+                idx2tol=None):
     """ Interprets a patch with a tight bound.
     Input:
     IplImage PATCH:
@@ -41,6 +42,11 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
                  of the previous mark, then give up. If GAMMA=None, then
                  this behavior is ignored, though, you could get some
                  funky interpretations.
+    dict IDX2TOL: {int idx: float TOL}
+        Allows you to explicitly specify adjusted mark tolerances to use
+        for certain indices of the barcode. Does not override the
+        BEGIN_TOL/END_TOL. Like MARKTOL, lower values help detect cut-off
+        marks.
     Output:
         (list SYMS, dict PARAMS)
     list SYMS: [(str VAL, int X), ...]
@@ -60,13 +66,14 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
 
     syms = scan_line(flat_tpl, w_mark if orient == HORIZONTAL else h_mark, pix_on, pix_off, gap,
                      LEN=LEN, MARKTOL=MARKTOL, BEGIN_TOL=BEGIN_TOL, END_TOL=END_TOL,
-                     GAMMA=GAMMA)
+                     GAMMA=GAMMA,
+                     idx2tol=idx2tol)
 
     return syms, {'pix_on': pix_on, 'pix_off': pix_off}
 
 def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
               MARKTOL=0.5, BEGIN_TOL=0.3, END_TOL=0.3,
-              GAMMA=0.5):
+              GAMMA=0.5, idx2tol=None):
     """ Walks DATA, estimating symbols '0'/'1' based on W_MARK and 
     PIX_ON/PIX_OFF.
     Input:
@@ -91,10 +98,13 @@ def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
                 run_len += 1
                 i += 1
         tol = MARKTOL
+        cur_sym_idx = len(syms)
         if (LEN != None) and len(syms) == 0:
             tol = BEGIN_TOL
         elif (LEN != None) and len(syms) == (LEN-1):
             tol = END_TOL
+        elif idx2tol != None and cur_sym_idx in idx2tol:
+            tol = idx2tol[cur_sym_idx]
         low, high = (w_mark*tol), (w_mark*(1.0+(1.0-tol)))
         is_mark = low <= run_len <= high
         #print "== idx={0} data[idx]={4} run_len={1} check_on={2} is_mark={3}".format(idx, run_len, check_on, is_mark, data[idx])

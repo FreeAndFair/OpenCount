@@ -55,8 +55,14 @@ def decode_robust_v2(imgpath, markpath, colpath, H_GAP=7,
     else:
         Icol = colpath
 
+    # In some elections (SLO), the first/last bits (ignoring the guard marks)
+    # are significantly cutoff -- so, allow additional slack on these marks
+    # via the IDX2TOL dict. (first bit is idx '1', last bit is idx '32')
+    idx2tol = {1: 0.25,
+               32: 0.25}
+
     decoding, isflip, bbs = decode_v2_wrapper(imgpath, markfull, Icol, H_GAP=H_GAP,
-                                              W_MARK=W_MARK, H_MARK=H_MARK)
+                                              W_MARK=W_MARK, H_MARK=H_MARK, idx2tol=idx2tol)
     return decoding, isflip, bbs
 
 def compute_border(A):
@@ -81,15 +87,15 @@ def compute_border(A):
     return i1, h - i2, j1, w - j2
 
 def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7,
-                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
+                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK, idx2tol=None):
     I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath, H_GAP=H_GAP,
-                       W_MARK=W_MARK, H_MARK=H_MARK)
+                       W_MARK=W_MARK, H_MARK=H_MARK, idx2tol=idx2tol)
     if result == None and not DEBUG_SKIP_FLIP:
         print_dbg("...Trying FLIP...")
         cv.ResetImageROI(I)
         result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath, H_GAP=H_GAP,
-                           W_MARK=W_MARK, H_MARK=H_MARK)
+                           W_MARK=W_MARK, H_MARK=H_MARK, idx2tol=idx2tol)
     
     if result == None:
         return None, None, None
@@ -98,7 +104,7 @@ def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7,
         return (decoding, isflip, bbs_out)
 
 def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
-              W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
+              W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK, idx2tol=None):
     if type(imgpath) in (str, unicode):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     else:
@@ -145,13 +151,16 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
     
     bbs_rough = ((0, 0.96 * h,
                   (w-1), (0.985 * h)),
-                 (0, 0.945 * h,
+                 (0, 0.93 * h,
+                  (w-1), (0.965 * h)),
+                 (0, 0.97 * h,
                   (w-1), (0.995 * h)))
     result = decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip,
                                H_GAP, theta, 
                                i1_blk, i2_blk, j1_blk, j2_blk,
                                imgpath=_imgpath,
-                               W_MARK=W_MARK, H_MARK=H_MARK)
+                               W_MARK=W_MARK, H_MARK=H_MARK,
+                               idx2tol=idx2tol)
     return result
 
 def find_col_x1(I, Icol, bb, K=3, AX=0.2, AY=0.2, T=0.9):
@@ -200,7 +209,8 @@ def find_col_x1(I, Icol, bb, K=3, AX=0.2, AY=0.2, T=0.9):
 def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP, theta, 
                       i1_blk, i2_blk, j1_blk, j2_blk,
                       imgpath=None, find_col=True,
-                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
+                      W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK,
+                      idx2tol=None):
     result = None
     roi_prev = cv.GetImageROI(I)
     w, h = cv.GetSize(I)
@@ -332,9 +342,11 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                                                   LEN=34,
                                                   orient=scan_bars.HORIZONTAL, MARKTOL=0.7,
                                                   BEGIN_TOL=0.3, END_TOL=0.3,
-                                                  GAMMA=0.7)
+                                                  GAMMA=0.7,
+                                                  idx2tol=idx2tol)
             decoding = ''.join([t[0] for t in syms])
             if not sanitycheck_decoding_v2(decoding):
+                print_dbg("(SanityCheck) FAIL -- '{0}' ({1})".format(decoding, len(decoding)))
                 continue
             markbbs_rough = [(t[1], 0, t[1]+W_MARK, H_MARK-1) for t in syms]
             # Find a tighter y1 for the black marks
