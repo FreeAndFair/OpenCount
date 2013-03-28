@@ -1118,10 +1118,13 @@ Then, you may resize the voting targets here.").ShowModal()
     def onButton_detecterrors(self, evt):
         events = {}
         lookup = {}
+        kinds = {}
         votes_for_errors = {}
+        stats_by_ballot = {}
         def set_events(ee):
-            for e in ee: events[e] = {}
-            for e in ee: lookup[e] = {}
+            for e in ee: events[e[0]] = {}
+            for e in ee: lookup[e[0]] = {}
+            for e in ee: kinds[e[0]] = e[1]
         def observe(e, obs, uid): 
             if obs not in events[e]: 
                 events[e][obs] = 0
@@ -1129,31 +1132,56 @@ Then, you may resize the voting targets here.").ShowModal()
             events[e][obs] += 1
             lookup[e][obs].append(uid)
             votes_for_errors[uid] = 0
+            if uid not in stats_by_ballot:
+                stats_by_ballot[uid] = {}
+            stats_by_ballot[uid][e] = obs
         
-        set_events(["exists", "target count", "columns"])
+        set_events([("exists", "entropy"),
+                    ("target count", "entropy"),
+                    ("columns", "entropy"),
+                    ("targets by column", "entropy"),
+                    ("colspread", "smaller")])
         
         for pid,partition in self.parent.boxes.items():
             for i,page in enumerate(partition):
                 targets = [x for x in page if type(x) == TargetBox]
                 observe("exists", True, (pid,i))
-                observe("target count", len(targets), (pid,i))
+                #observe("target count", len(targets), (pid,i))
+                if len(targets) == 0: continue
                 leftcoord = sorted([x.x1 for x in targets])
                 width = abs(targets[0].x1-targets[0].x2)
                 #print "width", width
                 cols = [[]]
-                for i,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
-                    cols[-1].append(i)
+                for ii,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
+                    cols[-1].append(x1)
                     if abs(x1-x2) > width/2:
                         cols.append([])
                 observe("columns", len(cols)-1, (pid,i))
-        
+                for val in tuple(map(len,cols[:-1])):
+                    observe("targets by column", val, (pid,i))
+                #spread = 10*sum([1-scipy.stats.linregress(range(len(col)),col)[2]**2 for col in cols[:-1]])
+                #print spread
+                #print scipy.stats.linregress(range(len(cols[0])),cols[0])
+                #observe("colspread", spread, (pid,i))
         for evtname,obs in events.items():
+            evttype = kinds[evtname]
             count = sum(obs.values())
-            for what,c in obs.items():
-                for ballot in lookup[evtname][what]:
-                    votes_for_errors[ballot] += math.log(float(c)/count)
-        for ballot,votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
-            print ballot, votes
+            if evttype == "entropy":
+                for what,c in obs.items():
+                    for ballot in lookup[evtname][what]:
+                        votes_for_errors[ballot] += math.log(float(c)/count)
+            elif evttype == "smaller":
+                expanded = [k for k,v in obs.items() for _ in range(v)]
+                average = np.mean(expanded)
+                std = np.std(expanded)
+                print average, std
+                for what,c in obs.items():
+                    for ballot in lookup[evtname][what]:
+                        if what > average:
+                            votes_for_errors[ballot] += -(float(what)-average)/std*2
+                
+        for (ballot,side),votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
+            print ballot+1, side, votes, stats_by_ballot[ballot,side]
         print events
                 
         
