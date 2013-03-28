@@ -657,6 +657,25 @@ Would you like to review the ballot annotations?",
         self.Layout()
         self.Refresh()
 
+    def mark_image_flipped(self, balid, side):
+        """ Mark an image as flipped -- this will update the UI (if the 
+        image in question is currently displayed), as well as
+        update the image_to_flip data structure permanently, for all other
+        OpenCount components to see.
+        Input:
+            int BALID: 
+            int SIDE:
+        """
+        imgpaths_sorted = sorted(self.bal2imgs[balid], key=lambda imP: self.img2page[imP])
+        imgpath = imgpaths_sorted[side]
+        print "Setting img2flip for image '{0}' FROM '{1}' TO '{2}'".format(imgpath,
+                                                                            self.img2flip[imgpath],
+                                                                            not self.img2flip[imgpath])
+        self.img2flip[imgpath] = not self.img2flip[imgpath]
+        pickle.dump(self.img2flip, open(os.path.join(self.proj.projdir_path, self.proj.image_to_flip), 'wb'))
+        if balid == self.cur_ballotid and side == self.cur_side:
+            self.display_image(side, balid)
+
     def next_side(self):
         self.display_image(self.cur_side + 1, self.cur_ballotid)
     def prev_side(self):
@@ -726,11 +745,15 @@ class ToolBar(wx.Panel):
         btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
         btn_viewcustomattrs = wx.Button(self, label="View Custom Attributes...")
         btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
+        btn_markflip = wx.Button(self, label="Mark As Flipped")
+        btn_markflip.Bind(wx.EVT_BUTTON, self.onButton_markflip)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
                            (btn_viewcustomattrs,), 
                            ((50,50),), 
-                           (btn_zoomin,), (btn_zoomout,)])
+                           (btn_zoomin,), (btn_zoomout,),
+                           ((50,50),),
+                           (btn_markflip,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(btn_sizer)
@@ -832,6 +855,17 @@ an Attribute Name.")
             elif isinstance(cattr, cust_attrs.Filename_Attr):
                 print "  Attrname: {0} FilenameRegex: {1}".format(attrname,
                                                                   cattr.filename_regex)
+
+    def onButton_markflip(self, evt):
+        status = wx.MessageDialog(self, style=wx.YES_NO,
+                                  caption="Mark Image as Flipped?",
+                                  message="Are you sure that you want to \
+mark this image as being upside down (flipped)? This will affect future \
+stages of the OpenCount pipeline.").ShowModal()
+        if status != wx.ID_YES:
+            return
+        cur_ballot, cur_side = self.GetParent().cur_ballotid, self.GetParent().cur_side
+        self.GetParent().mark_image_flipped(cur_ballot, cur_side)
 class MyFooter(wx.Panel):
     def __init__(self, *args, **kwargs):
         wx.Panel.__init__(self, *args, **kwargs)
