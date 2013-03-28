@@ -572,15 +572,15 @@ voting target on this ballot.")
 
         btn_jump_partition = wx.Button(self, label="Jump to Partition...")
         btn_jump_ballot = wx.Button(self, label="Jump to Ballot...")
-        btn_jump_page = wx.Button(self, label="Jump to Page...")
+        btn_jump_error = wx.Button(self, label="Next Error...")
         sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
         sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
-        sizer_btn_jump.Add(btn_jump_page, border=10, flag=wx.ALL)
+        sizer_btn_jump.Add(btn_jump_error, border=10, flag=wx.ALL)
         
         btn_jump_partition.Bind(wx.EVT_BUTTON, self.onButton_jump_partition)
         btn_jump_ballot.Bind(wx.EVT_BUTTON, self.onButton_jump_ballot)
-        btn_jump_page.Bind(wx.EVT_BUTTON, self.onButton_jump_page)
+        btn_jump_error.Bind(wx.EVT_BUTTON, self.onButton_jump_error)
         
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(sizer_partitionbtns, border=10, flag=wx.ALL)
@@ -959,6 +959,13 @@ voting target on this ballot.")
         self.txt_totalpages.SetLabel(str(len(self.partitions[self.cur_i][idx])))
         self.display_image(self.cur_i, idx, 0)
 
+    def onButton_jump_error(self, evt):
+        if 'next_errors' in dir(self) and self.next_errors != []:
+            idx,v = self.next_errors.pop()
+            self.txt_totalballots.SetLabel(str(len(self.partitions[idx])))
+            self.txt_totalpages.SetLabel(str(len(self.partitions[idx][0])))
+            self.display_image(idx, 0, v)
+
     def onButton_jump_page(self, evt):
         dlg = wx.TextEntryDialog(self, "Which Page Number?", "Enter Page number")
         status = dlg.ShowModal()
@@ -1140,25 +1147,35 @@ Then, you may resize the voting targets here.").ShowModal()
                     ("target count", "entropy"),
                     ("columns", "entropy"),
                     ("targets by column", "entropy"),
+                    ("contest count", "entropy"),
+                    ("contests by column", "entropy"),
                     ("colspread", "smaller")])
         
         for pid,partition in self.parent.boxes.items():
             for i,page in enumerate(partition):
                 targets = [x for x in page if type(x) == TargetBox]
                 observe("exists", True, (pid,i))
-                #observe("target count", len(targets), (pid,i))
+                observe("target count", len(targets), (pid,i))
                 if len(targets) == 0: continue
                 leftcoord = sorted([x.x1 for x in targets])
                 width = abs(targets[0].x1-targets[0].x2)
                 #print "width", width
-                cols = [[]]
-                for ii,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
-                    cols[-1].append(x1)
-                    if abs(x1-x2) > width/2:
-                        cols.append([])
-                observe("columns", len(cols)-1, (pid,i))
-                for val in tuple(map(len,cols[:-1])):
+                def group(leftcoord):
+                    cols = [[]]
+                    for ii,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
+                        cols[-1].append(x1)
+                        if abs(x1-x2) > width/2:
+                            cols.append([])
+                    return cols[:-1]
+                cols = group(leftcoord)
+                observe("columns", len(cols), (pid,i))
+                for val in tuple(map(len,cols)):
                     observe("targets by column", val, (pid,i))
+                
+                contests = [x for x in page if type(x) == ContestBox]
+                if len(contests) == 0: continue
+                observe("contest count", len(contests), (pid,i))
+                observe("contests by column", tuple(map(len,group(sorted([x.x1 for x in contests])))), (pid,i))
                 #spread = 10*sum([1-scipy.stats.linregress(range(len(col)),col)[2]**2 for col in cols[:-1]])
                 #print spread
                 #print scipy.stats.linregress(range(len(cols[0])),cols[0])
@@ -1179,7 +1196,8 @@ Then, you may resize the voting targets here.").ShowModal()
                     for ballot in lookup[evtname][what]:
                         if what > average:
                             votes_for_errors[ballot] += -(float(what)-average)/std*2
-                
+
+        self.parent.next_errors = [x[0] for x in sorted(votes_for_errors.items(), key=lambda x: -x[1])]
         for (ballot,side),votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
             print ballot+1, side, votes, stats_by_ballot[ballot,side]
         print events
