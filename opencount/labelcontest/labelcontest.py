@@ -12,6 +12,7 @@ except ImportError:
 import re
 import numpy as np
 import scipy.misc
+from collections import Counter
 
 from group_contests import final_grouping, extend_multibox, intersect, group_given_contests
 from verifycontestgrouping import VerifyContestGrouping
@@ -1100,6 +1101,16 @@ class LabelContest(wx.Panel):
             
             self.changeCompleted(addone=1)
 
+            if self.focusIsOn == -3:
+                self.focusIsOn = -1
+                print 'okay did it'
+                self.text_title.SetValue("")
+                for i,each in enumerate(self.text_targets):
+                    each.Clear()
+                    each.SetValue("")
+                return
+                
+
             v = self.text_title.GetValue()
 
             for k,vv in self.text.items():
@@ -1141,7 +1152,7 @@ class LabelContest(wx.Panel):
 
         sz.Add(self.text_title)
 
-        self.focusIsOn = -2
+        self.focusIsOn = -99999
         def showFocus(where, i=-1):
             # Put a little blue box over where we're entering text
             self.focusIsOn = i
@@ -1165,8 +1176,10 @@ class LabelContest(wx.Panel):
             self.changeFocusImage(applyfn=doDraw)
 
         def enterPushed(it):
-            #print self.focusIsOn
-            if self.focusIsOn == -1:
+            if self.focusIsOn == -3:
+                # I've pre-populated the contest with a guess
+                wx.CallAfter(self.nextunfilled)
+            elif self.focusIsOn == -1:
                 # Focus is on the title
                 if all([x.GetValue() != '' for x in self.text_targets]):
                     wx.CallAfter(self.nextunfilled)
@@ -1180,7 +1193,50 @@ class LabelContest(wx.Panel):
                 if self.text_targets[self.focusIsOn] != '':
                     wx.CallAfter(self.nextunfilled)
 
-        self.text_title.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None, -1))
+        def attempt_prefill(x):
+            if self.did_prefill: return
+            self.did_prefill = True
+            if self.text[self.currentcontests[self.count]] != []: return
+
+            if self.count != 0:
+                prev = self.text[self.currentcontests[self.count-1]]
+                if prev == []:
+                    showFocus(None, -1)
+                    return
+            else:
+                prev = None
+
+            print "PREV", prev
+
+            possible = []
+            for template in range(len(self.dirList)):
+                order = self.contest_order[template]
+                if prev == None:
+                    if len(order) == 0: continue
+                    maybe = self.text[template,order[0]]
+                    if len(maybe)-1 == len(self.text_targets):
+                        possible.append(maybe)
+                    continue
+                for i in range(1,len(order)):
+                    if self.text[template,order[i-1]] != []:
+                        print 'itis', self.text[template,order[i-1]]
+                    if self.text[template,order[i-1]] == prev:
+                        maybe = self.text[template,order[i]]
+                        print 'yes', len(maybe)
+                        if len(maybe)-1 == len(self.text_targets):
+                            possible.append(maybe)
+            if len(possible) != 0:
+                best,ct = max(Counter(map(tuple,possible)).items(), key=lambda x: x[1])
+                print "PREFILL WITH", best
+                self.text_title.SetValue(best[0])
+                for a,b in zip(best[1:], self.text_targets):
+                    b.SetValue(a)
+                showFocus(None, -3)
+            else:
+                showFocus(None, -1)
+
+        self.did_prefill = False
+        self.text_title.Bind(wx.EVT_SET_FOCUS, attempt_prefill)
 
         self.text_title.Bind(wx.EVT_TEXT_ENTER, enterPushed)
         

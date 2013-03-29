@@ -1142,6 +1142,8 @@ Then, you may resize the voting targets here.").ShowModal()
             if uid not in stats_by_ballot:
                 stats_by_ballot[uid] = {}
             stats_by_ballot[uid][e] = obs
+
+        #self.parent.boxes = dict((k,[[z for z in y if z.y1 > 700 or z.y2 > 700] for y in v]) for k,v in self.parent.boxes.items())
         
         set_events([("exists", "entropy"),
                     ("target count", "entropy"),
@@ -1149,6 +1151,7 @@ Then, you may resize the voting targets here.").ShowModal()
                     ("targets by column", "entropy"),
                     ("contest count", "entropy"),
                     ("contests by column", "entropy"),
+                    ("contest width", "entropy"), 
                     ("colspread", "smaller")])
         
         for pid,partition in self.parent.boxes.items():
@@ -1174,6 +1177,9 @@ Then, you may resize the voting targets here.").ShowModal()
                 
                 contests = [x for x in page if type(x) == ContestBox]
                 if len(contests) == 0: continue
+                observe("contest width", (max((x.x2-x.x1)/50 for x in contests),min((x.x2-x.x1)/50 for x in contests)), (pid,i))
+                    
+
                 observe("contest count", len(contests), (pid,i))
                 observe("contests by column", tuple(map(len,group(sorted([x.x1 for x in contests])))), (pid,i))
                 #spread = 10*sum([1-scipy.stats.linregress(range(len(col)),col)[2]**2 for col in cols[:-1]])
