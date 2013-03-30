@@ -513,7 +513,7 @@ def do_extract(name, img, squares, giventargets):
     #print "T", targets
     for sq in sorted(squares, key=area):
         if sq in targets: continue
-        inside = [t for t in targets if area(intersect(sq, t))]
+        inside = [t for t in targets if area(intersect(sq, t)) > area(t)/2]
         #print sq
         if inside != [] and sq[3]-sq[1] > 2*(t[3]-t[1]):
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
