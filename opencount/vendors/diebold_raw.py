@@ -6,6 +6,11 @@ sys.path.append('..')
 import grouping.tempmatch as tempmatch
 from grouping.verify_overlays_new import iplimage2np
 
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
+
 MARKFULL_PATH = 'diebold_mark.png'
 COLMARK_PATH = 'diebold_colmark.png'
 
@@ -22,10 +27,16 @@ HEIGHT_MARK = 7
 # HEIGHT_MARK
 SIZE_ORIG = (1280, 2104)
 
+PIX_ON_OFF_RATIO = 0.7 # Max. allowable ratio (PIX_ON / PIX_OFF)
+
 DEBUG = False
 DEBUG_SAVEIMGS = False
 
 DEBUG_SKIP_FLIP = False
+
+# For experiments.
+EXP_PARAMS = False
+GLOB_PARAMS_ = None # Stores {"PIX_ON": [float p, ...], "PIX_OFF": [float p, ...]}
 
 def print_dbg(*args):
     if DEBUG == True:
@@ -355,9 +366,24 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                                                   GAMMA=0.7,
                                                   idx2tol=idx2tol)
             decoding = ''.join([t[0] for t in syms])
-            if not sanitycheck_decoding_v2(decoding):
+            pix_on, pix_off = params_["pix_on"], params_["pix_off"]
+            def is_pixon_pixoff_ok():
+                if PIX_ON_OFF_RATIO != None:
+                    return (pix_on / pix_off) < PIX_ON_OFF_RATIO
+                else:
+                    return True
+
+            if not sanitycheck_decoding_v2(decoding) or (not is_pixon_pixoff_ok()):
                 print_dbg("(SanityCheck) FAIL -- '{0}' ({1})".format(decoding, len(decoding)))
                 continue
+
+            if EXP_PARAMS:
+                global GLOB_PARAMS_
+                if GLOB_PARAMS_ == None:
+                    GLOB_PARAMS_ = {"PIX_ON": [], "PIX_OFF": []}
+                GLOB_PARAMS_["PIX_ON"].append(params_['pix_on'])
+                GLOB_PARAMS_["PIX_OFF"].append(params_['pix_off'])
+                
             markbbs_rough = [(t[1], 0, t[1]+W_MARK, H_MARK-1) for t in syms]
             # Find a tighter y1 for the black marks
             bbs = tighten_bbs(markbbs_rough, decoding, Icor)
@@ -465,7 +491,8 @@ def estimate_ballot_rot(I, Imarkfull, bbs, MAX_THETA=2.0, K=5):
     theta_tm = None
     for bb in bbs:
         roi_cur = tuple(map(lambda x: int(round(x)),
-                            (bb[0], bb[1],
+                            (roi_prev[0] + bb[0], 
+                             roi_prev[1] + bb[1],
                              bb[2] - bb[0],
                              bb[3] - bb[1])))
         cv.SetImageROI(I, roi_cur)
@@ -661,6 +688,50 @@ def rescale_img(I, c):
         cv.Resize(I, Iout, interpolation=cv.CV_INTER_CUBIC)
     return Iout
 
+def plot_params(all_params):
+    """
+    Input:
+        dict ALL_PARAMS: {'PIX_ON': [float p, ...], 'PIX_OFF': [float p, ...]}
+    """
+    fig = plt.figure()
+    p_on = fig.add_subplot(211)
+    p_off = fig.add_subplot(212)
+    
+    pix_ons = all_params['PIX_ON']
+    pix_offs = all_params["PIX_OFF"]
+
+    print "pix_ons  MEAN := {0}".format(np.mean(pix_ons))
+    print "pix_ons  STD  := {0}".format(np.std(pix_ons))
+    print "pix_offs MEAN := {0}".format(np.mean(pix_offs))
+    print "pix_offs STD  := {0}".format(np.std(pix_offs))
+
+    ons_hist, ons_bins = np.histogram(pix_ons)
+    offs_hist, offs_bins = np.histogram(pix_offs)
+    
+    def plot_hist(hist, bins, plt):
+        width = 0.7*(bins[1]-bins[0])
+        center = (bins[:-1]+bins[1:])/2
+        plt.bar(center, hist, align = 'center', width = width)
+
+    plot_hist(ons_hist, ons_bins, p_on)
+    plot_hist(offs_hist, offs_bins, p_off)
+
+    fig.savefig("ons_and_offs.png")
+
+    fig_ratios = plt.figure()
+    p_ratios = fig_ratios.add_subplot(111)
+
+    ratios = [float(pix_on / pix_offs[i]) for i, pix_on in enumerate(pix_ons)]
+
+    print "ratios MEAN := {0}".format(np.mean(ratios))
+    print "ratios STD  := {0}".format(np.std(ratios))
+
+    rat_hist, rat_bins = np.histogram(ratios)
+    
+    plot_hist(rat_hist, rat_bins, p_ratios)
+    
+    fig_ratios.savefig("ons_and_offs_ratios.png")
+
 def main():
     args = sys.argv[1:]
     arg0 = args[-1]
@@ -675,18 +746,22 @@ def main():
     try: true_results = pickle.load(open(args[args.index('--compare')+1], 'rb'))
     except: true_results = None
 
-    global DEBUG, DEBUG_SAVEIMGS, DEBUG_SKIP_FLIP
+    global DEBUG, DEBUG_SAVEIMGS, DEBUG_SKIP_FLIP, EXP_PARAMS
     DEBUG = '--debug' in args
     DEBUG_SAVEIMGS = '--saveimgs' in args
     DEBUG_SKIP_FLIP = '--skipflip' in args
+    EXP_PARAMS = '--exp_params' in args
     
     if isimgext(arg0):
         imgpaths = [arg0]
-    else:
+    elif os.path.isdir(arg0):
         imgpaths = []
         for dirpath, dirnames, filenames in os.walk(arg0):
             for imgname in [f for f in filenames if isimgext(f)]:
                 imgpaths.append(os.path.join(dirpath, imgname))
+    else:
+        # is file containing image paths on each line
+        imgpaths = [line.strip() for line in open(arg0).readlines() if line]
 
     t = time.time()
     cnt = 0
@@ -727,6 +802,10 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         if decoding == None:
             print 'Error:', imgpath
             errs.append(imgpath)
+            if do_show:
+                cv.SaveImage("_showit_fail.png", cv.LoadImage(imgpath))
+                print "<><><><> Saved '_showit_fail.png' <><><><>"
+                pdb.set_trace()
         else:
             print "{0}: {1} ({2})".format(os.path.split(imgpath)[1], decoding, len(decoding))
             print "    isflip={0}  {1}".format(isflip, imgpath)
@@ -748,6 +827,9 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
     else:
         print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(N))
     print "    Number of Errors: {0}".format(len(errs))
+
+    if EXP_PARAMS:
+        plot_params(GLOB_PARAMS_)
 
     if do_compare:
         are_inconsistensies = False

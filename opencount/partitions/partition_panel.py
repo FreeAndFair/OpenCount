@@ -583,6 +583,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                     self.discard_ballot(balid)
 
         nuke_ballotids = set(tuple(bal2errlabel.keys()) + tuple([img2bal[imP] for imP in self.ioerr_imgpaths]))
+        # TODO: I think this call to nuke_ballots is taking quite a long time.
+        #       Either speed this up, or add a progress bar?
         nuke_ballots(nuke_ballotids, verifypatch_bbs, flipmap)
 
         print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
@@ -688,6 +690,9 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         if config.TIMER:
             config.TIMER.start_task("Partition_GeneratePartitions_CPU")
+        # TODO: This call to partition_ballots takes a few minutes on large
+        # elections -- add a progress bar or something, so that it doesn't
+        # look like the UI is hanging.
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)
         if config.TIMER:
             config.TIMER.stop_task("Partition_GeneratePartitions_CPU")
