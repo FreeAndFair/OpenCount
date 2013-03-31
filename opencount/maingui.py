@@ -218,6 +218,7 @@ proceed. Please address the prior warnings first.",
                 # Grouping wasn't performed, which means that we should
                 # simply use the partitions as the groups, since the user
                 # 'knows' that the partitions also specify a grouping.
+                print "(Notice) No Attributes Exists, so, using Partitioning as the Grouping."
                 partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
                                                            self.project.partitions_map), 'rb'))
                 partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,

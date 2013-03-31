@@ -120,7 +120,7 @@ next step.", style=wx.OK).ShowModal()
             {int groupID: [int ballotID_i, ...]}
         """
         if not self.verify_results:
-            print "...self.verify_results is empty, implies no img/digit-based attrs."
+            print "...self.verify_results is empty, implies no non-tabulationonly img/digit-based attrs"
             self.verify_results = {}
 
         b2g = {}
@@ -217,6 +217,21 @@ next step.", style=wx.OK).ShowModal()
         # 2.) Create each group, based on the unique ballot property values
         group_idx_map = {} # maps {((attrtype,attrval), ...): int groupIdx}
         group_cnt = 0
+
+        if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group)):
+            b2g_old = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group)))
+        else:
+            b2g_old = None
+
+        def all_attrs_tabulationonly():
+            """ Returns True if all attributes are tabulation-only. """
+            # list ATTRS: [dict attrbox_marsh, ...]
+            attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
+            for attrdict in attrs:
+                if not attrdict['is_tabulationonly']:
+                    return False
+            return True
+
         for ballotid, ballotprops in ballot_attrvals.iteritems():
             # 2.a.) Filter out any 'is_tabulationonly' attrtypes
             ballotprops_grp = {} # maps {attrtype: attrval}
@@ -230,11 +245,23 @@ next step.", style=wx.OK).ShowModal()
                         if attrtype == ballotattrtype and not attrpropdict['is_tabulationonly']:
                             ballotprops_grp[ballotattrtype] = ballotattrval
             ordered_props = tuple(sorted(ballotprops_grp.items(), key=lambda t: t[0]))
-            group_idx = group_idx_map.get(ordered_props, None)
-            if group_idx == None:
-                group_idx = group_cnt
+            if all_attrs_tabulationonly() and b2g_old != None and ballotid in b2g_old:
+                # Use the prior group indexing scheme!
+                # NOTE: This code will NOT gracefully handle the case where
+                #       some ballots are found in B2G_OLD, and others are not
+                #       found in B2G_OLD. The latter ballots may get assigned
+                #       groupids that were assigned to the former ballots - 
+                #       however, this case should only happen if more ballots
+                #       were added since the last grouping (at which case
+                #       the project should have just been started over)
+                group_idx = b2g_old[ballotid]
                 group_idx_map[ordered_props] = group_idx
-                group_cnt += 1
+            else:
+                group_idx = group_idx_map.get(ordered_props, None)
+                if group_idx == None:
+                    group_idx = group_cnt
+                    group_idx_map[ordered_props] = group_idx
+                    group_cnt += 1
             b2g[ballotid] = group_idx
             g2b.setdefault(group_idx, []).append(ballotid)
             group_infomap[group_idx] = ballotprops
@@ -272,18 +299,24 @@ next step.", style=wx.OK).ShowModal()
 
         print "...{0} ballots have made it this far past grouping...".format(len(ballot_attrvals))
 
-        pickle.dump(b2g, open(pathjoin(self.proj.projdir_path,
-                                       self.proj.ballot_to_group), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
-        pickle.dump(g2b, open(pathjoin(self.proj.projdir_path,
-                                       self.proj.group_to_ballots), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
         pickle.dump(group_infomap, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.group_infomap), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        pickle.dump(group_exmpls, open(pathjoin(self.proj.projdir_path,
-                                                self.proj.group_exmpls), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+
+        if all_attrs_tabulationonly() and os.path.exists(pathjoin(self.proj.projdir_path,
+                                                                  self.proj.ballot_to_group)):
+            # Don't overwrite these prior grouping files.
+            return
+        else:
+            pickle.dump(b2g, open(pathjoin(self.proj.projdir_path,
+                                           self.proj.ballot_to_group), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
+            pickle.dump(g2b, open(pathjoin(self.proj.projdir_path,
+                                           self.proj.group_to_ballots), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
+            pickle.dump(group_exmpls, open(pathjoin(self.proj.projdir_path,
+                                                    self.proj.group_exmpls), 'wb'),
+                        pickle.HIGHEST_PROTOCOL)
         
     def on_verify_done(self, verify_results, quarantined_results):
         """ 

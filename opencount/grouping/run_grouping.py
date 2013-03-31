@@ -284,32 +284,61 @@ You may proceed to the next task.".format(dur_total),
     def onButton_rungrouping(self, evt):
         """ Runs both Image-based and Digit-based Attrval extraction. """
         self.Disable()
-        # 0.) Remove relevant state files
-        util_gui.remove_files(pathjoin(self.proj.projdir_path,
-                                       '_state_verifyoverlays.p'),
-                              pathjoin(self.proj.projdir_path,
-                                       '_state_correct_grouping.p'),
-                              pathjoin(self.proj.projdir_path,
-                                       self.proj.ballot_to_group),
-                              pathjoin(self.proj.projdir_path,
-                                       self.proj.group_to_ballots),
-                              pathjoin(self.proj.projdir_path,
-                                       self.proj.group_infomap),
-                              pathjoin(self.proj.projdir_path,
-                                       self.proj.group_exmpls),
-                              pathjoin(self.proj.projdir_path,
-                                       '_state_selecttargets.p'),
-                              pathjoin(self.proj.projdir_path,
-                                       '_state_selecttargetsMain.p'),
-                              pathjoin(self.proj.projdir_path,
-                                       self.proj.target_locs_map),
-                              self.proj.contest_internal,
-                              self.proj.contest_grouping_data,
-                              self.proj.contest_text,
-                              self.proj.contest_id)
-        for filename in os.listdir(self.proj.projdir_path):
-            if filename.startswith('_state_verifyoverlays_'):
-                os.remove(pathjoin(self.proj.projdir_path, filename))
+
+        def remove_related_files():
+            """ Removes all files that depend on a stale grouping. """
+            util_gui.remove_files(pathjoin(self.proj.projdir_path,
+                                           '_state_verifyoverlays.p'),
+                                  pathjoin(self.proj.projdir_path,
+                                           '_state_correct_grouping.p'),
+                                  pathjoin(self.proj.projdir_path,
+                                           self.proj.ballot_to_group),
+                                  pathjoin(self.proj.projdir_path,
+                                           self.proj.group_to_ballots),
+                                  pathjoin(self.proj.projdir_path,
+                                           self.proj.group_infomap),
+                                  pathjoin(self.proj.projdir_path,
+                                           self.proj.group_exmpls),
+                                  pathjoin(self.proj.projdir_path,
+                                           '_state_selecttargets.p'),
+                                  pathjoin(self.proj.projdir_path,
+                                           '_state_selecttargetsMain.p'),
+                                  pathjoin(self.proj.projdir_path,
+                                           self.proj.target_locs_map),
+                                  self.proj.contest_internal,
+                                  self.proj.contest_grouping_data,
+                                  self.proj.contest_text,
+                                  self.proj.contest_id)
+            for filename in os.listdir(self.proj.projdir_path):
+                if filename.startswith('_state_verifyoverlays_'):
+                    os.remove(pathjoin(self.proj.projdir_path, filename))
+        def all_attrs_tabulationonly():
+            """ Returns True if all attributes are tabulation-only. """
+            # list ATTRS: [dict attrbox_marsh, ...]
+            attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
+            for attrdict in attrs:
+                if not attrdict['is_tabulationonly']:
+                    return False
+            return True
+        if all_attrs_tabulationonly():
+            if (os.path.exists(pathjoin(self.proj.projdir_path,
+                                        self.proj.ballot_to_group))):
+                msg = "(Dev msg) Prior grouping data detected. \n\n\
+Because all attributes are tabulation-only (and can't affect the grouping),\
+the state files from the prior grouping will NOT be deleted."
+                wx.MessageDialog(self, style=wx.OK, caption="Grouping Notice",
+                                 message=msg).ShowModal()
+            # Still remove the prior verify-grouping state files.
+            util_gui.remove_files(pathjoin(self.proj.projdir_path,
+                                           '_state_verifyoverlays.p'),
+                                  pathjoin(self.proj.projdir_path,
+                                           '_state_correct_grouping.p'))
+            for filename in os.listdir(self.proj.projdir_path):
+                if filename.startswith('_state_verifyoverlays_'):
+                    os.remove(pathjoin(self.proj.projdir_path, filename))
+        else:
+            remove_related_files()
+
         print "...Starting Grouping..."
         self._t_total = time.time()
         self.btn_rungrouping.Disable()
