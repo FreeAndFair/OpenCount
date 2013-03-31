@@ -17,6 +17,7 @@ import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared
 from grouping import common, verify_overlays_new, partask
+from panel_opencount import OpenCountPanel
 
 """
 Assumes extracted_dir looks like:
@@ -39,6 +40,17 @@ associated blank ballot imgpath:
 This keeps track of the precinct numbers of all blank ballots:
     {str blankimgpath: {digitattrtype: (str digitval, bb, int side)}}
 Note that this is blankimgpath, not blankid.
+
+<projdir>/digit_exemplars_map.p
+
+Maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)}
+
+<projdir>/extracted_digitpatch_dir/
+
+Stores the image patch around each digit region. If the digitattr is
+partition-consistent, then only one patch from each partition is stored.
+If the digitattr varies within partitions, then a random sample of K
+patches is saved from each partition.
 
 """
 
@@ -64,12 +76,12 @@ def get_last_matchID(imgsdir):
                 i = curidx
     return i
 
-class LabelDigitsPanel(wx.Panel):
+class LabelDigitsPanel(OpenCountPanel):
     """ A wrapper-class of DigitMainPanel that is meant to be
     integrated into OpenCount itself.
     """
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
+        OpenCountPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
         
@@ -134,6 +146,25 @@ class LabelDigitsPanel(wx.Panel):
         """
         print "Done Labeling Digit-Based Attributes"
 
+    def invoke_sanity_checks(self, *args, **kwargs):
+        return [self.check_digitstring_lengths()]
+
+    def check_digitstring_lengths(self):
+        """ Ensure that all digit patches have the correct number of
+        labeled digits.
+        """
+        cnt_bad = self.mainpanel.digitpanel.get_num_bad_digitstrings()
+        if cnt_bad == 0:
+            return (True, True, "", 0, None)
+        else:
+            num_digits = get_num_digits(self.project)
+            return (False, True, "{0} image patches do not have all \
+digits labeled. Each image patch must have {1} digits present.\n\n\
+Tip: Click the 'Sort' button to quickly see which patches still have \
+missing digits. This will sort the image patches by number of labeled \
+digits present, in increasing order.".format(cnt_bad, num_digits),
+                    0, None)
+
 class DigitMainPanel(wx.Panel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
     simple button tool bar.
@@ -150,6 +181,7 @@ class DigitMainPanel(wx.Panel):
         self.button_sort.Bind(wx.EVT_BUTTON, self.onButton_sort)
         self.button_done = wx.Button(self, label="I'm Done.")
         self.button_done.Bind(wx.EVT_BUTTON, self.onButton_done)
+        self.button_done.Hide() # Just hide this for convenience
         btn_zoomin = wx.Button(self, label="Zoom In.")
         btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
         btn_zoomout = wx.Button(self, label="Zoom Out.")
@@ -670,43 +702,37 @@ digit.")
                            self.parent.parent.project.digit_exemplars_map)
         pickle.dump(digitexemplars_map, open(de_mapP, 'wb'))
     
-    def check_digit_strings(self):
+    def get_num_bad_digitstrings(self):
         """ Invoked when the user clicks the "I'm done" button:
-        make sure that len(all digit strings) == number user specified, returns false if any of the digit strings
-        are not long enough. """
+        Make sure that len(all digit strings) == number user specified.
+        Returns the number of digit strings that are not of the specified
+        digitstring length.
+        """
         # Make sure the precinct txts are up to date.
         for regionpath, stuff in self.matches.iteritems():
             self.update_precinct_txt(regionpath)
 
-        # self.parent.parent?
+        # dict PATCH2PRECINCT: {str digitpatchpath: str digitstring}
         patch2precinct = self.get_patch2precinct()
 
-        num_digitsmap = pickle.load(open(pathjoin(self.parent.parent.project.projdir_path,
-                                                 self.parent.parent.project.num_digitsmap)))
-        
-        for k,v in patch2precinct.iteritems():
-            # this depends on the pathname containing the attribute name
-            attr_name = os.path.basename(os.path.split(k)[0])
-            if len(v) != num_digitsmap[attr_name]:
-                return False
-
-        return True
+        num_digits = get_num_digits(self.parent.parent.project)
+        cnt_bad = 0
+        for patchpath, digitstring in patch2precinct.iteritems():
+            if len(digitstring) != num_digits:
+                cnt_bad += 1
+        return cnt_bad
 
     def on_done(self):
         """When the user decides that he/she has indeed finished
         labeling all digits. Export the results, such as the
         mapping from precinct-patch to precinct number.
         """
-        
         # Check if all the precinct strings have the correct number of digits
-        
-        if not self.check_digit_strings():
+        if self.get_num_bad_digitstrings() != 0:
             msg = 'Please check all digits have been matched. OpenCount has detected that some strings\
 are not of proper length.' 
             dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
             dlg.ShowModal()
-        
-
         else:
             result = self.export_results()
             self.compute_and_save_digitexemplars_map()
@@ -1338,6 +1364,14 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
             patch2temp[outfilepath] = (imgpath, attrs_sortedstr, bb, side)
             i += 1
     return patch2temp
+
+def get_num_digits(proj):
+    # list ATTRS: [dict attrbox_marsh, ...]
+    attrs = pickle.load(open(proj.ballot_attributesfile))
+    for attr in attrs:
+        if attr['is_digitbased']:
+            return attr['num_digits']
+    raise Exception("Couldn't find any digit-based attributes?!")
     
 def main():
     args = sys.argv[1:]
