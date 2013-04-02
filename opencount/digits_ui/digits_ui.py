@@ -54,6 +54,13 @@ patches is saved from each partition.
 
 """
 
+# Fraction of ballots to add from each partition when considering a
+# digitbased attribute that varies within a partition.
+GRP_MODE_ALL_BALLOTS_NUM = 0.2
+
+GRP_MODE_ALL_BALLOTS_NUM_MIN = 10
+GRP_MODE_ALL_BALLOTS_NUM_MAX = 750
+
 # Used to give a unique ID to all Digit-template-match matches.
 matchID = 0
 
@@ -84,11 +91,6 @@ class LabelDigitsPanel(OpenCountPanel):
         OpenCountPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.project = None
-        
-        # NUM_EXMPLS: Number of randomly-chosen ballots to choose when
-        # searching for digit exemplars IF the digit attribute is NOT
-        # consistent within a partition.
-        self.NUM_EXMPLS = 1000
 
     def start(self, project):
         """ First, extract all digit-patches into 
@@ -103,7 +105,11 @@ class LabelDigitsPanel(OpenCountPanel):
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
             _t = time.time()
-            patch2temp = do_extract_digitbased_patches(self.project, self.NUM_EXMPLS)
+            # TODO: Add progress bar here
+            patch2temp = do_extract_digitbased_patches(self.project,
+                                                       GRP_MODE_ALL_BALLOTS_NUM,
+                                                       GRP_MODE_ALL_BALLOTS_NUM_MIN,
+                                                       GRP_MODE_ALL_BALLOTS_NUM_MAX)
             print "...Finished Extracting Digit Patches ({0} s).".format(time.time() - _t)
             pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
                                                   project.digitpatch2temp),
@@ -218,6 +224,8 @@ class DigitMainPanel(wx.Panel):
         self.digitpanel.export_results()
 
     def onButton_sort(self, evt):
+        # TODO: Add a progress bar for this, as this takes a nontrivial
+        #       amount of time on large elections.
         self.digitpanel.sort_cells()
 
     def onButton_done(self, evt):
@@ -1269,13 +1277,15 @@ def autocrop_img(img):
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
 
-def do_extract_digitbased_patches(proj, NUM_EXMPLS):
+def do_extract_digitbased_patches(proj, C, MIN, MAX):
     """ Extracts all digit-based attribute patches, and stores them
     in the proj.extracted_digitpatch_dir directory.
     Input:
         obj proj:
-        int NUM_EXMPLS: Number of ballots to randomly select IF the 
-            digit attr is NOT consistent within a single partition.
+        (The following args are used if the digitattr varies within a
+         partition)
+        int C: Suggested fraction of ballots to randomly sample.
+        int MIN, MAX: Min./Max. number of ballots to randomly sample.
     Output:
         Returns a dict mapping {str patchpath: (imgpath, attrtype, bb, int side)}
     """
@@ -1311,13 +1321,11 @@ def do_extract_digitbased_patches(proj, NUM_EXMPLS):
                 chosen_bids.add(ballotids[0])
         print "...Digit attribute is consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
     else:
-        # Randomly choose NUM_EXMPLS ballots from the election
+        # Randomly choose ballots from the election.
         candidate_balids = sum(partitions_map.values(), [])
-        chosen_bids = set()
-        if len(candidate_balids) <= NUM_EXMPLS:
-            chosen_bids = set(candidate_balids)
-        else:
-            chosen_bids = set(random.sample(candidate_balids, NUM_EXMPLS))
+        N = max(min(int(round(len(candidate_balids) * C)), MAX), MIN)
+        N = min(N, len(candidate_balids)) # If MIN < len(B), avoid oversampling
+        chosen_bids = set(random.sample(candidate_balids, N))
         print "...Digit attribute is NOT consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
 
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
