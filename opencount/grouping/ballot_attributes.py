@@ -1,4 +1,4 @@
-import os, sys, threading, multiprocessing, shutil, pdb, time
+import os, sys, threading, multiprocessing, shutil, pdb, time, random
 try:
     import cPickle as pickle
 except:
@@ -65,9 +65,12 @@ TODO
     detect if a new box/attribute was created.
 """
 
-# Number of ballots to add from each partition when considering a
+# Fraction of ballots to add from each partition when considering a
 # ballot attribute that varies within a partition.
-GRP_MODE_ALL_BALLOTS_NUM = 1000
+GRP_MODE_ALL_BALLOTS_NUM = 0.2
+
+GRP_MODE_ALL_BALLOTS_NUM_MIN = 10
+GRP_MODE_ALL_BALLOTS_NUM_MAX = 150
 
 JOBID_FIND_ATTR_MATCHES = util.GaugeID("FindAttrMatches")
 JOBID_COMPUTE_MULT_EXEMPLARS = util.GaugeID("ComputeMultExemplars")
@@ -498,17 +501,21 @@ Would you like to review the ballot annotations?",
             if not attrbox.grp_per_partition:
                 # Attr varies within each partition. Sample N ballots
                 # to label from each partition.
+                set_ballots_todo = set(self.ballots_todo)
                 for partitionid, ballotids in self.part2bals.iteritems():
-                    _cnt = 0
-                    for balid in ballotids:
-                        if _cnt >= GRP_MODE_ALL_BALLOTS_NUM:
-                            break
-                        elif balid not in self.ballots_todo:
-                            self.ballots_todo.append(balid)
-                            # Add in digit-based attrs!
-                            for digitbox in self.digit_attrs:
-                                self.boxes_map.setdefault(balid, []).append(digitbox.copy())
-                            _cnt += 1
+                    balids_candidates = [balid for balid in ballotids if balid not in set_ballots_todo]
+                    if not balids_candidates:
+                        continue
+                    n = int(GRP_MODE_ALL_BALLOTS_NUM * len(balids_candidates))
+                    n = max(min(n, GRP_MODE_ALL_BALLOTS_NUM_MAX), GRP_MODE_ALL_BALLOTS_NUM_MIN)
+                    n = min(n, len(balids_candidates))
+                    print "(Info) Sampling {0} ballots from this partition (out of {1})".format(n, len(ballotids))
+                    ballotids_chosen = random.sample(balids_candidates, n)
+                    for balid in ballotids_chosen:
+                        self.ballots_todo.append(balid)
+                        # Add in digit-based attrs!
+                        for digitbox in self.digit_attrs:
+                            self.boxes_map.setdefault(balid, []).append(digitbox.copy())
                     
         attrpatch_outdir = pathjoin(self.proj.projdir_path, 
                                     self.proj.extract_attrs_templates)
