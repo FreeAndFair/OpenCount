@@ -330,7 +330,8 @@ Would you like to review the ballot annotations?",
         if multexemplars_map != None:
             pickle.dump(multexemplars_map, open(pathjoin(self.proj.projdir_path,
                                                          self.proj.multexemplars_map), 'wb'))
-        
+        wx.MessageDialog(self, style=wx.OK,
+                         message="You may move onto the next step.").ShowModal()
 
     def restore_session(self):
         try:
@@ -592,7 +593,7 @@ Would you like to review the ballot annotations?",
             config.TIMER.stop_task("BallotAttributes_VerifyMatches_H")
         self.f.Close()
         self.Enable()
-        good_matches = verifyresults[CheckImageEquals.TAG_YES]
+        good_matches = verifyresults.get(CheckImageEquals.TAG_YES, ())
         attrtype = '_'.join(sorted(attrbox.attrtypes))
         attrval = '_'.join(sorted(attrbox.attrvals))
         print "...Number of 'good' matches for '{0}': {1}->{2}".format(len(good_matches), attrtype, attrval)
@@ -1450,7 +1451,10 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
     dict PATCHPATH2BAL: {str patchpath: int ballotid}
     """
     imgpaths = sorted(bal2imgs[src_balid], key=lambda imP: img2page[imP])
-    I = cv.LoadImage(imgpaths[attrbox.side], cv.CV_LOAD_IMAGE_GRAYSCALE)
+    imgpath_curBal = imgpaths[attrbox.side]
+    I = cv.LoadImage(imgpath_curBal, cv.CV_LOAD_IMAGE_GRAYSCALE)
+    if img2flip[imgpath_curBal]:
+        cv.Flip(I, I, -1)
     w, h = cv.GetSize(I)
     cv.SetImageROI(I, (attrbox.x1, attrbox.y1, attrbox.x2 - attrbox.x1, attrbox.y2 - attrbox.y1))
     w_attr, h_attr = cv.GetSize(I)
