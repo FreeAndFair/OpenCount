@@ -292,10 +292,12 @@ class MyTimer(object):
         for task in self.tasks_ordered:
             dur = self.total_times.get(task, "UNKNOWN")
             print >>f, "Task '{0}':".format(task)
+
             if dur == "UNKNOWN":
-                print >>f, "    UNKNOWN"
-            else:
-                print >>f, "    {0:.8f} seconds".format(dur)
+                # Record all currently-running tasks
+                dur = time.time() - self.start_times[task]
+
+            print >>f, "    {0:.8f} seconds".format(dur)
         print "(MyTimer) Writing timing statistics to: {0}".format(os.path.abspath(self.filepath))
         f.flush()
         f.close()
