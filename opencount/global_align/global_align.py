@@ -1,14 +1,24 @@
-import sys
+import sys, os, pdb
 import numpy as np
 import time
 
+from os.path import join as pathjoin
+
+import scipy, scipy.misc, numpy as np
+
 sys.path.append('..')
 import pixel_reg.imagesAlign as imagesAlign
-
 import pixel_reg.shared as sh
 
 """
 Functions that globally-align ballot images together.
+"""
+
+USAGE = """Usage:
+    python global_align.py [-h --help -help] [--num N] [--verbose] IMGPATHS REF_IMGPATH OUTDIR
+
+Aligns all images in IMGPATHS to REF_IMGPATH, and stores registered images
+to OUTDIR.
 """
 
 def align_image(I, Iref, crop=True, verbose=False):
@@ -80,3 +90,62 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     if do_nan_to_num:
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
+
+def main():
+    args = sys.argv[1:]
+
+    if '-h' in args or '--help' in args or '-help' in args:
+        print USAGE
+        exit(0)
+
+    try:
+        N = int(args[args.index('--num')+1])
+    except:
+        N = None
+
+    VERBOSE = '--verbose' in args
+
+    imgsdir = args[-3]
+    ref_imgpath = args[-2]
+    outdir = args[-1]
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    def get_imagepaths(imgsdir):
+        imgpaths = []
+        _cnt = 0
+        for dirpath, dirnames, filenames in os.walk(imgsdir):
+            for imgname in [f for f in filenames if f.lower().endswith('.png')]:
+                if N != None and _cnt >= N:
+                    return imgpaths
+                imgpath = pathjoin(dirpath, imgname)
+                imgpaths.append(imgpath)
+                _cnt += 1
+        return imgpaths
+
+    imgpaths = get_imagepaths(imgsdir)
+
+    Iref = sh.standardImread_v2(ref_imgpath, flatten=True)
+    print "Aligning against {0} images...".format(len(imgpaths))
+    t = time.time()
+    errs, errs_map = [], {}
+    for imgpath in imgpaths:
+        imgname = os.path.split(imgpath)[1]
+        I = sh.standardImread_v2(imgpath, flatten=True)
+        H, Ireg, err = align_image(I, Iref, verbose=VERBOSE)
+        errs_map[imgname] = err
+        errs.append(err)
+        outpath = pathjoin(outdir, imgname)
+        scipy.misc.imsave(outpath, Ireg)
+
+    dur = time.time() - t
+    err_mean, err_std = np.mean(errs), np.std(errs)
+    print "Err_Mean: {0}".format(err_mean)
+    print "Err_Std : {0}".format(err_std)
+    print "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
+                                                             dur / len(imgpaths))
+    pdb.set_trace()
+    
+if __name__ == '__main__':
+    main()
