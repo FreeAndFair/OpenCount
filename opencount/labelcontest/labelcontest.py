@@ -1109,6 +1109,7 @@ class LabelContest(wx.Panel):
                 if len(self.text_title.GetValue()) == 1:
                     # HACK this will break with one-character contest titles.
                     self.text_title.SetValue("")
+                    self.text_upto.SetValue(1)
                     for i,each in enumerate(self.text_targets):
                         each.Clear()
                         each.SetValue("")
@@ -1218,20 +1219,21 @@ class LabelContest(wx.Panel):
                     if len(order) == 0: continue
                     maybe = self.text[template,order[0]]
                     if len(maybe)-1 == len(self.text_targets):
-                        possible.append(maybe)
+                        possible.append((tuple(maybe),self.voteupto[template,order[0]]))
                     continue
                 for i in range(1,len(order)):
-                    if self.text[template,order[i-1]] != []:
-                        print 'itis', self.text[template,order[i-1]]
+                    #if self.text[template,order[i-1]] != []:
+                    #    print 'itis', self.text[template,order[i-1]]
                     if self.text[template,order[i-1]] == prev:
                         maybe = self.text[template,order[i]]
-                        print 'yes', len(maybe)
+                        #print 'yes', len(maybe)
                         if len(maybe)-1 == len(self.text_targets):
-                            possible.append(maybe)
+                            possible.append((tuple(maybe),self.voteupto[template,order[i]]))
             if len(possible) != 0:
-                best,ct = max(Counter(map(tuple,possible)).items(), key=lambda x: x[1])
+                (best,uptoval),ct = max(Counter(map(tuple,possible)).items(), key=lambda x: x[1])
                 print "PREFILL WITH", best
                 self.text_title.SetValue(best[0])
+                self.text_upto.SetValue(uptoval)
                 for a,b in zip(best[1:], self.text_targets):
                     b.SetValue(a)
                 showFocus(None, -3)
