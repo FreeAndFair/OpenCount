@@ -1143,7 +1143,8 @@ Then, you may resize the voting targets here.").ShowModal()
                 stats_by_ballot[uid] = {}
             stats_by_ballot[uid][e] = obs
 
-        #self.parent.boxes = dict((k,[[z for z in y if z.y1 > 700 or z.y2 > 700] for y in v]) for k,v in self.parent.boxes.items())
+        #self.parent.boxes = dict((k,[[z for z in y if z.y1 > 400 or z.y2 > 400] for y in v]) for k,v in self.parent.boxes.items())
+        #self.parent.boxes = dict((k,[[z for z in y] for y in v]) for k,v in self.parent.boxes.items())
         
         set_events([("exists", "entropy"),
                     ("target count", "entropy"),
@@ -1153,6 +1154,13 @@ Then, you may resize the voting targets here.").ShowModal()
                     ("contests by column", "entropy"),
                     ("contest width", "entropy"), 
                     ("colspread", "smaller")])
+
+        def intersect(line1, line2):
+            top = max(line1.y1, line2.y1)
+            bottom = min(line1.y2, line2.y2)
+            left = max(line1.x1, line2.x1)
+            right = min(line1.x2, line2.x2)
+            return bottom > top and right > left
         
         for pid,partition in self.parent.boxes.items():
             for i,page in enumerate(partition):
@@ -1177,6 +1185,11 @@ Then, you may resize the voting targets here.").ShowModal()
                 
                 contests = [x for x in page if type(x) == ContestBox]
                 if len(contests) == 0: continue
+
+                #observe("exists", tuple([sum([intersect(x,y) for y in contests]) == 1 for x in targets]), (pid,i))
+                if not all([sum([intersect(x,y) for y in contests]) == 1 for x in targets]):
+                    print "OH NO THIS IS BAD", pid+1, i, [x[1] for x in zip([sum([intersect(x,y) for y in contests]) == 1 for x in targets],targets) if x[0] == False]
+
                 observe("contest width", (max((x.x2-x.x1)/50 for x in contests),min((x.x2-x.x1)/50 for x in contests)), (pid,i))
                     
 
