@@ -613,6 +613,7 @@ class LabelContest(wx.Panel):
         c_id = csv.writer(open(self.proj.contest_id, "w"))
         # path, ID in select-and-group-targets file, new ID, ordering
 
+        print "Step 1"
         mapping = {}
         for num,group in enumerate(equal):
             for item in group:
@@ -641,10 +642,12 @@ class LabelContest(wx.Panel):
                 # ContestID, upto, title, (label)*
                 fout.writerow([mapping[k]]+v)
                 did[mapping[k]] = True
+        print "Step 2"
 
         pickle.dump((self.text, self.voteupto, self.grouping_cached), open(self.proj.contest_internal, "w"))
         if self.has_equiv_classes:
             pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed), open(self.proj.contest_grouping_data, "w"))
+        print "Done"
 
                     
     def setupBoxes(self):
@@ -1090,7 +1093,7 @@ class LabelContest(wx.Panel):
         """
         self.text_targets = []
 
-        def changeOptions(x, override=False):
+        def changeOptions(x, override=False, fromcombo=False):
             """
             We run this whenever we've changed the title so that we can autopopulate the rest.
             """
@@ -1103,12 +1106,14 @@ class LabelContest(wx.Panel):
 
             if self.focusIsOn == -3:
                 self.focusIsOn = -1
-                print 'okay did it'
-                self.text_title.SetValue("")
-                for i,each in enumerate(self.text_targets):
-                    each.Clear()
-                    each.SetValue("")
-                return
+                if len(self.text_title.GetValue()) == 1:
+                    # HACK this will break with one-character contest titles.
+                    self.text_title.SetValue("")
+                    self.text_upto.SetValue(1)
+                    for i,each in enumerate(self.text_targets):
+                        each.Clear()
+                        each.SetValue("")
+                    return
                 
 
             v = self.text_title.GetValue()
@@ -1132,7 +1137,6 @@ class LabelContest(wx.Panel):
                 each.AppendItems(vv[1:])
                 # And set to the default.
                 each.SetValue(vv[1+i])
-            print "SET TO", k, self.text_upto
             self.text_upto.SetValue(self.voteupto[k])
 
 
@@ -1147,12 +1151,12 @@ class LabelContest(wx.Panel):
         self.text_title = wx.ComboBox(self.textarea, -1,
                                       choices=list(Set([x[0] for x in self.text.values() if x and len(x)-1 == number_targets])),
                                       style=wx.CB_DROPDOWN, pos=(0,25))
-        self.text_title.Bind(wx.EVT_COMBOBOX, lambda x: changeOptions(x, override=True))
+        self.text_title.Bind(wx.EVT_COMBOBOX, lambda x: changeOptions(x, override=True, fromcombo=True))
         self.text_title.Bind(wx.EVT_TEXT, changeOptions)
 
         sz.Add(self.text_title)
 
-        self.focusIsOn = -99999
+        self.focusIsOn = -1
         def showFocus(where, i=-1):
             # Put a little blue box over where we're entering text
             self.focusIsOn = i
@@ -1185,7 +1189,7 @@ class LabelContest(wx.Panel):
                     wx.CallAfter(self.nextunfilled)
                 else:
                     self.text_targets[0].SetFocus()
-            elif self.focusIsOn < len(self.text_targets)-1:
+            elif self.focusIsOn < len(self.text_targets)-1 and self.focusIsOn != -2:
                 # Focus is on a target
                 if self.text_targets[self.focusIsOn] != '':
                     self.text_targets[self.focusIsOn+1].SetFocus()
@@ -1215,20 +1219,21 @@ class LabelContest(wx.Panel):
                     if len(order) == 0: continue
                     maybe = self.text[template,order[0]]
                     if len(maybe)-1 == len(self.text_targets):
-                        possible.append(maybe)
+                        possible.append((tuple(maybe),self.voteupto[template,order[0]]))
                     continue
                 for i in range(1,len(order)):
-                    if self.text[template,order[i-1]] != []:
-                        print 'itis', self.text[template,order[i-1]]
+                    #if self.text[template,order[i-1]] != []:
+                    #    print 'itis', self.text[template,order[i-1]]
                     if self.text[template,order[i-1]] == prev:
                         maybe = self.text[template,order[i]]
-                        print 'yes', len(maybe)
+                        #print 'yes', len(maybe)
                         if len(maybe)-1 == len(self.text_targets):
-                            possible.append(maybe)
+                            possible.append((tuple(maybe),self.voteupto[template,order[i]]))
             if len(possible) != 0:
-                best,ct = max(Counter(map(tuple,possible)).items(), key=lambda x: x[1])
+                (best,uptoval),ct = max(Counter(map(tuple,possible)).items(), key=lambda x: x[1])
                 print "PREFILL WITH", best
                 self.text_title.SetValue(best[0])
+                self.text_upto.SetValue(uptoval)
                 for a,b in zip(best[1:], self.text_targets):
                     b.SetValue(a)
                 showFocus(None, -3)
