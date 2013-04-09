@@ -60,6 +60,11 @@ class SelectTargetsMainPanel(OpenCountPanel):
     def start(self, proj, stateP, ocrtmpdir):
         self.proj = proj
         self.stateP = stateP
+        
+        # Maps group to reference image. Used if a different image
+        # is needed to be used for alignment purposes.
+        self.group_to_Iref = {}
+
         # GROUP2BALLOT: dict {int groupID: [int ballotID_i, ...]}
         group2ballot = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.group_to_ballots), 'rb'))
@@ -184,6 +189,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             state = pickle.load(open(self.stateP, 'rb'))
             i2groupid = state['i2groupid']
             displayed_imgpaths = state['displayed_imgpaths']
+            #self.group_to_Iref = state['group_to_Iref']
             self.i2groupid = i2groupid
             self.displayed_imgpaths = displayed_imgpaths
         except:
@@ -192,7 +198,9 @@ class SelectTargetsMainPanel(OpenCountPanel):
 
     def save_session(self):
         state = {'i2groupid': self.i2groupid,
-                 'displayed_imgpaths': self.displayed_imgpaths}
+                 'displayed_imgpaths': self.displayed_imgpaths,
+                 #'group_to_Iref': self.group_to_Iref
+                 }
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def export_results(self):
@@ -206,6 +214,10 @@ class SelectTargetsMainPanel(OpenCountPanel):
             os.makedirs(self.proj.target_locs_dir)
         except:
             pass
+        print "HERE"
+        print self.group_to_Iref
+        pickle.dump(self.group_to_Iref, open(pathjoin(self.proj.projdir_path,'group_to_Iref.p'),'wb', pickle.HIGHEST_PROTOCOL))
+
         group_targets_map = {} # maps {int groupID: [csvpath_side0, ...]}
         # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
         #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
@@ -573,11 +585,13 @@ voting target on this ballot.")
         btn_jump_partition = wx.Button(self, label="Jump to Partition...")
         btn_jump_ballot = wx.Button(self, label="Jump to Ballot...")
         btn_jump_error = wx.Button(self, label="Next Error...")
+        btn_selectIref = wx.Button(self, label="Select as reference image.")
+        btn_selectIref.Bind(wx.EVT_BUTTON, self.onButton_selectIref)
         sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
         sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_error, border=10, flag=wx.ALL)
-        
+        sizer_btn_jump.Add(btn_selectIref, border=10, flag=wx.ALL)
         btn_jump_partition.Bind(wx.EVT_BUTTON, self.onButton_jump_partition)
         btn_jump_ballot.Bind(wx.EVT_BUTTON, self.onButton_jump_ballot)
         btn_jump_error.Bind(wx.EVT_BUTTON, self.onButton_jump_error)
@@ -966,6 +980,12 @@ voting target on this ballot.")
             self.txt_totalpages.SetLabel(str(len(self.partitions[idx][0])))
             self.display_image(idx, 0, v)
 
+    def onButton_selectIref(self, evt):
+        print self.cur_j
+        S = self.parent.seltargets_panel
+        cur_groupid = self.parent.i2groupid[S.cur_i]
+        print cur_groupid
+        self.parent.group_to_Iref[cur_groupid] = self.cur_j
     def onButton_jump_page(self, evt):
         dlg = wx.TextEntryDialog(self, "Which Page Number?", "Enter Page number")
         status = dlg.ShowModal()
