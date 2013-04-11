@@ -55,6 +55,10 @@ def cropout_stuff(I, top, bot, left, right):
     return np.copy(Inew)
 
 def correctH(I, H0):
+    """ Given an image I and its transformation matrix H0 which is wrt
+    the image origin, output a new transformation matrix H that is in
+    the image coordinate system of I.
+    """
     T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
     T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
     H=np.dot(np.dot(T0,H0),T1)

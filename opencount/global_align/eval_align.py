@@ -24,14 +24,15 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
     errs_x, errs_y, errs_theta = [], [], []
     t = time.time()
     for refimgpath, dst_tpls in src2dsts.iteritems():
-        Iref = scipy.misc.imread(refimgpath, flatten=True).astype('uint8')
+        Iref = scipy.misc.imread(refimgpath, flatten=True)
         for (dstimgpath, x, y, theta, bright_amt) in dst_tpls:
-            I = scipy.misc.imread(dstimgpath, flatten=True).astype('uint8')
+            I = scipy.misc.imread(dstimgpath, flatten=True)
             if align_strat == STRAT_CV:
+                I, Iref = = I.astype('uint8'), Iref.astype('uint8')
                 Ireg, H = global_align.align_cv(I, Iref)
                 x_ = -H[0,2]
                 y_ = -H[1,2]
-                theta_ = -math.degrees(H[0,1])                
+                theta_ = -math.degrees(H[0,1])
                 x_err = x_ - x
                 y_err = y_ - y
                 theta_err = theta_ - theta
@@ -44,7 +45,7 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
                 H_new = np.dot(np.dot(T0,H),T1)               
                 x_ = -H_new[0,2] # TODO: Verify this!
                 y_ = -H_new[1,2] # TODO: Verify this!
-                theta_ = -math.degrees(math.acos(H_new[0,1])) # TODO: Verify this!
+                theta_ = -math.degrees(math.acos(H_new[0,0])) # TODO: Verify this!
                 x_err = x_ - x
                 y_err = y_ - y
                 theta_err = theta_ - theta
@@ -89,6 +90,6 @@ def main():
     print "(Y Error) Mean={0}    Std={1}".format(np.mean(errs_y), np.std(errs_y))
     print "(Theta Error) Mean={0}    Std={1}".format(np.mean(errs_theta), np.std(errs_theta))
     
-    #pdb.set_trace()
+    pdb.set_trace()
 if __name__ == '__main__':
     main()
