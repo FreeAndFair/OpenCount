@@ -29,7 +29,7 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
             I = scipy.misc.imread(dstimgpath, flatten=True)
             if align_strat == STRAT_CV:
                 I, Iref = = I.astype('uint8'), Iref.astype('uint8')
-                Ireg, H = global_align.align_cv(I, Iref)
+                H, Ireg, err_ = global_align.align_cv(I, Iref)
                 x_ = -H[0,2]
                 y_ = -H[1,2]
                 theta_ = -math.degrees(H[0,1])
