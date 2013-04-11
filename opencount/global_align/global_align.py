@@ -1,5 +1,5 @@
 import sys, os, pdb
-import numpy as np
+import numpy as np, cv2
 import time
 
 from os.path import join as pathjoin
@@ -91,6 +91,45 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
 
+def align_cv(I, Iref, fullAffine=True, resizeDims=None):
+    """ Aligns I to IREF, assuming an affine model. If FULLAFFINE is
+    True, then estimate a true affine transform (6 degrees of
+    freedom). Otherwise, limit to translation, rotation, scaling (5
+    degrees of freedom).
+    Input:
+        nparray I, nparray IREF: Must be uint8 dtype, same size.
+        bool FULLAFFINE:
+        tuple resizeDims: (int MAXDIM, int MINDIM)
+            If necessary, resize I, IREF s.t. its largest dimension is
+            MINDIM <= MAXDIM. (Put None for MINDIM if you don't care).
+    Output:
+        nparray ITRANS, nparray H
+    """
+    if resizeDims:
+        C = calc_rszFac((I.shape[1], I.shape[0]), resizeDims[0], resizeDims[1])
+        I_rsz = fastResize(I, C)
+        Iref_rsz = fastResize(I, C)
+    else:
+        I_rsz, Iref_rsz = I, Iref
+    H = cv2.estimateRigidTransform(I_rsz, Iref_rsz, True)
+    Itrans = cv2.warpAffine(I, H, (I.shape[1], I.shape[0]))
+    
+    return Itrans, H
+
+def calc_rszFac(imgsize, maxdim, mindim):
+    """ Outputs an appropriate scaling factor C s.t. the resultant
+    image dimensions satisfy the constraint that the max dimension is
+    MAXDIM, and dimensions are greater than MINDIM. MINDIM may be None
+    if you don't care.
+    """
+    if imgsize[0] <= maxdim and imgsize[1] <= maxdim:
+        return 1.0
+    C = float(maxdim) / max(imgsize)
+    if mindim != None and min(C * imgsize[0], C * imgsize[1]) < mindim:
+        C = float(mindim) / min(imgsize)
+    return C
+
+    
 def main():
     args = sys.argv[1:]
 
