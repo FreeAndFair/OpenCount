@@ -4,7 +4,7 @@ import time
 
 from os.path import join as pathjoin
 
-import scipy, scipy.misc, numpy as np
+import scipy, scipy.misc, scipy.linalg, numpy as np
 
 sys.path.append('..')
 import pixel_reg.imagesAlign as imagesAlign
@@ -102,7 +102,7 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
 
-def align_cv(I, Iref, fullAffine=False, resizeDims=None, computeErr=False):
+def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False, crop=True):
     """ Aligns I to IREF, assuming an affine model. If FULLAFFINE is
     True, then estimate a true affine transform (6 degrees of
     freedom). Otherwise, limit to translation, rotation, scaling (5
@@ -119,6 +119,11 @@ def align_cv(I, Iref, fullAffine=False, resizeDims=None, computeErr=False):
     Output:
         (nparray H, nparray IREG, float ERR).
     """
+    if crop:
+        Iref = cropout_stuff(Iref_in, 0.02, 0.02, 0.02, 0.02)
+        I = cropout_stuff(I_in, 0.02, 0.02, 0.02, 0.02)
+    else:
+        I, Iref = I_in, Iref_in
     if resizeDims:
         C = calc_rszFac((I.shape[1], I.shape[0]), resizeDims[0], resizeDims[1])
         I_rsz = sh.fastResize(I, C)
@@ -126,11 +131,26 @@ def align_cv(I, Iref, fullAffine=False, resizeDims=None, computeErr=False):
     else:
         I_rsz, Iref_rsz = I, Iref
     H = cv2.estimateRigidTransform(I_rsz, Iref_rsz, fullAffine)
-    Ireg = cv2.warpAffine(I, H, (I.shape[1], I.shape[0]))
+    try:
+        H_ = np.eye(3, dtype=H.dtype)
+        H_[:2,:] = H
+        Hinv = scipy.linalg.inv(H_)
+    except Exception as e:
+        # In rare cases, H is singular (due to OpenCV bug?), thus outputting
+        # bogus results.
+        # Try aligning Iref to I, then invert the resultant H to get the
+        # actual I->Iref transform.
+        print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
+        H_ = cv2.estimateRigidTransform(Iref_rsz, I_rsz, fullAffine)
+        H_sq = np.eye(3, dtype=H_.dtype)
+        H_sq[:2,:] = H_
+        H = scipy.linalg.inv(H_sq)[:2,:]
+
+    Ireg = cv2.warpAffine(I_in, H, (I_in.shape[1], I_in.shape[0]))
     if not computeErr:
         err = None
     else:
-        err = np.sum(np.abs(Ireg - Iref)) / float(Ireg.shape[0] * Ireg.shape[1])
+        err = np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])
     return H, Ireg, err
 
 def calc_rszFac(imgsize, maxdim, mindim):
@@ -171,6 +191,8 @@ def main():
         os.makedirs(outdir)
 
     def get_imagepaths(imgsdir):
+        if not os.path.isdir(imgsdir):
+            return [imgsdir]
         imgpaths = []
         _cnt = 0
         for dirpath, dirnames, filenames in os.walk(imgsdir):

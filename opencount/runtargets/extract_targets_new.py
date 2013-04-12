@@ -65,6 +65,8 @@ Extraction, but you just want to create the Image File:")
             os.remove(pathjoin(self.proj.projdir_path, self.proj.targetextract_quarantined))
         if os.path.exists(pathjoin(self.proj.projdir_path, "extracted_radix")): 
             shutil.rmtree(pathjoin(self.proj.projdir_path, "extracted_radix"))
+        if os.path.exists(pathjoin(self.proj.projdir_path, "extracted_diffs")):
+            shutil.rmtree(pathjoin(self.proj.projdir_path, "extracted_diffs"))
         if os.path.exists(pathjoin(self.proj.projdir_path, "targetextract_avg_intensities.p")):
             os.remove(pathjoin(self.proj.projdir_path, "targetextract_avg_intensities.p"))
         if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.ballot_to_targets)):

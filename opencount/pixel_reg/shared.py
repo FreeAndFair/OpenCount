@@ -690,16 +690,16 @@ def standardImread(fNm,flatten=False):
         I=rgb2gray(I)
     return I
 
-def standardImread_v2(imgpath, flatten=False):
-    """ Reads in IMGPATH, and outputs a numpy array with pix. intensity
-    values as floats from [0.0, 1.0].
+def standardImread_v2(imgpath, flatten=False, dtype='float32', normalize=True):
+    """ Reads in IMGPATH, and outputs a numpy array with pix. If normalize
+    is True, then intensity values will be floats from [0.0, 1.0]. O.w.
+    will be ints from [0, 255].
     """
     cvmode = cv.CV_LOAD_IMAGE_GRAYSCALE if flatten else cv.CV_LOAD_IMAGE_COLOR
     Icv = cv.LoadImageM(imgpath, cvmode)
-    #minval, maxval, minloc, maxloc = cv.MinMaxLoc(Icv)
-    #cv.Div(None, Icv, Icv, maxval)
-    Inp = np.asarray(Icv, dtype='float32')
-    Inp = Inp / 255.0
+    Inp = np.asarray(Icv, dtype=dtype)
+    if normalize:
+        Inp = Inp / 255.0
     return Inp
 
 def remove_border_topleft(A):

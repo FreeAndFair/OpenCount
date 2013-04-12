@@ -1,4 +1,4 @@
-import sys, os, pdb, time, cPickle as pickle, math
+import sys, os, pdb, time, cPickle as pickle, math, traceback
 import numpy as np, scipy.misc, cv2
 import global_align
 """
@@ -28,7 +28,8 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
         for (dstimgpath, x, y, theta, bright_amt) in dst_tpls:
             I = scipy.misc.imread(dstimgpath, flatten=True)
             if align_strat == STRAT_CV:
-                I, Iref = = I.astype('uint8'), Iref.astype('uint8')
+                I = I.astype('uint8')
+                Iref = Iref.astype('uint8') if Iref.dtype != 'uint8' else Iref
                 H, Ireg, err_ = global_align.align_cv(I, Iref)
                 x_ = -H[0,2]
                 y_ = -H[1,2]
@@ -51,7 +52,11 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
                 theta_err = theta_ - theta
             else:
                 raise Exception("Unrecognized alignment strategy: {0}".format(align_strat))
-            err = np.sum(np.abs(Ireg - Iref)) / float(Ireg.shape[0] * Ireg.shape[1])
+            try:
+                err = np.sum(np.abs(Ireg - Iref)) / float(Ireg.shape[0] * Ireg.shape[1])
+            except:
+                traceback.print_exc()
+                pdb.set_trace()
             errs_x.append(x_err)
             errs_y.append(y_err)
             errs_theta.append(theta_err)
