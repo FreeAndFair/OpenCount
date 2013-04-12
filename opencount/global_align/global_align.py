@@ -15,14 +15,19 @@ Functions that globally-align ballot images together.
 """
 
 USAGE = """Usage:
-    python global_align.py [-h --help -help] [--num N] [--verbose] [--method METHOD] IMGPATHS REF_IMGPATH OUTDIR
+    python global_align.py [-h --help -help] [--num N] [--verbose] 
+                           [--method METHOD] [--save_overlays]
+                           IMGPATHS REF_IMGPATH OUTDIR
 
 Aligns all images in IMGPATHS to REF_IMGPATH, and stores registered images
 to OUTDIR.
 
---method METHOD
+--method METHOD [Default=normal]
     Which alignment strategy to use. One of:
         normal, cvrigid
+--save_overlays
+    If given, then this will save the overlay of each IREG and IREF to OUTDIR.
+    Else, this will save just the aligned IREG to OUTDIR.
 """
 
 ALIGN_NORMAL = 'normal'
@@ -102,7 +107,8 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
 
-def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False, crop=True):
+def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
+             crop=None, rmBlkBorder=True, doSmooth=False, smooth_sigma=12):
     """ Aligns I to IREF, assuming an affine model. If FULLAFFINE is
     True, then estimate a true affine transform (6 degrees of
     freedom). Otherwise, limit to translation, rotation, scaling (5
@@ -116,20 +122,45 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
         bool COMPUTEERR:
             If True, then this estimate the alignment error by doing a
             pixel-diff between IREG and IREF. O.w. simply outputs None as err.
+        tuple CROP: (float XAMT, float YAMT)
+            If given, then this will remove a fractional amount from the
+            edges of both I and IREF. e.g. crop=(0.02, 0.04) removes 2% of
+            both left/right side, and 4% of the top/bottom sides.
+        bool RMBLKBORDER:
+            If True, then this will ignore any possible black borders
+            (that the straightener introduces) when doing alignment. This
+            operation is done /before/ CROP is considered.
     Output:
         (nparray H, nparray IREG, float ERR).
     """
-    if crop:
-        Iref = cropout_stuff(Iref_in, 0.02, 0.02, 0.02, 0.02)
-        I = cropout_stuff(I_in, 0.02, 0.02, 0.02, 0.02)
+    if rmBlkBorder:
+        I_topblk, I_botblk, I_leftblk, I_rightblk = compute_border(I_in)
+        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = compute_border(Iref_in)
+        i1, i2 = max(I_topblk, Iref_topblk), max(I_in.shape[0] - I_botblk, Iref_in.shape[0] - Iref_botblk)
+        j1, j2 = max(I_leftblk, Iref_leftblk), max(I_in.shape[1] - I_rightblk, Iref_in.shape[1] - Iref_rightblk)
+        I = I_in[i1:i2, j1:j2]
+        Iref = Iref_in[i1:i2, j1:j2]
     else:
-        I, Iref = I_in, Iref_in
+        I_topblk, I_botblk, I_leftblk, I_rightblk = 0, I_in.shape[0], 0, I_in.shape[1]
+        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = 0, Iref_in.shape[0], 0, Iref_in.shape[1]
+        I = I_in
+        Iref = Iref_in
+    if crop:
+        Iref = cropout_stuff(Iref, crop[1], crop[1], crop[0], crop[0])
+        I = cropout_stuff(I, crop[1], crop[1], crop[0], crop[0])
+
     if resizeDims:
         C = calc_rszFac((I.shape[1], I.shape[0]), resizeDims[0], resizeDims[1])
         I_rsz = sh.fastResize(I, C)
         Iref_rsz = sh.fastResize(I, C)
     else:
         I_rsz, Iref_rsz = I, Iref
+    if doSmooth:
+        #I_rsz = scipy.ndimage.filters.gaussian_filter(I_rsz, smooth_sigma, mode='nearest')
+        #Iref_rsz = scipy.ndimage.filters.gaussian_filter(Iref_rsz, smooth_sigma, mode='nearest')
+        I_rsz = cv2.GaussianBlur(I_rsz, (0,0), smooth_sigma)
+        Iref_rsz = cv2.GaussianBlur(Iref_rsz, (0,0), smooth_sigma)
+
     H = cv2.estimateRigidTransform(I_rsz, Iref_rsz, fullAffine)
     try:
         H_ = np.eye(3, dtype=H.dtype)
@@ -152,6 +183,33 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
     else:
         err = np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])
     return H, Ireg, err
+
+def compute_border(A):
+    """ Determines if the image contains rows/cols that are all black
+    (e.g. introduced by the straightener).
+    Output:
+        (int top, int bottom, int left, int right).
+    Where TOP is # of rows from top that are all black, BOT is # of
+    rows from bottom that are all black, etc.
+    """
+    h, w = A.shape
+    for i1 in xrange(h):
+        thesum = np.sum(A[i1])
+        if thesum != 0:
+            break
+    for i2 in xrange(h-1, -1, -1):
+        thesum = np.sum(A[i2])
+        if thesum != 0:
+            break
+    for j1 in xrange(w):
+        thesum = np.sum(A[:,j1])
+        if thesum != 0:
+            break
+    for j2 in xrange(w-1, -1, -1):
+        thesum = np.sum(A[:,j2])
+        if thesum != 0:
+            break
+    return i1, h - i2, j1, w - j2
 
 def calc_rszFac(imgsize, maxdim, mindim):
     """ Outputs an appropriate scaling factor C s.t. the resultant
@@ -182,6 +240,7 @@ def main():
         meth_align = ALIGN_NORMAL
 
     VERBOSE = '--verbose' in args
+    SAVE_OVERLAYS = '--save_overlays' in args
 
     imgsdir = args[-3]
     ref_imgpath = args[-2]
@@ -220,13 +279,18 @@ def main():
             H, Ireg, err = align_image(I, Iref, verbose=VERBOSE)
         elif meth_align == ALIGN_CVRIGID:
             I = fast_imread(imgpath, flatten=True, dtype='uint8')
-            H, Ireg, err = align_cv(I, Iref, computeErr=True, fullAffine=False)
+            H, Ireg, err = align_cv(I, Iref, computeErr=True, fullAffine=False,
+                                    rmBlkBorder=True, doSmooth=True)
         else:
             raise Exception("Unknown Alignment Method: {0}".format(meth_align))
         errs_map[imgname] = err
         errs.append(err)
         outpath = pathjoin(outdir, imgname)
-        scipy.misc.imsave(outpath, Ireg)
+        if SAVE_OVERLAYS:
+            overlay = Ireg + Iref
+            scipy.misc.imsave(outpath, overlay)
+        else:
+            scipy.misc.imsave(outpath, Ireg)
 
     dur = time.time() - t
     err_mean, err_std = np.mean(errs), np.std(errs)
