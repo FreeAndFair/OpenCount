@@ -112,10 +112,11 @@ class MainPanel(wx.Panel):
         for x in self.labeltext:
             self.glob2sorted_index.append(self.labeltext_alphabetical.index(x))
         self.title_names = [x[0] for x in self.labeltext_alphabetical]
+        #print 'glob {}'.format([x[0] for x in self.labeltext])
         #print 'glob2sorted {}'.format(self.glob2sorted_index)
         #print 'labeltext {}'.format(self.labeltext)
         #print 'ltalpha {}'.format(self.labeltext_alphabetical)
-        #print 'titlenames {}'.format(self.title_names)
+        #print 'sorted_titles {}'.format(self.title_names)
 
         # load saved information
         if os.path.exists(self.proj.quarantine_internal):
@@ -170,6 +171,7 @@ class MainPanel(wx.Panel):
         szv_leftpane.Add(self.szv_add_contest, border=10, flag=wx.TOP)
         szv_leftpane.Add(self.contest_panel) #, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
         szv_leftpane.Add(self.attribute_panel, border=20, flag=wx.TOP) # proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
+
         # create main panel by joining left and right panes
         szh_main = wx.BoxSizer(wx.HORIZONTAL)
         szh_main.Add(szv_leftpane, border=25, flag=wx.LEFT)
@@ -227,9 +229,9 @@ class MainPanel(wx.Panel):
         contest = self.labeltext_alphabetical[index]
         contest_name = contest[0]
         # check if contest already added
-        if contest_name in self.sizer_checklist: return
+        if (contest_name,index) in self.sizer_checklist: return
         candlist = wx.CheckListBox(self.contest_panel, size=(self.contest_pane_width, (len(contest) - 1) * 24), choices=contest[1:])
-        btn_rm = wx.Button(self.contest_panel, id=wx.ID_REMOVE, name=contest_name)
+        btn_rm = wx.Button(self.contest_panel, id=wx.ID_REMOVE, name=contest_name+'$'+str(index))
         btn_rm.Bind(wx.EVT_BUTTON, self.remove_contest_handler)
         szv = wx.BoxSizer(wx.VERTICAL)
         szh = wx.BoxSizer(wx.HORIZONTAL)
@@ -240,27 +242,29 @@ class MainPanel(wx.Panel):
         self.szv_contests.InsertSizer(0, szv, border=10, flag=wx.BOTTOM)
         self.contest_panel.Fit()
         self.contest_panel.Refresh()
-        self.sizer_checklist[contest_name] = (szv, candlist)
+        self.sizer_checklist[(contest_name,index)] = (szv, candlist)
+        self.contest_order.append(index)
 
     def remove_contest_handler(self, event):
         ''' Remove contest associated with button that triggered the event '''
         btn = event.GetEventObject()
-        contest_name = btn.GetName()
-        self.remove_contest(contest_name)
+        contest_name,index = btn.GetName().split('$')
+        self.remove_contest(contest_name, int(index))
 
-    def remove_contest(self, contest_name):
+    def remove_contest(self, contest_name, index):
         ''' Remove contest associated with button that triggered the event '''
-        contest_sizer = self.sizer_checklist[contest_name][0]
+        contest_sizer = self.sizer_checklist[(contest_name,index)][0]
         self.szv_contests.Hide(contest_sizer)
         self.szv_contests.Remove(contest_sizer)
         self.contest_panel.Fit()
         self.contest_panel.Refresh()
-        del self.sizer_checklist[contest_name]
+        del self.sizer_checklist[(contest_name,index)]
+        self.contest_order.remove(index)
 
     def clear_contests(self, event):
         ''' Clear all contests '''
-        for contest_name in [x[0] for x in self.sizer_checklist.items()]:
-            self.remove_contest(contest_name)
+        for contest_name,index in [x[0] for x in self.sizer_checklist.items()]:
+            self.remove_contest(contest_name,index)
 
     def discard_handler(self, event):
         checkbox = event.GetEventObject()
@@ -293,6 +297,7 @@ class MainPanel(wx.Panel):
         for child in self.contest_panel.GetChildren(): child.Destroy()
         self.szv_contests.Clear()
         self.sizer_checklist = {}
+        self.contest_order = []
 
         # load image
         f = Image.open(self.qfiles[n])
@@ -301,15 +306,16 @@ class MainPanel(wx.Panel):
         self.imagebox.Refresh()
 
         # load contest data
-        for contest_data in reversed(self.data[n]):
+        for contest_data in self.data[n]:
             contest_id = contest_data[0]
             contest_info = self.labeltext[contest_id]
             contest_name = contest_info[0]
-            self.add_contest(self.title_names.index(contest_name))
-            checklist = self.sizer_checklist[contest_name][1]
+            alpha_id = self.glob2sorted_index[contest_id]
+            self.add_contest(alpha_id)
+            checklist = self.sizer_checklist[(contest_name,alpha_id)][1]
             selected_candidates = []
             for i, voted in enumerate(contest_data[1:]):
-                if voted: selected_candidates.append(self.labeltext_alphabetical[self.title_names.index(contest_name)][1:][i])
+                if voted: selected_candidates.append(self.labeltext_alphabetical[alpha_id][1:][i])
             checklist.SetCheckedStrings(selected_candidates)
         if not self.data[n] and bID in self.bal2group:
             group = self.bal2group[bID]
@@ -317,11 +323,11 @@ class MainPanel(wx.Panel):
             for contestID in self.group2contests[group][self.imgpath2page[self.qfiles[n]]]:
                 new_index = self.glob2sorted_index[contestID]
                 toAdd.insert(0, new_index)
-            #print 'bid {} group {} contest {}'.format(bID, group, toAdd)
             for index in toAdd:
                 self.add_contest(index)
-            self.contest_panel.Fit()
-            self.contest_panel.Refresh()
+        self.contest_panel.Fit()
+        self.contest_panel.Refresh()
+        #print 'contest_order {}'.format(self.contest_order)
 
         # load attribute data
         attrs = []
@@ -370,8 +376,8 @@ class MainPanel(wx.Panel):
                     ballot images exist, so, no need to save contest data."
             return
         new_collected = []
-        for name, sizer_checklist in self.sizer_checklist.items():
-            contest_info = self.labeltext_alphabetical[self.title_names.index(name)]
+        for (name,index),sizer_checklist in self.sizer_checklist.items():
+            contest_info = self.labeltext_alphabetical[index]
             contestid = self.labeltext.index(contest_info)
             checked = sizer_checklist[1].GetChecked()
             votes = [contestid]
@@ -379,6 +385,8 @@ class MainPanel(wx.Panel):
                 voted = True if i in checked else False
                 votes.append(voted)
             new_collected.append(votes)
+        ballot_global_ids_sorted = [self.glob2sorted_index.index(x) for x in self.contest_order]
+        new_collected.sort(key=lambda x: ballot_global_ids_sorted.index(x[0]))
         self.data[self.curballot] = new_collected
 
         self.discardlist[self.curballot] = self.discard.GetValue()
