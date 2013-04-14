@@ -20,7 +20,18 @@ import global_align.global_align as global_align
 # Consider only the middle of the "Fill in the Arrow" voting targets
 # that Sequoia-style (e.g. SantaCruz) has. This is present because I
 # don't want to re-do select targets.
+# Note: This has not been used in quite some time. It should be safe
+#       to remove this when cleaning up.
 HACK_SANTACRUZ = False
+
+# Global Alignment Method flags.
+GALIGN_NORMAL = 42
+GALIGN_CV     = 43
+
+# Local Alignment Method flags.
+LALIGN_NORMAL = 42
+LALIGN_CV     = 43
+LALIGN_NONE   = 44
 
 def extractTargets(I,Iref,bbs,verbose=False):
     ''' Perform local alignment around each target, then crop out target  '''
@@ -31,11 +42,10 @@ def extractTargets(I,Iref,bbs,verbose=False):
     IrefM = Iref # Currently don't mask out targets, found it helps global alignment
     t0=time.clock();
     
-    IO=imagesAlign(I,IrefM,fillval=1,trfm_type='translation',rszFac=rszFac)
+    H1, I1, err = imagesAlign(I,IrefM,fillval=1,trfm_type='translation',rszFac=rszFac)
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
 
-    H1=IO[0]; I1=IO[1]
     result = []
     pFac=7;
 
@@ -50,9 +60,8 @@ def extractTargets(I,Iref,bbs,verbose=False):
         Irefc=sh.cropBb(IrefM,bbOut)
 
         rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-        IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid')
+        Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid')
 
-        Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
         targ=np.copy(sh.cropBb(Ic1,bbOff))
 
         # unwind the transformations to get the global location of the target
@@ -106,7 +115,8 @@ def correctH(I, H0):
     return H
 
 def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
-                          do_grid_opt=False):
+                          do_grid_opt=False, do_local_align=True,
+                          method_galign=GALIGN_NORMAL, method_lalign=LALIGN_NORMAL):
     """ Given an image I (voted) and a ref image Iref (blank), extracts
     boundingboxes given by BBS from I, performing local image alignment
     between I and Iref.
@@ -118,8 +128,15 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
             is performed for T. 
             If False, then a small area around each individual voting 
             target is aligned.
+        int METHOD_GALIGN:
+            Specifies which global alignment scheme to use. One of:
+                GALIGN_NORMAL, GALIGN_CV
+        int METHOD_LALIGN:
+            Specifies which local alignment scheme to use. One of:
+                LALIGN_NORMAL, LALIGN_CV, LALIGN_NONE
     Output:
         [(int targetID, nparray img, tuple bbImgLoc, float err), ...]
+        IMG will always have a dtype=uint8 in range [0,255]
     """
     ''' Perform local alignment around each target, then crop out target  '''
     # 0.) Mask out targets on Iref, coarsely-align I to Iref.
@@ -136,13 +153,59 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
 
     # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
     #                   alignment on several scales, choosing the best one
-    H1, I1, err = global_align.align_image(I, IrefM)
+    #H1, I1, err = global_align.align_image(I, IrefM)
+    orig_err = np.sum(np.abs(I - IrefM)) / float(I.shape[0] * I.shape[1])
+    if method_galign == GALIGN_NORMAL:
+        H1, I1, err_galign = global_align.align_image(I, IrefM)
+    else:
+        H1, I1, err_galign = global_align.align_cv(I, IrefM, computeErr=True, 
+                                                   rmBlkBorder=True, fullAffine=False,
+                                                   doSmooth=True, smooth_sigma=12)
+        H1_ = np.eye(3, dtype=H1.dtype)
+        H1_[:2,:] = H1
+        H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
+    FLAG_HM = err_galign - orig_err >= 5.0
+    FLAG_UNDO_GALIGN = err_galign - orig_err >= 5.0
+    FLAG_UNDO_GALIGN = False # TODO: Not sure I really want to do this
+    if FLAG_UNDO_GALIGN:
+        H1 = np.eye(3, dtype=H1.dtype)
+        I1 = I
+        err_galign = orig_err
+        
     if(verbose):
         print 'coarse align time = ',time.clock()-t0,'(s)'
     result = []
     pFac=7
+    balname = os.path.split(balP)[-1]
+    ROOTDIR = os.path.join('yolo_bad_targetextract', balname)
+    FLAG_CHECKIT = (balP.endswith('yolo_s3_062-145.png') or
+                    balP.endswith('yolo_s3_062-083.png'))
+    if FLAG_CHECKIT or FLAG_HM:
+        try: os.makedirs(ROOTDIR)
+        except: pass
+        try: os.makedirs(os.path.join(ROOTDIR, 'targets'))
+        except: pass
 
-    if not do_grid_opt:
+    if method_lalign == LALIGN_NONE:
+        if FLAG_CHECKIT or FLAG_HM:
+            misc.imsave(os.path.join(ROOTDIR, "I.png"), I)
+            misc.imsave(os.path.join(ROOTDIR, "Ireg.png"), I1)
+            misc.imsave(os.path.join(ROOTDIR, "Iref.png"), IrefM)
+            misc.imsave(os.path.join(ROOTDIR, "Ioverlay_reg.png"), I1 + IrefM)
+            misc.imsave(os.path.join(ROOTDIR, "Ioverlay_orig.png"), I + IrefM)
+            pickle.dump(bbs, open(os.path.join(ROOTDIR, 'bbs.p'), 'wb'))
+            f = open(os.path.join(ROOTDIR, '{0}'.format(err_galign - orig_err)), 'w')
+            f.close()
+
+        for i, bb in enumerate(bbs):
+            # bb := [i1, i2, j1, j2, targetID]
+            target = I1[bb[0]:bb[1], bb[2]:bb[3]]
+            if method_galign == GALIGN_NORMAL:
+                target = np.round(target * 255.0).astype('uint8')
+            if FLAG_CHECKIT or FLAG_HM:
+                misc.imsave(os.path.join(ROOTDIR, 'targets', "targ_{0}.png".format(i)), target)
+            result.append((bb[4], target, map(int, bb[:-1]), err_galign))
+    elif not do_grid_opt:
         # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
         #     then extract bb.
         for i, bb in enumerate(bbs):
@@ -151,8 +214,23 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
             I_patch = I1[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
             IrefM_patch = IrefM[bbExp[0]:bbExp[1], bbExp[2]:bbExp[3]]
             rszFac = sh.resizeOrNot(I_patch.shape, sh.LOCAL_PATCH_REG_HEIGHT)
-            H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
-                                            rszFac=rszFac, trfm_type='rigid', minArea=np.power(2, 18))
+            if method_lalign == LALIGN_NORMAL:
+                if method_galign == GALIGN_CV:
+                    I_patch = I_patch.astype('float32')
+                    I_patch[:,:] /= 255.0
+                    IrefM_patch = IrefM_patch.astype('float32')
+                    IrefM_patch[:,:] /= 255.0
+                H2, I1_patch, err = imagesAlign(I_patch, IrefM_patch, fillval=1, 
+                                                rszFac=rszFac, trfm_type='rigid', minArea=np.power(2, 18))
+                I1_patch = np.round(I1_patch * 255.0).astype('uint8')
+            elif method_lalign == LALIGN_CV:
+                if method_galign == GALIGN_NORMAL:
+                    I_patch = np.round(I_patch * 255.0).astype('uint8')
+                    IrefM_patch = np.round(IrefM_patch * 255.0).astype('uint8')
+                H2, I1_patch, err = global_align.align_cv(I1_patch, IrefM_patch, computeErr=True, 
+                                                          rmBlkBorder=True, fullAffine=False,
+                                                          doSmooth=True, smooth_sigma=12)
+
             targ = np.copy(I1_patch[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]])
             # 2.) Unwind transformation to get the global location of TARG
             rOut_tr=pttransform(I,np.linalg.inv(H1),np.array([bbExp[2],bbExp[0],1]))
@@ -173,6 +251,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         #   compute super-region and pad
         vStep=math.ceil(Iref.shape[0]/vCells);
         hStep=math.ceil(Iref.shape[1]/hCells);
+        H1_inv = np.linalg.inv(H1)
         for i in range(vCells):
             for j in range(hCells):
                 i1=i*vStep; j1=j*hStep;
@@ -189,10 +268,24 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                 IrefcNOMASK=sh.cropBb(Iref,bbOut)
                 Irefc=sh.cropBb(IrefM,bbOut)
                 rszFac=sh.resizeOrNot(Ic.shape,sh.LOCAL_PATCH_REG_HEIGHT)
-                IO=imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,18))
-                Hc1=IO[0]; Ic1=IO[1]; err=IO[2]
-                H1_inv = np.linalg.inv(H1)
+                if method_lalign == LALIGN_NORMAL:
+                    if method_galign == GALIGN_CV:
+                        Ic = Ic.astype('float32') / 255.0
+                        Irefc = Irefc.astype('float32') / 255.0
+                    Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,18))
+                    Ic1 = np.round(Ic1 * 255.0).astype('uint8')
+                elif method_lalign == LALIGN_CV:
+                    if method_galign == GALIGN_NORMAL:
+                        Ic = np.round(Ic * 255.0).astype('uint8')
+                        Irefc = np.round(Irefc * 255.0).astype('uint8')
+                    Hc1, Ic1, err = global_align.align_cv(Ic, Irefc, computeErr=True,
+                                                          rmBlkBorder=True, fullAffine=False,
+                                                          doSmooth=True, smooth_sigma=12)
+                    Hc1_sq = np.eye(3, dtype=H1.dtype)
+                    Hc1_sq[:2, :] = Hc1
+                    Hc1 = Hc1_sq
                 Hc1_inv = np.linalg.inv(Hc1)
+
                 for k in range(bbsOff.shape[0]):
                     bbOff1=bbsOff[k,:]
                     iLen=bbOff1[1]-bbOff1[0]
@@ -216,6 +309,9 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
 def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
              balP, tplP, flipped, page,
              voted_rootdir, projdir, result_queue):
+    """
+    Note: All input target images must have dtype='uint8' and in range [0,255].
+    """
     imgname = os.path.splitext(os.path.split(balP)[1])[0]
 
     relpath_root = os.path.relpath(os.path.abspath(os.path.split(balP)[0]), os.path.abspath(voted_rootdir))
@@ -248,15 +344,13 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
     for uid,img,bbox,Idiff in imgs:
         targetoutname = str(balId)+"\0"+str(page)+"\0"+str(int(uid))
         targets.append((balId, page, int(uid)))
-        img = np.nan_to_num(img)
         if not HACK_SANTACRUZ:
-            avg_intensity = 255.0 * (np.sum(img) / float(img.shape[0]*img.shape[1]))
+            avg_intensity = (np.sum(img) / float(img.shape[0] * img.shape[1]))
         else:
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
-            avg_intensity = 255.0 * (np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1]))
+            avg_intensity = np.sum(_INTEREST) / float(_INTEREST.shape[0]*_INTEREST.shape[1])
         avg_intensities.append((targetoutname, avg_intensity))
-
         diffoutname = imgname + "." + str(int(uid)) + ".npy"
         np.save(pathjoin(targetdiffout_rootdir, diffoutname), Idiff)
 
@@ -266,7 +360,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
         bboxes.append(bbox)
 
         placefile = os.path.join(radix_sort_dir, "%02x"%int(avg_intensity))
-        data = array.array("B", np.floor(img.flatten()*255.0).astype(np.uint8)).tostring()
+        data = array.array("B", np.floor(img.flatten()).astype('uint8')).tostring()
         if os.path.exists(placefile):
             open(placefile, "a").write(data)
             open(placefile+".index", "a").write(targetoutname+"\n")
@@ -460,16 +554,19 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue) = job
+    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue, method_galign, method_lalign) = job
     #print "START"
     try:
-        (tplImgs, tplPaths, tpl_flips, bbsL, balL, balId, balL_flips, targetDir, targetDiffDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue) = job
+        (tplImgs, tplPaths, tpl_flips, bbsL, balL, balId, balL_flips, targetDir, targetDiffDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue, method_galign, method_lalign) = job
         t0=time.clock();
 
         # load images
         balImL=[]
         for i, imP in enumerate(balL):
-            balImg = sh.standardImread_v2(imP, flatten=True)
+            if method_galign == GALIGN_NORMAL:
+                balImg = sh.standardImread_v2(imP, flatten=True, dtype='float32', normalize=True)
+            else:
+                balImg = sh.standardImread_v2(imP, flatten=True, dtype='uint8', normalize=False)
             if balL_flips[i]:
                 balImg = sh.fastFlip(balImg)
             balImL.append(balImg)
@@ -480,7 +577,10 @@ def convertImagesWorkerMAP(job):
         for side, tplImg in enumerate(tplImgs):
             if tplImg == None:
                 # This group didn't have its 'template' images pre-loaded
-                tplImg = sh.standardImread_v2(tplPaths[side], flatten=True)
+                if method_galign == GALIGN_NORMAL:
+                    tplImg = sh.standardImread_v2(tplPaths[side], flatten=True, dtype='float32', normalize=True)
+                else:
+                    tplImg = sh.standardImread_v2(tplPaths[side], flatten=True, dtype='uint8', normalize=False)
                 if tpl_flips[side]:
                     tplImg = sh.fastFlip(tplImg)
             tplImgPath = tplPaths[side]
@@ -490,11 +590,12 @@ def convertImagesWorkerMAP(job):
             flipped = balL_flips[side]
             writeMAP(extractTargetsRegions(balImg,tplImg,bbs,
                                            balP=balP,do_grid_opt=True,
-                                           vCells=4,hCells=4, verbose=False), 
+                                           vCells=4,hCells=4, verbose=False,
+                                           method_galign=method_galign,
+                                           method_lalign=method_lalign), 
                      targetDir, targetDiffDir, 
                      imageMetaDir, balId, balP, tplImgPath,
                      flipped, side, voted_rootdir, projdir, result_queue)
-
         queue.put(True)
     except Exception as e:
         traceback.print_exc()
@@ -504,7 +605,9 @@ def convertImagesWorkerMAP(job):
 def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, 
                            img2bal, stopped, queue, result_queue,
                            num_imgs2process,
-                           verbose=False, nProc=None):
+                           verbose=False, nProc=None,
+                           method_galign=GALIGN_NORMAL,
+                           method_lalign=LALIGN_NORMAL):
     """ Called by both single and multi-page elections. Performs
     Target Extraction.
     Input:
@@ -534,7 +637,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
 
     if nProc == None:
         nProc = sh.numProcs()
-
+    #nProc = 1
     num_jobs = len(jobs)
     
     if nProc < 2:
@@ -626,7 +729,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                     group_exmpls, bad_ballotids,
                     targetDir, targetMetaDir, imageMetaDir,
                     targetextract_quarantined, voted_rootdir, projdir, stopped=None,
-                    nProc=None):
+                    nProc=None,
+                    method_galign=GALIGN_NORMAL,
+                    method_lalign=LALIGN_NORMAL):
     """ Target Extraction routine, for the new blankballot-less pipeline.
     Input:
         dict GROUP_TO_BALLOTS: maps {groupID: [int ballotID_i, ...]}
@@ -644,6 +749,11 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         str TARGETEXTRACT_QUARANTINED: 
         fn STOPPED: Intended to be used as a way to cancel the extraction,
             i.e. returns True if we should.
+        int NPROC: Number of processors to use (if None, then # cores on machine)
+        int METHOD_GALIGN: The global alignment method to use. One of:
+            GALIGN_NORMAL, GALIGN_CV
+        int METHOD_LALIGN: The local alignmeng method to use. One of:
+            LALIGN_NORMAL, LALIGN_CV, LALIGN_NONE
     Output:
         bool WORKED. True if everything ran correctly, False o.w.
     """
@@ -680,6 +790,9 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     result_queue = manager.Queue()
     imgcount = 0
     print "Creating blank ballots; go up to", len(group_to_ballots)
+    _galignnames = {GALIGN_NORMAL: "NORMAL", GALIGN_CV: "CV"}
+    _lalignnames = {LALIGN_NORMAL: "NORMAL", LALIGN_CV: "CV", LALIGN_NONE: "NONE"}
+    print "(Info) METHOD_GALIGN={0} METHOD_LALIGN={1}".format(_galignnames[method_galign], _lalignnames[method_lalign])
     MAX_SIZE = 950 * (1e6) # In Bytes, e.g. 950 MB. Limit memory usage of template pre-loading
     cur_size = 0
     flag = False
@@ -718,6 +831,8 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         # TODO: this is kind of awkward; just a hack to keep parameters the same
         blankpaths_flips = []
         for blank in blankpaths_ordered:
+            # Recall that the images in REPSET_DIR are already corrected
+            # for possible flips
             blankpaths_flips.append(False)
 
         blankimgs = []
@@ -726,7 +841,10 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             if cur_size >= MAX_SIZE:
                 blankimgs.append(None)
             else:
-                Iblank = sh.standardImread_v2(blankpath, flatten=True)
+                if method_galign == GALIGN_NORMAL:
+                    Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='float32', normalize=True)
+                else:
+                    Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='uint8', normalize=False)
                 #if isflip:
                 #    Iblank = sh.fastFlip(Iblank)
                 cur_size += Iblank.nbytes
@@ -739,10 +857,10 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
             job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered,
                    ballotid, imgpaths_flips, targetDir, targetDiffDir, imageMetaDir, 
-                   voted_rootdir, projdir, queue, result_queue]
+                   voted_rootdir, projdir, queue, result_queue, method_galign, method_lalign]
             jobs.append(job)
             imgcount += len(imgpaths_ordered)
-    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue, imgcount, nProc=nProc)
+    avg_intensities, bal2targets = convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs, img2b, stopped, queue, result_queue, imgcount, nProc=nProc, method_galign=method_galign,method_lalign=method_lalign)
     if avg_intensities:
         # Quarantine any ballots with large error
         t = time.time()

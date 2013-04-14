@@ -153,7 +153,9 @@ class RunThread(threading.Thread):
                                                                               self.proj.targetextract_quarantined),
                                                                      self.proj.voteddir,
                                                                      self.proj.projdir_path,
-                                                                     nProc=nProc)
+                                                                     nProc=nProc,
+                                                                     method_galign=doExtract.GALIGN_NORMAL,
+                                                                     method_lalign=doExtract.LALIGN_NORMAL)
             pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
                                                        'targetextract_avg_intensities.p'), 'wb'),
                         pickle.HIGHEST_PROTOCOL)
