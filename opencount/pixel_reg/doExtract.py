@@ -164,7 +164,6 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         H1_ = np.eye(3, dtype=H1.dtype)
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
-    FLAG_HM = err_galign - orig_err >= 5.0
     FLAG_UNDO_GALIGN = err_galign - orig_err >= 5.0
     FLAG_UNDO_GALIGN = False # TODO: Not sure I really want to do this
     if FLAG_UNDO_GALIGN:
@@ -177,33 +176,12 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     result = []
     pFac=7
     balname = os.path.split(balP)[-1]
-    ROOTDIR = os.path.join('yolo_bad_targetextract', balname)
-    FLAG_CHECKIT = (balP.endswith('yolo_s3_062-145.png') or
-                    balP.endswith('yolo_s3_062-083.png'))
-    if FLAG_CHECKIT or FLAG_HM:
-        try: os.makedirs(ROOTDIR)
-        except: pass
-        try: os.makedirs(os.path.join(ROOTDIR, 'targets'))
-        except: pass
-
     if method_lalign == LALIGN_NONE:
-        if FLAG_CHECKIT or FLAG_HM:
-            misc.imsave(os.path.join(ROOTDIR, "I.png"), I)
-            misc.imsave(os.path.join(ROOTDIR, "Ireg.png"), I1)
-            misc.imsave(os.path.join(ROOTDIR, "Iref.png"), IrefM)
-            misc.imsave(os.path.join(ROOTDIR, "Ioverlay_reg.png"), I1 + IrefM)
-            misc.imsave(os.path.join(ROOTDIR, "Ioverlay_orig.png"), I + IrefM)
-            pickle.dump(bbs, open(os.path.join(ROOTDIR, 'bbs.p'), 'wb'))
-            f = open(os.path.join(ROOTDIR, '{0}'.format(err_galign - orig_err)), 'w')
-            f.close()
-
         for i, bb in enumerate(bbs):
             # bb := [i1, i2, j1, j2, targetID]
             target = I1[bb[0]:bb[1], bb[2]:bb[3]]
             if method_galign == GALIGN_NORMAL:
                 target = np.round(target * 255.0).astype('uint8')
-            if FLAG_CHECKIT or FLAG_HM:
-                misc.imsave(os.path.join(ROOTDIR, 'targets', "targ_{0}.png".format(i)), target)
             result.append((bb[4], target, map(int, bb[:-1]), err_galign))
     elif not do_grid_opt:
         # 1.) Around each bb in BBS, locally-align I_patch to Iref_patch,
