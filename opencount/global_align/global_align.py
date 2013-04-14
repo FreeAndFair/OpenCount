@@ -294,11 +294,16 @@ def main():
 
     dur = time.time() - t
     err_mean, err_std = np.mean(errs), np.std(errs)
+    file_stats = open(pathjoin(outdir, 'stats'), 'w')
     print "Err_Mean: {0}".format(err_mean)
     print "Err_Std : {0}".format(err_std)
     print "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
                                                              dur / len(imgpaths))
-    pdb.set_trace()
+    print >>file_stats, "Err_Mean: {0}".format(err_mean)
+    print >>file_stats, "Err_Std : {0}".format(err_std)
+    print >>file_stats, "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
+                                                                           dur / len(imgpaths))
+    file_stats.close()
     
 def fast_imread(imgpath, flatten=True, dtype='uint8'):
     if flatten:
