@@ -151,22 +151,23 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
     #I1 = imtransform(I, H1)
 
-    # GlobalAlign (V2): align_strong crops 5% off of borders, and does 
-    #                   alignment on several scales, choosing the best one
-    #H1, I1, err = global_align.align_image(I, IrefM)
     orig_err = np.sum(np.abs(I - IrefM)) / float(I.shape[0] * I.shape[1])
     if method_galign == GALIGN_NORMAL:
+        ERRDIFF_THR = 2.0
         H1, I1, err_galign = global_align.align_image(I, IrefM)
     else:
+        ERRDIFF_THR = 2.0
         H1, I1, err_galign = global_align.align_cv(I, IrefM, computeErr=True, 
                                                    rmBlkBorder=True, fullAffine=False,
                                                    doSmooth=True, smooth_sigma=12)
         H1_ = np.eye(3, dtype=H1.dtype)
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
-    FLAG_UNDO_GALIGN = err_galign - orig_err >= 5.0
-    FLAG_UNDO_GALIGN = False # TODO: Not sure I really want to do this
+    errdiff = err_galign / orig_err if orig_err != 0 else 1.0
+    FLAG_UNDO_GALIGN = errdiff >= ERRDIFF_THR
+    #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, errdiff)
     if FLAG_UNDO_GALIGN:
+        print "(Info) Undo-ing alignment (errdiff={0})".format(errdiff)
         H1 = np.eye(3, dtype=H1.dtype)
         I1 = I
         err_galign = orig_err
