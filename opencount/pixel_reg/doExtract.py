@@ -171,7 +171,10 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
     if FLAG_UNDO_GALIGN:
-        print "(Info) Undo-ing alignment (err_rel={0})".format(err_rel)
+        print "(Info) Undoing galign (err_rel={0}) [wrote: undo_galign.log]".format(err_rel)
+        f = open('undo_galign.log', 'a')
+        print >>f, "balP={0}, orig_err={1}, err_galign={2}, err_rel={3}".format(balP,orig_err,err_galign,err_rel)
+        f.close()
         H1 = np.eye(3, dtype=H1.dtype)
         I1 = I
         err_galign = orig_err
