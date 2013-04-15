@@ -10,6 +10,11 @@ sys.path.append('..')
 import pixel_reg.imagesAlign as imagesAlign
 import pixel_reg.shared as sh
 
+try: 
+    import matplotlib.pyplot as plt
+except:
+    print "Couldn't import matplotlib. Can't plot."
+
 """
 Functions that globally-align ballot images together.
 """
@@ -272,38 +277,66 @@ def main():
     print "Aligning against {0} images...".format(len(imgpaths))
     t = time.time()
     errs, errs_map = [], {}
+    errs_rel, errs_rel_map = [], {}
     for imgpath in imgpaths:
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
             H, Ireg, err = align_image(I, Iref, verbose=VERBOSE)
+            err_orig = np.mean(np.abs(I - Iref).flatten())
+            err_rel = err / err_orig
         elif meth_align == ALIGN_CVRIGID:
             I = fast_imread(imgpath, flatten=True, dtype='uint8')
             H, Ireg, err = align_cv(I, Iref, computeErr=True, fullAffine=False,
                                     rmBlkBorder=True, doSmooth=True)
+            err_orig = np.mean(np.abs(I - Iref))
+            err_rel = err / err_orig
         else:
             raise Exception("Unknown Alignment Method: {0}".format(meth_align))
         errs_map[imgname] = err
         errs.append(err)
+        errs_rel.append(err_rel)
+        errs_rel_map[imgname] = err_rel
         outpath = pathjoin(outdir, imgname)
         if SAVE_OVERLAYS:
             overlay = Ireg + Iref
-            scipy.misc.imsave(outpath, overlay)
+            #scipy.misc.imsave(outpath, overlay)
         else:
-            scipy.misc.imsave(outpath, Ireg)
+            pass
+            #scipy.misc.imsave(outpath, Ireg)
 
     dur = time.time() - t
     err_mean, err_std = np.mean(errs), np.std(errs)
     file_stats = open(pathjoin(outdir, 'stats'), 'w')
     print "Err_Mean: {0}".format(err_mean)
     print "Err_Std : {0}".format(err_std)
+
+    print "ErrRel_Mean: {0}".format(np.mean(errs_rel))
+    print "ErrRel_Std : {0}".format(np.std(errs_rel))
+
     print "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
                                                              dur / len(imgpaths))
     print >>file_stats, "Err_Mean: {0}".format(err_mean)
     print >>file_stats, "Err_Std : {0}".format(err_std)
+    print >>file_stats, "ErrRel_Mean: {0}".format(np.mean(errs_rel))
+    print >>file_stats, "ErrRel_Std : {0}".format(np.std(errs_rel))
+
     print >>file_stats, "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
                                                                            dur / len(imgpaths))
     file_stats.close()
+
+    fig = plt.figure()
+    p0 = fig.add_subplot(111)
+
+    hist, bins = np.histogram(errs_rel)
+    width = 0.7 * (bins[1]-bins[0])
+    center = (bins[:-1]+bins[1:]) / 2.0
+
+    p0.bar(center, hist, align='center', width=width)
+
+    fig.show()
+
+    pdb.set_trace()
     
 def fast_imread(imgpath, flatten=True, dtype='uint8'):
     if flatten:
