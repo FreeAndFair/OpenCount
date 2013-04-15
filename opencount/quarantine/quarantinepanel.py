@@ -55,13 +55,14 @@ class MainPanel(wx.Panel):
         #print 'QBALLOTS {}'.format(qballotids)
         self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
         bal2img = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))        
         self.bal2group = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group), 'rb'))
         if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap)):
             self.part2attrs = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap), 'rb'))
 
         # compute contests for each group ID to display contests for decoded ballots
         group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls), 'rb'))
-        groupID_imgpaths = [(x[0],bal2img[x[1][0]]) for x in group_exmpls.items()]
+        groupID_imgpaths = [(x[0],sorted(bal2img[x[1][0]], key=lambda imP: img2page[imP])) for x in group_exmpls.items()]
         rep_paths = [path for id_paths in groupID_imgpaths for path in id_paths[1]]
         img_contest_dict = defaultdict(list)
         for line in csv.reader(open(self.proj.contest_id)):
@@ -92,6 +93,15 @@ class MainPanel(wx.Panel):
         self.imgpath2page = {}
         for ballotid in qballotids:
             imgpaths = bal2img[ballotid]
+            try:
+                imgpaths = sorted(imgpaths, key=lambda imP: img2page[imP])
+            except KeyError as e:
+                # imgpaths won't be in img2page if BALLOTID was quarantined
+                # during decoding (since img2page is built on decoding). So,
+                # we don't know the proper order - at worst, this means that
+                # the user will have to manually correct the auto-loaded
+                # contests if it gets the front/back wrong, which is fine.
+                pass
             for i,imgpath in enumerate(imgpaths):
                 self.imgpath2page[imgpath] = i
             self.qfiles.extend(imgpaths)
