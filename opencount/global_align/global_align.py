@@ -38,7 +38,8 @@ to OUTDIR.
 ALIGN_NORMAL = 'normal'
 ALIGN_CVRIGID = 'cvrigid'
 
-def align_image(I, Iref, crop=True, verbose=False):
+def align_image(I, Iref, crop=True, verbose=False,
+                CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001):
     """ Aligns I to IREF (e.g. 'global' alignment). Both IREF and I
     must be correctly 'flipped' before you pass it to this function.
     Input:
@@ -46,20 +47,51 @@ def align_image(I, Iref, crop=True, verbose=False):
     The reference image that we are aligning against.
         nparray I
     The image that we want to align.
+        float CROPX, CROPY, OR tuple CROPX, tuple CROPY
+    The amount to crop off the top+bottom and left+right of the image (used
+    with CROP=True). 
+    If CROPX, CROPY are tuples, they must be the same length, and we will
+    try all sequential pairs until we get a relative error that is <= ERR_REL_THR. 
+    If none are <= ERR_REL_THR, then we output the alignment with smallest error.
+        float ERR_REL_THR
+    See the docstring for the tuple-version of CROPX, CROPY.
     Output:
         (nparray H, nparray IREG, float err)
     where H is the transformation matrix, IREG is the result of aligning
     I to IREF, and ERR is the alignment error (a float from [0.0, 1.0]).
     """
+    if crop and type(CROPX) in (list, tuple):
+        return _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR)
+
     if crop == True:
-        Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
-        Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
+        Iref_crop = cropout_stuff(Iref, CROPY, CROPY, CROPX, CROPX)
+        Icrop = cropout_stuff(I, CROPY, CROPY, CROPX, CROPX)
     H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)
     #Ireg = np.nan_to_num(Ireg)
     return H, Ireg, err
+
+def _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR):
+    """ Helper function for align_image. Handles trying multiple crop
+    parameters until an err_rel is found that is <= ERR_REL_THR.
+    """
+    best_H, best_Ireg, best_err = None, None, None
+    err_orig = np.mean(np.abs(I - Iref).flatten()) # L1 error, normalized by area
+    for i, cropx in enumerate(CROPX):
+        cropy = CROPY[i]
+        I_crop = cropout_stuff(I, cropy, cropy, cropx, cropx)
+        Iref_crop = cropout_stuff(Iref, cropy, cropy, cropx, cropx)
+        H, err = imagesAlign.imagesAlign(I_crop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
+        Ireg = sh.imtransform(I, H)
+        err_galign = np.mean(np.abs(Ireg - Iref).flatten())
+        err_rel = err_galign / err_orig if err_orig != 0.0 else 0.0
+        if err_rel <= ERR_REL_THR:
+            return H, Ireg, err_galign
+        elif best_H == None or err_galign < best_err:
+            best_H, best_Ireg, best_err = H, Ireg, err_galign
+    return best_H, best_Ireg, best_err
 
 def cropout_stuff(I, top, bot, left, right):
     """ Crops out some percentage from each side of I. """
@@ -282,28 +314,30 @@ def main():
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
-            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE)
+            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=(0.02, 0.04, 0.07, 0.1,0.07), CROPY=(0.02, 0.04, 0.07, 0.1, 0.3))
             err_orig = np.mean(np.abs(I - Iref).flatten())
-            err_rel = err / err_orig
+            err_galign = np.mean(np.abs(Ireg - Iref).flatten())
+            err_rel = err_galign / err_orig
         elif meth_align == ALIGN_CVRIGID:
             I = fast_imread(imgpath, flatten=True, dtype='uint8')
-            H, Ireg, err = align_cv(I, Iref, computeErr=True, fullAffine=False,
+            H, Ireg, err_galign = align_cv(I, Iref, computeErr=True, fullAffine=False,
                                     rmBlkBorder=True, doSmooth=True)
             err_orig = np.mean(np.abs(I - Iref))
-            err_rel = err / err_orig
+            err_rel = err_galign / err_orig
         else:
             raise Exception("Unknown Alignment Method: {0}".format(meth_align))
-        errs_map[imgname] = err
-        errs.append(err)
+        errs_map[imgname] = err_galign
+        errs.append(err_galign)
         errs_rel.append(err_rel)
         errs_rel_map[imgname] = err_rel
+        print "err_orig: {0}".format(err_orig)
+        print "err_galign: {0}".format(err_galign)
         outpath = pathjoin(outdir, imgname)
         if SAVE_OVERLAYS:
             overlay = Ireg + Iref
-            #scipy.misc.imsave(outpath, overlay)
+            scipy.misc.imsave(outpath, overlay)
         else:
-            pass
-            #scipy.misc.imsave(outpath, Ireg)
+            scipy.misc.imsave(outpath, Ireg)
 
     dur = time.time() - t
     err_mean, err_std = np.mean(errs), np.std(errs)

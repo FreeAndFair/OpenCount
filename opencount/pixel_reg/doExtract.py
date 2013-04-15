@@ -151,10 +151,13 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
     #I1 = imtransform(I, H1)
 
-    orig_err = np.sum(np.abs(I - IrefM)) / float(I.shape[0] * I.shape[1])
+    orig_err = np.mean(np.abs(I - IrefM).flatten()) # L1 error, normalized by area
     if method_galign == GALIGN_NORMAL:
-        ERR_REL_THR = 0.81 # 15 std devs. from santacruz1000 empirical
-        H1, I1, err_galign = global_align.align_image(I, IrefM)
+        ERR_REL_THR = 1.44 # 5 std devs. from santacruz1000 empirical
+        H1, I1, err_galign = global_align.align_image(I, IrefM, crop=True, 
+                                                      CROPX=(0.025, 0.04, 0.07, 0.1), CROPY=(0.025, 0.04, 0.07, 0.1),
+                                                      ERR_REL_THR=ERR_REL_THR)
+        err_rel = err_galign / orig_err if orig_err != 0 else 0.0
     else:
         ERR_REL_THR = 2.0
         H1, I1, err_galign = global_align.align_cv(I, IrefM, computeErr=True, 
@@ -163,11 +166,11 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         H1_ = np.eye(3, dtype=H1.dtype)
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
-    err_rel = err_galign / orig_err if orig_err != 0 else 0.0
+        err_rel = err_galign / orig_err if orig_err != 0 else 0.0
 
     #f = open('errs_rel.out', 'a')
     #print >>f, err_rel
-
+        
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
     if FLAG_UNDO_GALIGN:
@@ -271,7 +274,6 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                     Hc1_sq[:2, :] = Hc1
                     Hc1 = Hc1_sq
                 Hc1_inv = np.linalg.inv(Hc1)
-
                 for k in range(bbsOff.shape[0]):
                     bbOff1=bbsOff[k,:]
                     iLen=bbOff1[1]-bbOff1[0]
@@ -839,6 +841,8 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             if ballotid in bad_ballotids:
                 continue
             imgpaths = b2imgs[ballotid]
+            #if "/media/data1/audits2012_straight/santacruz/votedballots/3RD DISTRICT/POLLS/30041_POLLS/POLLS_30041_00047-1.png" not in imgpaths:
+            #    continue
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
             job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered,
