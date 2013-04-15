@@ -153,21 +153,25 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
 
     orig_err = np.sum(np.abs(I - IrefM)) / float(I.shape[0] * I.shape[1])
     if method_galign == GALIGN_NORMAL:
-        ERRDIFF_THR = 2.0
+        ERR_REL_THR = 0.81 # 15 std devs. from santacruz1000 empirical
         H1, I1, err_galign = global_align.align_image(I, IrefM)
     else:
-        ERRDIFF_THR = 2.0
+        ERR_REL_THR = 2.0
         H1, I1, err_galign = global_align.align_cv(I, IrefM, computeErr=True, 
                                                    rmBlkBorder=True, fullAffine=False,
                                                    doSmooth=True, smooth_sigma=12)
         H1_ = np.eye(3, dtype=H1.dtype)
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
-    errdiff = err_galign / orig_err if orig_err != 0 else 1.0
-    FLAG_UNDO_GALIGN = errdiff >= ERRDIFF_THR
-    #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, errdiff)
+    err_rel = err_galign / orig_err if orig_err != 0 else 0.0
+
+    #f = open('errs_rel.out', 'a')
+    #print >>f, err_rel
+
+    FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
+    #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
     if FLAG_UNDO_GALIGN:
-        print "(Info) Undo-ing alignment (errdiff={0})".format(errdiff)
+        print "(Info) Undo-ing alignment (err_rel={0})".format(err_rel)
         H1 = np.eye(3, dtype=H1.dtype)
         I1 = I
         err_galign = orig_err
@@ -533,7 +537,7 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplL, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue, method_galign, method_lalign) = job
+    #(tplImgs, tplPaths, tpl_flips, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue, method_galign, method_lalign) = job
     #print "START"
     try:
         (tplImgs, tplPaths, tpl_flips, bbsL, balL, balId, balL_flips, targetDir, targetDiffDir, imageMetaDir, voted_rootdir, projdir, queue, result_queue, method_galign, method_lalign) = job
