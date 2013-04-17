@@ -985,7 +985,7 @@ def compare(otexts1, otexts2, debug=False):
                              (len(texts1), order, num_writeins))
     #print otexts1
     #print otexts2
-    print "res", [x[1] for x in sorted(res.items())], best
+    #print "res", [x[1] for x in sorted(res.items())], best
     return [x[1] for x in sorted(res.items())], best
 
 def get_order(length, order, num_writeins):

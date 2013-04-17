@@ -35,8 +35,8 @@ def align_image(I, Iref, crop=True, verbose=False):
     I to IREF, and ERR is the alignment error (a float from [0.0, 1.0]).
     """
     if crop == True:
-        Iref_crop = cropout_stuff(Iref, 0.02, 0.02, 0.02, 0.02)
-        Icrop = cropout_stuff(I, 0.02, 0.02, 0.02, 0.02)
+        Iref_crop = cropout_stuff(Iref, 0.07, 0.07, 0.02, 0.02)
+        Icrop = cropout_stuff(I, 0.07, 0.07, 0.02, 0.02)
     H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
     if verbose:
         print "Alignment Err: ", err

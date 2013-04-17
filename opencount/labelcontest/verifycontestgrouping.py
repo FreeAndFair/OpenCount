@@ -56,7 +56,7 @@ def make_norm(I, Iref):
 
     return Inorm
 
-
+@pdb_on_crash
 def align(groupid, dat):
     res = []
     translations = []
@@ -68,7 +68,8 @@ def align(groupid, dat):
             left_border = 0
         else:
             # Skip the voting target for the rest
-            left_border = 80
+            #left_border = 80
+            left_border = 0
         
         Iref_orig=sh.standardImread(group[0],flatten=True)
         Iref = Iref_orig[:,left_border:]
@@ -134,7 +135,7 @@ class VerifyContestGrouping:
 
         print "Go up to", len(self.processgroups)
 
-        res = map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
+        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
         res = [x for y in res for x in y]
         
         print len(res), map(len,res)
