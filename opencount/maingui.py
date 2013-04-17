@@ -364,7 +364,7 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
         elif new == MainFrame.QUARANTINE:
             if config.TIMER:
                 config.TIMER.start_task("Quarantine_Total")
-            self.panel_quarantine.start(self.project)
+            self.panel_quarantine.start(self.project, self.GetSize())
         elif new == MainFrame.PROCESS:
             if config.TIMER:
                 config.TIMER.start_task("GenerateResults_Total")

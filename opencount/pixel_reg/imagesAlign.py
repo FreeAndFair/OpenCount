@@ -50,6 +50,21 @@ def imagesAlign(I,Iref,fillval=np.nan,trfm_type='similarity',
     else:
         Iref1=Iref
 
+    WARN_USER, ORIG_DTYPE = False, None
+    if I1.dtype != 'float32':
+        WARN_USER, ORIG_DTYPE = True, I1.dtype
+        I1 = I1.astype('float32')
+    if Iref1.dtype != 'float32':
+        WARN_USER, ORIG_DTYPE = True, Iref1.dtype
+        Iref1 = Iref1.astype('float32')
+    if WARN_USER:
+        print "(Info) imagesAlign was called with input image dtype={0}. \
+imagesAlign expects image dtype='float32' (Also, intensity vals in range \
+[0.0,1.0]. The image dtype conversion was \
+automatically done, but this slows down the computation a little. Consider \
+trying to work in 'float32' in the first place if convenient for a little \
+speed boost.".format(ORIG_DTYPE)
+
     t1 = time.clock()
     # check if more than one vertical and horizontal cell
     if (vCells>1) and (hCells>1):
