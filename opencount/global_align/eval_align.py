@@ -7,25 +7,52 @@ A script that evaluates alignment methods against a synthetic test set
 """
 
 USAGE = """Usage:
-    python eval_align.py [-h --help -help] [--debug]
+    python eval_align.py [-h --help -help] [--debug] [--cache]
                          [--align STRAT] TESTSET
 --align STRAT
     Which alignment strategy to use. One of:
         align_cv, align_ncc
+--cache
+    Cache the reference images in-memory (uses more memory).
 """
 
 STRAT_CV = 'align_cv'
 STRAT_NCC = 'align_ncc'
 
-def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
+def eval_testset(testsetdir, align_strat=STRAT_CV,
+                 debug=False, CACHE_IMG=None):
+    # dict SRC2DSTS: {str srcimgP: tuple (dstimgP, x, y, theta, bright_amt)}
     src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p'), 'rb'))
+    # dict DST2SRC: {str dstimgP: str srcimgP}
     dst2src = pickle.load(open(os.path.join(testsetdir, 'dst2src.p'), 'rb'))
     errs = []
     errs_x, errs_y, errs_theta = [], [], []
-    t = time.time()
+    errs_map = {} # maps {(str srcimgP, str dstimgP): (tuple P_EXPECTED, tuple P_ESTIMATED)}
+    t_start = time.time()
+    def load_img(imP):
+        I = CACHE_IMG.get(imP, None) if CACHE_IMG else None
+        if I == None:
+            I = scipy.misc.imread(imP, flatten=True)
+            if CACHE_IMG != None:
+                CACHE_IMG[imP] = I
+        return I
+    N = len(src2dsts) * len(src2dsts[src2dsts.keys()[0]])
+    i = 0
+    t_prev = time.time()
+    step = N / 10.0 # Print out at each 10% interval
+    def update_status():
+        t_cur = time.time()
+        dur_step = t_cur - t_prev
+        n_remain = N - i
+        est = ((dur_step / float(step)) * n_remain) / 60.0 # est. time left in minutes
+        if i % step == 0:
+            print "...{0:.2f}% complete... ({1} left, {2:.4f} min. left)".format(100.0 * (i / float(N)), n_remain, est)
+
     for refimgpath, dst_tpls in src2dsts.iteritems():
-        Iref = scipy.misc.imread(refimgpath, flatten=True)
+        Iref = load_img(refimgpath)
         for (dstimgpath, x, y, theta, bright_amt) in dst_tpls:
+            update_status()
+            t_prev = time.time()
             I = scipy.misc.imread(dstimgpath, flatten=True)
             if align_strat == STRAT_CV:
                 I = I.astype('uint8')
@@ -43,23 +70,24 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
                 #       doing the right thing?
                 T0=np.eye(3); T0[0,2]=Ireg.shape[1]/2.0; T0[1,2]=Ireg.shape[0]/2.0
                 T1=np.eye(3); T1[0,2]=-Ireg.shape[1]/2.0; T1[1,2]=-Ireg.shape[0]/2.0
-                H_new = np.dot(np.dot(T0,H),T1)               
+                H_new = np.dot(np.dot(T0,H),T1)
                 x_ = -H_new[0,2] # TODO: Verify this!
                 y_ = -H_new[1,2] # TODO: Verify this!
-                theta_ = -math.degrees(math.acos(H_new[0,0])) # TODO: Verify this!
+                H00 = min(max(H_new[0,0], -1.0), 1.0) # clamp to [-1.0, 1.0] to avoid numerical instability
+                theta_= -math.degrees(math.acos(H00)) # TODO: Verify this!
                 x_err = x_ - x
                 y_err = y_ - y
                 theta_err = theta_ - theta
             else:
                 raise Exception("Unrecognized alignment strategy: {0}".format(align_strat))
-            try:
-                err = np.sum(np.abs(Ireg - Iref)) / float(Ireg.shape[0] * Ireg.shape[1])
-            except:
-                traceback.print_exc()
-                pdb.set_trace()
+            err = np.mean(np.abs(Ireg - Iref)) # L1 error of pixel intensity values
             errs_x.append(x_err)
             errs_y.append(y_err)
             errs_theta.append(theta_err)
+            P_expected = (x, y, theta, bright_amt)
+            P_estimate = (x_, y_, theta_, None)
+            errs_map.setdefault((refimgpath, dstimgpath), []).append((P_expected, P_estimate))
+            errs.append(err)
             if debug:
                 print H
                 print "(Found): x={0} y={1} theta={2}".format(x_, y_, theta_)
@@ -69,9 +97,10 @@ def eval_testset(testsetdir, align_strat=STRAT_CV, debug=False):
                 A = Iref + Ireg
                 scipy.misc.imsave("overlay.png", A)
                 pdb.set_trace()
-            errs.append(err)
-    dur = time.time() - t
-    return errs, errs_x, errs_y, errs_theta, dur
+            i += 1
+
+    dur_total = time.time() - t_start
+    return errs_map, errs, errs_x, errs_y, errs_theta, dur_total
 
 def main():
     args = sys.argv[1:]
@@ -83,10 +112,12 @@ def main():
     except:
         align_strat = STRAT_CV
     debug = '--debug' in args
+    do_cache = '--cache' in args
     testsetdir = args[-1]
-    
+
+    CACHE_IMG = {} if do_cache else None
     print "...Evaluating the testset at: {0} (with align_strat={1})".format(testsetdir, align_strat)
-    errs, errs_x, errs_y, errs_theta, dur = eval_testset(testsetdir, align_strat=align_strat, debug=debug)
+    errs_map, errs, errs_x, errs_y, errs_theta, dur = eval_testset(testsetdir, align_strat=align_strat, debug=debug, CACHE_IMG=CACHE_IMG)
     print "...Done Evaluating ({0} secs)".format(dur)
     print "    Average per Alignment: {0} secs".format(dur / float(len(errs)))
     print
