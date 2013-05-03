@@ -372,6 +372,10 @@ def main():
 
     fig = plt.figure()
     p0 = fig.add_subplot(111)
+    p0.set_title("Histogram of Reduction in error (aka Pre-align-error / Post-align-error).\n\
+If >1.0, then alignment introduced more error.")
+    p0.set_xlabel("Ratio of Pre-align-error / Post-align-error")
+    p0.set_ylabel("Occurrences")
 
     hist, bins = np.histogram(errs_rel)
     width = 0.7 * (bins[1]-bins[0])
@@ -381,7 +385,7 @@ def main():
 
     fig.show()
 
-    pdb.set_trace()
+    raw_input("Press (enter) to continue.")
     
 def fast_imread(imgpath, flatten=True, dtype='uint8'):
     if flatten:
