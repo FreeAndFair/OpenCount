@@ -39,7 +39,8 @@ ALIGN_NORMAL = 'normal'
 ALIGN_CVRIGID = 'cvrigid'
 
 def align_image(I, Iref, crop=True, verbose=False,
-                CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001):
+                CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001,
+                RSZFAC=0.15):
     """ Aligns I to IREF (e.g. 'global' alignment). Both IREF and I
     must be correctly 'flipped' before you pass it to this function.
     Input:
@@ -66,7 +67,10 @@ def align_image(I, Iref, crop=True, verbose=False,
     if crop == True:
         Iref_crop = cropout_stuff(Iref, CROPY, CROPY, CROPX, CROPX)
         Icrop = cropout_stuff(I, CROPY, CROPY, CROPX, CROPX)
-    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
+    else:
+        Icrop, Iref_crop = I, Iref
+
+    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False)
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)
@@ -203,22 +207,29 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
         H_ = np.eye(3, dtype=H.dtype)
         H_[:2,:] = H
         Hinv = scipy.linalg.inv(H_)
-    except Exception as e:
+    except (np.linalg.linalg.LinAlgError, ValueError) as e:
         # In rare cases, H is singular (due to OpenCV bug?), thus outputting
         # bogus results.
         # Try aligning Iref to I, then invert the resultant H to get the
         # actual I->Iref transform.
-        print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
+        #print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
         H_ = cv2.estimateRigidTransform(Iref_rsz, I_rsz, fullAffine)
-        H_sq = np.eye(3, dtype=H_.dtype)
-        H_sq[:2,:] = H_
-        H = scipy.linalg.inv(H_sq)[:2,:]
+        if np.any(np.isnan(H_)) or np.any(np.isinf(H_)):
+            H = np.eye(3, dtype=H_.dtype)[:2,:]
+        else:
+            H_sq = np.eye(3, dtype=H_.dtype)
+            H_sq[:2,:] = H_
+            try:
+                H = scipy.linalg.inv(H_sq)[:2,:]
+            except np.linalg.linalg.LinAlgError as e:
+                #print "SINGULAR MATRIX AGAIN! Uhoh. Outputting Identity mat."
+                H = np.eye(3, dtype=H.dtype)[:2,:]
 
     Ireg = cv2.warpAffine(I_in, H, (I_in.shape[1], I_in.shape[0]))
     if not computeErr:
         err = None
     else:
-        err = np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])
+        err = (np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])) / 255.0
     return H, Ireg, err
 
 def compute_border(A):
@@ -314,7 +325,7 @@ def main():
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
-            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=(0.02, 0.04, 0.07, 0.1,0.07), CROPY=(0.02, 0.04, 0.07, 0.1, 0.3))
+            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.02, CROPY=0.02)
             err_orig = np.mean(np.abs(I - Iref).flatten())
             err_galign = np.mean(np.abs(Ireg - Iref).flatten())
             err_rel = err_galign / err_orig
