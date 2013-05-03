@@ -235,7 +235,7 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 print "(Expect): x={0}, y={1}, theta={2}".format(x,y,theta)
                 print "Err:", err
                 print "x_err={0} y_err={1} theta_err={2}".format(x_err, y_err, theta_err)
-                fig = plotimages(I, Iref, Ireg, x_, y_, theta_, x, y, theta, err)
+                fig = plotimages(I, Iref_orig, Ireg, x_, y_, theta_, x, y, theta, err)
                 pdb.set_trace()
             i += 1
 
