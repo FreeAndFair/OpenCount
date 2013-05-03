@@ -609,12 +609,14 @@ def experiment_compare_align_strats(args):
     num_ballots, num_alignments = get_nums()
 
     fig_accs = plt.figure()
-    fig_accs.suptitle("Goodness of Alignments (Num Ballots={0} Num Alignments={1})".format(num_ballots, num_alignments))
+    fig_accs.suptitle("Experiment: CompareAligns. Alignment Accuracy (Num Ballots={1} Num Alignments={2})\n\
+testset={3}".format(align_strat, num_ballots, num_alignments, testsetdir))
 
     p_accs = fig_accs.add_subplot(111)
     p_accs.set_title("Accuracy")
     p_accs.set_xlabel("Allowed Slack. 0 is most strict (perfect), end allows {0} pixel translation, {1} degree rotation slack.".format(TRANS_TOLS[-1], THETA_TOLS[-1]))
     p_accs.set_ylabel("Percentage of 'Good' Alignments")
+    p_accs.set_xticks(xrange(1, len(strat2goodbadcnts[strat2goodbadcnts.keys()[0]])))
     COLORS = ("b", "r", "g")
 
     for i_align, (align_strat, tols2cnts) in enumerate(sorted(strat2goodbadcnts.iteritems())):
@@ -655,6 +657,9 @@ def experiment_compare_align_strats(args):
         for i_align, (align_strat, data) in enumerate(sorted(strat2data.iteritems())):
             COLOR = COLORS[i_align]
             bar = plot_hist(data, plot, color=COLOR, alpha=0.5, width=width)
+            hist, bins = np.histogram(data, bins=50)
+            plot.axvline(x=bins[0], color=COLOR)
+            plot.axvline(x=bins[-1], color=COLOR)
             bars.append((align_strat, bar))
         plot.legend([b[1][0] for b in bars], [b[0] for b in bars])
         return plot
@@ -864,7 +869,7 @@ def experiment_vary_contrast_patches(args):
     num_ballots, num_alignments = get_nums()
 
     fig0 = plt.figure()
-    fig0.suptitle("Experiment: VaryContrast (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+    fig0.suptitle("Experiment: VaryContrastPatches (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
 
     plot_xerrs = fig0.add_subplot(221)
     plot_xerrs.set_title("ALPHA vs. Abs X Errors")
