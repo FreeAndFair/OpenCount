@@ -40,7 +40,7 @@ ALIGN_CVRIGID = 'cvrigid'
 
 def align_image(I, Iref, crop=True, verbose=False,
                 CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001,
-                RSZFAC=0.15):
+                RSZFAC=0.15, MINAREA=None):
     """ Aligns I to IREF (e.g. 'global' alignment). Both IREF and I
     must be correctly 'flipped' before you pass it to this function.
     Input:
@@ -56,11 +56,22 @@ def align_image(I, Iref, crop=True, verbose=False,
     If none are <= ERR_REL_THR, then we output the alignment with smallest error.
         float ERR_REL_THR
     See the docstring for the tuple-version of CROPX, CROPY.
+        int MINAREA
+    This parameter dictates how "far down" the pyramid optimization should
+    downscale the image. For instance, if MINAREA is K, then a new pyramid
+    level will be created by downscaling the image by a factor of 2.0 until
+    the image area is <= K. 
+    Larger values of MINAREA mean that alignment is done at larger scales,
+    which will lead to better accuracy, but may take more time. Smaller
+    values of MINAREA incur better speedsup, but potentially at the cost
+    of accuracy. The default value 2**16 is a reasonable value for accuracy.
     Output:
         (nparray H, nparray IREG, float err)
     where H is the transformation matrix, IREG is the result of aligning
     I to IREF, and ERR is the alignment error (a float from [0.0, 1.0]).
     """
+    if MINAREA == None:
+        MINAREA = np.power(2, 16)
     if crop and type(CROPX) in (list, tuple):
         return _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR)
 
@@ -70,7 +81,7 @@ def align_image(I, Iref, crop=True, verbose=False,
     else:
         Icrop, Iref_crop = I, Iref
 
-    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False)
+    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False, minArea=MINAREA)
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)

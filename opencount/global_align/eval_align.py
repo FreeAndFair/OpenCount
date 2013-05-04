@@ -70,6 +70,8 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
                  cropx=0.02, cropy=0.02, rszfac=0.15,
                  CONTRAST_NUM=None, CONTRAST_W=None, CONTRAST_H=None, CONTRAST_ALPHA=None,
                  CONTRAST_BBOXES=None,
+                 alt_refimgpath=None,
+                 minArea=None,
                  show_overlays_interactive=False,
                  show_progress=True):
     """ Evaluates the global alignment method on a testset.
@@ -95,6 +97,8 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     userdata = {}
     t_start = time.time()
     def load_img(imP, dtype='float32', normalize=True):
+        if alt_refimgpath != None:
+            imP = alt_refimgpath
         I = CACHE_IMG.get(imP, None) if CACHE_IMG else None
         if I == None:
             I = standardImread_v2(imP, flatten=True, dtype=dtype, normalize=normalize)
@@ -199,7 +203,8 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                     userdata.setdefault('inkstats', []).append((I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd))
 
                 H, Ireg, err_ = global_align.align_image(I, Iref, verbose=False,
-                                                         CROPX=cropx, CROPY=cropy, RSZFAC=rszfac)
+                                                         CROPX=cropx, CROPY=cropy, RSZFAC=rszfac,
+                                                         MINAREA=minArea)
                 err = np.mean(np.abs(Ireg - Iref_orig))
                 # H is an Affine matrix:
                 #     [cos(R) , sin(R), t_x]
@@ -448,7 +453,7 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
         crop2aggerrs = {} # maps {float CROP: [aggerr_p_0, ...]}
         for (cropx, cropy, rszfac), data in errs_all.iteritems():
             # dict errs_map: maps {(srcpath, dstpath): (P_expected, P_found)}
-            errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = data
+            errs_map, errs, errs_x, errs_y, errs_theta, dur = data
             if not np.allclose(cropx, cropy):
                 continue
             crop_vs_Xerrs[cropx] = np.abs(errs_x)
@@ -917,6 +922,195 @@ def plot_errorbars(x2ys, plot):
     plot.errorbar(xs_, ys_, yerr=CIs, fmt='ro')
     return plot
 
+def experiment_alt_refimg(args):
+    """ Aligns each image in the testset to alternate reference images (rather
+    than to the ground-truth ref image. Compares to aligning against the ground-truth
+    refimg.
+    """
+    testsetdir = args.testsetdir
+    outpath = args.out
+    align_strat = args.align_strat
+    debug = args.debug
+    N = args.n
+
+    if align_strat != STRAT_LK:
+        print "(Error) Must use align_strat=align_lk (passed in:)", align_strat
+        return
+
+    def get_nums():
+        src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
+        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
+        return num_ballots, num_alignments
+    def get_refimgpaths(alt_refimgsdir):
+        imgpaths_out = []
+        if not os.path.isdir(alt_refimgsdir):
+            return [alt_refimgsdir]
+        for dirpath, dirnames, filenames in os.walk(alt_refimgsdir):
+            for imgname in [f for f in filenames if f.lower().endswith('.png')]:
+                imgpaths_out.append(os.path.join(dirpath, imgname))
+        return imgpaths_out
+
+    num_ballots, num_alignments = get_nums()
+
+    alt_refimgsdir = args.alt_refimg
+    alt_refimgpaths = get_refimgpaths(alt_refimgsdir)
+    ref2xerrs, ref2yerrs, ref2terrs, ref2L1norms = {}, {}, {}, {}
+    t_total = time.time()
+    for i, refimgpath in enumerate(sorted(alt_refimgpaths)):
+        print "({0}/{1}) Trying refimg={2}".format(i+1, len(alt_refimgpaths), refimgpath)
+        t = time.time()
+        
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
+                                                                                 debug=debug, NUM_BALLOTS=N,
+                                                                                 alt_refimgpath=refimgpath,
+                                                                                 show_overlays_interactive=args.interactive)
+        ref2xerrs[refimgpath] = np.abs(errs_x)
+        ref2yerrs[refimgpath] = np.abs(errs_y)
+        ref2terrs[refimgpath] = np.abs(errs_theta)
+        ref2L1norms[refimgpath] = errs
+
+        dur = time.time() -t
+        print "Done with iter {0}/{1} ({2:.4f}s)".format(i+1, len(alt_refimgpaths), dur)
+
+    fig0 = plt.figure()
+    fig0.suptitle("Experiment: Alt. Refimgs. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+
+    refpath2refname = {}
+    for refimgpath in alt_refimgpaths:
+        refpath2refname[refimgpath] = os.path.split(refimgpath)[1]
+
+    plot_xerrs = fig0.add_subplot(221)
+    plot_xerrs.set_title("Abs. X Error Histogram across refimgs")
+    plot_xerrs.set_xlabel("Abs. X Error (pixels)")
+    plot_stacked_hists(ref2xerrs, plot_xerrs, labels=refpath2refname)
+
+    plot_yerrs = fig0.add_subplot(222)
+    plot_yerrs.set_title("Abs. Y Error Histogram across refimgs")
+    plot_yerrs.set_xlabel("Abs. Y Error (pixels)")
+    plot_stacked_hists(ref2yerrs, plot_yerrs, labels=refpath2refname)
+
+    plot_terrs = fig0.add_subplot(223)
+    plot_terrs.set_title("Abs. Theta Error Histogram across refimgs")
+    plot_terrs.set_xlabel("Abs Theta Error (degrees)")
+    plot_stacked_hists(ref2terrs, plot_terrs, labels=refpath2refname)
+
+    plot_L1norms = fig0.add_subplot(224)
+    plot_L1norms.set_title("L1 norms (btwn Ireg, Iref) Histogram across refimgs")
+    plot_L1norms.set_xlabel("L1 norm (ranges from [0.0, 1.0])")
+    plot_stacked_hists(ref2L1norms, plot_L1norms, labels=refpath2refname)
+
+    dur_total = time.time() - t_total
+    print "Done ({0:.4f}s total)".format(dur_total)
+
+    fig0.show()
+
+    pdb.set_trace()
+
+def experiment_vary_minarea(args):
+    """ Investigate the affect of varying the minarea parameter, i.e. how much
+    to lean on the pyramid optimization.
+    """
+    testsetdir = args.testsetdir
+    outpath = args.out
+    align_strat = args.align_strat
+    interactive_overlays = args.interactive
+    debug = args.debug
+    N = args.n
+
+    if args.minarea != None:
+        k_low, k_high, k_step = args.minarea
+        refimgpath = None
+    else:
+        k_low, k_high, k_step, refimgpath = args.minarea_refimg
+        k_low, k_high, k_step = float(k_low), float(k_high), float(k_step)
+        print "Using alternate refimg={0}".format(refimgpath)
+
+    ks = np.linspace(k_low, k_high, num=math.ceil((k_high - k_low) / k_step), endpoint=True)
+    
+    t_total = time.time()
+    k2xerrs, k2yerrs, k2terrs, k2L1norms = {}, {}, {}, {}
+    for i, k in enumerate(ks):
+        minArea = np.power(2, k)
+        print "({0}/{1}) Running with minArea={2}".format(i+1, len(ks), minArea)
+        t = time.time()
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
+                                                                                 debug=debug, NUM_BALLOTS=N,
+                                                                                 minArea=minArea,
+                                                                                 alt_refimgpath=refimgpath,
+                                                                                 show_overlays_interactive=args.interactive)
+        k2xerrs[k] = np.abs(errs_x)
+        k2yerrs[k] = np.abs(errs_y)
+        k2terrs[k] = np.abs(errs_theta)
+        k2L1norms[k] = errs
+        dur = time.time() - t
+        print "Iter Finished ({0:.4f}s) ({1}/{2})".format(dur, i+1, len(ks))
+
+    dur_total = time.time() - t_total
+
+    def get_nums():
+        src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
+        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
+        return num_ballots, num_alignments
+    num_ballots, num_alignments = get_nums()
+
+    print "Done. ({0:.4f}s)".format(dur_total)
+
+    fig0 = plt.figure()
+    fig0.suptitle("Experiment: varyMinArea. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+
+    plot_xerrs = fig0.add_subplot(221)
+    plot_xerrs.set_title("Abs. X Error across K (minArea := 2**K)")
+    plot_xerrs.set_xlabel("K")
+    plot_xerrs.set_ylabel("Abs. X Error (Pixels)")
+    plot_errorbars(k2xerrs, plot_xerrs)
+
+    plot_yerrs = fig0.add_subplot(222)
+    plot_yerrs.set_title("Abs. Y Error across K (minArea := 2**K)")
+    plot_yerrs.set_xlabel("K")
+    plot_yerrs.set_ylabel("Abs. Y Error (pixels)")
+    plot_errorbars(k2yerrs, plot_yerrs)
+
+    plot_terrs = fig0.add_subplot(223)
+    plot_terrs.set_title("Abs. Theta Error across K (minArea := 2**K)")
+    plot_terrs.set_xlabel("K")
+    plot_terrs.set_ylabel("Abs Theta Error (degrees)")
+    plot_errorbars(k2terrs, plot_terrs)
+
+    plot_L1norms = fig0.add_subplot(224)
+    plot_L1norms.set_title("L1 norms across K (minArea := 2**K)")
+    plot_L1norms.set_xlabel("K")
+    plot_L1norms.set_ylabel("L1 norm (ranges from [0.0, 1.0])")
+    plot_errorbars(k2L1norms, plot_L1norms)
+
+    fig0.show()
+
+    pdb.set_trace()
+
+def plot_stacked_hists(x2data, plot, labels=None):
+    """ For each set of (x->DATA) in X2DATA, plot each DATA histogram onto
+    PLOT, with different colors.
+    Input:
+        dict LABELS: {X: str label}
+    """
+    COLORS = ("b", "g", "r", "c", "m", "y")
+    bars = [] # [(x, Plot bar), ...]
+    width = 0.0
+    for _, data in x2data.iteritems():
+        hist, bins = np.histogram(data, bins=50)
+        width = max(width, 0.7 * (bins[1] - bins[0]))
+    for i, (x, data) in enumerate(sorted(x2data.iteritems())):
+        COLOR = COLORS[i % len(COLORS)]
+        bar = plot_hist(data, plot, color=COLOR, alpha=0.5, width=width)
+        hist, bins = np.histogram(data, bins=50)
+        plot.axvline(x=bins[0], color=COLOR)
+        plot.axvline(x=bins[-1], color=COLOR)
+        bars.append((x, bar))
+    if labels != None:
+        plot.legend([tup[1][0] for tup in bars], [labels[x] for (x,bar) in bars])
+    return plot
+
 def parse_args():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     ## Positional Arguments
@@ -971,6 +1165,21 @@ experiment.",
 the N,W,H values don't matter. This overrides N,W,H.",
                         nargs='+')
 
+    parser.add_argument("--alt_refimg", help="Use alternate reference images in IREFDIR. \
+For sensible results, each SRCIMG in the testset must already be aligned to each image in \
+IREFDIR (each image in IREFDIR must also be aligned to each other). IREFDIR may also point \
+to a single refimg.",
+                        metavar="IREFDIR")
+
+    parser.add_argument("--minarea", help="Investigate effect of increasing the minArea \
+parameter of imagesAlign, which controls the pyramid optimization. Input ints are used as \
+the exponent in: minArea = 2 ** K. ",
+                        metavar=("K_LOW", "K_HIGH", "K_STEP"), nargs=3, type=float)
+
+    parser.add_argument("--minarea_refimg", help="Run the minarea experiment, but with \
+using a different refimg.",
+                        metavar=("K_LOW", "K_HIGH", "K_STEP", "IREF"), nargs=4)
+
     args = parser.parse_args()
     return args
 
@@ -993,6 +1202,10 @@ def main():
         return experiment_vary_contrast_patches(args)
     elif args.vary_contrast != None:
         return experiment_vary_contrast(args)
+    elif args.alt_refimg != None:
+        return experiment_alt_refimg(args)
+    elif args.minarea != None or args.minarea_refimg != None:
+        return experiment_vary_minarea(args)
     elif not args.restore:
         print "...Evaluating the testset at: {0} (with align_strat={1})".format(testsetdir, align_strat)
         cropx, _, cropy, _ = args.crop
