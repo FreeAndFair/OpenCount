@@ -151,12 +151,13 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
     #I1 = imtransform(I, H1)
 
-    orig_err = np.mean(np.abs(I - IrefM).flatten()) # L1 error, normalized by area
+    #orig_err = np.mean(np.abs(I - IrefM).flatten()) # L1 error, normalized by area
+    orig_err = 9999999999.0 # effectively disable the below UNDO_GALIGN scheme
     if method_galign == GALIGN_NORMAL:
         ERR_REL_THR = 1.44 # 5 std devs. from santacruz1000 empirical
         H1, I1, err_galign = global_align.align_image(I, IrefM, crop=True, 
-                                                      CROPX=(0.025, 0.04, 0.07, 0.1), CROPY=(0.025, 0.04, 0.07, 0.1),
-                                                      ERR_REL_THR=ERR_REL_THR)
+                                                      CROPX=0.02, CROPY=0.02,
+                                                      MINAREA=np.power(2, 16))
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
     else:
         ERR_REL_THR = 2.0
@@ -168,9 +169,6 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
 
-    #f = open('errs_rel.out', 'a')
-    #print >>f, err_rel
-        
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
     if FLAG_UNDO_GALIGN:
@@ -261,7 +259,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                     if method_galign == GALIGN_CV:
                         Ic = Ic.astype('float32') / 255.0
                         Irefc = Irefc.astype('float32') / 255.0
-                    Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,18))
+                    Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,19))
                     Ic1 = np.round(Ic1 * 255.0).astype('uint8')
                 elif method_lalign == LALIGN_CV:
                     if method_galign == GALIGN_NORMAL:
