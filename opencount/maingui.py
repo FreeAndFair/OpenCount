@@ -433,14 +433,12 @@ def main():
             return 0
         print "(OpenCount) -- User passed '-n {0}', processing first {0} ballots".format(n)
         config.BALLOT_LIMIT = n
-    # NOTE: For now, always record the timing information. This is
-    #       to avoid accidentally not passing in the '--time' option,
-    #       which would really suck when recording timing data for the paper.
-    if '--time' in args or True:
+    if '--time' in args:
         try:
             try:
                 prefix = args[args.index('--time')+1]
             except:
+                print "(Warning) No prefix to --time. Using empty prefix for timing log file."
                 prefix = ''
             now = datetime.datetime.now()
             date_suffix = "{0}_{1}_{2}_{3}_{4}".format(now.year, now.month, now.day,

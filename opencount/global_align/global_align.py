@@ -39,7 +39,8 @@ ALIGN_NORMAL = 'normal'
 ALIGN_CVRIGID = 'cvrigid'
 
 def align_image(I, Iref, crop=True, verbose=False,
-                CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001):
+                CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001,
+                RSZFAC=0.15, MINAREA=None):
     """ Aligns I to IREF (e.g. 'global' alignment). Both IREF and I
     must be correctly 'flipped' before you pass it to this function.
     Input:
@@ -55,18 +56,32 @@ def align_image(I, Iref, crop=True, verbose=False,
     If none are <= ERR_REL_THR, then we output the alignment with smallest error.
         float ERR_REL_THR
     See the docstring for the tuple-version of CROPX, CROPY.
+        int MINAREA
+    This parameter dictates how "far down" the pyramid optimization should
+    downscale the image. For instance, if MINAREA is K, then a new pyramid
+    level will be created by downscaling the image by a factor of 2.0 until
+    the image area is <= K. 
+    Larger values of MINAREA mean that alignment is done at larger scales,
+    which will lead to better accuracy, but may take more time. Smaller
+    values of MINAREA incur better speedsup, but potentially at the cost
+    of accuracy. The default value 2**16 is a reasonable value for accuracy.
     Output:
         (nparray H, nparray IREG, float err)
     where H is the transformation matrix, IREG is the result of aligning
     I to IREF, and ERR is the alignment error (a float from [0.0, 1.0]).
     """
+    if MINAREA == None:
+        MINAREA = np.power(2, 16)
     if crop and type(CROPX) in (list, tuple):
         return _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR)
 
     if crop == True:
         Iref_crop = cropout_stuff(Iref, CROPY, CROPY, CROPX, CROPX)
         Icrop = cropout_stuff(I, CROPY, CROPY, CROPX, CROPX)
-    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
+    else:
+        Icrop, Iref_crop = I, Iref
+
+    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False, minArea=MINAREA)
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)
@@ -203,22 +218,29 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
         H_ = np.eye(3, dtype=H.dtype)
         H_[:2,:] = H
         Hinv = scipy.linalg.inv(H_)
-    except Exception as e:
+    except (np.linalg.linalg.LinAlgError, ValueError) as e:
         # In rare cases, H is singular (due to OpenCV bug?), thus outputting
         # bogus results.
         # Try aligning Iref to I, then invert the resultant H to get the
         # actual I->Iref transform.
-        print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
+        #print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
         H_ = cv2.estimateRigidTransform(Iref_rsz, I_rsz, fullAffine)
-        H_sq = np.eye(3, dtype=H_.dtype)
-        H_sq[:2,:] = H_
-        H = scipy.linalg.inv(H_sq)[:2,:]
+        if np.any(np.isnan(H_)) or np.any(np.isinf(H_)):
+            H = np.eye(3, dtype=H_.dtype)[:2,:]
+        else:
+            H_sq = np.eye(3, dtype=H_.dtype)
+            H_sq[:2,:] = H_
+            try:
+                H = scipy.linalg.inv(H_sq)[:2,:]
+            except np.linalg.linalg.LinAlgError as e:
+                #print "SINGULAR MATRIX AGAIN! Uhoh. Outputting Identity mat."
+                H = np.eye(3, dtype=H.dtype)[:2,:]
 
     Ireg = cv2.warpAffine(I_in, H, (I_in.shape[1], I_in.shape[0]))
     if not computeErr:
         err = None
     else:
-        err = np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])
+        err = (np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])) / 255.0
     return H, Ireg, err
 
 def compute_border(A):
@@ -314,7 +336,7 @@ def main():
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
-            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=(0.02, 0.04, 0.07, 0.1,0.07), CROPY=(0.02, 0.04, 0.07, 0.1, 0.3))
+            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.02, CROPY=0.02)
             err_orig = np.mean(np.abs(I - Iref).flatten())
             err_galign = np.mean(np.abs(Ireg - Iref).flatten())
             err_rel = err_galign / err_orig
@@ -361,6 +383,10 @@ def main():
 
     fig = plt.figure()
     p0 = fig.add_subplot(111)
+    p0.set_title("Histogram of Reduction in error (aka Pre-align-error / Post-align-error).\n\
+If >1.0, then alignment introduced more error.")
+    p0.set_xlabel("Ratio of Pre-align-error / Post-align-error")
+    p0.set_ylabel("Occurrences")
 
     hist, bins = np.histogram(errs_rel)
     width = 0.7 * (bins[1]-bins[0])
@@ -370,7 +396,7 @@ def main():
 
     fig.show()
 
-    pdb.set_trace()
+    raw_input("Press (enter) to continue.")
     
 def fast_imread(imgpath, flatten=True, dtype='uint8'):
     if flatten:
