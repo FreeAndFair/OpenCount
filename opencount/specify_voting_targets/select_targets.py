@@ -775,7 +775,9 @@ voting target on this ballot.")
         # any matches in RESULTS that are too close to previously-found
         # matches.
         _cnt_added = 0
-        for imgpath, matches in results.iteritems():
+        # Sort by the 'j' index, e.g. prefer matches from the main-displayed
+        # image first.
+        for imgpath, matches in sorted(results.iteritems(), key=lambda (imP, mats): self.inv_map[imP][1]):
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
                 boxB = TargetBox(x1, y1, x1+w, y1+h)
