@@ -964,6 +964,7 @@ def experiment_alt_refimg(args):
         errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
                                                                                  debug=debug, NUM_BALLOTS=N,
                                                                                  alt_refimgpath=refimgpath,
+                                                                                 minArea=np.power(2, 14),
                                                                                  show_overlays_interactive=args.interactive)
         ref2xerrs[refimgpath] = np.abs(errs_x)
         ref2yerrs[refimgpath] = np.abs(errs_y)

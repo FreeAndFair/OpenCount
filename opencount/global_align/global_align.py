@@ -336,7 +336,7 @@ def main():
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
-            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.02, CROPY=0.02)
+            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.07, CROPY=0.07, MINAREA=np.power(2, 16))
             err_orig = np.mean(np.abs(I - Iref).flatten())
             err_galign = np.mean(np.abs(Ireg - Iref).flatten())
             err_rel = err_galign / err_orig
