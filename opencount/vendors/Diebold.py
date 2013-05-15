@@ -37,41 +37,46 @@ class DieboldVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
         return partask.do_partask(_decode_ballots,
                                   ballots,
-                                  _args=(TEMPLATE_PATH, COLMARK_PATH),
+                                  _args=(TEMPLATE_PATH, COLMARK_PATH, skipVerify),
                                   combfn=_combfn,
-                                  init=({}, {}, [], []),
+                                  init=({}, {}, {}, [], []),
                                   manager=manager,
                                   pass_queue=queue,
                                   N=None)
 
-    def partition_ballots(self, verified_results, manual_labeled):
+    def partition_ballots(self, img2decoding, verified_results, manual_labeled):
         """
         Input:
             dict VERIFIED_RESULTS:
+                If None, then skipVerify was True.
             dict MANUAL_LABELED: {str imgpath: (str bc,)}
         Output:
             (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
         """
         partitions = {}
-        img2decoding = {}
         imginfo_map = {}
-        
-        decodings_tmp = {} # maps {imgpath: list}
-        for markval, tups in verified_results.iteritems():
-            digitval = '1' if markval == ON else '0'
-            for (imgpath, bb, idx) in tups:
-                decodings_tmp.setdefault(imgpath, []).append((bb[0], digitval))
-        
-        for imgpath, tups in decodings_tmp.iteritems():
-            # sort by x1 coordinate
-            tups_sorted = sorted(tups, key=lambda t: t[0])
-            decoding = ''.join([val for (x1, val) in tups_sorted])
-            img2decoding[imgpath] = (decoding,)
-            imginfo = get_imginfo(decoding)
-            imginfo_map[imgpath] = imginfo
+
+        if verified_results:
+            img2decoding = {}
+            decodings_tmp = {} # maps {imgpath: list}
+            for markval, tups in verified_results.iteritems():
+                digitval = '1' if markval == ON else '0'
+                for (imgpath, bb, idx) in tups:
+                    decodings_tmp.setdefault(imgpath, []).append((bb[0], digitval))
+
+            for imgpath, tups in decodings_tmp.iteritems():
+                # sort by x1 coordinate
+                tups_sorted = sorted(tups, key=lambda t: t[0])
+                decoding = ''.join([val for (x1, val) in tups_sorted])
+                img2decoding[imgpath] = (decoding,)
+                imginfo = get_imginfo(decoding)
+                imginfo_map[imgpath] = imginfo
+        else:
+            for imgpath, decoding_tuple in img2decoding.iteritems():
+                imginfo_map[imgpath] = get_imginfo(decoding_tuple[0])
         for imgpath, decoding_tuple in manual_labeled.iteritems():
             img2decoding[imgpath] = decoding_tuple
             imginfo_map[imgpath] = get_imginfo(decoding_tuple[0])
@@ -120,18 +125,18 @@ def get_imginfo(decoding):
                 'page': 1}
 
 def _combfn(a, b):
-    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerrs_a = a
-    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerrs_b = b
+    img2dec_a, flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerrs_a = a
+    img2dec_b, flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerrs_b = b
+    img2dec_out = dict(img2dec_a.items() + img2dec_b.items())
     flipmap_out = dict(flipmap_a.items() + flipmap_b.items())
     mark_bbs_map_out = mark_bbs_map_a
     for marktype, tups in mark_bbs_map_b.iteritems():
         mark_bbs_map_out.setdefault(marktype, []).extend(tups)
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
     ioerrs_out = ioerrs_a + ioerrs_b
-    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_out)
+    return (img2dec_out, flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_out)
 
-
-def _decode_ballots(ballots, (template_path, colpath), queue=None):
+def _decode_ballots(ballots, (template_path, colpath, skipVerify), queue=None):
     """
     Input:
         dict BALLOTS: {int ballotID: [imgpath_i, ...]}
@@ -159,6 +164,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         w_mark = int(round(w_mark * c))
         h_mark = int(round(h_mark * c))
 
+    img2decoding = {}
     for ballotid, imgpaths in ballots.iteritems():
         for imgpath in imgpaths:
             try:
@@ -171,11 +177,14 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
                 err_imgpaths.append(imgpath)
             else:
                 flipmap[imgpath] = isflip
-                # sort by x1 coordinate, left-to-right
-                bbs = sorted(bbs, key=lambda t: t[0])
-                for i, markval in enumerate(decoding):
-                    MYVAL = ON if markval == '1' else OFF
-                    mark_bbs_map.setdefault(MYVAL, []).append((imgpath, bbs[i], None))
+                if not skipVerify:
+                    # sort by x1 coordinate, left-to-right
+                    bbs = sorted(bbs, key=lambda t: t[0])
+                    for i, markval in enumerate(decoding):
+                        MYVAL = ON if markval == '1' else OFF
+                        mark_bbs_map.setdefault(MYVAL, []).append((imgpath, bbs[i], None))
+                img2decoding[imgpath] = (decoding,)
             if queue:
                 queue.put(True)
-    return flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths
+
+    return img2decoding, flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths

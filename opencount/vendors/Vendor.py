@@ -17,11 +17,15 @@ class Vendor(object):
         Input:
             dict BALLOTS: {int ballotID: [imgpath_side0, ...]}.
         Output:
-            (dict FLIP_MAP,
+            (dict IMG2DECODING,
+             dict FLIP_MAP,
              dict VERIFYPATCH_BBS,
              list ERR_IMGPATHS,
              list IOERR_IMGPATHS)
 
+        IMG2DECODING: Stores the decoded barcodes for each image, where
+            each image has N barcodes:
+                {str imgpath: (str decoded_0, ..., str decoded_N)}
         FLIP_MAP: stores whether an image is flipped or not:
             {str imgpath: bool isFlipped}
         VERIFYPATCHES_BBS: stores the locations of barcode patches that
@@ -42,12 +46,16 @@ class Vendor(object):
         """
         raise NotImplementedError("Implement your own decode_ballots.")
 
-    def partition_ballots(self, verified_results, manual_labeled):
+    def partition_ballots(self, img2decoding, verified_results, manual_labeled):
         """
         Given the user-verified, corrected results of Vendor.decode_ballots,
         output the partitioning.
+        If VERIFIED_RESULTS is None, then simply use the input decodings from
+        IMG2DECODING as the "correct" decoding results. This is done when
+        the user skipped overlay verification.
 
         Input:
+            dict IMG2DECODING: {str imgpath: (str decoding_0, ...)}
             dict VERIFIED_RESULTS: {str bc_val: [(str imgpath, (x1,y1,x2,y2), userinfo), ...]}
             dict MANUAL_LABELED: {str imgpath: (str label_i, ...)}
                 Stores the decoded barcode(s) of any images that the user

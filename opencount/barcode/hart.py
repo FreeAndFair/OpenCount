@@ -17,18 +17,23 @@ def decode_patch(img, n, topbot_pairs, cols=4, debug=False, imgP=None):
         I = img
     return i2of5.decode_i2of5(I, n, topbot_pairs, cols=cols, debug=debug, imgP=imgP)
 
-def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False):
+def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerify=True):
     """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will 
     try to detect flipped ballots and correct.
     Input:
         str imgpath:
         list TOPBOT_PAIRS: list of [[IplImage topguard, IplImage botguard], ...].
+        bool SKIPVERIFY:
+            If True, then don't output BBS/BBSTRIPES_MAP data structures.
+            Useful if you don't care about this information, as it takes
+            up a lot of memory for large datasets.
     Output:
-        (list barcodes, bool isflipped, tuple BBS, dict BBSTRIPES_MAP). 
-        BARCODES is a list of one string (UpperLeft).
+        (tuple barcodes, bool isflipped, tuple BBS, dict BBSTRIPES_MAP). 
+        BARCODES is a tuple of one string (UpperLeft).
         ISFLIPPED is True if we detected the ballot was flipped. 
         BBS is a tuple of tuples: [(x1,y1, w, h), ...]
         BBSTRIPES_MAP maps {str label: [(x1,y1,x2,y2), ...]}
+        If SKIPVERIFY was True, then BBS/BBSTRIPES_MAP will be None.
     """
     def check_result(decoded):
         """ UpperLeft has 14 digits, LowerLeft has 12 digits, and
@@ -65,25 +70,29 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False):
     check_flip = check_result(dec_ul)
     if not check_flip:
         if len(col_sched) == 1:
-            return ((None,), isflipped, [outbb_ul], bbstripes_ul)
+            return ((None,), isflipped, (outbb_ul,), bbstripes_ul) if skipVerify == False else ((None,), isflipped, None, None)
         else:
-            return decode(imgpath, topbot_pairs, col_sched=col_sched[1:], debug=debug)
-    bb_out = [int(round(outbb_ul[0] + bb_ul[0])),
+            return decode(imgpath, topbot_pairs, col_sched=col_sched[1:], debug=debug, skipVerify=skipVerify)
+
+    if skipVerify:
+        return ((dec_ul,), isflipped, None, None)
+
+    bb_out = (int(round(outbb_ul[0] + bb_ul[0])),
               int(round(outbb_ul[1] + bb_ul[1])),
               int(round(outbb_ul[2])),
-              int(round(outbb_ul[3]))]
+              int(round(outbb_ul[3])))
     bbstripes_ul_new = {}
     for label, stripebbs in bbstripes_ul.iteritems():
         bbs_new = []
         for bb in stripebbs:
             x1_out = bb[0] + bb_out[0]
             y1_out = bb[1] + bb_out[1]
-            bbs_new.append([int(round(x1_out)),
+            bbs_new.append((int(round(x1_out)),
                             int(round(y1_out)),
                             int(round(x1_out + bb[2])), 
-                            int(round(y1_out + bb[3]))])
-        bbstripes_ul_new[label] = bbs_new
-    return ((dec_ul,), isflipped, [bb_out], bbstripes_ul_new)
+                            int(round(y1_out + bb[3]))))
+        bbstripes_ul_new[label] = tuple(bbs_new)
+    return ((dec_ul,), isflipped, (bb_out,), bbstripes_ul_new)
 
 def interpret_labels(img_bc_labels):
     """

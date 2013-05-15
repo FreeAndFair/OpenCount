@@ -281,7 +281,7 @@ def bars_to_symbols(bars, debug=False):
     for i, bars_sym in enumerate(gen_by_n(bars, 5)):
         sym = get_i2of5_val(bars_sym)
         if sym == None:
-            print "...Invalid symbol:", bars_sym
+            #print "...Invalid symbol:", bars_sym
             if debug:
                 pdb.set_trace()
             return None
