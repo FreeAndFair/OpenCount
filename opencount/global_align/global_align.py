@@ -1,4 +1,4 @@
-import sys, os, pdb
+import sys, os, pdb, argparse
 import numpy as np, cv2, cv
 import time
 
@@ -282,28 +282,43 @@ def calc_rszFac(imgsize, maxdim, mindim):
     if mindim != None and min(C * imgsize[0], C * imgsize[1]) < mindim:
         C = float(mindim) / min(imgsize)
     return C
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("imgsdir",
+                        help="Images to align.")
+    parser.add_argument("refpath",
+                        help="Path to reference image.")
+    parser.add_argument("outdir",
+                        help="Directory to store output registered images.")
+
+    parser.add_argument("--num", type=int, help="Limit number of alignments \
+to do.")
+    parser.add_argument("--method", choices=(ALIGN_NORMAL, ALIGN_CVRIGID),
+                        default=ALIGN_NORMAL,
+                        help="Alignment method to use.")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--save_overlays", action="store_true", 
+                        help="Save Ireg overlayed with Iref to OUTDIR, not just \
+Ireg.")
+    
+    parser.add_argument("--roi", nargs=4, type=int, metavar=("x1", "y1", "x2", "y2"),
+                        help="Align only a subregion of both images .")
+
+    return parser.parse_args()
     
 def main():
-    args = sys.argv[1:]
-    if '-h' in args or '--help' in args or '-help' in args:
-        print USAGE
-        exit(0)
+    args = parse_args()
 
-    try:
-        N = int(args[args.index('--num')+1])
-    except:
-        N = None
-    try:
-        meth_align = args[args.index('--method')+1]
-    except:
-        meth_align = ALIGN_NORMAL
+    N = args.num
+    meth_align = args.method
 
-    VERBOSE = '--verbose' in args
-    SAVE_OVERLAYS = '--save_overlays' in args
+    VERBOSE = args.verbose
+    SAVE_OVERLAYS = args.save_overlays
 
-    imgsdir = args[-3]
-    ref_imgpath = args[-2]
-    outdir = args[-1]
+    imgsdir = args.imgsdir
+    ref_imgpath = args.refpath
+    outdir = args.outdir
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -328,6 +343,11 @@ def main():
         Iref = sh.standardImread_v2(ref_imgpath, flatten=True)
     elif meth_align == ALIGN_CVRIGID:
         Iref = fast_imread(ref_imgpath, flatten=True, dtype='uint8')
+
+    if args.roi:
+        x1, y1, x2, y2 = args.roi
+        Iref = Iref[y1:y2, x1:x2]
+
     print "Aligning against {0} images...".format(len(imgpaths))
     t = time.time()
     errs, errs_map = [], {}
@@ -336,12 +356,18 @@ def main():
         imgname = os.path.split(imgpath)[1]
         if meth_align == ALIGN_NORMAL:
             I = sh.standardImread_v2(imgpath, flatten=True)
+            if args.roi:
+                x1, y1, x2, y2 = args.roi
+                I = I[y1:y2, x1:x2]
             H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.07, CROPY=0.07, MINAREA=np.power(2, 16))
             err_orig = np.mean(np.abs(I - Iref).flatten())
             err_galign = np.mean(np.abs(Ireg - Iref).flatten())
             err_rel = err_galign / err_orig
         elif meth_align == ALIGN_CVRIGID:
             I = fast_imread(imgpath, flatten=True, dtype='uint8')
+            if args.roi:
+                x1, y1, x2, y2 = args.roi
+                I = I[y1:y2, x1:x2]
             H, Ireg, err_galign = align_cv(I, Iref, computeErr=True, fullAffine=False,
                                     rmBlkBorder=True, doSmooth=True)
             err_orig = np.mean(np.abs(I - Iref))
