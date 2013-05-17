@@ -334,11 +334,27 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
     targets = [] # [str _i, ...]
     bboxes = []
 
+    def get_target_roi():
+        try:
+            file_targetroi = open(os.path.join(projdir, 'target_roi'), 'r')
+            line = file_targetroi.readline().strip()
+            x1, y1, x2, y2 = map(int, line.split(","))
+            return x1, y1, x2, y2
+        except:
+            return None
+
+    t_roi = get_target_roi()
+
     for uid,img,bbox,Idiff in imgs:
         targetoutname = str(balId)+"\0"+str(page)+"\0"+str(int(uid))
         targets.append((balId, page, int(uid)))
         if not HACK_SANTACRUZ:
-            avg_intensity = (np.sum(img) / float(img.shape[0] * img.shape[1]))
+            if not t_roi:
+                tpatch = img
+            else:
+                x1, y1, x2, y2 = t_roi
+                tpatch = img[y1:y2, x1:x2]
+            avg_intensity = np.mean(tpatch)
         else:
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
