@@ -156,7 +156,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     if method_galign == GALIGN_NORMAL:
         ERR_REL_THR = 1.44 # 5 std devs. from santacruz1000 empirical
         H1, I1, err_galign = global_align.align_image(I, IrefM, crop=True, 
-                                                      CROPX=0.02, CROPY=0.02,
+                                                      CROPX=0.05, CROPY=0.05,
                                                       MINAREA=np.power(2, 16))
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
     else:
@@ -168,6 +168,8 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
+
+    #misc.imsave("Iglobal.png", I1+IrefM)
 
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
@@ -259,7 +261,12 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                     if method_galign == GALIGN_CV:
                         Ic = Ic.astype('float32') / 255.0
                         Irefc = Irefc.astype('float32') / 255.0
-                    Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,19))
+                    #Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,16))
+                    Hc1, Ic1, err = global_align.align_image(Ic, Irefc, crop=True, CROPX=0.05, CROPY=0.05, MINAREA=np.power(2, 16))
+                    #if i == 3 and j == 3:
+                    #    print "i,j=", i,j
+                    #    misc.imsave("Ic_reg_{0}_{1}.png".format(i, j), Ic1+Irefc)
+                    #    pdb.set_trace()
                     Ic1 = np.round(Ic1 * 255.0).astype('uint8')
                 elif method_lalign == LALIGN_CV:
                     if method_galign == GALIGN_NORMAL:
