@@ -804,49 +804,28 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     print "(Info) METHOD_GALIGN={0} METHOD_LALIGN={1}".format(_galignnames[method_galign], _lalignnames[method_lalign])
     MAX_SIZE = 950 * (1e6) # In Bytes, e.g. 950 MB. Limit memory usage of template pre-loading
     cur_size = 0
-    flag = False
-    repset_dir = os.path.join(projdir,'groupsAlign_seltargs/')
     if os.path.exists(os.path.join(projdir,'group_to_Iref.p')):
         group_to_Iref = pickle.load(open(os.path.join(projdir,'group_to_Iref.p'),'rb'))
-        flag = True
+    else:
+        group_to_Iref = None
 
     for i,(groupID, ballotIDs) in enumerate(sorted(group_to_ballots.iteritems(), key=lambda t: -len(t[1]))):
         bbs = get_bbs(groupID, target_locs_map)
-        # 1.a.) Create 'blank ballots'. This might not work so well...
-        if flag and groupID in group_to_Iref.keys():
+        # 1.a.) Choose reference images for alignment purposes
+        if group_to_Iref and groupID in group_to_Iref.keys():
             idx = group_to_Iref[groupID]
-            #print groupID
-            #print idx
-            #print "FOUND"
         else:
             idx = 0 # default case select the first ballot in the group
         blankpaths_ordered  = []
 
-        # NOTE: The substring matching is safe because the only cases of ballots
-        # in the groupsAlign_seltargs are bal_{0,1,2,3,4}
-        partition_dir = os.path.join(repset_dir,'partition_'+str(groupID)+'/')
-        for _,_,bals in os.walk(partition_dir):
-            for bal in sorted(bals):
-                if 'bal_'+str(idx) in bal:
-                    blank = os.path.join(partition_dir,bal)
-                    blankpaths_ordered.append(blank)
-
-        #exmpl_id = group_exmpls[groupID][idx]
-        #blankpaths = b2imgs[exmpl_id]
-        if idx != 0: print blankpaths_ordered
-        #blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
-        #blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
-
-        # TODO: this is kind of awkward; just a hack to keep parameters the same
-        blankpaths_flips = []
-        for blank in blankpaths_ordered:
-            # Recall that the images in REPSET_DIR are already corrected
-            # for possible flips
-            blankpaths_flips.append(False)
-
+        exmpl_id = group_exmpls[groupID][idx]
+        blankpaths = b2imgs[exmpl_id]
+        blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+        blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+        
         blankimgs = []
         for i, blankpath in enumerate(blankpaths_ordered):
-            #isflip = blankpaths_flips[i]
+            isflip = blankpaths_flips[i]
             if cur_size >= MAX_SIZE:
                 blankimgs.append(None)
             else:
@@ -854,16 +833,14 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                     Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='float32', normalize=True)
                 else:
                     Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='uint8', normalize=False)
-                #if isflip:
-                #    Iblank = sh.fastFlip(Iblank)
+                if isflip:
+                    Iblank = sh.fastFlip(Iblank)
                 cur_size += Iblank.nbytes
                 blankimgs.append(Iblank)
         for ballotid in ballotIDs:
             if ballotid in bad_ballotids:
                 continue
             imgpaths = b2imgs[ballotid]
-            #if "/media/data1/audits2012_straight/santacruz/votedballots/3RD DISTRICT/POLLS/30041_POLLS/POLLS_30041_00047-1.png" not in imgpaths:
-            #    continue
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
             job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered,
