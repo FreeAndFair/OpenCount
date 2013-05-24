@@ -120,7 +120,6 @@ class ResultsPanel(ScrolledPanel):
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
         for groupID, contests_sides in target_locs_map.iteritems():
-            
             exmpl_id = group_exmpls[groupID][0]
             imgpaths = b2imgs[exmpl_id]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
@@ -176,15 +175,16 @@ class ResultsPanel(ScrolledPanel):
         image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
                                              self.proj.image_to_page), 'rb'))
+        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls)))
+        bal2group = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group)))
+
+        if os.path.exists(pathjoin(self.proj.projdir_path, 'group_to_Iref.p')):
+            group2refidx = pickle.load(open(pathjoin(self.proj.projdir_path, 'group_to_Iref.p')))
+        else:
+            group2refidx = None
         print 'Loaded all the information'
-        
-        #print "ORDER", order
-        #print "TEXT", text
-        #print "tempmap", templatemap
-        #print 'isvoted', isvoted
 
         def processContest(template, cid, votedlist):
-            #print 'process', cid, votedlist
             upto = text[cid][0]
             truefalse = [x[1] for x in votedlist]
             if sum(truefalse) > int(upto):
@@ -192,12 +192,8 @@ class ResultsPanel(ScrolledPanel):
             elif sum(truefalse) == 0:
                 return ["0"]*len(votedlist)+["UNDERVOTED"]
             voted = dict(votedlist)
-            #print 'voted', voted
-            #print 'in', order[template,cid]
-            # TODO: crashes at voted[x]
             retval = ['01'[voted[x]] for x in order[template,cid]]+['OK']
             return retval
-            #return ['01'[voted[x]] for x in order[template,cid]]+['OK']
 
         def noexist(cid):
             # When a contest doesn't appear on a ballot, write this
@@ -206,8 +202,6 @@ class ResultsPanel(ScrolledPanel):
         # Hold the CVR results for a single image.
         image_cvr = {}
 
-        #print 'Counting up to', len(os.listdir(self.proj.ballot_metadata))
-        #for i,ballot in enumerate(os.listdir(self.proj.ballot_metadata)):
         i = 0
         for dirpath, dirnames, filenames in os.walk(self.proj.ballot_metadata):
             for f in filenames:
@@ -216,37 +210,42 @@ class ResultsPanel(ScrolledPanel):
                     print 'On ballot', i
                 # meta['ballot'] is a voted imgpath, not an int ballotID
                 ballotid = image_to_ballot[meta['ballot']]
+                groupid = bal2group[ballotid]
                 votedpaths = ballot_to_images[ballotid]
                 votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
+                page = img2page[meta['ballot']]
 
                 #votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
                 bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
                 # If any of the sides is quarantined, skip it
                 if True in bools: continue
 
-                #print 'bal', meta['ballot']
-                template = meta['template']
-                #print 'template', template
+                # Annoying detail: META will have the Iref path used, which may not
+                # match the keys in TEMPLATEMAP. TEMPLATEMAP has imagepaths from the
+                # first group exemplar, whereas TEMPLATE could be any of the GROUP_EXMPLS,
+                # if the user chooses a Representative Ballot in 'Select Targets'.
+                if group2refidx == None:
+                    # Easy case: the TEMPLATE path here will always match TEMPLATEMAP
+                    template = meta['template']
+                else:
+                    # Annoying case: meta['template'] holds the Irefpath used during
+                    # target extraction, which may NOT be the templatepath that
+                    # TEMPLATEMAP is expecting. So, we explicitly grab the correct
+                    # templatepath. Sigh.
+                    template = sorted(ballot_to_images[group_exmpls[groupid][0]], key=lambda imP: img2page[imP])[page]
                 targets = meta['targets']
-                #print targets
                 voted = {}
 
                 for target in targets:
                     targetid = target[2]
-                    #print 'targetid', targetid
                     try:
                         contest = templatemap[template][targetid]
                     except:
                         traceback.print_exc()
                         pdb.set_trace()
-                    #print 'contest', contest
                     if contest not in voted: voted[contest] = []
                     voted[contest].append((targetid, target in isvoted))
-                    #print 'so', target in isvoted
-                    #print 'total', voted
 
-
-                #print 'voted a', voted
                 voted = dict((a,sorted(b)) for a,b in voted.items())
                 #for k,v in voted.items():
                 #    print k, v

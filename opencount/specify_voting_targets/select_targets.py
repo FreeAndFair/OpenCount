@@ -125,14 +125,12 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 self.jobid = jobid
                 self._stop = threading.Event()
             def stop(self):
-                print "...ListenThread: Someone called my stop()..."
                 self._stop.set()
             def is_stopped(self):
                 return self._stop.isSet()
             def run(self):
                 while True:
                     if self.is_stopped():
-                        print "...ListenThread: Stopping."
                         return
                     try:
                         val = self.queue.get(block=True, timeout=1)
@@ -209,13 +207,13 @@ class SelectTargetsMainPanel(OpenCountPanel):
             1.) A proj.target_locs pickle'd data structure
             2.) A dir of .csv files (for integration with LabelContests+
                 InferContests).
+            3.) A file 'target_roi' that SetThreshold/TargetExtraction will
+                use when determining the target sort criterion.
         """
         try:
             os.makedirs(self.proj.target_locs_dir)
         except:
             pass
-        print "HERE"
-        print self.group_to_Iref
         pickle.dump(self.group_to_Iref, open(pathjoin(self.proj.projdir_path,'group_to_Iref.p'),'wb', pickle.HIGHEST_PROTOCOL))
 
         group_targets_map = {} # maps {int groupID: [csvpath_side0, ...]}
@@ -302,6 +300,18 @@ class SelectTargetsMainPanel(OpenCountPanel):
         pickle.dump(target_locs_map, open(pathjoin(self.proj.projdir_path,
                                                    self.proj.target_locs_map), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
+        # target_roi := (int x1, y1, x2, y2). If self.target_roi is None, then
+        # the string None will be written to the output file.
+        # Otherwise, four comma-delimited ints will be written, like:
+        #     40,40,100,100
+        f_target_roi = open(pathjoin(self.proj.projdir_path, 'target_roi'), 'w')
+        if self.seltargets_panel.target_roi:
+            outstr = "{0},{1},{2},{3}".format(*self.seltargets_panel.target_roi)
+        else:
+            outstr = "None"
+        print "(SelectTargets) Wrote '{0}' to: {1}".format(outstr, pathjoin(self.proj.projdir_path, 'target_roi'))
+        print >>f_target_roi, outstr
+        f_target_roi.close()
         # Warn User about lonely targets.
         # Note: This is currently handled in the UI during sanitychecks,
         #       but no harm in leaving this here too.
@@ -554,6 +564,10 @@ class SelectTargetsPanel(ScrolledPanel):
         # STATEP: Path for state file.
         self.stateP = None
 
+        # tuple TARGET_ROI: (int x1, y1, x2, y2). Is set when the user
+        # draws their first target box.
+        self.target_roi = None
+
         self.toolbar = Toolbar(self)
         self.imagepanel = TargetFindPanel(self, self.do_tempmatch)
 
@@ -677,10 +691,12 @@ voting target on this ballot.")
             boxes = state['boxes']
             boxsize = state['boxsize']
             partitions = state['partitions']
+            target_roi = state.get('target_roi', None) # Handle legacy statefiles
             self.inv_map = inv_map
             self.boxes = boxes
             self.boxsize = boxsize
             self.partitions = partitions
+            self.target_roi = target_roi
         except:
             return False
         return True
@@ -689,22 +705,28 @@ voting target on this ballot.")
         state = {'inv_map': self.inv_map,
                  'boxes': self.boxes,
                  'boxsize': self.boxsize,
-                 'partitions': self.partitions}
+                 'partitions': self.partitions,
+                 'target_roi': self.target_roi}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
-    def do_tempmatch(self, box, img):
+    def do_tempmatch(self, box, img, patch=None):
         """ Runs template matching on all images within the current
         partition, using the BOX from IMG as the template.
         Input:
             Box BOX:
             PIL IMG:
+            PIL PATCH:
+                If given, then this PATCH directly as the template image,
+                rather than using BOX to extract a patch from IMG. This
+                will skip the auto-cropping.
         """
         self.Disable()
         if config.TIMER:
             config.TIMER.start_task("SelectTargets_TempMatch_CPU")
-        # 1.) Do an autofit.
-        patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
-        patch = util_gui.fit_image(patch_prefit, padx=2, pady=2)
+        if patch == None:
+            # 1.) Do an autofit.
+            patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
+            patch = util_gui.fit_image(patch_prefit, padx=2, pady=2)
         patch_cv = pil2iplimage(patch)
         # 2.) Apply a smooth on PATCH (first adding a white border, to
         # avoid the smooth darkening PATCH, but brightening IMG).
@@ -775,7 +797,9 @@ voting target on this ballot.")
         # any matches in RESULTS that are too close to previously-found
         # matches.
         _cnt_added = 0
-        for imgpath, matches in results.iteritems():
+        # Sort by the 'j' index, e.g. prefer matches from the main-displayed
+        # image first.
+        for imgpath, matches in sorted(results.iteritems(), key=lambda (imP, mats): self.inv_map[imP][1]):
             partition_idx, j, page = self.inv_map[imgpath]
             for (x1, y1, x2, y2, score) in matches:
                 boxB = TargetBox(x1, y1, x1+w, y1+h)
@@ -1068,6 +1092,17 @@ voting target on this ballot.")
         gauge = util.MyGauge(self, 1, ondone=lambda: infercontest_finish(tt.tt))
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(imgpaths_exs))
+
+    def set_target_roi(self, roi):
+        """ Updates/sets the target region-of-interest (ROI), which is the
+        region where the user is expected to 'draw' on. This information is
+        useful for the SetThreshold panel, so that it can better-sort the
+        voting targets.
+        Input:
+            tuple ROI: (int x1, y1, x2, y2)
+        """
+        self.target_roi = tuple([int(round(coord)) for coord in roi])
+        return self.target_roi
         
 class Toolbar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
@@ -2109,7 +2144,22 @@ Either draw a bigger box, or zoom-in to better-select the targets.")
             if isinstance(box, TargetBox):
                 imgpil = util_gui.imageToPil(self.img)
                 imgpil = imgpil.convert('L')
-                self.tempmatch_fn(box, imgpil)
+                targetimg_prefit = imgpil.crop((box.x1, box.y1, box.x2, box.y2))
+                targetimg_crop = util_gui.fit_image(targetimg_prefit, padx=2, pady=2)
+                if self.GetParent().boxsize == None:
+                    # First time user drew a box
+                    print "(SelectTargets) First target selected."
+                    targetimg_crop_np = np.array(targetimg_crop)
+                    dlg = DrawROIDialog(self, targetimg_crop_np)
+                    status = dlg.ShowModal()
+                    if status == wx.CANCEL:
+                        return
+                    # tuple ROI: (int x1, y1, x2, y2)
+                    roi = dlg.roi
+                    print "(SelectTargets) Set target_roi from {0} to: {1}".format(self.GetParent().target_roi, roi)
+                    self.GetParent().set_target_roi(roi)
+        
+                self.tempmatch_fn(box, imgpil, patch=targetimg_crop)
             elif isinstance(box, ContestBox):
                 self.boxes.append(box)
             self.Refresh()
@@ -2172,7 +2222,199 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             self.update_cursor()
         else:
             TemplateMatchDrawPanel.onLeftUp(self, evt)
+
+class DrawROIDialog(wx.Dialog):
+    """ A simple dialog that displays an image, and the user either:
+        a.) Draws a sub-box within the image
+    or:
+        b.) Cancels the action.
+    """
+    def __init__(self, parent, npimg, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, title="Draw Target Region-of-Interest", size=(600, 400),
+                           style=wx.RESIZE_BORDER | wx.CAPTION | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX, *args, **kwargs)
+        if npimg.dtype != 'uint8':
+            npimg = npimg.astype('uint8')
+        self.npimg = gray2rgb_np(npimg)
+        h, w = npimg.shape[:2]
+        self.wximg = wx.ImageFromBuffer(w, h, self.npimg)
+
+        # tuple ROI: (int x1, y1, x2, y2)
+        self.roi = None
+
+        txt_inst = (textwrap.fill("Displayed is the selected region.", 75) + "\n" +
+                    textwrap.fill("Please select the subregion of \
+the voting target where voter marks are expected to be made.", 75))
+        stxt_inst = wx.StaticText(self, label=txt_inst)
+
+        self.boxdrawpanel = SimpleImagePanel(self, self.wximg)
+        self.boxdrawpanel.rescale(250)
+
+        btn_ok = wx.Button(self, label="Use this region")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_ok.Disable() # Can only click if the user draws a box.
+        self.btn_ok = btn_ok
+
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
         
+        btn_zoomin = wx.Button(self, label="Zoom In")
+        btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
+        btn_zoomout = wx.Button(self, label="Zoom Out")
+        btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
+
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.AddMany([(btn_ok,), ((20,0),), (btn_cancel,),
+                           ((40,0,),),
+                           (btn_zoomin,), ((20,0),), (btn_zoomout,)])
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(stxt_inst, flag=wx.CENTER)
+        self.sizer.Add(self.boxdrawpanel, proportion=1, flag=wx.EXPAND | wx.CENTER)
+        
+        self.sizer.Add(btn_sizer, flag=wx.CENTER)
+
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+    def onButton_ok(self, evt):
+        if not self.roi:
+            wx.MessageDialog(self, message="Please select a region.").ShowModal()
+            return
+        self.roi = list(self.roi)
+        self.roi[0] = max(self.roi[0] / self.boxdrawpanel.scale, 0)
+        self.roi[1] = max(self.roi[1] / self.boxdrawpanel.scale, 0)
+        self.roi[2] = min(self.roi[2] / self.boxdrawpanel.scale, self.npimg.shape[1])
+        self.roi[3] = min(self.roi[3] / self.boxdrawpanel.scale, self.npimg.shape[0])
+        self.roi = [int(round(coord)) for coord in self.roi]
+        self.EndModal(wx.OK)
+    def onButton_cancel(self, evt):
+        self.roi = None
+        self.EndModal(wx.CANCEL)
+    def onButton_zoomin(self, evt):
+        self.boxdrawpanel.zoomin()
+    def onButton_zoomout(self, evt):
+        self.boxdrawpanel.zoomout()
+
+class SimpleImagePanel(ScrolledPanel):
+    def __init__(self, parent, wximg, *args, **kwargs):
+        ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        self.wximg = wximg
+        self.wximg_orig = wximg
+
+        self.isCreating = False
+        self.isMoving = False
+        # list BOX_IP: [int x1, y1, x2, y2], the 'in-progress' box.
+        self.box_ip = None
+        
+        # list BOX: [int ul_x, ul_y, lr_x, lr_y]
+        self.box = None
+
+        self.scale = 1.0
+
+        self.Bind(wx.EVT_PAINT, self.onPaint)
+        self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
+        self.Bind(wx.EVT_LEFT_UP, self.onLeftUp)
+        self.Bind(wx.EVT_MOTION, self.onMotion)
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add((wximg.GetWidth(), wximg.GetHeight()))
+
+        self.SetSizer(self.sizer)
+        self.Layout()
+        self.SetupScrolling()
+
+    def zoomin(self, amt=0.25):
+        scale = self.scale + amt
+        w_new = int(round(self.wximg_orig.GetWidth() * scale))
+        self.rescale(w_new)
+    def zoomout(self, amt=0.25):
+        scale = self.scale - amt
+        w_new = int(round(self.wximg_orig.GetWidth() * scale))
+        self.rescale(w_new)
+
+    def rescale(self, w_new):
+        """ Rescale displayed image s.t. the image has width W_NEW.
+        Maintains aspect ratio.
+        """
+        if self.wximg.GetWidth() == w_new:
+            return
+        npimg = util.wxImage2np(self.wximg_orig)
+        h_new = int(round(npimg.shape[0] / (npimg.shape[1] / float(w_new))))
+        if w_new <= 5 or h_new <= 5: # Don't downsize too much
+            return
+        self.scale = w_new / float(self.wximg_orig.GetWidth())
+        npimg_resize = scipy.misc.imresize(npimg, (h_new, w_new), interp='bicubic')
+        wximg_resize = wx.ImageFromBuffer(w_new, h_new, npimg_resize)
+        w_old, h_old = self.wximg.GetWidth(), self.wximg.GetHeight()
+        self.wximg = wximg_resize
+
+        if self.box:
+            # Rescale box
+            fac = w_old / float(w_new)
+            self.box = [int(round(coord / fac)) for coord in self.box]
+
+        self.sizer.Detach(0)
+        self.sizer.Add((w_new, h_new))
+        self.Layout()
+        self.SetupScrolling()
+        self.Refresh()
+
+    def onPaint(self, evt):
+        if self.IsDoubleBuffered():
+            dc = wx.PaintDC(self)
+        else:
+            dc = wx.BufferedPaintDC(self)
+        self.PrepareDC(dc)
+        dc.DrawBitmap(wx.BitmapFromImage(self.wximg), 0, 0)
+
+        def draw_box(box, color="BLACK", thick=3):
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            dc.SetPen(wx.Pen(color, thick))
+            x1, y1, x2, y2 = canonicalize_box(box)
+            dc.DrawRectangle(x1, y1, abs(x2-x1), abs(y2-y1))
+            
+        if self.box:
+            draw_box(self.box, color="BLUE", thick=3)
+        if self.box_ip:
+            draw_box(self.box_ip, color="RED", thick=3)
+
+    def onLeftDown(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if self.box:
+            self.box = None
+        self.box_ip = [x, y, x+1, y+1]
+        
+        self.isCreating = True
+        self.Refresh()
+
+    def onLeftUp(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if not self.isCreating:
+            return
+        self.box_ip[2], self.box_ip[3] = max(min(x, self.wximg.GetWidth()), 0), max(min(y, self.wximg.GetHeight()), 0)
+        self.box = canonicalize_box(self.box_ip)
+        self.box_ip = None
+        self.isCreating = False
+        self.Refresh()
+        self.GetParent().roi = self.box
+        self.GetParent().btn_ok.Enable()
+
+    def onMotion(self, evt):
+        x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
+        if not self.isCreating:
+            return
+        self.box_ip[2], self.box_ip[3] = max(min(x, self.wximg.GetWidth()), 0), max(min(y, self.wximg.GetHeight()), 0)
+        self.Refresh()
+
+def gray2rgb_np(npimg):
+    """ Convert a grayscale nparray image to an RGB nparray image. """
+    if len(npimg.shape) == 3:
+        return npimg
+    npimg_rgb = np.zeros((npimg.shape[0], npimg.shape[1], 3), dtype=npimg.dtype)
+    npimg_rgb[:,:,0] = npimg
+    npimg_rgb[:,:,1] = npimg
+    npimg_rgb[:,:,2] = npimg
+    return npimg_rgb
 
 class TM_Thread(threading.Thread):
 

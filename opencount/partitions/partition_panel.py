@@ -13,7 +13,7 @@ from wx.lib.pubsub import Publisher
 sys.path.append('..')
 
 import extract_patches
-import util, config
+import util, config, asize
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
 
@@ -334,7 +334,8 @@ verification? It tends to be computationally time-consuming, not \
 very helpful for certain vendors (e.g. Hart), and and typically is \
 unnecessary.", 100)
         txt_skipHelp = wx.StaticText(self, label=msg)
-        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification")
+        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification (Recommended)")
+        self.chkbox_skip_verify.SetValue(True)
         
         sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
         sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
@@ -390,7 +391,7 @@ unnecessary.", 100)
 
     def onButton_run(self, evt):
         class PartitionThread(threading.Thread):
-            def __init__(self, b2imgs, vendor_obj, callback, jobid, manager, progress_queue, tlisten, *args, **kwargs):
+            def __init__(self, b2imgs, vendor_obj, callback, jobid, manager, progress_queue, tlisten, skipVerify, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
                 self.b2imgs = b2imgs
                 self.vendor_obj = vendor_obj
@@ -399,17 +400,18 @@ unnecessary.", 100)
                 self.manager = manager
                 self.queue = progress_queue
                 self.tlisten = tlisten
+                self.skipVerify = skipVerify
             def run(self):
                 t = time.time()
                 print "...Running Decoding ({0} ballots)...".format(len(self.b2imgs))
                 # Pass in self.manager and self.queue to allow cross-process 
                 # communication (for multiprocessing)
-                flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue)
+                img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue, skipVerify=self.skipVerify)
                 dur = time.time() - t
                 print "...Done Decoding Ballots ({0} s).".format(dur)
                 print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
-                wx.CallAfter(self.callback, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
+                wx.CallAfter(self.callback, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
             def __init__(self, queue, jobid, *args, **kwargs):
@@ -464,12 +466,14 @@ unnecessary.", 100)
         b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
 
+        skipVerify = self.chkbox_skip_verify.GetValue()
+
         manager = multiprocessing.Manager()
         progress_queue = manager.Queue()
         tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
         t = PartitionThread(b2imgs, vendor_obj, self.on_decodedone,
-                            self.PARTITION_JOBID, manager, progress_queue, tlisten)
-        numtasks = len(img2b)
+                            self.PARTITION_JOBID, manager, progress_queue, tlisten, skipVerify)
+        numtasks = len(b2imgs)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
         if config.TIMER:
@@ -479,11 +483,13 @@ unnecessary.", 100)
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
         
-    def on_decodedone(self, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
+    def on_decodedone(self, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
         Input:
+            dict IMG2DECODING: {str imgpath: (str decoding_0, ..., str decoding_N)}
             dict FLIPMAP: {imgpath: bool isFlipped}
             dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+                May be None if skipVerify was True.
             list ERR_IMGPATHS:
                 List of images that the decoder was unable to decode
                 with high certainty.
@@ -540,25 +546,30 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         pickle.dump(ioerr_balids, open(pathjoin(self.proj.projdir_path,
                                                 self.proj.partition_ioerr), 'wb'))
         
-        def nuke_ballots(ballotids, verifypatch_bbs, flipmap):
+        def nuke_ballots(ballotids, img2decoding, verifypatch_bbs, flipmap):
             """ Removes all references to ballotids in BALLOTIDS from
             data structs VERIFYPATCH_BBS and FLIPMAP.
             Mutates input VERIFYPATCH_BBS, FLIPMAP.
             """
-            for bc_val, tups in verifypatch_bbs.iteritems():
-                i = 0
-                while i < len(tups):
-                    tup_imP, tup_bb, tup_userdata = tups[i]
-                    tup_balid = img2bal[tup_imP]
-                    if tup_balid in ballotids:
-                        tups.pop(i)
-                    else:
-                        i += 1
+            # If VERIFYPATCH_BBS is None, then skipVerify was True
+            if verifypatch_bbs:
+                for bc_val, tups in verifypatch_bbs.iteritems():
+                    i = 0
+                    while i < len(tups):
+                        tup_imP, tup_bb, tup_userdata = tups[i]
+                        tup_balid = img2bal[tup_imP]
+                        if tup_balid in ballotids:
+                            tups.pop(i)
+                        else:
+                            i += 1
             for flipmap_imP in flipmap.keys():
                 flipmap_bid = img2bal[flipmap_imP]
                 if flipmap_bid in ballotids:
                     flipmap.pop(flipmap_imP)
-            return verifypatch_bbs, flipmap
+            for bad_ballotid in ballotids:
+                if bad_ballotid in img2decoding:
+                    img2decoding.pop(bad_ballotid)
+            return img2decoding, verifypatch_bbs, flipmap
 
         bal2errlabel = {} # maps {int ballotid: ID_Quarantine/ID_Discard}
         for imgpath, label in self.errs_corrected.iteritems():
@@ -585,24 +596,30 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         nuke_ballotids = set(tuple(bal2errlabel.keys()) + tuple([img2bal[imP] for imP in self.ioerr_imgpaths]))
         # TODO: I think this call to nuke_ballots is taking quite a long time.
         #       Either speed this up, or add a progress bar?
-        nuke_ballots(nuke_ballotids, verifypatch_bbs, flipmap)
+        nuke_ballots(nuke_ballotids, img2decoding, verifypatch_bbs, flipmap)
 
         print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
                                                                       len(self.discarded_bals))
         if config.TIMER:
             config.TIMER.stop_task("Partition_HandleDecodingResults_CPU")
-        self.start_verify(flipmap, verifypatch_bbs)
+        self.start_verify(img2decoding, flipmap, verifypatch_bbs)
 
-    def start_verify(self, flipmap, verifypatch_bbs):
+    def start_verify(self, img2decoding, flipmap, verifypatch_bbs):
         """
         Input:
+            dict IMG2DECODING: {str imgpath: (str decoding_0, ...)}
             dict FLIPMAP: maps {str imgpath: bool isflip}
             dict VERIFYPATCH_BBS: maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+                Will be None if skipVerify was True.
         """
-        if self.chkbox_skip_verify.GetValue():
+        if self.chkbox_skip_verify.GetValue() or verifypatch_bbs == None:
             print "...Skipping Barcode Overlay Verification..."
-            wx.CallAfter(self.on_verify_done, None, None, flipmap, verifypatch_bbs, skipVerify=True)
+            wx.CallAfter(self.on_verify_done, None, None, img2decoding, flipmap, verifypatch_bbs, skipVerify=True)
             return
+
+        # DOGFOOD: Barcode verification has NOT been updated to keep track
+        #          of the new img2decoding data structure. The following
+        #          code WILL crash.
 
         outrootdir = pathjoin(self.proj.projdir_path, '_barcode_extractpats')
 
@@ -612,7 +629,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         thread_updateMyGauge = ThreadUpdateMyGauge(queue_mygauge, self.JOBID_EXTRACT_BARCODE_MARKS)
         thread_updateMyGauge.start()
 
-        thread_doextract = ThreadExtractBarcodePatches(verifypatch_bbs, flipmap, 
+        thread_doextract = ThreadExtractBarcodePatches(verifypatch_bbs, flipmap, img2decoding,
                                                        outrootdir, self.proj.voteddir,
                                                        manager, queue_mygauge,
                                                        thread_updateMyGauge,
@@ -629,13 +646,14 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         num_tasks = len(flipmap)
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, self.JOBID_EXTRACT_BARCODE_MARKS))
 
-    def on_extract_done(self, img2patch, patch2stuff, verifypatch_bbs, flipmap):
+    def on_extract_done(self, img2patch, patch2stuff, verifypatch_bbs, flipmap, img2decoding):
         """ Invoked once all barcode value patches have been extracted.
         Input:
             dict IMG2PATCH: {(imgpath, tag): patchpath}
             dict PATCH2STUFF: {patchpath: (imgpath, (x1,y1,x2,y2), tag)}
             dict VERIFYPATCH_BBS: {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
             dict FLIPMAP: {imgpath: bool isFlipped}
+            dict IMG2DECODING: {imgpath: (str decoding_0, ...)}
         """
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS,))
         if config.TIMER:
@@ -648,7 +666,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 id = (x1,y1,x2,y2)
                 patchpath = img2patch[(imgpath, (bc_val, userdata, id))]
                 imgcats.setdefault(cattag, {}).setdefault(bc_val, []).append(patchpath)
-        callback = lambda verifyRes: self.on_verify_done(verifyRes, patch2stuff, flipmap, verifypatch_bbs)
+        callback = lambda verifyRes: self.on_verify_done(verifyRes, patch2stuff, img2decoding, flipmap, verifypatch_bbs)
         if config.TIMER:
             config.TIMER.start_task("Partition_VerifyBarcodeMarks_H")
         f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
@@ -659,12 +677,13 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         # won't know its 'real' client size, causing layout issues.
         wx.FutureCall(200, f.start)
 
-    def on_verify_done(self, verify_results, patch2stuff, flipmap, verifypatch_bbs, skipVerify=False):
+    def on_verify_done(self, verify_results, patch2stuff, img2decoding, flipmap, verifypatch_bbs, skipVerify=False):
         """ Receives the (corrected) results from VerifyOverlays.
         Input:
         dict VERIFY_RESULTS: {cat_tag: {grouptag: [imgpath_i, ...]}}
             For each category CAT_TAG, each group GROUPTAG maps to a set
             of imgpaths that the user claimed is part of GROUPTAG.
+            Will be None if skipVerify was True.
         """
         print "...barcode patch verification done!"
         if config.TIMER:
@@ -693,7 +712,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         # TODO: This call to partition_ballots takes a few minutes on large
         # elections -- add a progress bar or something, so that it doesn't
         # look like the UI is hanging.
-        partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(verified_decodes, manual_labeled)
+        partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(img2decoding, verified_decodes, manual_labeled)
         if config.TIMER:
             config.TIMER.stop_task("Partition_GeneratePartitions_CPU")
         print "...done generating partitions..."
@@ -1142,7 +1161,8 @@ it were the front-side of a ballot."
 
 class ThreadExtractBarcodePatches(threading.Thread):
     """ A separate thread to run the extract_barcode_patches call. """
-    def __init__(self, verifypatch_bbs, flipmap, outrootdir, voteddir, 
+    def __init__(self, verifypatch_bbs, flipmap, img2decoding,
+                 outrootdir, voteddir, 
                  manager, queue_mygauge, 
                  thread_updateMyGauge,
                  callback=None,
@@ -1150,6 +1170,7 @@ class ThreadExtractBarcodePatches(threading.Thread):
         threading.Thread.__init__(self, *args, **kwargs)
         self.verifypatch_bbs = verifypatch_bbs
         self.flipmap = flipmap
+        self.img2decoding = img2decoding
         self.outrootdir = outrootdir
         self.voteddir = voteddir
         self.manager = manager
@@ -1167,7 +1188,7 @@ class ThreadExtractBarcodePatches(threading.Thread):
         dur = time.time() - t
         print "==== ThreadExtractBarcodePatches: Finished extracted_barcode_patches ({0:.4f}s)".format(dur)
         self.thread_updateMyGauge.stop_running()
-        wx.CallAfter(self.callback, img2patch, patch2stuff, self.verifypatch_bbs, self.flipmap)
+        wx.CallAfter(self.callback, img2patch, patch2stuff, self.verifypatch_bbs, self.flipmap, self.img2decoding)
         
 class ThreadUpdateMyGauge(threading.Thread):
     """ A Thread that listens on self.queue_mygauge, and throws out

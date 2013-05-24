@@ -31,7 +31,7 @@ class ESSVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
         """
         Decode ES&S style ballot barcodes. 
         Each mark will later be verified for correctness.
@@ -39,7 +39,11 @@ class ESSVendor(Vendor):
             ballots : {int ballotID: [imgpath_side0, ...]}.
             manager : option for multiprocessing
             queue   : option for multiprocessing
+            skipVerify : If True, then don't store metadata about each
+                         individual barcode mark. Simply output an empty
+                         dict for the bbs_map output.
         Output:
+            img2decoding : stores decoded strings for each image.
             flip_map     : stores whether an image is flipped or not:
                            {str imgpath: bool isFlipped}
             bbs_map      : location of barcode patches (bits) to be verified:
@@ -49,10 +53,10 @@ class ESSVendor(Vendor):
             ioerr_imgpaths : list of imgpaths that were unable to be read
                              by OpenCV.
         """
-
         mark_path = MARK
         # decoded_results: {ballotID: (barcode, is_flipped, bit_locations)}
         decoded_results = decode_ballots(ballots, mark_path, manager, queue)
+        img2decoding = {} # {imgpath: (str decoding_0, ..., str decoding_N)}
         flip_map = {}  # {imgpath: is_flipped}
         bbs_map = {}   # {bit_value: [(imgpath, (x1,y1,x2,y2), None), ...]}
         err_imgpaths = []
@@ -67,20 +71,24 @@ class ESSVendor(Vendor):
                     print "..error on: {0}".format(imgpath)
                     err_imgpaths.append(imgpath)
                 else:
+                    img2decoding[imgpath] = (bitstring,)
                     for bit_value, boxes in bit_locations.iteritems():
                         for box in boxes:
                             tup = (imgpath, box, counter)
                             bbs_map.setdefault(bit_value, []).append(tup)
                             counter += 1
-        return flip_map, bbs_map, err_imgpaths, ioerr_imgpaths
+        return img2decoding, flip_map, bbs_map, err_imgpaths, ioerr_imgpaths
 
-    def partition_ballots(self, verified_results, manual_labeled):
+    def partition_ballots(self, img2decoding, verified_results, manual_labeled):
         """
         Given the user-verified (and corrected) results of decode_ballots,
         output the partitioning.
 
         Input:
+            img2decoding     : {imgpath: (str decoding_0, ...)}
             verified_results : {bit_value: [(str imgpath, (x1,y1,x2,y2), userinfo), ...]}
+                If this is empty/None, then the user did not do barcode overlay
+                verification, so just use the img2decoding information.
             manual_labeled   : {imgpath: bitstring}
         Output:
             partitions   : stores the partitioning as:
@@ -89,7 +97,16 @@ class ESSVendor(Vendor):
                            {imgpath: [bitstring_i, ...]}
             imginfo_map  : stores info for image (currently only page for partitioning)
         """
-
+        '''
+        TODO: Storing metadata on each barcode mark (the 'verified_results' dict)
+              ends up consuming a lot of memory for large elections.
+              As a stop-gap: If the user does not want to do barcode overlay verification,
+              then we can simply not store the data about each barcode mark, and just
+              use the img2decoding data structure to perform the partitioning.
+              This ES&S decoder currently doesn't do this, which shouldn't
+              cause any crashes, but may run into memory issues on large
+              elections.
+        '''
         partitions = {}
         img2decoding = {}
         imginfo_map = {}

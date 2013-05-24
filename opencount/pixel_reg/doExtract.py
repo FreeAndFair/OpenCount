@@ -156,7 +156,7 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
     if method_galign == GALIGN_NORMAL:
         ERR_REL_THR = 1.44 # 5 std devs. from santacruz1000 empirical
         H1, I1, err_galign = global_align.align_image(I, IrefM, crop=True, 
-                                                      CROPX=0.02, CROPY=0.02,
+                                                      CROPX=0.05, CROPY=0.05,
                                                       MINAREA=np.power(2, 16))
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
     else:
@@ -168,6 +168,8 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
         H1_[:2,:] = H1
         H1 = H1_ # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
+
+    #misc.imsave("Iglobal.png", I1+IrefM)
 
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     #print 'err_galign={0:.5f}  err_orig={1:.5f}  ratio={2:.5f}'.format(err_galign, orig_err, err_rel)
@@ -259,7 +261,12 @@ def extractTargetsRegions(I,Iref,bbs,vCells=4,hCells=4,verbose=False,balP=None,
                     if method_galign == GALIGN_CV:
                         Ic = Ic.astype('float32') / 255.0
                         Irefc = Irefc.astype('float32') / 255.0
-                    Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,19))
+                    #Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,16))
+                    Hc1, Ic1, err = global_align.align_image(Ic, Irefc, crop=True, CROPX=0.05, CROPY=0.05, MINAREA=np.power(2, 16))
+                    #if i == 3 and j == 3:
+                    #    print "i,j=", i,j
+                    #    misc.imsave("Ic_reg_{0}_{1}.png".format(i, j), Ic1+Irefc)
+                    #    pdb.set_trace()
                     Ic1 = np.round(Ic1 * 255.0).astype('uint8')
                 elif method_lalign == LALIGN_CV:
                     if method_galign == GALIGN_NORMAL:
@@ -327,11 +334,27 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
     targets = [] # [str _i, ...]
     bboxes = []
 
+    def get_target_roi():
+        try:
+            file_targetroi = open(os.path.join(projdir, 'target_roi'), 'r')
+            line = file_targetroi.readline().strip()
+            x1, y1, x2, y2 = map(int, line.split(","))
+            return x1, y1, x2, y2
+        except:
+            return None
+
+    t_roi = get_target_roi()
+
     for uid,img,bbox,Idiff in imgs:
         targetoutname = str(balId)+"\0"+str(page)+"\0"+str(int(uid))
         targets.append((balId, page, int(uid)))
         if not HACK_SANTACRUZ:
-            avg_intensity = (np.sum(img) / float(img.shape[0] * img.shape[1]))
+            if not t_roi:
+                tpatch = img
+            else:
+                x1, y1, x2, y2 = t_roi
+                tpatch = img[y1:y2, x1:x2]
+            avg_intensity = np.mean(tpatch)
         else:
             # SantaCruz - specific HACK
             _INTEREST = img[:, 15:img.shape[1]-20]
@@ -781,49 +804,28 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     print "(Info) METHOD_GALIGN={0} METHOD_LALIGN={1}".format(_galignnames[method_galign], _lalignnames[method_lalign])
     MAX_SIZE = 950 * (1e6) # In Bytes, e.g. 950 MB. Limit memory usage of template pre-loading
     cur_size = 0
-    flag = False
-    repset_dir = os.path.join(projdir,'groupsAlign_seltargs/')
     if os.path.exists(os.path.join(projdir,'group_to_Iref.p')):
         group_to_Iref = pickle.load(open(os.path.join(projdir,'group_to_Iref.p'),'rb'))
-        flag = True
+    else:
+        group_to_Iref = None
 
     for i,(groupID, ballotIDs) in enumerate(sorted(group_to_ballots.iteritems(), key=lambda t: -len(t[1]))):
         bbs = get_bbs(groupID, target_locs_map)
-        # 1.a.) Create 'blank ballots'. This might not work so well...
-        if flag and groupID in group_to_Iref.keys():
+        # 1.a.) Choose reference images for alignment purposes
+        if group_to_Iref and groupID in group_to_Iref.keys():
             idx = group_to_Iref[groupID]
-            #print groupID
-            #print idx
-            #print "FOUND"
         else:
             idx = 0 # default case select the first ballot in the group
         blankpaths_ordered  = []
 
-        # NOTE: The substring matching is safe because the only cases of ballots
-        # in the groupsAlign_seltargs are bal_{0,1,2,3,4}
-        partition_dir = os.path.join(repset_dir,'partition_'+str(groupID)+'/')
-        for _,_,bals in os.walk(partition_dir):
-            for bal in sorted(bals):
-                if 'bal_'+str(idx) in bal:
-                    blank = os.path.join(partition_dir,bal)
-                    blankpaths_ordered.append(blank)
-
-        #exmpl_id = group_exmpls[groupID][idx]
-        #blankpaths = b2imgs[exmpl_id]
-        if idx != 0: print blankpaths_ordered
-        #blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
-        #blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
-
-        # TODO: this is kind of awkward; just a hack to keep parameters the same
-        blankpaths_flips = []
-        for blank in blankpaths_ordered:
-            # Recall that the images in REPSET_DIR are already corrected
-            # for possible flips
-            blankpaths_flips.append(False)
-
+        exmpl_id = group_exmpls[groupID][idx]
+        blankpaths = b2imgs[exmpl_id]
+        blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
+        blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+        
         blankimgs = []
         for i, blankpath in enumerate(blankpaths_ordered):
-            #isflip = blankpaths_flips[i]
+            isflip = blankpaths_flips[i]
             if cur_size >= MAX_SIZE:
                 blankimgs.append(None)
             else:
@@ -831,16 +833,14 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                     Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='float32', normalize=True)
                 else:
                     Iblank = sh.standardImread_v2(blankpath, flatten=True, dtype='uint8', normalize=False)
-                #if isflip:
-                #    Iblank = sh.fastFlip(Iblank)
+                if isflip:
+                    Iblank = sh.fastFlip(Iblank)
                 cur_size += Iblank.nbytes
                 blankimgs.append(Iblank)
         for ballotid in ballotIDs:
             if ballotid in bad_ballotids:
                 continue
             imgpaths = b2imgs[ballotid]
-            #if "/media/data1/audits2012_straight/santacruz/votedballots/3RD DISTRICT/POLLS/30041_POLLS/POLLS_30041_00047-1.png" not in imgpaths:
-            #    continue
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
             imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
             job = [blankimgs, blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered,

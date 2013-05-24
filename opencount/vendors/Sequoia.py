@@ -18,54 +18,63 @@ class SequoiaVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None):
-        flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths, backsmap = partask.do_partask(_decode_ballots,
-                                                                                           ballots,
-                                                                                           _args=(sequoia.ZERO_IMGPATH,
-                                                                                                  sequoia.ONE_IMGPATH,
-                                                                                                  sequoia.SIDESYM_IMGPATH,
-                                                                                                  self.proj.num_pages),
-                                                                                           combfn=_combfn,
-                                                                                           init=({}, {}, [], [], {}),
-                                                                                           manager=manager,
-                                                                                           pass_queue=queue,
-                                                                                           N=None)
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
+        img2decoding, flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths, backsmap = partask.do_partask(_decode_ballots,
+                                                                                                         ballots,
+                                                                                                         _args=(sequoia.ZERO_IMGPATH,
+                                                                                                                sequoia.ONE_IMGPATH,
+                                                                                                                sequoia.SIDESYM_IMGPATH,
+                                                                                                                self.proj.num_pages,
+                                                                                                                skipVerify),
+                                                                                                         combfn=_combfn,
+                                                                                                         init=({}, {}, {}, [], [], {}),
+                                                                                                         manager=manager,
+                                                                                                         pass_queue=queue,
+                                                                                                         N=None)
         # BACKSMAP: maps {int ballotID: [imgpath_i, ...]}. Stores all backside imagepaths for each ballotid
         self.backsmap = backsmap
-        return (flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths)
+        return (img2decoding, flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths)
 
-    def partition_ballots(self, verified_results, manual_labeled):
+    def partition_ballots(self, img2decoding, verified_results, manual_labeled):
         """
         Input:
             dict VERIFIED_RESULTS: maps {markval, [(imgpath, (x1,y1,x2,y2), userdata), ...]}
+                If None, then skipVerify was True.
             dict MANUAL_LABELED: maps {imgpath: [decoding_left, decoding_right]}
         Note: imgpaths not in VERIFIED_RESULTS but in FLIPMAP are back sides.
         Output:
             (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
         """
         partitions = {}
-        img2decoding = {}
         imginfo_map = {}
-        
-        decodings_tmp = {} # maps {imgpath: [(left/right, y1, digitval), ...]}
-        for markval, tups in verified_results.iteritems():
-            digitval = '1' if markval == sequoia.MARK_ON else '0'
-            for (imgpath, bb, side) in tups:
-                decodings_tmp.setdefault(imgpath, []).append((side, bb[1], digitval))
-        
-        for imgpath, tups in decodings_tmp.iteritems():
-            # group by LEFT/RIGHT, sort by y1 coordinate
-            left = [(y1, digitval) for (side, y1, digitval) in tups if side == sequoia.LEFT]
-            right = [(y1, digitval) for (side, y1, digitval) in tups if side == sequoia.RIGHT]
-            left_sorted = sorted(left, key=lambda t: t[0])
-            right_sorted = sorted(right, key=lambda t: t[0])
-            left_decoding = ''.join([val for (y1, val) in left_sorted])
-            right_decoding = ''.join([val for (y1, val) in right_sorted])
-            decoding = (left_decoding, right_decoding)
-            img2decoding[imgpath] = decoding
-            imginfo = get_imginfo(decoding)
-            imginfo['page'] = 0
-            imginfo_map[imgpath] = imginfo
+
+        if verified_results:
+            img2decoding = {}            
+            decodings_tmp = {} # maps {imgpath: [(left/right, y1, digitval), ...]}
+            for markval, tups in verified_results.iteritems():
+                digitval = '1' if markval == sequoia.MARK_ON else '0'
+                for (imgpath, bb, side) in tups:
+                    decodings_tmp.setdefault(imgpath, []).append((side, bb[1], digitval))
+
+            for imgpath, tups in decodings_tmp.iteritems():
+                # group by LEFT/RIGHT, sort by y1 coordinate
+                left = [(y1, digitval) for (side, y1, digitval) in tups if side == sequoia.LEFT]
+                right = [(y1, digitval) for (side, y1, digitval) in tups if side == sequoia.RIGHT]
+                left_sorted = sorted(left, key=lambda t: t[0])
+                right_sorted = sorted(right, key=lambda t: t[0])
+                left_decoding = ''.join([val for (y1, val) in left_sorted])
+                right_decoding = ''.join([val for (y1, val) in right_sorted])
+                decoding = (left_decoding, right_decoding)
+                img2decoding[imgpath] = decoding
+                imginfo = get_imginfo(decoding)
+                imginfo['page'] = 0
+                imginfo_map[imgpath] = imginfo
+        else:
+            for imgpath, decoding_tuple in img2decoding.iteritems():
+                imginfo = get_imginfo(decoding_tuple)
+                imginfo['page'] = 0
+                imginfo_map[imgpath] = imginfo
+
         for imgpath, decoding in manual_labeled.iteritems():
             # TODO: Introduce a non-hacky way to manually indicate that
             # an image is a back-side, rather than entering in "0,".
@@ -109,7 +118,6 @@ class SequoiaVendor(Vendor):
                           'backsmap': self.backsmap,
                           'verified_results': verified_results,
                           'manual_labeled': manual_labeled,
-                          'decodings_tmp': decodings_tmp,
                           'history': history,
                           'curPartitionID': curPartitionID}
                 pickle.dump(dumped, open('crash_dumpstate.p', 'wb'))
@@ -153,8 +161,9 @@ def get_imginfo(decodings):
     return {}
 
 def _combfn(a, b):
-    flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerr_imgpaths_a, backsmap_a = a
-    flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerr_imgpaths_b, backsmap_b = b
+    img2dec_a, flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerr_imgpaths_a, backsmap_a = a
+    img2dec_b, flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerr_imgpaths_b, backsmap_b = b
+    img2dec_out = dict(img2dec_a.items() + img2dec_b.items())
     flipmap_out = dict(flipmap_a.items() + flipmap_b.items())
     mark_bbs_map_out = mark_bbs_map_a
     for marktype, tups in mark_bbs_map_b.iteritems():
@@ -162,9 +171,9 @@ def _combfn(a, b):
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
     ioerrs_imgpaths_out = ioerr_imgpaths_a + ioerr_imgpaths_b
     backs_map_out = dict(backsmap_a.items() + backsmap_b.items())
-    return (flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_imgpaths_out, backs_map_out)
+    return (img2dec_out, flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_imgpaths_out, backs_map_out)
 
-def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path, num_pages), queue=None):
+def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_path, num_pages, skipVerify), queue=None):
     """
     Input:
         dict BALLOTS: {int ballotID: [imgpath_i, ...]}
@@ -172,7 +181,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
             The number of pages this election has. Only supports 1, or
             multiples of 2 (assuming front/back pairs).
     Output:
-        (dict flipmap, dict mark_bbs, list err_imgpaths, list ioerr_imgpaths, dict backsmap)
+        (dict img2decoding, dict flipmap, dict mark_bbs, list err_imgpaths, list ioerr_imgpaths, dict backsmap)
     Since backsides do not really have barcodes, and I detect the 
     front/back by the ISIDESYM mark, back sides are handled differently.
     If an image I is found to be a backside, it will be added to the
@@ -185,6 +194,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
     mark_bbs_map = {} # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}
     err_imgpaths = set()
     ioerr_imgpaths = set()
+    img2decoding = {}
     Itemp0 = cv.LoadImage(template_path_zero, cv.CV_LOAD_IMAGE_GRAYSCALE)
     Itemp1 = cv.LoadImage(template_path_one, cv.CV_LOAD_IMAGE_GRAYSCALE)
     IsymA = cv.LoadImage(sequoia.SYMA_IMGPATH, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -291,6 +301,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
                 else:
+                    img2decoding[imP_front] = decodings
                     if frontside == 0 and side1 == None:
                         # imgpath1 must be an empty backside.
                         backs.append(imgpath1)
@@ -303,21 +314,23 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                         backs.append(imgpath1)
                     elif frontside == 1:
                         backs.append(imgpath0)
-                    for marktype, tups in mark_locs.iteritems():
-                        mark_bbs_map.setdefault(marktype, []).extend(tups)
+                    if not skipVerify:
+                        for marktype, tups in mark_locs.iteritems():
+                            mark_bbs_map.setdefault(marktype, []).extend(tups)
                     fronts.append(imgpath0)
                 if queue: 
                     mygauge_tick(N=2)
             backsmap[ballotid] = backs
 
-        return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
+        return img2decoding, flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
 
 def handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE,
-                      queue):
+                      queue, skipVerify):
     """ Do decoding for single-sided elections. Don't do the arm-tangly
     accounting-for-back-sides here - instead, if a backside seems to show
     up, just mark it as an error and move on.
     """
+    img2decoding = {}
     flipmap = {}
     mark_bbs_map = {} # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}
     err_imgpaths = set()
@@ -361,12 +374,14 @@ def handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE
         elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
             err_imgpaths.add(imgpath)
         else:
-            for marktype, tups in mark_locs.iteritems():
-                mark_bbs_map.setdefault(marktype, []).extend(tups)
+            img2decoding[imgpath] = decodings
+            if not skipVerify:
+                for marktype, tups in mark_locs.iteritems():
+                    mark_bbs_map.setdefault(marktype, []).extend(tups)
         if queue: 
             queue.put(True)
 
-    return flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
+    return img2decoding, flipmap, mark_bbs_map, list(err_imgpaths), list(ioerr_imgpaths), backsmap
 
 def by_n_gen(seq, n):
     i = 0
