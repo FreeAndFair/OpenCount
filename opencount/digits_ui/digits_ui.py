@@ -444,6 +444,9 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.MAX_WIDTH = w_suggested
         self.cell_w = w_suggested
 
+        # TODO: The following code block from here until the end of the
+        # function can take a /long/ time (and consume quite a bit of
+        # memory, >7 GB on Orange) on large elections. 
         def add_patches(imgname,dirpath):
             imgpath = pathjoin(dirpath, imgname)
             pil_img = util_gui.open_as_grayscale(imgpath)
