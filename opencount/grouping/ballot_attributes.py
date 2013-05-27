@@ -405,6 +405,8 @@ Would you like to review the ballot annotations?",
                 _c = h_img / float(hP)
                 w_img_new = int(round(w_img / _c))
                 h_img_new = hP
+            else:
+                w_img_new, h_img_new = w_img, h_img
             size = (w_img_new, h_img_new)
         else:
             size = None
