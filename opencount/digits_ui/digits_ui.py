@@ -1,4 +1,4 @@
-import sys, os, pdb, Queue, threading, time, traceback, random
+import sys, os, pdb, Queue, threading, time, traceback, random, argparse, math
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -114,7 +114,12 @@ class LabelDigitsPanel(OpenCountPanel):
             pickle.dump(patch2temp, open(pathjoin(project.projdir_path,
                                                   project.digitpatch2temp),
                                          'wb'))
-        self.mainpanel = DigitMainPanel(self, extracted_digitpatches_fulldir,
+        imgpaths = []
+        for dirpath, dirnames, filenames in os.walk(extracted_digitpatches_fulldir):
+            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                imgpaths.append(os.path.join(dirpath, imgname))
+
+        self.mainpanel = DigitMainPanel(self, imgpaths,
                                         digit_ex_fulldir,
                                         precinctnums_fullpath,
                                         ondone=self.ondone)
@@ -175,7 +180,7 @@ class DigitMainPanel(wx.Panel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
     simple button tool bar.
     """
-    def __init__(self, parent, extracted_dir,
+    def __init__(self, parent, imgpaths,
                  digit_exemplars_outdir='digit_exemplars',
                  precinctnums_outpath='precinct_nums.txt',
                  ondone=None,
@@ -194,7 +199,7 @@ class DigitMainPanel(wx.Panel):
         btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
 	self.reset_button = wx.Button(self, label="Reset")
 	self.reset_button.Bind(wx.EVT_BUTTON, self.onButton_reset)
-        self.digitpanel = DigitLabelPanel(self, extracted_dir,
+        self.digitpanel = DigitLabelPanel(self, imgpaths,
                                           digit_exemplars_outdir,
                                           precinctnums_outpath,
                                           ondone)
@@ -259,13 +264,12 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     STATE_FILE = '_digitlabelstate.p'
 
     def __init__(self, parent,
-                 extracted_dir, 
+                 imgpaths,
                  digit_exemplars_outdir='digit_exemplars',
                  precinctnums_outpath='precinct_nums.txt',
                  ondone=None, *args, **kwargs):
         """
-        str extracted_dir: Directory containing extracted patches
-                           for each blank ballot.
+        list imgpaths: List of imagepaths to display.
         str digit_exemplars_outdir: Directory in which we'll save each
                                     digit exemplar patch.
         fn ondone: A callback function to call when the digit-labeling is
@@ -274,7 +278,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        self.extracted_dir = extracted_dir
+        self.imgpaths = imgpaths
         self.digit_exemplars_outdir = digit_exemplars_outdir
         self.precinctnums_outpath = precinctnums_outpath  # TODO: NOT USED
 
@@ -401,7 +405,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Returns (x,y) of next cell location """
         return (self.j_cur * self.cellw, self.i_cur * self.cellh)
 
-    def add_img(self, imgbitmap, imgID, pil_img, imgpath, rszFac):
+    def add_img(self, imgbitmap, imgID, npimg, imgpath, rszFac):
         """Adds a new image to this grid. Populates the self.imgID2cell,
         self.cell2imgID, self.i, self.j, self.cells, and 
         self.precinct_txts instance variables.
@@ -421,18 +425,18 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         w, h = imgbitmap.GetSize()
         s = wx.BoxSizer(wx.VERTICAL)
         txt = wx.StaticText(self, label="Precinct Number:")
-        staticbitmap = MyStaticBitmap(self, self.i, self.j, imgpath, bitmap=imgbitmap, pil_img=pil_img, rszFac=rszFac)
+        staticbitmap = MyStaticBitmap(self, self.i, self.j, imgpath, bitmap=imgbitmap, npimg=npimg, rszFac=rszFac)
         s.Add(txt)
         s.Add(staticbitmap, proportion=1, flag=wx.EXPAND)
         assert imgpath not in self.cells
         assert imgpath not in self.precinct_txts
         self.cells[imgpath] = staticbitmap
         self.precinct_txts[imgpath] = txt
-        #self.gridsizer.Add(staticbitmap)
+        self.gridsizer.Add(staticbitmap)
         self.gridsizer.Add(s, border=10, flag=wx.ALL)
 
     def setup_grid(self, sorted=False,sorted_patches=None):
-        """Reads in the digit patches (given by self.extracted_dir),
+        """Reads in the digit patches (given by self.imgpaths)
         and displays them on a grid.
         """
         #w, h = self.GetClientSize()
@@ -447,28 +451,25 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         # TODO: The following code block from here until the end of the
         # function can take a /long/ time (and consume quite a bit of
         # memory, >7 GB on Orange) on large elections. 
-        def add_patches(imgname,dirpath):
-            imgpath = pathjoin(dirpath, imgname)
-            pil_img = util_gui.open_as_grayscale(imgpath)
-            w, h = pil_img.size
+        def add_patches(imgpath):
+            npimg = np.asarray(cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE))
+            w, h = npimg.shape[1], npimg.shape[0]
             c = float(w) / self.MAX_WIDTH
             w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
             if self.cellh == None:
                 self.cellh = h_scaled
             if self.rszFac == None:
                 self.rszFac = c
-            pil_img = pil_img.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
-            b = util_gui.PilImageToWxBitmap(pil_img)
-            self.add_img(b, imgpath, pil_img, imgpath, c)
+            npimg_rsz = fastResize(npimg, w_scaled)
+            b = util.np2wxBitmap(npimg_rsz)
+            self.add_img(b, imgpath, npimg_rsz, imgpath, c)
 
         if sorted == True:
             for imgname in sorted_patches:
                 add_patches(imgname,'')
-        else:            
-            for dirpath, dirnames, filenames in os.walk(self.extracted_dir):
-                for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                    add_patches(imgname,dirpath)
-        
+        else:
+            for imgpath in self.imgpaths:
+                add_patches(imgpath)
         
         print 'num images:', len(self.imgID2cell)
         self.Refresh()
@@ -506,7 +507,7 @@ digit.")
         self.current_digit = digitval
 
         self.queue = Queue.Queue()
-        t = ThreadDoTempMatch(imgpatch, self.extracted_dir, self.queue, self.DIGITTEMPMATCH_JOB_ID)
+        t = ThreadDoTempMatch(imgpatch, self.imgpaths, self.queue, self.DIGITTEMPMATCH_JOB_ID)
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
                              msg="Finding digit instances...",
                              job_id=self.DIGITTEMPMATCH_JOB_ID)
@@ -536,8 +537,6 @@ digit.")
             print "Couldn't find any matches."
             return
         print "Num. Matches Found:", len(matches)
-
-        proj = self.parent.parent.project  # TODO: breach of abstraction
 
         self.overlaymaps = {} # maps {int matchID: (i,j)}
 
@@ -818,7 +817,7 @@ are not of proper length.'
             cell.Disable()
 
 class MyStaticBitmap(wx.Panel):
-    def __init__(self, parent, i, j, imgpath, bitmap=None, pil_img=None, rszFac=1.0, *args, **kwargs):
+    def __init__(self, parent, i, j, imgpath, bitmap=None, npimg=None, rszFac=1.0, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.imgpath = imgpath
@@ -826,7 +825,7 @@ class MyStaticBitmap(wx.Panel):
         if not bitmap:
             bitmap = wx.EmptyBitmap(50, 50, -1)
         self.bitmap = bitmap
-        self.pil_img = pil_img
+        self.npimg = npimg
         self.i, self.j = i, j
         self.boxes = []
         self._box = None
@@ -866,8 +865,8 @@ class MyStaticBitmap(wx.Panel):
         x1,y1,x2,y2 = Box.make_canonical(tmp)
         tmp.x1 = max(0, x1)
         tmp.y1 = max(0, y1)
-        tmp.x2 = min(self.pil_img.size[0]-1, x2)
-        tmp.y2 = min(self.pil_img.size[1]-1, y2)
+        tmp.x2 = min(self.npimg.shape[1]-1, x2)
+        tmp.y2 = min(self.npimg.shape[0]-1, y2)
         return tmp
     def _update_box(self, x, y):
         assert self._box
@@ -921,7 +920,7 @@ matching. Saving to: _errtmp_npimg.png"
         coords = Box.make_canonical(box)
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
         #npimg = scipy.misc.imread(self.imgpath, flatten=True)
-        npimg = shared.standardImread(self.imgpath, flatten=True)
+        npimg = shared.standardImread_v2(self.imgpath, flatten=True)
         x1,y1,x2,y2=map(lambda n: int(round(n*self.rszFac)),coords)
         return npimg[y1:y2, x1:x2]
 
@@ -948,11 +947,11 @@ matching. Saving to: _errtmp_npimg.png"
             dc.DrawRectangle(x1, y1, self._box.width, self._box.height)        
 
 class ThreadDoTempMatch(threading.Thread):
-    def __init__(self, img1, regionsdir, queue, job_id, *args, **kwargs):
-        """ Search for img1 within images in regionsdir. """
+    def __init__(self, img1, imgpaths, queue, job_id, *args, **kwargs):
+        """ Search for img1 within images in imgpaths. """
         threading.Thread.__init__(self, *args, **kwargs)
         self.img1 = img1
-        self.regionsdir = regionsdir
+        self.imgpaths = imgpaths
 
         self.queue = queue
         self.job_id = job_id
@@ -962,9 +961,8 @@ class ThreadDoTempMatch(threading.Thread):
         bb = [0, h-1, 0, w-1]
         regions = []
         #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
-        for dirpath, dirnames, filenames in os.walk(self.regionsdir):
-            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-                regions.append(pathjoin(dirpath, imgname))
+        for imgpath in self.imgpaths:
+            regions.append(imgpath)
         try:
             matches = shared.find_patch_matchesV1(self.img1, bb[:], regions, threshold=0.8,
                                                   output_Ireg=True)
@@ -1078,7 +1076,7 @@ class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple
     button toolbar.
     """
-    def __init__(self, parent, extracted_dir,
+    def __init__(self, parent, imgpaths,
                  digit_exemplars_outdir='digit_exemplars',
                  precinctnums_outpath='precinct_nums.txt',
                  ondone=None,
@@ -1089,7 +1087,7 @@ class DigitMainFrame(wx.Frame):
         if not ondone:
             ondone = self.on_done
 
-        self.mainpanel = DigitMainPanel(self, extracted_dir,
+        self.mainpanel = DigitMainPanel(self, imgpaths,
                                         digit_exemplars_outdir,
                                         precinctnums_outpath,
                                         ondone)
@@ -1383,15 +1381,71 @@ def get_num_digits(proj):
         if attr['is_digitbased']:
             return attr['num_digits']
     raise Exception("Couldn't find any digit-based attributes?!")
-    
-def main():
-    args = sys.argv[1:]
-    if not args:
-        path = 'test_imgs/extracted_precincts'
+
+def fastResize(I, w_new):
+    """ Resizes a numpy image I to have width W_NEW. Maintains aspect ratio.
+    Input:
+        nparray I:
+        int W_NEW:
+    Output:
+        nparray IOUT.
+    """
+    if I.shape[1] == w_new:
+        return I
+    Icv = cv.fromarray(I)
+    h_new = int(round(I.shape[0] / (I.shape[1] / float(w_new))))
+    I1cv = cv.CreateMat(h_new, int(w_new), Icv.type)
+    if I.shape[1] >= w_new:
+        cv.Resize(Icv, I1cv, interpolation=cv.CV_INTER_AREA)
     else:
-        path = args[0]
+        cv.Resize(Icv, I1cv, interpolation=cv.CV_INTER_CUBIC)
+    Iout = np.asarray(I1cv)
+    return Iout
+    
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("imgsdir", help="Input directory containing \
+digit patches.")
+
+    parser.add_argument("--limit", type=int, metavar="N",
+                        help="Upper limit on images to display.")
+    parser.add_argument("--increase", type=int, metavar="N",
+                        help="Duplicates enough images in IMGSDIR so that \
+there are N patches to label in the UI. Useful to test how scale-able the \
+widget is.")
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+    imgsdir = args.imgsdir
+
+    def read_imagepaths():
+        imgpaths = []
+        for dirpath, dirnames, filenames in os.walk(imgsdir):
+            for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
+                if args.limit and len(imgpaths) >= args.limit:
+                    return imgpaths
+                imgpaths.append(os.path.join(dirpath, imgname))
+        return imgpaths
+
+    imgpaths = read_imagepaths()
+
+    # Note: The '--increase' option doesn't work in the current DigitsUI
+    # implementation, as the widget assumes that input imagepaths are unique
+    # (certain datastructures use imagepaths as keys)
+    '''
+    if args.increase and len(imgpaths) < args.increase:
+        redund = int(math.ceil(float(args.increase - len(imgpaths)) / len(imgpaths)))
+        imgpaths_cpy = imgpaths[:]
+        i = 0
+        while len(imgpaths) < args.increase:
+            imgpaths.extend([imgpaths_cpy[i % len(imgpaths_cpy)]]*redund)
+            i += 1
+    '''
+        
+    print "(Info) Displaying {0} images.".format(len(imgpaths))
     app = wx.App(False)
-    frame = DigitMainFrame(None, path)
+    frame = DigitMainFrame(None, imgpaths)
     frame.start()
     app.MainLoop()
 
