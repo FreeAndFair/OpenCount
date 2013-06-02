@@ -1,4 +1,4 @@
-import sys, os, time, pdb, traceback, math, argparse, threading, Queue
+import sys, os, time, pdb, traceback, math, argparse, threading, Queue, textwrap
 import wx, numpy as np, cv
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -37,6 +37,10 @@ class SmartScrolledGridPanel(ScrolledPanel):
         self.page2cellids = None
         self.cellid2page = None
 
+        # set CELLIDS_MANUAL: Stores the cellids that were manually labeled
+        # by the user.
+        self.cellids_manual = None
+
         # tuple PAGESIZE: (int rows, int cols)
         self.pagesize = None
         self.pages_active = None
@@ -45,6 +49,8 @@ class SmartScrolledGridPanel(ScrolledPanel):
         self.cellsize, self.cellsize_orig = None, None
 
         # dict CELLID2BOXES: {int cellid: [[int x1, y1, x2, y2, str val], ...]}
+        #     A box with None as the coordinates is a box that was manually
+        #     labeled by the user, e.g. [None, None, None, None, '2'].
         self.cellid2boxes = None 
 
         # list PANELS_POOL: [Panel_0, ...]
@@ -91,11 +97,16 @@ class SmartScrolledGridPanel(ScrolledPanel):
                 'lookahead': self.lookahead,
                 'DO_PREFETCH': self.DO_PREFETCH,
                 'colors': self.colors,
-                'num_pages_total': self.num_pages_total}
+                'num_pages_total': self.num_pages_total,
+                'cellids_manual': self.cellids_manual}
     def restore_state(self, state):
         """ Given a state dict (in the form of get_state()), restore the state. """
         for name, val in state.iteritems():
             setattr(self, name, val)
+
+        # Legacy handling
+        if not hasattr(self, 'cellids_manual'):
+            self.cellids_manual = set()
             
         self.pages_active, self.pages_inactive = set(), set()
         self.panels_pool = []
@@ -192,6 +203,8 @@ class SmartScrolledGridPanel(ScrolledPanel):
         self.pages_active, self.pages_inactive = set(), set()
         self.cellid2boxes = {}
         self.panels_pool = []
+
+        self.cellids_manual = set()
 
         # Start off our thread friend
         if self.DO_PREFETCH:
@@ -355,7 +368,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
         sizer_page = self.sizer.GetChildren()[pageidx].GetSizer()
         self.sizer.Detach(pageidx)
         for sizer_row in [s.GetSizer() for s in sizer_page.GetChildren()]:
-            for panel in [p.GetWindow() for p in sizer_row.GetChildren()]:
+            for panel in [p.GetWindow() for p in sizer_row.GetChildren() if p.IsWindow()]:
                 self.recycle_panel(panel)
         sizer_page.Clear(deleteWindows=False)
         #sizer_page.Clear(deleteWindows=True)
@@ -401,6 +414,22 @@ class SmartScrolledGridPanel(ScrolledPanel):
             self.activate_page(pageidx)
 
         self.Layout()
+
+    def mark_cell_manually(self, cellid, labels):
+        """ Manually (explicitly) provide a label for a cell. This is useful
+        if a cell is so fouled up that it can't be reasonably labeled via the
+        template matching search (or as a last-resort).
+        Input:
+            int CELLID:
+            tuple LABELS: (str label0, label1, ...). 
+                Must have same length as self.NUM_OBJECTS, if NUM_OBJECTS != None.
+        """
+        if self.NUM_OBJECTS != None and len(labels) != self.NUM_OBJECTS:
+            print "(SmartScroll) mark_cell_manually: Input labels has length {0}, must have length {1}: {2}".format(len(labels), self.NUM_OBJECTS, labels)
+            return
+        print "(SmartScroll) Marking cell {0} manually w/ label: {1}".format(cellid, labels)
+        self.cellid2boxes[cellid] = [[None, None, None, None, label] for label in labels]
+        self.cellids_manual.add(cellid)
 
     def get_cell_boxes(self, cellid):
         """ Return the boxes for the input CELLID. """
@@ -633,10 +662,48 @@ class ImagePanel(wx.Panel):
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
 
+        self.popup_menu = wx.Menu()
+        m_viewcontext = self.popup_menu.Append(-1, "View Image Context...")
+        m_labelmanual = self.popup_menu.Append(-1, "Manually Label.../Undo Manual Label")
+
+        self.Bind(wx.EVT_MENU, lambda evt: self.view_image_context(), m_viewcontext)
+        self.Bind(wx.EVT_MENU, self.onMenu_manual_label, m_labelmanual)
+
+        self.Bind(wx.EVT_CONTEXT_MENU, self.onShowPopup)
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
         self.configure_me(cellid=self.cellid, color=self.color, npimg=self.npimg, text=self.text, size=self.size)
+
+    def onShowPopup(self, evt):
+        pos = self.ScreenToClient(evt.GetPosition())
+        self.PopupMenu(self.popup_menu, pos)
+
+    def view_image_context(self):
+        """ Display a new window with the entire image displayed. """
+        print "(ImagePanel) view_image_context"
+        # TODO: Implement me. This should spawn a new wx.Frame with a
+        #       ScrolledPanel whose background is the entire image.
+        #       There should also be a zoomin/zoomout feature.
+        wx.MessageDialog(self, message="Not implemented yet!").ShowModal()
+        
+    def onMenu_manual_label(self, evt):
+        print "(ImagePanel) onMenu_manual_label"
+        if self.cellid in self.GetParent().cellids_manual:
+            print "(ImagePanel) undo_manual_label"
+            self.GetParent().cellids_manual.remove(self.cellid)
+            self.get_boxes()[:] = []
+            self.Refresh()
+            return
+
+        dlg = ManualLabelDialog(self, self.GetParent().NUM_OBJECTS)
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        labels = dlg.labels
+        self.GetParent().mark_cell_manually(self.cellid, labels)
+        self.Refresh()
 
     def configure_me(self, cellid=None, color="red", npimg=None, text=None, size=(100, 50)):
         self.cellid = cellid
@@ -727,6 +794,13 @@ class ImagePanel(wx.Panel):
         x, y = evt.GetPosition()
         self.SetFocus()
         if self.get_mode() == CREATE:
+            if self.cellid in self.GetParent().cellids_manual:
+                dlg = wx.MessageDialog(self, style=wx.OK,
+                                       message="This cell has already been \
+manually labeled. To undo this manual labeling, right-click this cell and \
+choose the 'Undo Manual Label' option.")
+                dlg.ShowModal()
+                return
             self.box_cur = [x, y, x+1, y+1]
             self.is_creating = True
         elif self.get_mode() == IDLE:
@@ -834,6 +908,9 @@ class ImagePanel(wx.Panel):
         dc.SetTextForeground("Blue")
 
         for box in self.GetParent().get_cell_boxes(self.cellid):
+            if box[0] == None:
+                # Signal for manual-label box
+                continue
             if box in self.boxes_sel:
                 dc.SetPen(wx.Pen("yellow", 3))
             else:
@@ -867,13 +944,78 @@ class ImagePanel(wx.Panel):
             w, h = self.GetClientSize()
             dc.DrawRectangle(0, 0, w, h)
         
-        self.draw_boxes(dc)
-        
         if self.text != None:
             dc.SetFont(wx.Font(10, wx.FONTFAMILY_ROMAN, wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_NORMAL))
             dc.SetTextForeground("Black")
             dc.DrawText(self.text, 5, 5)
+
+        if self.cellid in self.GetParent().cellids_manual:
+            dc.SetFont(wx.Font(12, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_BOLD))
+            dc.SetTextForeground("Blue")
+            if self.text == None:
+                x0, y0 = 5, 5
+            else:
+                w, h = dc.GetTextExtent(self.text)
+                x0, y0 = 5, h + 5
+            label = "".join([b[-1] for b in self.get_boxes()])
+            dc.DrawText("Manual Label: {0}".format(label), x0, y0)
+            dc.SetBrush(wx.Brush("Red", wx.TRANSPARENT))
+            dc.SetPen(wx.Pen("Red", 8))
+            dc.DrawRectangle(0, 0, self.size[0], self.size[1])
+        else:
+            self.draw_boxes(dc)
+        
         return dc
+
+class ManualLabelDialog(wx.Dialog):
+    def __init__(self, parent, num_labels, *args, **kwargs):
+        wx.Dialog.__init__(self, parent, title="Enter Label",
+                           style=wx.CAPTION | wx.SYSTEM_MENU | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX,
+                           *args, **kwargs)
+        self.num_labels = num_labels
+        self.labels = None
+        
+        txt = ["Please provide the label for this image by separating \
+each letter/digit (i.e. the smallest unit) with a comma. For instance:",
+               "    1,0,0,0,3,7"]
+        txtwrap = "\n".join([textwrap.fill(t, 75) for t in txt])
+        
+        stxt_inst = wx.StaticText(self, label=txtwrap)
+
+        stxt_label = wx.StaticText(self, label="Label: ")
+        self.txtctrl = wx.TextCtrl(self, size=(200,-1), style=wx.TE_PROCESS_ENTER)
+        self.txtctrl.Bind(wx.EVT_TEXT_ENTER, lambda evt: self.onButton_ok(None))
+
+        sizer_input = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_input.AddMany([(stxt_label,), (self.txtctrl,)])
+
+        btn_ok = wx.Button(self, label="Ok")
+        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_cancel = wx.Button(self, label="Cancel")
+        btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
+
+        sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
+        sizer_btns.AddMany([(btn_ok,), ((10,0),), (btn_cancel,)])
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(stxt_inst, border=10, flag=wx.ALL)
+        self.sizer.Add(sizer_input, border=10, flag=wx.ALIGN_CENTER | wx.ALL)
+        self.sizer.Add(sizer_btns, border=10, flag=wx.ALIGN_CENTER | wx.ALL)
+        
+        self.SetSizer(self.sizer)
+        self.Fit()
+
+    def onButton_ok(self, evt):
+        txt_user = self.txtctrl.GetValue()
+        labels = txt_user.split(",")
+        if self.num_labels != None and len(labels) != self.num_labels:
+            wx.MessageDialog(self, style=wx.OK | wx.SYSTEM_MENU | wx.RESIZE_BORDER,
+                             message="Invalid number of (comma-separated) labels \
+entered. There must be {0} comma-separated labels -- you entered {1} labels.".format(self.num_labels, len(labels))).ShowModal()
+            return
+        
+        self.labels = labels
+        self.EndModal(wx.ID_OK)
 
 def canonicalize_box(box):
     """ Takes two arbitrary (x,y) points and re-arranges them

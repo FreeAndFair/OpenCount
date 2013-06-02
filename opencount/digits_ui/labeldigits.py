@@ -176,6 +176,10 @@ class LabelDigitsPanel(OpenCountPanel):
             digitattrvals_blanks.setdefault(temppath, {})[attrstr] = (precinctstr, bb, side)
 
             for box in boxes_sorted:
+                if box[0] == None:
+                    # This is a manual-labeled cell
+                    continue
+                # digitexemplars_map expects the bb to be: [y1, y2, x1, x2]
                 bb = [box[1], box[3], box[0], box[2]]
                 digitval = box[-1]
                 digitexemplars_map.setdefault(digitval, []).append((regionpath, None, bb, None))
@@ -272,6 +276,8 @@ class TempMatchGrid(SmartScrolledGridPanel):
         # Determine which images to run template matching on
         imgpaths_in = []
         for imgpath, cellid in self.imgpath2cellid.iteritems():
+            if cellid in self.cellids_manual:
+                continue
             boxes = self.cellid2boxes.get(cellid, [])
             if self.NUM_OBJECTS == None or (len(boxes) < self.NUM_OBJECTS):
                 imgpaths_in.append(imgpath)
