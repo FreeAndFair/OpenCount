@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import traceback, pdb, time
+import traceback, pdb, time, os
 import numpy as np
 import cv
 import csv
@@ -253,6 +253,8 @@ Input:
   region: bounding box to limit search for speed (TODO) (y1,y2,x1,x2)
   bool output_Ireg: If True, then find_patch_matchesV1 will output the
       aligned image Ireg (this will consume more memory, caution).
+  bool save_patches: If True, then this will save aligned output patch
+      Ireg to disk, at directory OUTDIR.
 
 Output:
   list of tuples, one for every match
@@ -274,7 +276,8 @@ Output:
 '''
 def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None, 
                          bbSearches=None, padSearch=.75,padPatch=0.0,doPrep=True,
-                         output_Ireg=False, jobid=None):
+                         output_Ireg=False, jobid=None, save_patches=False, outdir=None, outid_start=0,
+                         progress_queue=None):
     bb = list(bb)
     if bbSearch != None:
         bbSearch = list(bbSearch)
@@ -283,6 +286,10 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
     matchList = [] # (filename, left,right,up,down)
     if doPrep:
         I=prepOpenCV(I);
+    if save_patches:
+        try: os.makedirs(outdir)
+        except: pass
+    outid = outid_start # Used for save_patches
     I = np.round(fastResize(I,rszFac)*255.)/255;
 
     bb[0] = bb[0]*rszFac
@@ -336,6 +343,12 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
             (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             score2 = err / diff.size # pixel reg score
             Ireg_out = Ireg if output_Ireg else None
+            if save_patches:
+                outpath = os.path.join(outdir, "{0}.png".format(outid))
+                outid += 1
+                misc.imsave(outpath, Ireg)
+                Ireg_out = outpath
+
             if bbSearch != None:
                 m = (imP,score1,score2,Ireg_out,
                      i1+bbOut1[0],i2+bbOut1[0],
@@ -344,6 +357,7 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
                 m = (imP,score1,score2,Ireg_out,
                      i1,i2,j1,j2,rszFac)
             matchList.append(m)
+                
             if bestScore == None or score2 < bestScore:
                 bestScore = score2
                 bestMatch = m
@@ -354,8 +368,8 @@ def find_patch_matchesV1(I,bb,imList,threshold=.8,rszFac=.75,bbSearch=None,
             j2mask = min(Iout.shape[1],j1+patch.shape[1]/3)
             Iout[i1mask:i2mask,j1mask:j2mask]=0
 
-        if jobid and wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+        if jobid != None and progress_queue != None:
+            progress_queue.put(True)
         
     if not matchList:
         print "Warning - couldn't find any matches."
