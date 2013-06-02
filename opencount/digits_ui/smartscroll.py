@@ -949,7 +949,7 @@ choose the 'Undo Manual Label' option.")
             dc.SetTextForeground("Black")
             dc.DrawText(self.text, 5, 5)
 
-        if self.cellid in self.GetParent().cellids_manual:
+        if self.GetParent().cellids_manual and self.cellid in self.GetParent().cellids_manual:
             dc.SetFont(wx.Font(12, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_BOLD))
             dc.SetTextForeground("Blue")
             if self.text == None:
