@@ -70,6 +70,8 @@ class LabelDigitsPanel(OpenCountPanel):
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
         btn_pagedown = wx.Button(self, label="Page Down")
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
+        btn_pageup.Hide()    # These haven't been
+        btn_pagedown.Hide()  # implemented yet.
         
         btn_zoomin = wx.Button(self, label="Zoom In")
         btn_zoomin.Bind(wx.EVT_BUTTON, lambda evt: self.gridpanel.zoomin())
@@ -200,6 +202,27 @@ class LabelDigitsPanel(OpenCountPanel):
         pass
     def onButton_pagedown(self, evt):
         pass
+
+    def invoke_sanity_checks(self, *args, **kwargs):
+        """ Code that actually calls each sanity-check with application
+        specific arguments. Outputs a list of statuses, like:
+
+            [(bool isOk, bool isFatal, str msg, int id_flag, obj data), ...]
+
+        This should be overridden by each class.
+        """
+        # Ensure that each cell has the correct number of labeled digits
+        flag_ok = True
+        for cellid in self.gridpanel.cellid2imgpath.keys():
+            boxes = self.gridpanel.cellid2boxes.get(cellid, [])
+            if len(boxes) != self.gridpanel.NUM_OBJECTS:
+                flag_ok = False
+                break
+        fail_msg = "One or more of the digit patches does not have enough \
+labeled digits - you must label all {0} digits on each patch to proceed. \n\n\
+Try clicking the 'Sort Cells' button to easily find the patches that are missing \
+digit labels.".format(self.gridpanel.NUM_OBJECTS)
+        return [(flag_ok, True, fail_msg, 0, None)]
 
 class TempMatchGrid(SmartScrolledGridPanel):
     DIGIT_TEMPMATCH_ID = util.GaugeID("LabelDigitTempMatchID")
