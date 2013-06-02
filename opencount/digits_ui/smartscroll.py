@@ -296,7 +296,6 @@ class SmartScrolledGridPanel(ScrolledPanel):
             return # Page is already active
         if pageidx < 0 or pageidx >= self.num_pages_total:
             return
-        print "(SmartScroll) Activating page '{0}'".format(pageidx)
         cellids = self.page2cellids[pageidx]
         panels = []
         for cellid in cellids:
@@ -353,8 +352,6 @@ class SmartScrolledGridPanel(ScrolledPanel):
             return # Page is already deactivated
         if pageidx < 0 or pageidx >= self.num_pages_total:
             return
-
-        print "(SmartScroll) Deactivating page '{0}'".format(pageidx)
         sizer_page = self.sizer.GetChildren()[pageidx].GetSizer()
         self.sizer.Detach(pageidx)
         for sizer_row in [s.GetSizer() for s in sizer_page.GetChildren()]:

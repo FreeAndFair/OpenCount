@@ -14,7 +14,6 @@ from asize import asizeof
 from panel_opencount import OpenCountPanel
 from grouping import verify_overlays_new, partask
 
-# TODO: This is a dev-specific environment. Change for public.
 from smartscroll import SmartScrolledGridPanel, CREATE, IDLE, npgray2rgb
 
 """
