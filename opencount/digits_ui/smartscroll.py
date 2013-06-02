@@ -105,9 +105,9 @@ class SmartScrolledGridPanel(ScrolledPanel):
             setattr(self, name, val)
 
         # Legacy handling
-        if not hasattr(self, 'cellids_manual'):
+        if self.cellids_manual == None:
             self.cellids_manual = set()
-            
+
         self.pages_active, self.pages_inactive = set(), set()
         self.panels_pool = []
 
