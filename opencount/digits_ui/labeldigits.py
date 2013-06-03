@@ -377,7 +377,7 @@ def get_common_area(bb1, bb2):
         if seg2[0] < seg1[0]:
             tmp = seg1
             seg1 = seg2
-            seg2 = seg1
+            seg2 = tmp
         if seg2[0] < seg1[1]:
             outA = seg2[0]
             outB = min(seg1[1], seg2[1])
@@ -394,15 +394,46 @@ def get_common_area(bb1, bb2):
     w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
     w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
     segw_a = x1a, x1a+w_a
-    segh_a = y1a, y1a+h_a
+    segh_a = y1a-h_a, y1a
     segw_b = x1b, x1b+w_b
-    segh_b = y1b, y1b+h_b
+    segh_b = y1b-h_b, y1b
     cseg_w = common_segment(segw_a, segw_b)
     cseg_h = common_segment(segh_a, segh_b)
     if cseg_w == None or cseg_h == None:
         return 0.0
     else:
         return abs(cseg_w[0]-cseg_w[1]) * abs(cseg_h[0]-cseg_h[1])
+
+def a_equal(a, b, T=1e-3):
+    return abs(a - b) <= T
+        
+def test_get_common_area():
+    tests = [] # [(A, B, float expected), ...]
+    tests.append(( (1, 4, 4, 1), (9, 9, 18, 4), 0.0))
+    tests.append(( (1, 4, 4, 1), (1, 9, 3, 7), 0.0))
+    tests.append(( (1, 3, 3, 1), (1, 3, 3, 1), 4.0))
+    tests.append(( (1, 3, 3, 1), (2, 3, 3, 1), 2.0))
+    tests.append(( (1, 3, 3, 1), (2, 3, 100, 100), 2.0))
+    tests.append(( (2, 100, 40, 0), (2, 100, 40, 0), 3800.0))
+    tests.append(( (0,0,0,0), (0,0,0,0), 0.0))
+    tests.append(( (0,0,0,0), (1,1,1,1), 0.0))
+
+    num_failed = 0
+    for i, (A, B, expected) in enumerate(tests):
+        area = common_area(A, B)
+        bb1 = (A[1], A[3], A[0], A[2])
+        bb2 = (B[1], B[3], B[0], B[2])
+        area0 = get_common_area(bb1, bb2)
+        area1 = get_common_area(bb2, bb1)
+        if area0 != area1:
+            print "Test {0} Error: area0 != area1: area0={0:.5f} area1={0:.5f}".format(area0, area1)
+            print "    A: {0}    B: {1}".format(A, B)
+        elif not a_equal(area0, expected):
+            print "Test {0} Failed: Got '{1:.5f}', expected '{2:.5f}'".format(i, area0, expected)
+            print "    A: {0}    B :{1}".format(A, B)
+            num_failed += 1
+
+    print "Done. {0} / {1} Tests passed.".format(len(tests) - num_failed, len(tests))
 
 def do_extract_digitbased_patches(proj, C, MIN, MAX):
     """ Extracts all digit-based attribute patches, and stores them
@@ -643,6 +674,9 @@ class LabelDigitPatchDialog(wx.Dialog):
         self.SetSizer(self.sizer)
         self.Fit()
 
+        self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
+        self.txtctrl.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
+
         self.txtctrl.SetFocus()
 
     def onButton_ok(self, evt):
@@ -655,6 +689,12 @@ class LabelDigitPatchDialog(wx.Dialog):
 
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
+    def onKeyDown(self, evt):
+        keycode = evt.GetKeyCode()
+        if keycode == wx.WXK_ESCAPE:
+            self.onButton_cancel(None)
+        evt.Skip()
 
 """
 ==== Dev/Test code
