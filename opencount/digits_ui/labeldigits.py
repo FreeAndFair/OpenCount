@@ -1,4 +1,4 @@
-import sys, os, pdb, time, traceback, argparse, threading, multiprocessing, math, Queue, random
+import sys, os, pdb, time, traceback, argparse, threading, multiprocessing, math, Queue, random, hashlib
 try: import cPickle as pickle
 except ImportError: import pickle
 from os.path import join as pathjoin
@@ -304,9 +304,15 @@ class TempMatchGrid(SmartScrolledGridPanel):
         """
         def are_any_too_close(B, boxes):
             """ Return True if B is too close to any box in BOXES. """
+            area_B = abs((B[0] - B[2]) * (B[1] - B[3]))
             for box in boxes:
-                if get_common_area((B[1], B[3], B[0], B[2]),
-                                   (box[1], box[3], box[0], box[2])) >= 0.5:
+                minarea = min(abs((box[0] - box[2]) * (box[1] - box[3])),
+                              area_B)
+                if minarea == 0:
+                    return False
+                commonarea = get_common_area((B[1], B[3], B[0], B[2]),
+                                             (box[1], box[3], box[0], box[2]))
+                if (commonarea / float(minarea)) >= 0.5:
                     return True
             return False
         print "(TempMatchGrid) on_tempmatch_done: Found {0} matches.".format(len(matches))
@@ -517,10 +523,17 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
             cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
             attrs_sorted = sorted(attrs)
             attrs_sortedstr = '_'.join(attrs_sorted)
+            '''
+            # Next images in two levels of subdirectories
+            id_hash = hashlib.sha1(str(templateid)).hexdigest()
+            subdir0 = id_hash[:2]
+            subdir1 = id_hash[2:4]
+            '''
             try:
                 os.makedirs(pathjoin(outdir, attrs_sortedstr))
             except:
                 pass
+            #outfilename = 'balid_{0}.png'.format(templateid)
             outfilename = '{0}_{1}_exemplar.png'.format(idx, i)
             outfilepath = pathjoin(outdir,
                                    attrs_sortedstr,
