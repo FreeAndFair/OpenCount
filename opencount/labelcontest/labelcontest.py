@@ -14,7 +14,7 @@ import numpy as np
 import scipy.misc
 from collections import Counter
 
-from group_contests import final_grouping, extend_multibox, intersect, group_given_contests
+from group_contests import final_grouping, extend_multibox, intersect, group_given_contests,get_target_to_contest
 from verifycontestgrouping import VerifyContestGrouping
 
 sys.path.append('..')
@@ -511,7 +511,11 @@ class LabelContest(wx.Panel):
             #print 'bboxes', contestbboxes
             for targetlist in ballot:
                 #print 'picking rep ', targetlist[0][2:]
-                w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
+                flattencontests = sum(contestbboxes,[])
+                targ_to_cont = get_target_to_contest(flattencontests, [x[2:] for x in targetlist])
+                corresponding_boxes = [flattencontests[x] for x in targ_to_cont.values()]
+                w = [i for i,bboxes in enumerate(contestbboxes) if any(x in corresponding_boxes for x in bboxes)]
+                #w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                 if len(w) != 1:
                     print 'I got', w, 'of them'
                     print [bblist for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]

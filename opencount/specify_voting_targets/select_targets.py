@@ -2668,6 +2668,7 @@ def compute_box_ids(boxes):
         return None, None
     assocs = {}
     contests = [b for b in boxes if isinstance(b, ContestBox)]
+    print contests
     targets = [b for b in boxes if isinstance(b, TargetBox)]
     lonely_targets = []
     # Ensure that each contest C is present in output ASSOCS, even if

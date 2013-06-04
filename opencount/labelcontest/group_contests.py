@@ -19,6 +19,7 @@ import wx
 from wx.lib.pubsub import Publisher
 import numpy as np
 from scipy.optimize import fmin
+import specify_voting_targets.select_targets
 
 def pdb_on_crash(f):
     """
@@ -40,7 +41,7 @@ export = False
 
 flipped = {}
 
-@pdb_on_crash
+#@pdb_on_crash
 def num2pil(img):
     pilimg = Image.new("L", (len(img[0]), len(img)))
     pilimg.putdata([item for sublist in img for item in sublist])
@@ -506,14 +507,14 @@ def do_extract(name, img, squares, giventargets):
 
     targets = [x for x in giventargets]
     avg_targ_area = sum(map(area,targets))/len(targets)
-    squares = [x for x in squares if area(x) > avg_targ_area*2]
+    squares = [x for x in squares if area(x) > avg_targ_area*2]#xxx
 
     contests = []
 
     #print "T", targets
     for sq in sorted(squares, key=area):
         if sq in targets: continue
-        inside = [t for t in targets if area(intersect(sq, t)) > area(t)/2]
+        inside = [t for t in targets if area(intersect(sq, t)) > area(t)/2] #xxx
         #print sq
         if inside != [] and sq[3]-sq[1] > 2*(t[3]-t[1]):
             #print "Adding a contest", sq, inside, [area(intersect(sq, t)) for t in inside]
@@ -527,11 +528,11 @@ def do_extract(name, img, squares, giventargets):
         keepgoing = False
         for target in giventargets:
             #print 'this target', target
-            tomerge = [x for x in contests if intersect(x, target) == target]
+            tomerge = [x for x in contests if intersect(x, target) == target] #xxx
             if len(tomerge) > 1:
                 # Find the smallest subset to merge which overlap all targets in all contests.
                 maxcontest = None
-                must_include_targets = sum([[x for x in giventargets if intersect(c, x)] for c in tomerge],[])
+                must_include_targets = sum([[x for x in giventargets if intersect(c, x)] for c in tomerge],[]) #xxx
                 print 'must include', must_include_targets
                 found = False
                 for group_size in range(1,len(tomerge)+1):
@@ -546,7 +547,7 @@ def do_extract(name, img, squares, giventargets):
                             found = True
                             break
                 print "MERGING", tomerge
-                contests = [x for x in contests if x not in tomerge] + [maxcontest]
+                contests = [x for x in contests if x not in tomerge] + [maxcontest] #xxx
                 keepgoing = True
                 break
             elif len(tomerge) < 1:
@@ -786,7 +787,20 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
         os.mkdir(sub)
     res = []
     print "CONTESTS", contests
-    for c in contests:
+
+    all_boxes = []
+    for l,u,r,d in contests:
+        all_boxes.append(specify_voting_targets.select_targets.ContestBox(l,u,r,d))
+
+    for l,u,r,d in targets:
+        all_boxes.append(specify_voting_targets.select_targets.TargetBox(l,u,r,d))
+
+    assocs, _ = specify_voting_targets.select_targets.compute_box_ids(all_boxes)
+    def grab(box): return (box.x1, box.y1, box.x2, box.y2)
+
+    for c,targets in assocs.values():
+        c = grab(c)
+        targets = map(grab,targets)
         print "TOMAKE", c
         if not os.path.exists(os.path.join(sub, "-".join(map(str,c)))):
             os.mkdir(os.path.join(sub, "-".join(map(str,c))))
@@ -796,7 +810,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
     print "RESULTING", res
     return res
 
-
+#@pdb_on_crash
 def compare_preprocess(lang, path, image, contest, targets, vendor):
     """
     Identifies the text associated with the contest.
@@ -805,7 +819,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     and one for the title. OCR the text and record it.
     """
 
-    targets = [x for x in targets if area(intersect(contest, x))]
+    #targets = [x for x in targets if area(intersect(contest, x))] #xxx
     cont_area = None
 
     print path
@@ -1343,19 +1357,50 @@ def equ_class(contests, languages):
     #print "RETURNING", result
     return result
 
+def get_target_to_contest(contests, targets):
+    if 1 == 1:
+        all_boxes = []
+        for l,u,r,d in contests:
+            all_boxes.append(specify_voting_targets.select_targets.ContestBox(l,u,r,d))
+            
+        for l,u,r,d in targets:
+            all_boxes.append(specify_voting_targets.select_targets.TargetBox(l,u,r,d))
+                
+        assocs, _ = specify_voting_targets.select_targets.compute_box_ids(all_boxes)
+        def grab(box): return (box.x1, box.y1, box.x2, box.y2)
+
+        target_to_contest = {}
+        for contest,all_targets in assocs.values():
+            for target in all_targets:
+                target_to_contest[grab(target)]=contests.index(grab(contest))
+        return target_to_contest
+
+
 def merge_contests(ballot_data, fulltargets):
     """
     Given a set of bounding boxes, merge together those which
     are different boundingboxes but are, in reality, the same contest.
     """
+    #pdb.set_trace()
     new_data = []
     for ballot, targets in zip(ballot_data, fulltargets):
         #print 'next'
         new_ballot = []
+        seen_so_far = []
+
+        target_to_contest = get_target_to_contest([x[1] for x in ballot], sum(targets,[]))
+
         for group in targets:
+            #for c,targets in assocs.values():
+
             #print 'targs is', group
-            equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
+            # indexs in ballot of contests which are equal
+            #equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
+            equal = [target_to_contest[x] for x in group]
             equal_uniq = list(set(equal))
+            if any(x in seen_so_far for x in equal_uniq) or equal_uniq == []:
+                raise Exception()
+            seen_so_far.extend(equal_uniq)
             #print equal_uniq
             merged = sum([ballot[x][2] for x in equal_uniq],[])
             new_ballot.append((ballot[equal[0]][0], [ballot[x][1] for x in equal_uniq], merged))
@@ -1478,6 +1523,7 @@ def group_given_contests_map(arg):
     lang = lang_map[f] if f in lang_map else 'eng'
     return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
         
+@pdb_on_crash
 def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map = {}):
     global tmp, flipped
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
