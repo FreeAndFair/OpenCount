@@ -914,7 +914,10 @@ class VerifyOverlays(SplitOverlays):
         if exmpl_idx < 0 or exmpl_idx >= len(exemplar_paths):
             print "...Invalid exmpl_idx: {0}...".format(exmpl_idx)
             return
-        exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx], flatten=True)
+        if type(exemplar_paths[exmpl_idx]) in (str, unicode):
+            exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx], flatten=True)
+        else:
+            exemplar_npimg = exemplar_paths[exmpl_idx]
         self.exemplarimg_np_orig = gray2rgb_np(exemplar_npimg)
 
         exemplarImg_bitmap = NumpyToWxBitmap(exemplar_npimg)
@@ -1203,7 +1206,7 @@ class CheckImageEquals(VerifyOverlays):
         """
         Input:
             list IMGPATHS: [imgpath_i, ...]
-            str CAT_IMGPATH: Imagepath of the category.
+            str CAT_IMGPATH: Imagepath of the category. Can also be an nparray directly.
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2}
             fn ONDONE: Function that accepts one argument:
                 dict {str tag: [obj group_i, ...]}
@@ -1224,8 +1227,11 @@ class CheckImageEquals(VerifyOverlays):
             VerifyOverlays.start(self, imgpath_groups, group_exemplars, rlist_map, 
                                  do_align=do_align, bbs_map=bbs_map_v2, ondone=ondone)
         self.cat_imgpath = cat_imgpath
-        I = scipy.misc.imread(cat_imgpath, flatten=True)
-        bitmap = NumpyToWxBitmap(I)
+        try:
+            bitmap = NumpyToWxBitmap(self.cat_imgpath)
+        except:
+            I = scipy.misc.imread(cat_imgpath, flatten=True)
+            bitmap = NumpyToWxBitmap(I)
         self.exemplarImg.SetBitmap(bitmap)
         self.Layout()
 

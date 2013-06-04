@@ -15,7 +15,8 @@ from partitions.partition_panel import PartitionMainPanel
 from specify_voting_targets.select_targets import SelectTargetsMainPanel
 from labelcontest.labelcontest import LabelContest
 from grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
-from digits_ui.digits_ui import LabelDigitsPanel
+#from digits_ui.digits_ui import LabelDigitsPanel
+from digits_ui.labeldigits import LabelDigitsPanel
 from grouping.run_grouping import RunGroupingMainPanel
 from grouping.verify_grouping_panel import VerifyGroupingMainPanel
 from runtargets.extract_targets_new import TargetExtractPanel

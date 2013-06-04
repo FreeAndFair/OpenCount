@@ -487,15 +487,15 @@ def compute_median_dist(proj):
     Output:
         int distance, in pixels.
     """
-    # Bit hacky - peer into LabelDigit's 'matches' internal state
-    labeldigits_stateP = pathjoin(proj.projdir_path, proj.labeldigitstate)
-    # matches maps {str regionpath: ((patchpath_i,matchID_i,digit,score,y1,y2,x1,x2,rszFac_i), ...)
-    matches = pickle.load(open(labeldigits_stateP, 'rb'))['matches']
+    # Bit hacky - peer into LabelDigit's internal state
+    labeldigits_stateP = pathjoin(proj.projdir_path, '_state_labeldigits.p')
+    cellid2boxes = pickle.load(open(labeldigits_stateP, 'rb'))['state_grid']['cellid2boxes']
+
     dists = [] # stores adjacent distances
-    for regionpath, tuples in matches.iteritems():
+    for cellid, boxes in cellid2boxes.iteritems():
         x1_all = []
-        for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in tuples:
-            x1_all.append(int(round(x1 / rszFac)))
+        for box in boxes:
+            x1_all.append(box[0])
         x1_all = sorted(x1_all)
         for i, x1 in enumerate(x1_all[:-1]):
             x1_i = x1_all[i+1]
@@ -505,7 +505,7 @@ def compute_median_dist(proj):
         median_dist = min(dists)
     else:
         median_dist = dists[int(len(dists) / 2)]
-    print '=== median_dist is:', median_dist
+    print "(compute_median_dist) median digit dist is:", median_dist
     return median_dist
 
 def exists_digattr(proj):

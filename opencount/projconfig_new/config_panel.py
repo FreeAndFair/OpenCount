@@ -12,13 +12,14 @@ sys.path.append('..')
 
 import util
 import config
-from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate
+from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate, DevVendor
 
-BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold", "Single Template (generic)")
+BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold", "Single Template (generic)", "DevVendor")
 VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor,
                   "single template (generic)": SingleTemplate.SingleTemplateVendor,
-                  "diebold": Diebold.DieboldVendor}
+                  "diebold": Diebold.DieboldVendor,
+                  "devvendor": DevVendor.DevVendor}
 
 SEPARATE_MODE_SINGLE_SIDED = 42
 SEPARATE_MODE_ALTERNATING = 43

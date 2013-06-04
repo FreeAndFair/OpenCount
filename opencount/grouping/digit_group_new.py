@@ -1,4 +1,4 @@
-import sys, os, pickle, time, multiprocessing, random
+import sys, os, pickle, time, multiprocessing, random, pdb
 from os.path import join as pathjoin
 
 sys.path.append('..')
@@ -160,7 +160,7 @@ def compute_digit_exemplars(proj, LIMIT=100):
                 dig_exampletuples.append((regionpath, bb))
         else:
             # Randomly sample LIMIT images
-            dig_exampletuples = list(random.sample(tuples, LIMIT))
+            dig_exampletuples = [(regionpath, bb) for (regionpath, _, bb, _) in random.sample(tuples, LIMIT)]
         mapping[digit] = dig_exampletuples
 
     # exemplars := maps {str digit: ((regionpath_i, bb_i), ...)}

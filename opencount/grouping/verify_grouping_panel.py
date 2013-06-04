@@ -77,7 +77,7 @@ class VerifyGroupingMainPanel(wx.Panel):
                                     ondone=self.on_verify_done, do_align=False, 
                                     verifypanelClass=VerifyBallotAttributesPanel)
         else:
-            print "VerifyGrouping: No img/digit-based attrs."
+            print "(VerifyGrouping): No img/digit-based attrs required to verify."
             wx.MessageDialog(self, message="It is not necessary to verify any groups. Please move onto the \
 next step.", style=wx.OK).ShowModal()
             
@@ -120,7 +120,7 @@ next step.", style=wx.OK).ShowModal()
             {int groupID: [int ballotID_i, ...]}
         """
         if not self.verify_results:
-            print "...self.verify_results is empty, implies no non-tabulationonly img/digit-based attrs"
+            print "(VerifyGrouping): self.verify_results is empty, implies no non-tabulationonly img/digit-based attrs"
             self.verify_results = {}
 
         b2g = {}
@@ -197,9 +197,11 @@ next step.", style=wx.OK).ShowModal()
                     ballot_attrvals.setdefault(ballotid, {})[attrtype] = attrval
 
         # 1.b.) Add CUSTOM_ATTRIBUTE mapping
+        flag_ssAttrExists = False
         ss_dicts = {} # maps {str attrtype: dict ss_dict}
         for attrtype, cattrprops in attrprops.get('CUSTATTR', {}).iteritems():
             if cattrprops['type'] == cust_attrs.TYPE_SPREADSHEET:
+                flag_ssAttrExists = True
                 ssdict = ss_dicts.get(attrtype, None)
                 if ssdict == None:
                     ss_dicts[attrtype] = read_sscustattr(cattrprops['sspath'])
@@ -236,8 +238,10 @@ next step.", style=wx.OK).ShowModal()
             # 2.a.) Filter out any 'is_tabulationonly' attrtypes
             ballotprops_grp = {} # maps {attrtype: attrval}
             for ballotattrtype, ballotattrval in ballotprops.iteritems():
-                if ballotattrtype == 'pid':
+                if ballotattrtype == 'pid' and not flag_ssAttrExists:
                     # Always add the partition id
+                    # If a SpreadSheet custAttr exists, then we assume that
+                    # the partitionid will not be used for grouping purposes.
                     ballotprops_grp[ballotattrtype] = ballotattrval
                     continue
                 for attrmode, attrdicts in attrprops.iteritems():
