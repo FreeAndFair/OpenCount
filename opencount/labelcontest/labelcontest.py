@@ -68,6 +68,12 @@ class LabelContest(wx.Panel):
         self.flipped = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_flip), 'rb'))
 
+        if os.path.exists(pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p')):
+            groups_quar = set(pickle.load(open(pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p'))))
+        else:
+            groups_quar = set()
+        quar_groups = pickle
+
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
         # where:
         #   groupedtargets[a][b][c] is the ID and location of target C in contest B of template A
@@ -83,6 +89,10 @@ class LabelContest(wx.Panel):
                 # All ballots in this partition had errors. Skip it.
                 # TODO this may crash when multi-sided ballots have errors
                 #self.groupedtargets.append([])
+                continue
+
+            if groupID in groups_quar:
+                # This is a group that was quarantined ('flagged') during SelectTargets
                 continue
             # Grab an arbitrary exemplar image from this group
             imgpaths = b2imgs[group_exmpls[groupID][0]]
@@ -473,7 +483,6 @@ class LabelContest(wx.Panel):
             targets.append(ballotlist)
 
         #print "ALL", targets
-
         if self.grouping_cached:
             groups = final_grouping(self.grouping_cached, targets, self.dirList, self.load_languages(), t=self.proj.ocr_tmp_dir)
         else:
@@ -561,6 +570,7 @@ class LabelContest(wx.Panel):
                 config.TIMER.stop_task("LabelContests_VerifyContestGrouping_H")
             print "I get the data", data
             self.equivs_processed = data
+            print "(ComputeEquivClasses) Done with verify contest grouping and infer contests."
 
         if config.TIMER:
             config.TIMER.stop_task("LabelContests_ComputeEquivClasses_CPU")
@@ -571,6 +581,7 @@ class LabelContest(wx.Panel):
             if config.TIMER:
                 config.TIMER.start_task("LabelContests_VerifyContestGrouping_H")
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+        print "(ComputeEquivClasses) Done."
 
     def stop(self):
         self.save()

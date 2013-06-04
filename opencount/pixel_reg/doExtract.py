@@ -809,7 +809,15 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
     else:
         group_to_Iref = None
 
+    if os.path.exists(os.path.join(projdir, 'quarantinedgroups_seltargets.p')):
+        # groups that were quarantined ('flagged') during SelectTargets.
+        groups_quar = pickle.load(open(os.path.join(projdir, 'quarantinedgroups_seltargets.p')))
+    else:
+        groups_quar = set()
+
     for i,(groupID, ballotIDs) in enumerate(sorted(group_to_ballots.iteritems(), key=lambda t: -len(t[1]))):
+        if groupID in groups_quar:
+            continue
         bbs = get_bbs(groupID, target_locs_map)
         # 1.a.) Choose reference images for alignment purposes
         if group_to_Iref and groupID in group_to_Iref.keys():

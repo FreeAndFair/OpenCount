@@ -478,6 +478,8 @@ def get_quarantined_ballots(proj):
     if os.path.exists(grouping_qpath):
         # list GROUPING_QUARANTINED: [int ballotID_i, ...]
         qballotids.extend(pickle.load(open(grouping_qpath, 'rb')))
+    if os.path.exists(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')):
+        qballotids.extend(list(pickle.load(open(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')))))
     targetextract_qpath = pathjoin(proj.projdir_path, proj.targetextract_quarantined)
     if os.path.exists(targetextract_qpath):
         qballotids.extend(pickle.load(open(targetextract_qpath, 'rb')))
