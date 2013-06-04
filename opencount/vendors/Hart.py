@@ -134,12 +134,29 @@ class HartVendor(Vendor):
                 img2decoding[imgpath] = (decoding,)
             del img_decoded_map
 
+        # This keeps track of the info from the imginfo_map for each ballot,
+        # to avoid decoding errors resulting in different images from the
+        # same ballot being assigned to different partitions.
+        bal2info = {} # maps {int ballotid: {str PROPNAME: str PROPVAL}}
+
         def add_decoding(imgpath, decoding, curPartitionID):
             """ Returns True if a new partition is created. """
             created_new_partition = False
+            ballotid = img2bal[imgpath]
             imginfo = hart.get_info(decoding)
-            imginfo_map[imgpath] = imginfo
+            
+            imginfo_prev = bal2info.get(ballotid, None)
+            if imginfo_prev == None:
+                bal2info[ballotid] = imginfo
+            else:
+                # Ensure that the 'tag' portion is consistent within a ballot
+                imginfo['precinct'] = imginfo_prev['precinct']
+                imginfo['language'] = imginfo_prev['language']
+                imginfo['party']    = imginfo_prev['party']
+
             tag = (imginfo['precinct'], imginfo['language'], imginfo['party'])
+            imginfo_map[imgpath] = imginfo
+
             if self.proj.num_pages == 1:
                 # Additionally separate by page for single-sided, just in
                 # case multiple pages are present in the ballot scans
@@ -149,7 +166,7 @@ class HartVendor(Vendor):
                 partitionid = curPartitionID
                 attrs2partitionID[tag] = curPartitionID
                 created_new_partition = True
-            ballotid = img2bal[imgpath]
+
             partitions.setdefault(partitionid, set()).add(ballotid)
             return created_new_partition
 
