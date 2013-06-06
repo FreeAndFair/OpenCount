@@ -1,4 +1,4 @@
-import os, sys, traceback, pdb, time
+import os, sys, traceback, pdb, time, argparse, multiprocessing
 try:
     import cPickle as pickle
 except ImportError:
@@ -190,7 +190,7 @@ def _do_decode_ballots(ballots, (topbot_paths, skipVerify), queue=None):
             queue.put(True)
     return results
 
-def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True):
+def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True, N=None):
     t = time.time()
     decoded_results = partask.do_partask(_do_decode_ballots,
                                          ballots,
@@ -198,7 +198,101 @@ def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True):
                                          combfn='dict',
                                          manager=manager,
                                          pass_queue=queue,
-                                         N=None)
+                                         N=N)
     dur = time.time() - t
     print "...finished decoding {0} ballots ({1:.2f}s, {2:.5f} secs per ballot)".format(len(ballots), dur, dur / float(len(ballots)))
     return decoded_results
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("projdir")
+    parser.add_argument("--n", type=int,
+                        help="Process only the first N ballots in the election.")
+    parser.add_argument("--fromfile", metavar="FILE",
+                        help="Run decoding on a subset of the ballots from the \
+election. Either a pickle'd python list/tuple of ballotids, or a textfile with \
+ballotids on every line.")
+
+    parser.add_argument("--numprocs", type=int,
+                        help="Number of processes to use when decoding.")
+
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+
+    projdir = args.projdir
+
+    if args.fromfile:
+        filepath = args.fromfile
+        if filepath.endswith(".p"):
+            balids = pickle.load(open(filepath, 'rb'))
+        else:
+            f = open(filepath, 'r')
+            balids = []
+            for line in f.readlines():
+                if args.n != None and len(balids) >= args.n:
+                    break
+                if not line: continue
+                line = line.strip()
+                if not line or line.startswith("#"): continue
+                try:
+                    balids.append(int(line))
+                except:
+                    print "(Main) Error trying to read ballotid:", line
+            f.close()
+    else:
+        balids = None
+
+    pdb.set_trace()
+
+    bal2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p')))
+    if not balids:
+        balids = []
+        if args.n != None:
+            balids = list(sorted(bal2imgs.keys())[:args.n])
+        else:
+            balids = tuple(sorted(bal2imgs.keys()))
+
+    cnt_imgs = 0
+    bal2imgs_in = {} # maps {int ballotid: (str imgpath0, ...)}
+    for balid in balids:
+        imgpaths = bal2imgs[balid]
+        bal2imgs_in[balid] = imgpaths
+        cnt_imgs += len(imgpaths)
+
+    print "(Info) Decoding {0} ballots ({1} images)".format(len(balids), cnt_imgs)
+    pdb.set_trace()
+
+    topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]    
+    manager = multiprocessing.Manager()
+    queue = manager.Queue()
+
+    # DECODED_RESULTS: {ballotID: [(BCS, isflip, BBS, bbstripes_dict), ...]}
+    decoded_results = decode_ballots(bal2imgs_in, topbot_paths, manager, queue, skipVerify=True, N=args.numprocs)
+
+    img2dec = {}
+    img2flip = {}
+    err_imgpaths, ioerr_imgpaths = [], []
+    
+    for i, (balid, infotuples) in enumerate(sorted(decoded_results.iteritems())):
+        print "({0}) ballotid={1}".format(i, balid)
+        imgpaths = bal2imgs[balid]
+        for j, subtuple in enumerate(infotuples):
+            if issubclass(type(subtuple), IOError):
+                ioerr_imgpaths.append(subtuple.filename)
+                continue
+            imgpath = imgpaths[j]
+            bcs, isflipped, bbs, bbstripes_dict = subtuple
+            bc_ul = bcs[0]
+            if not bc_ul:
+                print "..error on: {0}".format(imgpath)
+                err_imgpaths.append(imgpath)
+            print "    ({0}) bc={1} isflip={2}".format(j, bc_ul, isflipped)
+            img2dec[imgpath] = bc_ul
+            img2flip[imgpath] = isflipped
+
+    pdb.set_trace()
+
+if __name__ == '__main__':
+    main()
