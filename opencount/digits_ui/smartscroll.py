@@ -665,9 +665,11 @@ class ImagePanel(wx.Panel):
         self.popup_menu = wx.Menu()
         m_viewcontext = self.popup_menu.Append(-1, "View Image Context...")
         m_labelmanual = self.popup_menu.Append(-1, "Manually Label.../Undo Manual Label")
+        m_printpath   = self.popup_menu.Append(-1, "(Dev) Print This Patch Path")
 
         self.Bind(wx.EVT_MENU, lambda evt: self.view_image_context(), m_viewcontext)
         self.Bind(wx.EVT_MENU, self.onMenu_manual_label, m_labelmanual)
+        self.Bind(wx.EVT_MENU, self.onMenu_printpath, m_printpath)
 
         self.Bind(wx.EVT_CONTEXT_MENU, self.onShowPopup)
 
@@ -675,6 +677,9 @@ class ImagePanel(wx.Panel):
         self.SetSizer(self.sizer)
 
         self.configure_me(cellid=self.cellid, color=self.color, npimg=self.npimg, text=self.text, size=self.size)
+
+    def onMenu_printpath(self, evt):
+        print self.GetParent().cellid2imgpath[self.cellid]
 
     def onShowPopup(self, evt):
         pos = self.ScreenToClient(evt.GetPosition())

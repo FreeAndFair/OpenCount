@@ -209,12 +209,29 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 InferContests).
             3.) A file 'target_roi' that SetThreshold/TargetExtraction will
                 use when determining the target sort criterion.
+            4.) A set of quarantined ballotids ('flagged' partitions)
         """
         try:
             os.makedirs(self.proj.target_locs_dir)
         except:
             pass
         pickle.dump(self.group_to_Iref, open(pathjoin(self.proj.projdir_path,'group_to_Iref.p'),'wb', pickle.HIGHEST_PROTOCOL))
+
+        # Output the flagged groups at a ballotid-granularity
+        groups_quar = sorted([self.i2groupid[idx] for idx in self.seltargets_panel.flagged_idxs])
+        grp2bals = pickle.load(open(pathjoin(self.proj.projdir_path, 'group_to_ballots.p')))
+        balids_quar = set()
+        for grp_bad in groups_quar:
+            balids = grp2bals[grp_bad]
+            for balid in balids:
+                balids_quar.add(balid)
+        
+        print "(SelectTargets) Quarantining {0} flagged groups ({1} ballots total)".format(len(groups_quar), len(balids_quar))
+        pickle.dump(balids_quar, open(pathjoin(self.proj.projdir_path, 'quarantinedbals_seltargets.p'), 'wb'))
+        # Also, temporarily export the quarantined groups.
+        print "(SelectTargets) Exporting 'quarantinedgroups_seltarets.p' as well, just in case."
+        pickle.dump(groups_quar, open(pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p'), 'wb'))
+        del grp2bals
 
         group_targets_map = {} # maps {int groupID: [csvpath_side0, ...]}
         # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
@@ -225,6 +242,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
         fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
         imgsize = None # Assumes all voted ballots are the same dimensions
         for i, boxes_sides in self.seltargets_panel.boxes.iteritems():
+            if i in self.seltargets_panel.flagged_idxs:
+                continue
             group_idx = self.i2groupid[i]
             csvpaths = []
             for side, boxes in enumerate(boxes_sides):
@@ -336,7 +355,8 @@ they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
         """ Code that actually calls each sanity-check with application
         specific arguments. Outputs a list of statuses.
         """
-        lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes)        
+        lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes, self.seltargets_panel.flagged_idxs)
+        #lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes, set())
         return lst_statuses
 
     def onButton_getimgpath(self, evt):
@@ -568,6 +588,10 @@ class SelectTargetsPanel(ScrolledPanel):
         # draws their first target box.
         self.target_roi = None
 
+        # set FLAGGED_IDXS: set([int i0, int i1, ...])
+        #     Stores any flagged 'partitions'.
+        self.flagged_idxs = None
+
         self.toolbar = Toolbar(self)
         self.imagepanel = TargetFindPanel(self, self.do_tempmatch)
 
@@ -601,11 +625,15 @@ voting target on this ballot.")
         btn_jump_error = wx.Button(self, label="Next Error...")
         btn_selectIref = wx.Button(self, label="Select as reference image.")
         btn_selectIref.Bind(wx.EVT_BUTTON, self.onButton_selectIref)
+        btn_flag_partition = wx.Button(self, label="Quarantine this Partition")
+        btn_flag_partition.Bind(wx.EVT_BUTTON, self.onButton_flagpartition)
+
         sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
         sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_error, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_selectIref, border=10, flag=wx.ALL)
+        sizer_btn_jump.Add(btn_flag_partition, border=10, flag=wx.ALL)
         btn_jump_partition.Bind(wx.EVT_BUTTON, self.onButton_jump_partition)
         btn_jump_ballot.Bind(wx.EVT_BUTTON, self.onButton_jump_ballot)
         btn_jump_error.Bind(wx.EVT_BUTTON, self.onButton_jump_error)
@@ -667,6 +695,7 @@ voting target on this ballot.")
             self.inv_map = {}
             self.boxes = {}
             self.boxsize = None
+            self.flagged_idxs = set()
             for i, imgpaths in enumerate(self.partitions):
                 for j, ballot in enumerate(imgpaths):
                     for page, imgpath in enumerate(ballot):
@@ -692,11 +721,13 @@ voting target on this ballot.")
             boxsize = state['boxsize']
             partitions = state['partitions']
             target_roi = state.get('target_roi', None) # Handle legacy statefiles
+            flagged_idxs = state.get('flagged_idxs', set()) # Legacy
             self.inv_map = inv_map
             self.boxes = boxes
             self.boxsize = boxsize
             self.partitions = partitions
             self.target_roi = target_roi
+            self.flagged_idxs = flagged_idxs
         except:
             return False
         return True
@@ -706,7 +737,8 @@ voting target on this ballot.")
                  'boxes': self.boxes,
                  'boxsize': self.boxsize,
                  'partitions': self.partitions,
-                 'target_roi': self.target_roi}
+                 'target_roi': self.target_roi,
+                 'flagged_idxs': self.flagged_idxs}
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def do_tempmatch(self, box, img, patch=None):
@@ -883,6 +915,13 @@ voting target on this ballot.")
         self.txt_curpage.SetLabel(str(self.cur_page+1))
         self.txt_sizer.Layout()
         self.Refresh()
+
+        if self.cur_i in self.flagged_idxs:
+            print "(SelectTargets) Idx {0} was flagged by user!".format(self.cur_i)
+            dlg = wx.MessageDialog(self, style=wx.OK,
+                                   message="This 'partition' was flagged by the user.")
+            dlg.ShowModal()
+
         return (self.cur_i,self.cur_j,self.cur_page)
 
     def resize_targets(self, x1_del, y1_del, x2_del, y2_del):
@@ -961,6 +1000,10 @@ voting target on this ballot.")
         self.display_nextpage()
     def onButton_prevpage(self, evt):
         self.display_prevpage()
+    def onButton_flagpartition(self, evt):
+        print "(SelectTargets) Flagging partition '{0}' as quarantined.".format(self.cur_i)
+        self.flagged_idxs.add(self.cur_i)
+
     def zoomin(self, amt=0.1):
         self.imagepanel.zoomin(amt=amt)
     def zoomout(self, amt=0.1):
@@ -2668,6 +2711,7 @@ def compute_box_ids(boxes):
         return None, None
     assocs = {}
     contests = [b for b in boxes if isinstance(b, ContestBox)]
+    print contests
     targets = [b for b in boxes if isinstance(b, TargetBox)]
     lonely_targets = []
     # Ensure that each contest C is present in output ASSOCS, even if
@@ -2799,10 +2843,13 @@ ID_FLAG_EMPTY_CONTESTS = 5
 # There are contests with only one voting target
 ID_FLAG_CONTEST_ONE_TARGET = 6
 
-def check_all_images_have_targets(boxes_map):
+def check_all_images_have_targets(boxes_map, flagged_idxs):
     """
     Input:
         dict BOXES_MAP: {int grp_idx: [[Box_i_side0, Box_i+1_side0, ...], [Box_i_side1, ...], ...]}
+        set FLAGGED_IDXS: set([int idx, ...])
+            Stores which grp_idxs in BOXES_MAP were flagged-to-be-quarantined
+            by the user.
     Output:
         [(bool isOk_i, bool isFatal_i, str msg_i, int ID_FLAG, obj data), ...]
     """
@@ -2819,6 +2866,8 @@ def check_all_images_have_targets(boxes_map):
     grp_contests_one_target = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
     grp_empty_contests = {} # maps {(int grp_idx, int side): [ContestBox_i, ...]}
     for grp_idx, boxes_tups in boxes_map.iteritems():
+        if grp_idx in flagged_idxs:
+            continue
         for side, boxes in enumerate(boxes_tups):
             box_assocs, lonely_targets = compute_box_ids(boxes)
             cnt_lonely_targets += len(lonely_targets)
