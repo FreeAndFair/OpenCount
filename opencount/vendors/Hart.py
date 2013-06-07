@@ -244,6 +244,8 @@ def main():
         filepath = args.fromfile
         if filepath.endswith(".p"):
             balids = pickle.load(open(filepath, 'rb'))
+            if args.n != None:
+                balids = balids[:args.n]
         else:
             f = open(filepath, 'r')
             balids = []
@@ -261,8 +263,6 @@ def main():
     else:
         balids = None
 
-    pdb.set_trace()
-
     bal2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p')))
     if not balids:
         balids = []
@@ -279,7 +279,6 @@ def main():
         cnt_imgs += len(imgpaths)
 
     print "(Info) Decoding {0} ballots ({1} images)".format(len(balids), cnt_imgs)
-    pdb.set_trace()
 
     topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]    
     manager = multiprocessing.Manager()
