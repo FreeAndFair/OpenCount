@@ -10,7 +10,7 @@ class SingleTemplateVendor(Vendor):
         self.bals = ballots.keys()
         paths = [x for y in ballots.values() for x in y]
         print 'a'
-        img2decoding = dict((imP, ('0',)) for x in paths)
+        img2decoding = dict((imP, ('0',)) for imP in paths)
         return img2decoding, dict((x,False) for x in paths), {'None':[(x,(0,0,1,1),None) for x in paths]},[],[]
 
     def partition_ballots(self, img2decoding, verified_results, manual_labeled):
