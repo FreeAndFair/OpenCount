@@ -1,4 +1,4 @@
-import sys, os, pdb, time
+import sys, os, pdb, time, argparse
 import cv
 import i2of5
 
@@ -193,19 +193,27 @@ def get_info(barcodes):
 
 def isimgext(f):
     return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.bmp', '.jpg')
-
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("imgsdir", help="Directory of ballot images to \
+decode. Can be a single image path.")
+    parser.add_argument("--patch", action="store_true",
+                        help="Input images have already been cropped to \
+the barcode.")
+    parser.add_argument("--draw_bbs", metavar="outdir", nargs=1,
+                        help="If given, then for each decoded image, \
+output a new image in OUTDIR with each detected mark outlined in colored \
+rectangles.")
+    return parser.parse_args()
+    
 def main():
-    args = sys.argv[1:]
-    arg0 = args[0]
-    mode = args[1]
-    draw_bbs = True if 'draw_bbs' in args else False
-    outdir = args[-1]
+    args = parse_args()
 
     imgpaths = []
-    if isimgext(arg0):
-        imgpaths.append(arg0)
+    if isimgext(args.imgsdir):
+        imgpaths.append(args.imgsdir)
     else:
-        for dirpath, dirnames, filenames in os.walk(arg0):
+        for dirpath, dirnames, filenames in os.walk(args.imgsdir):
             for imgname in [f for f in filenames if isimgext(f)]:
                 imgpaths.append(os.path.join(dirpath, imgname))
     # 1.) Load in top/bot guard pairs.
@@ -215,14 +223,15 @@ def main():
                      cv.LoadImage(i2of5.BOT_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)]]
     errs = []
     t = time.time()
-    if mode == 'full':
+    if not args.patch:
         for imgpath in imgpaths:
             bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=True)
             print '{0}: '.format(imgpath), bcs, isflip, bcloc
             if None in bcs:
                 errs.append(imgpath)
                 continue
-            if draw_bbs:
+            if args.draw_bbs != None:
+                outdir = args.draw_bbs
                 imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
                 outrootdir = os.path.join(outdir, imgname)
                 bc_ul = bcloc[0]
@@ -272,12 +281,9 @@ def main():
                 cv.SaveImage(outpath2, Icolor_whiteWides)
                 cv.SaveImage(outpath3, Icolor_blackNarrows)
                 cv.SaveImage(outpath4, Icolor_blackWides)
-    elif mode == 'patch':
+    elif args.patch:
         n = args[2]
         decoded = decode_patch(imgpath, n)
-    else:
-        print "Unrecognized mode:", mode
-        return
     dur = time.time() - t
     print "...Time elapsed: {0} s".format(dur)
     avg_time = dur / len(imgpaths)

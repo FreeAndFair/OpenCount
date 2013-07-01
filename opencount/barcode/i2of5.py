@@ -1,4 +1,4 @@
-import sys, time, pdb
+import sys, time, pdb, argparse
 import numpy as np
 import cv
 
@@ -55,7 +55,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
     if bc_loc == None:
         if len(topbot_pairs) == 1:
             return None, [0, 0, 1, 1], None
-        return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols)
+        return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols, debug=debug)
 
     # 2.) Crop the barcode.
     #cv.SaveImage("_imgcrop_pre.png", img)
@@ -70,7 +70,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
         width = int(round(w_bc / cols))
         x1 = width * curcol
         cv.SetImageROI(img, shiftROI(bc_roi, (x1, 0, width, h_bc)))
-        decodings.append(decode_barcode(img, n, bc_loc[:], xoff=x1, imgP=imgP))
+        decodings.append(decode_barcode(img, n, bc_loc[:], xoff=x1, imgP=imgP, debug=debug))
 
     dstr_out, bbloc_out, bbstripes_out = get_most_popular(decodings, w_bc)
     cv.SetImageROI(img, roi_precrop)
@@ -81,7 +81,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
             return dstr_out, bbloc_out, bbstripes_out
         else:
             return decode_i2of5(img, n, topbot_pairs[1:],
-                                imgP=imgP, cols=cols)
+                                imgP=imgP, cols=cols, debug=debug)
     return dstr_out, bbloc_out, bbstripes_out
 
 def get_most_popular(decodings, w_bc):
@@ -574,17 +574,29 @@ def shiftROI(roi, bb):
     """ Returns a new ROI that is the result of shifting ROI by BB. """
     return (roi[0]+bb[0], roi[1]+bb[1], bb[2], bb[3])
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("imgpath", help="Imagepath to decode.")
+    parser.add_argument("ndigits", type=int, help="Number of digits encoded \
+in each barcode.")
+    parser.add_argument("--debug", action="store_true")
+    return parser.parse_args()
+
 def main():
-    args = sys.argv[1:]
-    imgpath = args[0]
-    n = int(args[1])
+    args = parse_args()
+    imgpath = args.imgpath
+    ndigits = args.ndigits
     img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+
+    topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]
+    topbot_imgs = [[cv.LoadImage(imP0, cv.CV_LOAD_IMAGE_GRAYSCALE), cv.LoadImage(imP1, cv.CV_LOAD_IMAGE_GRAYSCALE)] for imP0,imP1 in topbot_paths]
+
     t = time.time()
-    print "Starting decode_i2of5..."
-    decoded = decode_i2of5(img, n)
+    print "Starting decode_i2of5 on: {0}...".format(imgpath)
+    decoded, bbfull, bbmarks = decode_i2of5(img, ndigits, topbot_imgs, debug=args.debug, imgP=imgpath)
     dur = time.time() - t
     print "...Finished decode_i2of5 ({0} s)".format(dur)
-    print "Decoded was:", decoded
+    print "    Decoded: {0} Barcode BB: {1}  [x,y,w,h])".format(decoded, bbfull)
     
 if __name__ == '__main__':
     main()
