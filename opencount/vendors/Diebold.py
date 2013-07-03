@@ -37,7 +37,7 @@ class DieboldVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, *args, **kwargs):
         return partask.do_partask(_decode_ballots,
                                   ballots,
                                   _args=(TEMPLATE_PATH, COLMARK_PATH, skipVerify),

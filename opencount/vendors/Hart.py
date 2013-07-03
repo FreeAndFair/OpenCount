@@ -34,10 +34,11 @@ class HartVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
     
-    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, cache=None, *args, **kwargs):
         """
         Input:
             dict BALLOTS: {int ballotid: (str imgpath_0, ...)}
+            dict CACHE: {str imgpath: (tuple decodings, bool isflipped)}
         Output:
             (dict IMG2DECODING,
              dict FLIPMAP,
@@ -47,7 +48,7 @@ class HartVendor(Vendor):
         """
         topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]
         # DECODED_RESULTS_MAP: {ballotID: [(BCS, isflip, BBS, bbstripes_dict), ...]}
-        decoded_results_map = decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=skipVerify)
+        decoded_results_map = decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=skipVerify, cache=cache)
         flipmap = {} # maps {imgpath: bool isFlipped}
         bbstripes_map = {} # maps {'wideNarrow': [(str imgpath, (x1,y1,x2,y2), int id), ...], ...}
         err_imgpaths = []
@@ -204,7 +205,7 @@ class HartVendor(Vendor):
     def __str__(self):
         return 'HartVendor()'
 
-def _do_decode_ballots(ballots, (topbot_paths, skipVerify), queue=None):
+def _do_decode_ballots(ballots, (topbot_paths, skipVerify, cache), queue=None):
     cvread = lambda imP: cv.LoadImage(imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
     topbot_pairs = [[cvread(topbot_paths[0][0]), cvread(topbot_paths[0][1])],
                     [cvread(topbot_paths[1][0]), cvread(topbot_paths[1][1])]]
@@ -212,6 +213,10 @@ def _do_decode_ballots(ballots, (topbot_paths, skipVerify), queue=None):
     for ballotid, imgpaths in ballots.iteritems():
         balresults = []
         for imgpath in imgpaths:
+            if cache and imgpath in cache:
+                bcs, isflipped = cache[imgpath]
+                balresults.append((bcs, isflipped, None, None))
+                continue
             try:
                 bcs, isflipped, bbs, bbstripes_dict = hart.decode(imgpath, topbot_pairs, skipVerify=skipVerify)
                 balresults.append((bcs, isflipped, bbs, bbstripes_dict))
@@ -222,11 +227,11 @@ def _do_decode_ballots(ballots, (topbot_paths, skipVerify), queue=None):
             queue.put(True)
     return results
 
-def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True, N=None):
+def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True, N=None, cache=None):
     t = time.time()
     decoded_results = partask.do_partask(_do_decode_ballots,
                                          ballots,
-                                         _args=(topbot_paths, skipVerify),
+                                         _args=(topbot_paths, skipVerify, cache),
                                          combfn='dict',
                                          manager=manager,
                                          pass_queue=queue,

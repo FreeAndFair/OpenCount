@@ -8,7 +8,7 @@ class Vendor(object):
         pass
         #raise NotImplementedError("Can't instantiate abstract Vendor class.")
 
-    def decode_ballots(self, ballots, *args, **kwargs):
+    def decode_ballots(self, ballots, cache=None, *args, **kwargs):
         """
         Use automated image-processing algorithms to output an initial
         decoding for each voted ballot. The user will then verify the
@@ -16,6 +16,8 @@ class Vendor(object):
 
         Input:
             dict BALLOTS: {int ballotID: [imgpath_side0, ...]}.
+            dict CACHE: {str imgpath: ((str decoded_0, ...), bool isflipped)}
+                An optional cache to refer to when decoding images.
         Output:
             (dict IMG2DECODING,
              dict FLIP_MAP,

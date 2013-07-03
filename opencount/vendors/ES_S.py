@@ -31,7 +31,7 @@ class ESSVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, *args, **kwargs):
         """
         Decode ES&S style ballot barcodes. 
         Each mark will later be verified for correctness.

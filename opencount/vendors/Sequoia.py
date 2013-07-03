@@ -18,7 +18,7 @@ class SequoiaVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
 
-    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True):
+    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, *args, **kwargs):
         img2decoding, flipmap, mark_bbs_map, err_imgpaths, ioerr_imgpaths, backsmap = partask.do_partask(_decode_ballots,
                                                                                                          ballots,
                                                                                                          _args=(sequoia.ZERO_IMGPATH,

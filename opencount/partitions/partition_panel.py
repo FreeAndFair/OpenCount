@@ -340,16 +340,58 @@ unnecessary.", 100)
         sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
         sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
 
-        btn_loadDecoding = wx.Button(self, label="(Dev) Load previous decoding results.")
+        sizer_devButtons = wx.BoxSizer(wx.HORIZONTAL)
+        
+        btn_loadPartialDecoding = wx.Button(self, label="(Dev) Apply previous decoding results, decode remaining images. [only valid with Skip Overlay Verify]")
+        btn_loadPartialDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadPartialDecoding)
+        btn_loadDecoding = wx.Button(self, label="(Dev) Load complete previous decoding results.")
         btn_loadDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadDecoding)
+        
+        sizer_devButtons.AddMany([(btn_loadPartialDecoding,), ((10,0),), (btn_loadDecoding)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.AddMany([(btn_sizer,), ((50, 50),), (sizer_skipVerify,), ((50,50),), (self.sizer_stats,)])
-        self.sizer.Add(btn_loadDecoding)
+        self.sizer.Add(sizer_devButtons)
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
 
+    def onButton_loadPartialDecoding(self, evt):
+        """ Use a previous img2decoding data struct as a 'cache' when
+        performing decoding.
+        """
+        dlg = wx.FileDialog(self, "Choose the _state_partition.p file.", ".", "", "*.*", wx.OPEN)
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            return
+        fpath1 = pathjoin(dlg.GetDirectory(), dlg.GetFilename())
+        dlg = wx.FileDialog(self, "Choose the image_to_flip.p file.", ".", "", "*.*", wx.OPEN)
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            return
+        fpath2 = pathjoin(dlg.GetDirectory(), dlg.GetFilename())
+
+        try:
+            d = pickle.load(open(fpath1, 'rb'))
+        except IOError as e:
+            print "(Error) Couldn't open: {0}".format(fpath1)
+            print "    Exception:", e.message
+            return
+        img2decoding = d['img2decoding']
+        try:
+            img2flip = pickle.load(open(fpath2, 'rb'))
+        except IOError as e:
+            print "(Error) Couldn't open: {0}".format(fpath2)
+            print "    Exception:", e.message
+
+        cache = {} # maps {str imgpath: (tuple decodings, bool isflipped)}
+        cnt = 0
+        for imgpath, decoding in img2decoding.iteritems():
+            isflip = img2flip.get(imgpath, None)
+            if isflip != None:
+                cache[imgpath] = (decoding, isflip)
+                cnt += 1
+        print "(Info) Loaded {0} previous decodings into cache.".format(cnt)
+        self.run_decoding(cache=cache)
+        
     def onButton_loadDecoding(self, evt):
         """ A Dev feature to allow someone to load-in the previous results of
         decoding the images in this election, without having to re-decode
@@ -415,6 +457,15 @@ unnecessary.", 100)
         pickle.dump(state, open(self.stateP, 'wb'))
 
     def onButton_run(self, evt):
+        self.run_decoding()
+
+    def run_decoding(self, cache=None):
+        """ Runs decoding. If input dict CACHE is given, then decoding
+        will first check to see if an IMGPATH has a decoding in CACHE
+        before decoding.
+        Input:
+            dict CACHE: maps {str imgpath: (tuple decodings, bool isflipped)}
+        """
         class PartitionThread(threading.Thread):
             def __init__(self, b2imgs, vendor_obj, callback, jobid, manager, progress_queue, tlisten, skipVerify, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
@@ -431,7 +482,7 @@ unnecessary.", 100)
                 print "...Running Decoding ({0} ballots)...".format(len(self.b2imgs))
                 # Pass in self.manager and self.queue to allow cross-process 
                 # communication (for multiprocessing)
-                img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue, skipVerify=self.skipVerify)
+                img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue, skipVerify=self.skipVerify, cache=cache)
                 dur = time.time() - t
                 print "...Done Decoding Ballots ({0} s).".format(dur)
                 print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
