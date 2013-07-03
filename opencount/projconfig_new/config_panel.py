@@ -169,7 +169,13 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
                                    regexDiff=self.regexDiff_txtctrl.GetValue())
         curballotid = 0
         weirdballots = []
+        stats_numpages = {} # maps {int numpages: int cnt}
         for i, imgpaths in enumerate(by_ballots):
+            _numpages = len(imgpaths)
+            if _numpages not in stats_numpages:
+                stats_numpages[_numpages] = 1
+            else:
+                stats_numpages[_numpages] += 1
             if not self.varnumpages_chkbox.GetValue() and len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
                 # Ballot has too many/few sides.
                 print "Warning -- found Ballot with {0} sides, yet project \
@@ -182,6 +188,9 @@ specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()
                 for imgpath in imgpaths:
                     image_to_ballot[imgpath] = curballotid
                 curballotid += 1
+        print "(Stats) Number of pages in a ballot for the election:"
+        for _numpages, cnt in sorted(stats_numpages.iteritems()):
+            print "    {0} pages: {1} ballots".format(_numpages, cnt)
         print "Detected {0} weird ballots with too many/few sides.".format(len(weirdballots))
         if weirdballots:
             dlg = wx.MessageDialog(self, message="Warning: OpenCount detected {0} ballots \
@@ -197,6 +206,15 @@ election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), sel
         self.project.voteddir = self.voteddir
         # 3.) Set project.imgsize, assuming that all image dimensions are the same
         if len(image_to_ballot) == 0:
+            dlg = wx.MessageDialog(self, message="Fatal Error: OpenCount \
+couldn't find any valid ballots in the directory:\n\n\
+{0}\n\n\
+Are you sure this is the correct directory containing the voted ballots?\n\n\
+Alternately, is the correct vendor specified in the configuration?\n\n\
+Please correct the misconfiguration (if any) and create a new Project \
+with the corrections.".format(self.voteddir),
+                                   style=wx.OK)
+            dlg.ShowModal()
             print "Everything is going to break. OpenCount didn't find any ballots."
             return
         w, h = None, None

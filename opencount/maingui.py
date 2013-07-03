@@ -151,7 +151,7 @@ proceed. Please address the prior warnings first.",
                 evt.Veto()
                 return
         else:
-            print "...Warning: Class {0} has no can_move_on method.".format(curpanel)
+            print "(Warning) Class {0} has no can_move_on method.".format(curpanel)
 
         if old == MainFrame.CONFIG:
             self.panel_config.stop()
