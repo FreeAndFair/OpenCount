@@ -168,8 +168,20 @@ class HartVendor(Vendor):
             # In var-numpages elections, we don't want to clump together
             # a ballot with pages [1,2] and [2,3] together, for instance.
             pages = []
+            flag_imageBad = False
             for imgpath in bal2imgs[balid]:
-                pages.append(imginfo_map[imgpath]['page'])
+                if imgpath in imginfo_map:
+                    pages.append(imginfo_map[imgpath]['page'])
+                else:
+                    # This image was either quarantined or discarded: 
+                    # ignore this.
+                    flag_imageOut = True
+                    break
+            if flag_imageBad:
+                # At least one image in this ballot was quarantined/discarded,
+                # so don't process the entire ballot.
+                continue
+                
             pages = tuple(sorted(pages))
             tag = info['precinct'], info['language'], info['party'], pages
             partid = tag2partid.get(tag, None)

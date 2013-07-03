@@ -340,11 +340,36 @@ unnecessary.", 100)
         sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
         sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
 
+        btn_loadDecoding = wx.Button(self, label="(Dev) Load previous decoding results.")
+        btn_loadDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadDecoding)
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.AddMany([(btn_sizer,), ((50, 50),), (sizer_skipVerify,), ((50,50),), (self.sizer_stats,)])
+        self.sizer.Add(btn_loadDecoding)
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
+
+    def onButton_loadDecoding(self, evt):
+        """ A Dev feature to allow someone to load-in the previous results of
+        decoding the images in this election, without having to re-decode
+        the election.
+        """
+        dlg = wx.FileDialog(self, "Choose the _decoder_output.p file.", ".", "", "*.*", wx.OPEN)
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            return
+        filepath = pathjoin(dlg.GetDirectory(), dlg.GetFilename())
+        try:
+            # dict DECODER_OUT, keys: 'img2decoding', 'flipmap', 'verifypatch_bbs', 'err_imgpaths', 'ioerr_imgpaths'
+            d = pickle.load(open(filepath, 'rb'))
+        except IOError as e:
+            print "(Error) Couldn't open: {0}".format(filepath)
+            print "    Exception:", e.message
+            return
+        img2decoding, flipmap = d['img2decoding'], d['flipmap']
+        verifypatch_bbs       = d['verifypatch_bbs']
+        err_imPs, ioerr_imPs  = d['err_imgpaths'], d['ioerr_imgpaths']
+        self.on_decodedone(img2decoding, flipmap, verifypatch_bbs, err_imPs, ioerr_imPs)
 
     def start(self, proj, voteddir, stateP='_state_partition.p'):
         """ 
@@ -503,6 +528,13 @@ unnecessary.", 100)
             config.TIMER.start_task("Partition_HandleDecodingResults_CPU")
         print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
         print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
+        # Save the raw decoding output, in case for later usage
+        pickle.dump({'img2decoding': img2decoding, 
+                     'flipmap': flipmap, 'verifypatch_bbs': verifypatch_bbs, 
+                     'err_imgpaths': err_imgpaths, 'ioerr_imgpaths': ioerr_imgpaths},
+                    open(pathjoin(self.proj.projdir_path, '_decoder_output.p'), 'wb'),
+                    pickle.HIGHEST_PROTOCOL)
+
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         if err_imgpaths:
