@@ -548,8 +548,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         
         def nuke_ballots(ballotids, img2decoding, verifypatch_bbs, flipmap):
             """ Removes all references to ballotids in BALLOTIDS from
-            data structs VERIFYPATCH_BBS and FLIPMAP.
-            Mutates input VERIFYPATCH_BBS, FLIPMAP.
+            data structs IMG2DECODING, VERIFYPATCH_BBS and FLIPMAP.
+            Mutates input IMG2DECODING, VERIFYPATCH_BBS, FLIPMAP.
             """
             # If VERIFYPATCH_BBS is None, then skipVerify was True
             if verifypatch_bbs:
@@ -567,8 +567,10 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 if flipmap_bid in ballotids:
                     flipmap.pop(flipmap_imP)
             for bad_ballotid in ballotids:
-                if bad_ballotid in img2decoding:
-                    img2decoding.pop(bad_ballotid)
+                imgpaths = bal2imgs[bad_ballotid]
+                for imgpath in imgpaths:
+                    if imgpath in img2decoding:
+                        img2decoding.pop(imgpath)
             return img2decoding, verifypatch_bbs, flipmap
 
         bal2errlabel = {} # maps {int ballotid: ID_Quarantine/ID_Discard}

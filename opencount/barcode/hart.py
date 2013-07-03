@@ -204,6 +204,7 @@ the barcode.")
                         help="If given, then for each decoded image, \
 output a new image in OUTDIR with each detected mark outlined in colored \
 rectangles.")
+    parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
     
 def main():
@@ -225,7 +226,7 @@ def main():
     t = time.time()
     if not args.patch:
         for imgpath in imgpaths:
-            bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=True)
+            bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=args.debug)
             print '{0}: '.format(imgpath), bcs, isflip, bcloc
             if None in bcs:
                 errs.append(imgpath)
