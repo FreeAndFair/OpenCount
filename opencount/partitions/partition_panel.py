@@ -364,7 +364,7 @@ unnecessary.", 100)
         if dlg.ShowModal() == wx.ID_CANCEL:
             return
         fpath1 = pathjoin(dlg.GetDirectory(), dlg.GetFilename())
-        dlg = wx.FileDialog(self, "Choose the image_to_flip.p file.", ".", "", "*.*", wx.OPEN)
+        dlg = wx.FileDialog(self, "Choose the image_to_flip.p file.", dlg.GetDirectory(), "", "*.*", wx.OPEN)
         if dlg.ShowModal() == wx.ID_CANCEL:
             return
         fpath2 = pathjoin(dlg.GetDirectory(), dlg.GetFilename())
