@@ -461,16 +461,19 @@ match the regular expressions.".format(imgpath)
 def separate_regex_ctr(voteddir, regexShr):
     """ Separates ballots whose filenames start with a shared prefix
     REGEXSHR, but then contain two incrementing counters (very-much
-    Hart-specific), e.g.:
+    Hart-specific), i.e. for the following images:
+        Ballot A:
         339_1436_5_211_1.png
         339_1436_5_212_2.png
         339_1436_5_213_3.png
-        ...
+        Ballot B:
+        339_1436_5_214_1.png
+        339_1436_5_215_2.png
     """
     ballots = []
+    shrPat = re.compile(regexShr)
     for dirpath, dirnames, filenames in os.walk(voteddir):
         imgnames = [f for f in filenames if util.is_image_ext(f)]
-        shrPat = re.compile(regexShr)
         curmats = {} # maps {str sim_pat: [(str imgpath, tuple ctr_vals), ...]}
         for imgname in imgnames:
             imgpath = pathjoin(dirpath, imgname)
@@ -497,20 +500,60 @@ def get_consecutives(tuples):
     Output:
         (tuple IMGPATHS0, tuple IMGPATHS1, ...)
     """
+    # 
+    # Assume that the N1 ctr val increases monotonically,
+    # but the N2 ctr val increases monotonically only within
+    # a single ballot, and drops down for 
     # sort by images with consecutive ctr_vals
     tuples_sorted = sorted(tuples, key=lambda t: t[1][0])    
     imgpath_groups = [] # [tuple IMGPATHS0, ...]
     cur_group = []
-    prev_val = None
+    prev_N1, prev_N2 = None, None
 
     for (imgpath, (N1, N2)) in tuples_sorted:
-        if prev_val == None or (prev_val + 1) == N1:
+        if prev_N1 == None: # first iteration
+            prev_N1, prev_N2 = N1, N2
             cur_group.append(imgpath)
-            prev_val = N1
-        else:
+        elif N1 != prev_N1 + 1:
+            # Skips in N1 imply a new ballot
             imgpath_groups.append(cur_group)
             cur_group = [imgpath]
-            prev_val = N1
+            prev_N1, prev_N2 = N1, N2
+        elif N2 <= prev_N2:
+            # If N2 goes down (say, from '3' to '1'), then this
+            # implies a new ballot.
+            imgpath_groups.append(cur_group)
+            cur_group = [imgpath]
+            prev_N1, prev_N2 = N1, N2
+        else:
+            # This image is part of the current ballot
+            cur_group.append(imgpath)
+            prev_N1, prev_N2 = N1, N2
     if cur_group:
         imgpath_groups.append(cur_group)
     return imgpath_groups
+
+def test_get_consecutives():
+    test0 = (('329_1447_74_5_1.png', (5, 1)),
+             ('329_1447_74_6_2.png', (6, 2)),
+
+             ('329_1447_74_7_1.png', (7, 1)),
+             ('329_1447_74_8_2.png', (8, 2)),
+
+             ('339_128_29_2_1.png', (2, 1)),
+
+             ('2_1_1_1.png', (1, 1)),
+
+             ('2_1_2_1.png', (2, 1)),
+             
+             ('2_1_3_1.png', (3, 1)),
+             ('2_1_4_2.png', (4, 2)))
+    ballots = get_consecutives(test0)
+    for i, imgpaths in enumerate(ballots):
+        print "Ballot '{0}':".format(i)
+        for imgpath in imgpaths:
+            print "    {0}".format(imgpath)
+    pdb.set_trace()
+
+if __name__ == '__main__':
+    test_get_consecutives()

@@ -119,7 +119,16 @@ class Vendor(object):
             return [(0,(tops[0],tops[1])), #header
                     (1,(tops[1], d)),
                     (2,(d, d))]
-        
+
+    def get_grouping_propnames(self):
+        """ If the vendor-specific decoder is able to generate additional
+        meta-information to be used for grouping in the IMAGE_INFO dictionary
+        outputted by self.partition_ballots, then this method should return
+        those property names.
+        Output:
+            tuple PROPNAMES: (str propname_0, ...)
+        """
+        return ()
 
     def __repr__(self):
         return 'Vendor()'

@@ -114,7 +114,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                                                        self.align_outdir, self.manager, self.queue,
                                                        N=None)
                 dur = time.time() - t
-                print '...Finished globally-aligning a subset of each partition ({0} s)'.format(dur)
+                print '...Finished globally-aligning a subset of each partition ({0:.4f} s)'.format(dur)
                 wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
                 wx.CallAfter(self.callback, groups_align_map, self.ocrtmpdir)
                 self.tlisten.stop()
@@ -1270,7 +1270,6 @@ Then, you may resize the voting targets here.").ShowModal()
                 if len(targets) == 0: continue
                 leftcoord = sorted([x.x1 for x in targets])
                 width = abs(targets[0].x1-targets[0].x2)
-                #print "width", width
                 def group(leftcoord):
                     cols = [[]]
                     for ii,(x1,x2) in enumerate(zip(leftcoord,leftcoord[1:]+[-1<<30])):
@@ -2173,17 +2172,20 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
             x_img, y_img = self.c2img(x,y)
             if (abs(self.box_create.x1 - x_img) <= MIN_LEN) or (abs(self.box_create.y1 - y_img) <= MIN_LEN):
                 print "...User drew a too-small box..."
-                dlg = wx.MessageDialog(self, style=wx.ID_OK,
+                dlg = wx.MessageDialog(self, style=wx.YES_NO | wx.NO_DEFAULT,
                                        message="You drew a box that \
-was too small. \n\
-Either draw a bigger box, or zoom-in to better-select the targets.")
+was a bit small. \n\n\
+Would you still like to use this box? If so, then choose the 'Yes' button. \n\n\
+Otherwise, if this box was created by mistake, and you would like to \
+create a better box around a voting target, then choose the 'No' button.")
                 self.Disable()
-                dlg.ShowModal()
+                status = dlg.ShowModal()
                 self.Enable()
-                self.isCreate = False
-                self.box_create = None
-                self.Refresh()
-                return
+                if status == wx.ID_NO:
+                    self.isCreate = False
+                    self.box_create = None
+                    self.Refresh()
+                    return
 
             box = self.finishBox(x, y)
             if isinstance(box, TargetBox):
@@ -2711,7 +2713,7 @@ def compute_box_ids(boxes):
         return None, None
     assocs = {}
     contests = [b for b in boxes if isinstance(b, ContestBox)]
-    print contests
+    #print contests
     targets = [b for b in boxes if isinstance(b, TargetBox)]
     lonely_targets = []
     # Ensure that each contest C is present in output ASSOCS, even if

@@ -121,6 +121,7 @@ class HartVendor(Vendor):
         partitions = {} # maps {partitionID: [int ballotID, ...]}
         imginfo_map = {} # maps {imgpath: {str PROPNAME: str PROPVAL}}
         attrs2partitionID = {} # maps {('precinct', 'language', 'party'): int partitionID}
+        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         if verified_results:
             img2decoding = {} # Ignore the input IMG2DECODING
@@ -138,10 +139,8 @@ class HartVendor(Vendor):
         # to avoid decoding errors resulting in different images from the
         # same ballot being assigned to different partitions.
         bal2info = {} # maps {int ballotid: {str PROPNAME: str PROPVAL}}
-
-        def add_decoding(imgpath, decoding, curPartitionID):
-            """ Returns True if a new partition is created. """
-            created_new_partition = False
+        def add_decoding(imgpath, decoding):
+            """ Registers the decoding for IMGPATH to a few data structures. """
             ballotid = img2bal[imgpath]
             imginfo = hart.get_info(decoding)
             
@@ -153,36 +152,40 @@ class HartVendor(Vendor):
                 imginfo['precinct'] = imginfo_prev['precinct']
                 imginfo['language'] = imginfo_prev['language']
                 imginfo['party']    = imginfo_prev['party']
-
-            tag = (imginfo['precinct'], imginfo['language'], imginfo['party'])
             imginfo_map[imgpath] = imginfo
 
-            if self.proj.num_pages == 1:
-                # Additionally separate by page for single-sided, just in
-                # case multiple pages are present in the ballot scans
-                tag += (imginfo['page'],)
-            partitionid = attrs2partitionID.get(tag, None)
-            if partitionid == None:
-                partitionid = curPartitionID
-                attrs2partitionID[tag] = curPartitionID
-                created_new_partition = True
-
-            partitions.setdefault(partitionid, set()).add(ballotid)
-            return created_new_partition
-
-        curPartitionID = 0
         for imgpath, decoding in img2decoding.iteritems():
             # DECODING is a tuple of strings
-            added_new_partition = add_decoding(imgpath, decoding, curPartitionID)
-            if added_new_partition:
-                curPartitionID += 1
+            add_decoding(imgpath, decoding)
+            
         for imgpath, decoding_tuple in manual_labeled.iteritems():
-            added_new_partition = add_decoding(imgpath, decoding_tuple[0], curPartitionID)
-            if added_new_partition:
-                curPartitionID += 1
-        for partitionid, ballotid_set in partitions.iteritems():
-            partitions[partitionid] = sorted(list(ballotid_set))
+            add_decoding(imgpath, decoding_tuple[0])
+
+        tag2partid = {} # maps {tag: int partitionid}
+        curpartid = 0
+        for balid, info in bal2info.iteritems():
+            # The set of present pages is also a partitioning criterion.
+            # In var-numpages elections, we don't want to clump together
+            # a ballot with pages [1,2] and [2,3] together, for instance.
+            pages = []
+            for imgpath in bal2imgs[balid]:
+                pages.append(imginfo_map[imgpath]['page'])
+            pages = tuple(sorted(pages))
+            tag = info['precinct'], info['language'], info['party'], pages
+            partid = tag2partid.get(tag, None)
+            if partid == None:
+                tag2partid[tag] = curpartid
+                partid = curpartid
+                curpartid += 1
+            partitions.setdefault(partid, []).append(balid)
+
+        for partitionid, ballotids in partitions.iteritems():
+            partitions[partitionid] = sorted(set(ballotids))
         return partitions, img2decoding, imginfo_map
+
+    def get_grouping_propnames(self):
+        """ Hart ballots group by: Language, Party, Precinct. """
+        return ('precinct', 'language', 'party') 
 
     def __repr__(self):
         return 'HartVendor()'

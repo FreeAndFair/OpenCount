@@ -228,27 +228,61 @@ next step.", style=wx.OK).ShowModal()
         def all_attrs_tabulationonly():
             """ Returns True if all attributes are tabulation-only. """
             # list ATTRS: [dict attrbox_marsh, ...]
-            attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
             for attrdict in attrs:
                 if not attrdict['is_tabulationonly']:
                     return False
             return True
 
+        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                             self.proj.image_to_page), 'rb'))
+        img2info = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.imginfo_map), 'rb'))
+        def getpagenums(balid):
+            """ Returns the page numbers present for this ballot. """
+            imgpaths = b2imgs[balid]
+            return tuple(sorted([img2page[imP] for imP in imgpaths]))
+
+        def get_barcode_props(balid):
+            """ If the current Vendor can provide additional grouping
+            criterion (say, from the barcodes), then this will return them.
+            """
+            imgpaths = b2imgs[balid]
+            info = img2info[imgpaths[0]]
+            propnames = self.proj.vendor_obj.get_grouping_propnames()
+            out_dict = {} # maps {str propname: str propval}
+            for propname in propnames:
+                out_dict[propname] = info[propname]
+            return out_dict
+            
         for ballotid, ballotprops in ballot_attrvals.iteritems():
             # 2.a.) Filter out any 'is_tabulationonly' attrtypes
             ballotprops_grp = {} # maps {attrtype: attrval}
+            numpages = len(b2imgs[ballotid]) # always also group by # of pages!
             for ballotattrtype, ballotattrval in ballotprops.iteritems():
                 if ballotattrtype == 'pid' and not flag_ssAttrExists:
-                    # Always add the partition id
-                    # If a SpreadSheet custAttr exists, then we assume that
-                    # the partitionid will not be used for grouping purposes.
+                    # Always add the partition id as a grouping criterion.
+                    # But, if a SpreadSheet custAttr exists, then we assume that
+                    # the partitionid will NOT be used for grouping purposes.
                     ballotprops_grp[ballotattrtype] = ballotattrval
                     continue
                 for attrmode, attrdicts in attrprops.iteritems():
                     for attrtype, attrpropdict in attrdicts.iteritems():
                         if attrtype == ballotattrtype and not attrpropdict['is_tabulationonly']:
                             ballotprops_grp[ballotattrtype] = ballotattrval
-            ordered_props = tuple(sorted(ballotprops_grp.items(), key=lambda t: t[0]))
+            # 2.b.) Also add in any additional grouping criterion that
+            # the Vendor may provide (i.e. from the barcodes).
+            for propname, propval in get_barcode_props(ballotid).iteritems():
+                if propname not in ballotprops_grp:
+                    ballotprops_grp[propname] = propval
+
+            ordered_props = tuple(sorted(ballotprops_grp.items(), key=lambda t: t[0])) + (numpages,)
+            if flag_ssAttrExists:
+                # For var-num-page elections, there's a possibility
+                # that ballots may be missing sides, i.e. ballot A has
+                # pages [0, 1] and ballot B has pages [1, 2]. Even if A and B
+                # both have the same ballot attributes, they should still
+                # /not/ be grouped together. So, add a new criterion to the
+                # ORDERED_PROPS group tag.
+                ordered_props += (getpagenums(ballotid),)
             if all_attrs_tabulationonly() and b2g_old != None and ballotid in b2g_old:
                 # Use the prior group indexing scheme!
                 # NOTE: This code will NOT gracefully handle the case where

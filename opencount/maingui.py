@@ -238,7 +238,7 @@ proceed. Please address the prior warnings first.",
                         continue
                     propdict = {'pid': partitionid}
                     grp_infomap[curgroupid] = propdict
-                    print 'extend', curgroupid, 'by', ballotids
+                    #print 'extend', curgroupid, 'by', ballotids
                     grp2bals.setdefault(curgroupid, []).extend(ballotids)
                     for ballotid in ballotids:
                         bal2grp[ballotid] = curgroupid
@@ -252,7 +252,7 @@ proceed. Please address the prior warnings first.",
 
                 # Also, export to proj.group_results.csv, for integration with
                 # quarantine/post-processing panels.
-                print "SET TO", grp2bals
+                #print "SET TO", grp2bals
                 fields = ('ballotid', 'groupid')
                 csvfile = open(self.project.grouping_results, 'wb')
                 dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
