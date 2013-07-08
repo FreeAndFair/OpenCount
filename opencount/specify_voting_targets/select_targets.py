@@ -598,6 +598,13 @@ class SelectTargetsPanel(ScrolledPanel):
         txt = wx.StaticText(self, label="Draw a rectangle around each \
 voting target on this ballot.")
 
+        btn_next = wx.Button(self, label="Next Image...")
+        btn_next.Bind(wx.EVT_BUTTON, self.onButton_nextimage)
+        btn_prev = wx.Button(self, label="Prev Image...")
+        btn_prev.Bind(wx.EVT_BUTTON, self.onButton_previmage)
+        sizer_btnmove = wx.BoxSizer(wx.VERTICAL)
+        sizer_btnmove.AddMany([(btn_next,), (btn_prev,)])
+
         btn_nextpartition = wx.Button(self, label="Next Partition...")
         btn_prevpartition = wx.Button(self, label="Previous Partition...")
         sizer_partitionbtns = wx.BoxSizer(wx.VERTICAL)
@@ -639,6 +646,7 @@ voting target on this ballot.")
         btn_jump_error.Bind(wx.EVT_BUTTON, self.onButton_jump_error)
         
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        btn_sizer.Add(sizer_btnmove, border=10, flag=wx.ALL)
         btn_sizer.Add(sizer_partitionbtns, border=10, flag=wx.ALL)
         btn_sizer.Add(sizer_ballotbtns, border=10, flag=wx.ALL)
         btn_sizer.Add(sizer_pagebtns, border=10, flag=wx.ALL)
@@ -988,6 +996,22 @@ voting target on this ballot.")
         if prev_idx < 0:
             return None
         return self.display_image(self.cur_i, self.cur_j, prev_idx)
+    def onButton_nextimage(self, evt):
+        """ Take the user to the next page or partition. """
+        if self.display_nextpage() == None:
+            self.display_nextpartition()
+    def onButton_previmage(self, evt):
+        """ Take the user to the previous page or partition. """
+        if self.display_prevpage() == None:
+            prev_i = self.cur_i - 1
+            if prev_i < 0:
+                return
+            if not self.partitions[prev_i]:
+                print "(Error) There appears to be an empty partition at i={0}".format(prev_i)
+                return
+            numpages = len(self.partitions[prev_i][0])
+            self.display_image(prev_i, 0, numpages - 1)
+            
     def onButton_nextpartition(self, evt):
         self.display_nextpartition()
     def onButton_prevpartition(self, evt):
