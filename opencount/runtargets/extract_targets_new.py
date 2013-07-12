@@ -143,6 +143,8 @@ class RunThread(threading.Thread):
             ioerr_ballotids = run_grouping.get_ioerr_bals(self.proj)
             bad_ballotids = list(set(qballotids + discarded_ballotids + ioerr_ballotids))
             nProc = 1 if self.do_profile else None
+            # list AVG_INTENSITIES: [(str targetid, float avg_intensity), ...]
+            #     where TARGETID :=  str(balId)+"\0"+str(page)+"\0"+str(int(uid))
             avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
                                                                      target_locs_map, group_exmpls,
                                                                      bad_ballotids,

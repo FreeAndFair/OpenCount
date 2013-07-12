@@ -121,13 +121,14 @@ class GridShow(wx.ScrolledWindow):
         print "...Starting LightBox...", i
 
         targetpath = self.lookupFullList(i)[0]
-        ballotpath = self.bal2imgs[targetpath[0]][targetpath[1]]
+        balid, side = targetpath[0], targetpath[1]
+        imgpaths = sorted(self.bal2imgs[balid], key=lambda imP: self.img2page[imP])
+        ballotpath = imgpaths[side]
+
         if not os.path.exists(ballotpath):
             dlg = wx.MessageDialog(self, message="Oh no. We couldn't open this ballot for some reason ...", style=wx.ID_OK)
             dlg.ShowModal()
-
             return
-
 
         pan = wx.Panel(self.parent, size=self.parent.thesize, pos=(0,0))
 
@@ -921,12 +922,20 @@ class ThresholdPanel(wx.Panel):
         button4.Bind(wx.EVT_BUTTON, lambda x: tabOne.onScroll(tabOne.lastpos+tabOne.numcols*(tabOne.numrows-5)))
         button5 = wx.Button(self, label="Set Filter")
         button5.Bind(wx.EVT_BUTTON, lambda x: tabOne.setFilter())
+
+        button6 = wx.Button(self, label="(Dev) Jump To...")
+        button6.Bind(wx.EVT_BUTTON, self.onButton_jumpto)
+        button7 = wx.Button(self, label="(Dev) Print self.lastpos")
+        button7.Bind(wx.EVT_BUTTON, self.onButton_printpos)
+
         top.Add(button1)
         top.Add(button2)
         top.Add(button3)
         top.Add(button4)
         top.Add(button5)
-
+        top.Add(button6)
+        top.Add(button7)
+        
         sizer.Add(top)
         tabOne.setup()
         self.Refresh()
@@ -939,3 +948,18 @@ class ThresholdPanel(wx.Panel):
         
     def stop(self):
         self.tabOne.dosave()
+
+    def onButton_jumpto(self, evt):
+        dlg = wx.TextEntryDialog(self, style=wx.CAPTION | wx.OK | wx.CANCEL,
+                                 message="Please enter a position value greater than 0.")
+        status = dlg.ShowModal()
+        if status == wx.ID_CANCEL:
+            return
+        try:
+            pos = int(dlg.GetValue())
+            self.tabOne.onScroll(pos)
+        except ValueError as e:
+            print e
+    def onButton_printpos(self, evt):
+        print "self.tabOne.lastpos is:", self.tabOne.lastpos
+

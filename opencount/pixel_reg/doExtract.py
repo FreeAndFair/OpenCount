@@ -327,7 +327,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
     try: os.makedirs(radix_sort_dir)
     except: pass
 
-    avg_intensities = [] # [(targetoutpath, float avg_intensity), ...]
+    avg_intensities = [] # [(str targetname, float avg_intensity), ...]
 
     # 1.) First, save target patches, target diff data, and target meta
     #     data to disk, and reconstruct directory structure.
