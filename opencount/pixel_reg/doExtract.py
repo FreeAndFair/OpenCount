@@ -862,6 +862,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         t = time.time()
         print "...Starting quarantineCheckMAP..."
         qballotids = quarantineCheckMAP(jobs,targetDiffDir,targetextract_quarantined,img2b, bal2targets, imageMetaDir=imageMetaDir)
+
         # Remove all quarantined ballots from AVG_INTENSITIES, BAL2TARGETS
         def is_quarantined(targetpath, voteddir, extractdir, qballotids, img2b):
             votedimgpath = target_to_image(targetpath, b2imgs)

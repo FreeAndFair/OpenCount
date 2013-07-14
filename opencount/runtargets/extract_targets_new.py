@@ -12,7 +12,7 @@ from wx.lib.pubsub import Publisher
 sys.path.append('..')
 
 import util, config
-import threshold.imageFile
+import threshold.imageFile as imageFile
 import pixel_reg.doExtract as doExtract
 import quarantine.quarantinepanel as quarantinepanel
 import grouping.run_grouping as run_grouping
@@ -122,18 +122,20 @@ class RunThread(threading.Thread):
     def do_target_extract(self):
         if config.TIMER:
             config.TIMER.start_task("TargetExtract_DoTargetExtract_CPU")
-        group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.group_to_ballots), 'rb'))
-        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.group_exmpls), 'rb'))
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
-        img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_flip), 'rb'))
+        if not self.skip_extract:
+            group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                         self.proj.group_to_ballots), 'rb'))
+            group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                     self.proj.group_exmpls), 'rb'))
+            b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+            img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+            img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.image_to_page), 'rb'))
+            img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
+                                                 self.proj.image_to_flip), 'rb'))
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
+            
         totalTime = time.time()
         time_doExtract = time.time()
         print "...starting doExtract..."
@@ -180,22 +182,22 @@ class RunThread(threading.Thread):
         if config.TIMER:
             config.TIMER.start_task("TargetExtract_DoPostWork_CPU")
 
-        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(dirList))
-        #print "...Doing a zip...", time.time()
-
         total = len(bal2targets)
+
+        del bal2targets ## Try to reclaim some memory
+
         manager = multiprocessing.Manager()
         queue = manager.Queue()
         time_doandgetAvg = time.time()
-        #start_doandgetAvg(queue, self.proj.extracted_dir, dirList)
+
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", total)
         fulllst = sorted(avg_intensities, key=lambda x: x[1])  # sort by avg. intensity
+
+        del avg_intensities ## Try to reclaim some memory
+
         fulllst = [(x,int(y)) for x,y in fulllst]
         
-        #print "FULLLST:", fulllst
-
-        #print "...Starting classifiedWrite...", time.time()
         time_classifiedWrite = time.time()
 
         out = open(self.proj.classified, "w")
@@ -205,9 +207,8 @@ class RunThread(threading.Thread):
         out.close()
 
         dur_classifiedWrite = time.time() - time_classifiedWrite
-        #print "...Finished classifiedWrite ({0} s).".format(dur_classifiedWrite)
 
-        #print "...Starting imageFileMake..."
+        print "...Starting imageFileMake..."
         time_imageFileMake = time.time()
 
         def get_target_size():
@@ -227,12 +228,14 @@ class RunThread(threading.Thread):
         if w == None:
             raise Exception("Woah, No targets in this election??")
 
-        threshold.imageFile.makeOneFile(fulllst, 
-                                        pathjoin(self.proj.projdir_path,'extracted_radix/'),
-                                        self.proj.extractedfile,
-                                        (w,h))
+        imageFile.makeOneFile(fulllst, 
+                              pathjoin(self.proj.projdir_path,'extracted_radix/'),
+                              self.proj.extractedfile,
+                              (w,h),
+                              SORT_METHOD=imageFile.METHOD_DYN,
+                              MEM_C=0.6)
         dur_imageFileMake = time.time() - time_imageFileMake
-        #print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
+        print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
 
         if config.TIMER:
             config.TIMER.stop_task("TargetExtract_DoPostWork_CPU")

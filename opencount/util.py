@@ -13,6 +13,11 @@ from heapq import nlargest
 from itertools import repeat, ifilter
 import sys
 
+try:
+    import psutil
+except ImportError:
+    pass
+
 class MyGauge(wx.Frame):
     """
     A dialog that pops up to display a progress gauge when some
@@ -1101,6 +1106,19 @@ def pdb_on_crash(f):
             import pdb as err_pdb
             err_pdb.post_mortem()
     return res
+
+def get_memory_stats():
+    """ Returns statistics on system memory, in bytes. Requires the
+    psutil python module to be installed - if psutil is not found, then
+    this raises an Exception.
+    Output:
+        (int available, int total)
+    """
+    try:
+        virtmem = psutil.virtual_memory()
+        return virtmem.available, virtmem.total
+    except NameError:
+        raise Exception("Module psutil not detected.")
 
 def main():
     app = wx.App(False)
