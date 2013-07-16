@@ -444,8 +444,11 @@ class TopPanel(wx.Panel):
         if len(main.qfiles) > 0:
             path.SetLabel("Path: " + main.qfiles[0])
 
-        def do(x):
-            v = int(curnum.GetLabel().split(" ")[0]) + x
+        def do(x, jumpto=None):
+            if jumpto != None:
+                v = jumpto
+            else:
+                v = int(curnum.GetLabel().split(" ")[0]) + x
             if 0 < v <= len(main.qfiles):
                 curnum.SetLabel(str(v) + " of " + str(len(main.qfiles)))
                 path.SetLabel("Path: " + str(main.qfiles[v - 1]))
@@ -456,11 +459,27 @@ class TopPanel(wx.Panel):
         nxt = wx.Button(self, -1, label="Next Ballot")
         nxt.Bind(wx.EVT_BUTTON, lambda x: do(1))
 
+        def onbutton_jumpto(evt):
+            dlg = wx.TextEntryDialog(self, message="Enter the ballot index (integer):",
+                                     style=wx.OK | wx.CANCEL)
+            status = dlg.ShowModal()
+            if status == wx.ID_CANCEL:
+                return
+            try:
+                idx = int(dlg.GetValue())
+                do(None, jumpto=idx)
+            except ValueError:
+                pass
+
+        btn_jumpto = wx.Button(self, label="Jump to...")
+        btn_jumpto.Bind(wx.EVT_BUTTON, onbutton_jumpto)
+
         mainsizer = wx.BoxSizer(wx.VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(prev)
         sizer.Add(curnum, border=10, flag=wx.LEFT|wx.RIGHT)
         sizer.Add(nxt)
+        sizer.AddMany([((10,0),), (btn_jumpto)])
         mainsizer.Add(sizer)
         mainsizer.Add(path)
 
