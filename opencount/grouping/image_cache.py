@@ -1,4 +1,4 @@
-import sys, os, time, pdb
+import sys, os, time, pdb, traceback
 from collections import deque
 import Image, cv, scipy.misc, numpy as np
 
@@ -15,13 +15,12 @@ TODO
   don't know why. 
 """
 
-
-
 SIZECAP_UNBOUNDED = -1
 
 IM_FORMAT_PIL = 0
 IM_FORMAT_SCIPY = 1
 IM_FORMAT_OPENCV = 2
+IM_FORMAT_BINARYDATA = 3
 
 IM_MODE_GRAYSCALE = 3
 IM_MODE_RGB = 4
@@ -64,9 +63,26 @@ def _load_opencv(imgpath, img_mode=IM_MODE_UNCHANGED):
     else:
         return cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
 
+def _load_binarydata(idx, fimgdata, imgdims, img_mode=IM_MODE_GRAYSCALE):
+    """ Loads in image data from an input binary file.
+    Input:
+        int IDX: 
+        file FIMGDATA:
+        tuple IMGDIMS: (int w, int h)
+    Output:
+        nparray img.
+    """
+    w, h = imgdims
+    step = w * h
+    i0 = idx * step
+    fimgdata.seek(i0)
+    dat = np.fromstring(fimgdata.read(step), dtype='uint8')
+    return dat.reshape((h, w))
+
 _imgload_fns = {IM_FORMAT_PIL: _load_pil,
                 IM_FORMAT_SCIPY: _load_scipy,
-                IM_FORMAT_OPENCV: _load_opencv}
+                IM_FORMAT_OPENCV: _load_opencv,
+                IM_FORMAT_BINARYDATA: _load_binarydata}
 
 class ImageCache(object):
     
@@ -100,6 +116,9 @@ class ImageCache(object):
         self.imgpath2id = {} # maps {str imgpath: int id}
         self.ids = deque() # [int id_0, ...]
 
+        # dict BINARYDATS_MAP: {str dataP: (file DATAFILE, tuple IMGDIMS)
+        self.binarydats_map = {}
+
         self._curid = 0
 
         self.cache_imgSizes = {} # maps {int id: int size}
@@ -117,15 +136,56 @@ class ImageCache(object):
         """
         return self.cache_retrieve(imgpath)
 
-    def cache_retrieve(self, imgpath):
+    def load_binarydat(self, idx, dataP):
+        """ Loads image from binary file DATAP, at index IDX. DataP must
+        have been registered with ImageCache.register_binarydat.
+        Input:
+            int IDX:
+            str DATAP:
+        Output:
+            ((obj IMG, int IDX), bool isHit)
+        """
+        if dataP not in self.binarydats_map:
+            print "(ImageCache) Binary datafile '{0}' was not registered. Try \
+first calling ImageCache.register_binarydat.".format(dataP)
+            return None
+        return self.cache_retrieve(idx, dataP=dataP)
+
+    def register_binarydat(self, dataP, imgdims):
+        """ Registers a binary image file with this ImageCache. The binary
+        file must contain grayscale images of the same size, in byte format
+        (0-255).
+        Input:
+            str DATAP:
+            tuple IMGDIMS: (int w, int h)
+        Output:
+            True if registered successfully, False o.w.
+        """
+        try:
+            f = open(dataP, 'rb')
+        except IOError as e:
+            print "(ImageCache) Couldn't open binary data file:", dataP
+            return False
+
+        self.binarydats_map[dataP] = (f, imgdims)
+        return True
+
+    def cache_retrieve(self, imgpath, dataP=None):
         """ If IMGPATH is already in the cache, return it.
         Else, read it from disk, and evict another image if necessary.
+        If DATAP is given, and is in self.binarydats_map, then IMGPATH
+        refers to an integer index within the binary image datafile at
+        DATAP.
         Input:
             str IMGPATH
+            str DATAP:
         Output:
             ((obj IMG, str IMGPATH), bool isHit)
         """
-        imgID = self.imgpath2id.get(imgpath, None)
+        if dataP != None:
+            imgID = self.imgpath2id.get((imgpath, dataP), None)
+        else:
+            imgID = self.imgpath2id.get(imgpath, None)
         if imgID != None:
             print_dbg("== Cache Hit!")
             return (self.id2data[imgID], True)
@@ -134,14 +194,28 @@ class ImageCache(object):
             imgID = self._curid
             self._curid += 1
 
-            self.imgpath2id[imgpath] = imgID
+            if dataP != None:
+                self.imgpath2id[(imgpath, dataP)] = imgID
+            else:
+                self.imgpath2id[imgpath] = imgID
             self.ids.appendleft(imgID)
-            img = self._imgload_fn(imgpath, img_mode=self.img_mode)
-            self.id2data[imgID] = (img, imgpath)
+            if dataP != None:
+                fdata, imgdims = self.binarydats_map[dataP]
+                img = _load_binarydata(imgpath, fdata, imgdims)
+            else:
+                img = self._imgload_fn(imgpath, img_mode=self.img_mode)
+            
+            if dataP != None:
+                self.id2data[imgID] = (img, (imgpath, dataP))
+            else:
+                self.id2data[imgID] = (img, imgpath)
 
             self.register_imgsize(img, imgID)
             self.cache_evict()
-            return ((img, imgpath), False)
+            if dataP != None:
+                return (img, (imgpath, dataP)), False
+            else:
+                return ((img, imgpath), False)
             
     def cache_evict(self):
         """ If the Cache is full, remove images until it's not full. 
@@ -193,7 +267,7 @@ def estimate_imgsize_bytes(img, img_format):
             size *= 3
         elif img.mode == 'RGBA':
             size *= 4
-    elif img_format == IM_FORMAT_SCIPY:
+    elif img_format in (IM_FORMAT_SCIPY, IM_FORMAT_BINARYDATA):
         size = img.nbytes
     else:
         w, h = cv.GetSize(img)
@@ -223,7 +297,7 @@ def test_unbounded(imgsdir, imgsdir2):
     cache sizes.
     """
     img_cache = ImageCache(SIZECAP=SIZECAP_UNBOUNDED,
-                           img_format=IM_FORMAT_PIL,
+                           img_format=IM_FORMAT_SCIPY,
                            img_mode=IM_MODE_GRAYSCALE)
 
     t = time.time()
@@ -307,7 +381,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
     img_cache = ImageCache(SIZECAP=sizecap,
                            img_format=IM_FORMAT_SCIPY,
                            img_mode=IM_MODE_UNCHANGED)
-
+    
     t = time.time()
     img_cnt = 0
     for dirpath, dirnames, filenames in os.walk(imgsdir):
@@ -370,6 +444,45 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
     while True:
         pass
 
+def test_binarydata(imgdataP, imgdims, sizecap=None):
+    """ Test the binary data loading routines. """
+    if sizecap == None:
+        sizecap = SIZECAP_UNBOUNDED = -1
+
+    w, h = imgdims
+    nbytes = os.path.getsize(imgdataP)
+    numtargets = nbytes / (w * h)
+    
+    img_cache = ImageCache(SIZECAP=sizecap,
+                           img_format=IM_FORMAT_BINARYDATA,
+                           img_mode=IM_MODE_GRAYSCALE)
+    img_cache.register_binarydat(imgdataP, imgdims)
+    t = time.time()
+    for i in xrange(numtargets):
+        img_cache.load_binarydat(i, imgdataP)
+    dur_loadImages = time.time() - t
+
+    print "Done loading in images ({0:.6f}s).".format(dur_loadImages)
+
+    t = time.time()
+    for i in xrange(numtargets):
+        (img, (idx, dataP)), isHit = img_cache.load_binarydat(i, imgdataP)
+        if idx != i:
+            print "WOAH, retrieved wrong index?"
+            pdb.set_trace()
+        if dataP != imgdataP:
+            print "WOAH, wrong dataP?"
+            pdb.set_trace()
+    dur = time.time() - t
+    print "Loaded in images again. ({0:.6f}s)".format(dur)
+
+    print "\nEstimated ImageCache size (bytes):", img_cache._size
+    print "    In MB: {0}".format(img_cache._size / 1e6)
+
+    print "==== Infinite Looping Now ===="
+    while True:
+        pass
+    
 """
 ekim@byrd:~/opencount/opencount/grouping$ python image_cache.py --sizecap 1 ../ek_tests/_img ../ek_tests/_imgCv/
 ================
@@ -432,10 +545,10 @@ def main():
     imgsdir = args[-2]
     imgsdir2 = args[-1]
 
-    if not os.path.exists(imgsdir):
+    if not os.path.exists(imgsdir) and '--binary' not in args:
         print "Fatal Error: Directory doesn't exist:", imgsdir
         return 1
-    if not os.path.exists(imgsdir2):
+    if not os.path.exists(imgsdir2) and '--binary' not in args:
         print "Fatal Error: Directory dosn't exist:", imgsdir2
         return 1
 
@@ -443,12 +556,24 @@ def main():
         global DEBUG
         DEBUG = True
     try:
+        dataP = args[args.index('--binary')+1]
+        w = int(args[args.index('--binary')+2])
+        h = int(args[args.index('--binary')+3])
+    except:
+        dataP, w, h = None, None, None
+        
+    try:
         sizecap = int(args[args.index('--sizecap')+1])
     except:
         sizecap = None
 
     t = time.time()
-    if sizecap != None:
+    if dataP != None:
+        print "================"
+        print "==== Trying ImageCache.sizecap={0}MB, BINARYDATA".format(sizecap)
+        print "================"
+        test_binarydata(dataP, (w,h), sizecap=sizecap)
+    elif sizecap != None:
         print "================"
         print "==== Trying ImageCache.sizecap={0}MB".format(sizecap)
         print "================"
