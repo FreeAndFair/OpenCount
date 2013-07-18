@@ -1,4 +1,4 @@
-import os, sys, traceback, time, pdb, threading, multiprocessing, math
+import os, sys, traceback, time, pdb, threading, multiprocessing, math, argparse
 try:
     import cPickle as pickle
 except:
@@ -2037,7 +2037,7 @@ def get_imgSize(img):
     except:
         raise Exception("get_imgSize died!")
 
-def test_verifyoverlays():
+def test_verifyoverlays(imgsdir, exmpls_dir):
     class TestFrame(wx.Frame):
         def __init__(self, parent, imggroups, exemplars, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
@@ -2056,10 +2056,7 @@ def test_verifyoverlays():
         def ondone(self, verify_results):
             print '...In ondone...'
             print 'verify_results:', verify_results
-    args = sys.argv[1:]
-    imgsdir = args[0]
-    exmpls_dir = args[1]
-    
+
     imggroups = {} # maps {str groupname: [imgpath_i, ...]}
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         imggroup = []
@@ -2084,7 +2081,7 @@ def test_verifyoverlays():
     f.Show()
     app.MainLoop()
 
-def test_checkimgequal():
+def test_checkimgequal(imgsdir, catimgpath):
     class TestFrame(wx.Frame):
         def __init__(self, parent, imgpaths, catimgpath, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
@@ -2101,10 +2098,7 @@ def test_checkimgequal():
         def ondone(self, verify_results):
             print '...In TestFrame.ondone...'
             print 'verify_results:', verify_results
-    args = sys.argv[1:]
-    imgsdir = args[0]
-    catimgpath = args[1]
-    
+
     imgpaths = []
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         for imgname in [f for f in filenames if is_img_ext(f)]:
@@ -2115,7 +2109,7 @@ def test_checkimgequal():
     f.Show()
     app.MainLoop()
 
-def test_verifycategories():
+def test_verifycategories(imgsdir, exmpls_dir):
     class TestFrame(wx.Frame):
         def __init__(self, parent, imgcategories, exmplcategories, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
@@ -2132,10 +2126,7 @@ def test_verifycategories():
 
         def ondone(self, verify_results):
             print 'verify_results:', verify_results
-    args = sys.argv[1:]
-    imgsdir = args[0]
-    exmpls_dir = args[1]
-    
+
     imgcats = {} # maps {cat_tag: {str groupname: [imgpath_i, ...]}}
     for catdir in os.listdir(imgsdir):
         cat_fulldir = pathjoin(imgsdir, catdir)
@@ -2159,7 +2150,7 @@ def test_verifycategories():
     f.Show()
     app.MainLoop()
 
-def test_separateimages():
+def test_separateimages(imgsdir, altimg=None):
     class TestFrame(wx.Frame):
         def __init__(self, parent, imggroups, altimg, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
@@ -2185,31 +2176,42 @@ def test_separateimages():
             for imgpath in imgpaths:
                 out.append(self.altimg)
             return out
-
-    args = sys.argv[1:]
-    imgsdir = args[0]
-    try:
-        altimg = args[1]
-    except:
-        altimg = None
     
     imggroups = {} # maps {tag: [imgpath_i, ...]}
     for catdir in os.listdir(imgsdir):
         cat_fulldir = pathjoin(imgsdir, catdir)
-        for imgname in os.listdir(cat_fulldir):
-            imgpath = pathjoin(cat_fulldir, imgname)
-            imggroups.setdefault('tag', []).append(imgpath)
+        if os.path.isdir(cat_fulldir):
+            for imgname in os.listdir(cat_fulldir):
+                imgpath = pathjoin(cat_fulldir, imgname)
+                imggroups.setdefault('tag', []).append(imgpath)
 
     app = wx.App(False)
     f = TestFrame(None, imggroups, altimg)
     f.Show()
     app.MainLoop()
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--verify_overlays", nargs=2, metavar=("IMGSDIR", "EXMPLS_DIR"))
+    parser.add_argument("--check_imgequal", nargs=2, metavar=("IMGSDIR", "CATIMG"))
+    parser.add_argument("--verify_categories", nargs=2, metavar=("IMGSDIR", "EXMPLS_DIR"))
+    parser.add_argument("--separate_images", nargs=2, metavar=("IMGSDIR", "ALTIMG"),
+                        help="To ignore ALTIMG, pass in None as second arg.")
+    return parser.parse_args()
+
 def main():
-    #test_verifyoverlays()
-    test_checkimgequal()
-    #test_verifycategories()
-    #test_separateimages()
+    args = parse_args()
+    if args.verify_overlays:
+        test_verifyoverlays(*args.verify_overlays)
+    elif args.check_imgequal:
+        test_checkimgequal(*args.check_imgequal)
+    elif args.verify_categories:
+        test_verifycategories(*args.verify_categories)
+    elif args.separate_images:
+        imgsdir, altimg = args.separate_images
+        if altimg == 'None':
+            altimg = None
+        test_separateimages(imgsdir, altimg=altimg)
 
 if __name__ == '__main__':
     main()
