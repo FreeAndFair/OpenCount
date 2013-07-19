@@ -94,7 +94,8 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     return clustering
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
-                        do_downsize=False, downsize_amt=0.5, do_align=True, imgCache=None):
+                        do_downsize=False, downsize_amt=0.5, do_align=True, imgCache=None,
+                        bindataP=None):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
     clusters.
     Note: This uses the Euclidean distance as the distance metric:
@@ -118,7 +119,8 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     MAX_DIM = 300
     t = time.time()
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
-                           MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache)
+                           MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache,
+                           bindataP=bindataP)
     print "(Kmeans) data.nbytes: {0}    ({1} MB)".format(data.nbytes, data.nbytes / 1e6)
     dur_imgs2mat = time.time() - t
     '''
@@ -252,7 +254,8 @@ def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
                     rszFac=None,
                     MIN_DIM=None, MAX_DIM=None,
-                    imgCache=None):
+                    imgCache=None,
+                    bindataP=None):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
     w,h are the width/height of the largest image in IMGPATHS.
@@ -263,13 +266,19 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     def load_image(imgpath):
         if imgCache == None:
             return scipy.misc.imread(imgpath, flatten=True)
+        elif bindataP != None:
+            (Inp, tag), isHit = imgCache.load_binarydat(imgpath, dataP=bindataP)
+            return Inp
         else:
             (Inp, imgpath), isHit = imgCache.load(imgpath)
             return Inp
 
     if bb_map == None:
         bb_map = {}
-        h_big, w_big = get_largest_img_dims(imgpaths)
+        if bindataP != None:
+            w_big, h_big = imgCache.binarydats_map[bindataP][1]
+        else:
+            h_big, w_big = get_largest_img_dims(imgpaths)
     else:
         bb_big = get_largest_bb(bb_map.values())
         h_big = int(abs(bb_big[0] - bb_big[1]))

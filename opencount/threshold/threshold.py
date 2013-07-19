@@ -3,9 +3,9 @@ import sys
 import wx
 import os
 from os.path import join as pathjoin
-from util import is_image_ext, pil2wxb, MyGauge
+
 from PIL import Image, ImageDraw
-import util
+
 from time import time
 import imageFile
 import array
@@ -19,6 +19,8 @@ import wx.lib
 import wx.lib.dialogs
 
 sys.path.append('..')
+import util
+from util import is_image_ext, pil2wxb, MyGauge
 import ViewOverlays
 
 class OverlayGrid(wx.Frame):

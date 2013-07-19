@@ -214,7 +214,8 @@ def np2iplimage(array):
     return img
 
 def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
-                        queue_mygauge=None):
+                        queue_mygauge=None,
+                        bindataP=None):
     """ Generates the min/max overlays of a set of imagepaths.
     If the images in IMGPATHS are of different size, then this function
     arbitrarily chooses the first image to be the size of the output
@@ -237,6 +238,9 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
     def load_image(imgpath):
         if imgCache == None:
             return misc.imread(imgpath, flatten=True)
+        elif bindataP != None:
+            (img, tag), isHit = imgCache.load_binarydat(imgpath, bindataP)
+            return img
         else:
             (img, imgpath), isHit = imgCache.load(imgpath)
             return img
