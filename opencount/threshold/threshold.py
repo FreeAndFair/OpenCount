@@ -80,6 +80,12 @@ class GridShow(wx.ScrolledWindow):
     Class that displays voting targets
     """
     threshold = None
+    # dict WRONG: {int idx: bool True}
+    #     Stores indices for all targets that the user marked as being
+    #     'wrong'. When generating the target interpretations, targets
+    #     that lie before the threshold line that are also in WRONG are
+    #     marked as 'EMPTY'. Targets that lie after the threshold but
+    #     are in WRONG are marked as 'FULL'.
     wrong = {}
     jpgs = {}
     basejpgs = {}
@@ -761,20 +767,22 @@ class GridShow(wx.ScrolledWindow):
 
 
     def clear_unused(self, low, high):
-        print "Del",
+        #print "Del",
         keys = self.jpgs.keys()
         for each in keys:
             if low <= each <= high: continue
-            print each,
+            #print each,
             del self.jpgs[each]
             del self.basejpgs[each]
             self.images[each].Destroy()
             del self.images[each]
-        print
+        #print
 
     def onScroll(self, pos=None, evtpos=None):
+        #_ttot = time()
+
         if evtpos != None:
-            print "SET FROM", evtpos
+            #print "SET FROM", evtpos
             pos = int(evtpos/self.targeth*self.numcols)
         else:
             pos = pos - pos%self.numcols
@@ -790,7 +798,7 @@ class GridShow(wx.ScrolledWindow):
         qt = set(self.quarantined_targets)
 
         # Draw the images from low to high.
-        print "Drawing from", low, "to", high
+        #print "Drawing from", low, "to", high
         for i in range(low,high,self.numcols):
             #print i
             if i in self.jpgs:
@@ -818,10 +826,14 @@ class GridShow(wx.ScrolledWindow):
                     self.markQuarantine(i+j)
 
         # This could get very slow on big elections with lots of wrong marks
+        #print 'len(self.index_to_visible): {0} len(self.wrong): {1}'.format(len(self.index_to_visible), len(self.wrong))
+        #_t = time()
         for each in self.wrong:
             if each in self.index_to_visible:
                 if (self.index_to_visible[each]/self.numcols)*self.numcols in self.jpgs:
                     self.drawWrongMark(each)
+        #_dur = time() - _t
+        #print "(Info) drawWrongMark: {0:.4f}s".format(_dur)
 
         if self.threshold != None and self.threshold in self.index_to_visible:
             if self.index_to_visible[self.threshold]/self.numcols*self.numcols in self.jpgs:
@@ -829,19 +841,37 @@ class GridShow(wx.ScrolledWindow):
 
         # Scroll us to the right place.
         if evtpos != None:
-            print 'scroll to right pos'
+            #print 'scroll to right pos'
             self.Scroll(0, evtpos)
         else:
-            print "SCROLL TO", pos*self.targeth/self.numcols
+            #print "SCROLL TO", pos*self.targeth/self.numcols
             self.Scroll(0, pos*self.targeth/self.numcols)
         # Record where we were last time.
         wx.CallAfter(self.Refresh)
 
+        #_durtot = time() - _ttot
+        #print "(onScroll) {0:.4f}s Total".format(_durtot)
+        #if _durtot != 0:
+        #    print "    drawWrongMarks: {0:.4f}s ({1:.4f}%)".format(_dur, 100.0 * (_dur / _durtot))
+
     def dosave(self):
         """
-        Save all the data.
-        """
+        Export all results to disk. Writes the following files:
 
+        1.) targets_result.csv
+            A file containing a line for every target. Each line consists
+            of the following:
+                <BALLOTID>, <CONTESTID>, <TARGETID>, 0/1
+            Where the last column is:
+                '0' -- Filled
+                '1' -- Empty
+        2.) quarantined_manual.csv
+            A file containing a line for every ballot quarantined during
+            the SetThreshold panel. Each line is of the form:
+                <BALLOTID_0>
+                <BALLOTID_1>
+                ...
+        """
         if not self.somethingHasChanged: return
         self.somethingHasChanged = False
 
