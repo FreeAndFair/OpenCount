@@ -95,7 +95,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
                         do_downsize=False, downsize_amt=0.5, do_align=True, imgCache=None,
-                        bindataP=None):
+                        bindataP=None, VERBOSE=False):
     """ Using k-means, cluster the images given by 'imgpaths' into 'k'
     clusters.
     Note: This uses the Euclidean distance as the distance metric:
@@ -121,7 +121,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
                            MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache,
                            bindataP=bindataP)
-    print "(Kmeans) data.nbytes: {0}    ({1} MB)".format(data.nbytes, data.nbytes / 1e6)
+    printv("(Kmeans) data.nbytes: {0}    ({1} MB)".format(data.nbytes, data.nbytes / 1e6), VERBOSE)
     dur_imgs2mat = time.time() - t
     '''
     if bb_map == None:
@@ -148,7 +148,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         data[row,:] = patch
     '''
 
-    print '    data.shape:', data.shape
+    printv('    data.shape: {0}'.format(data.shape), VERBOSE)
 
     # 1.) Call scipy's kmeans implementation
     t = time.time()
@@ -161,9 +161,9 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         clusters.setdefault(clusterid, []).append(imgpaths[i])
 
     dur_total = time.time() - t_total
-    print "Split K_Means finished ({0:.4f}s total)".format(dur_total)
-    print "    imgs2mat: {0:.5f}s ({1:.4f}%)".format(dur_imgs2mat, 100.0*(dur_imgs2mat / dur_total))
-    print "    kmeans  : {0:.5f}s ({1:.4f}%)".format(dur_kmeans, 100.0*(dur_kmeans / dur_total))
+    printv("Split K_Means finished ({0:.4f}s total)".format(dur_total), VERBOSE)
+    printv("    imgs2mat: {0:.5f}s ({1:.4f}%)".format(dur_imgs2mat, 100.0*(dur_imgs2mat / dur_total)), VERBOSE)
+    printv("    kmeans  : {0:.5f}s ({1:.4f}%)".format(dur_kmeans, 100.0*(dur_kmeans / dur_total)), VERBOSE)
     return clusters
 
 def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', centroidfn_method='mean', do_align=True):
@@ -255,7 +255,8 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
                     rszFac=None,
                     MIN_DIM=None, MAX_DIM=None,
                     imgCache=None,
-                    bindataP=None):
+                    bindataP=None,
+                    VERBOSE=False):
     """ Reads in a series of imagepaths, and converts it to an NxM
     matrix, where N is the number of images, and M is the (w*h), where
     w,h are the width/height of the largest image in IMGPATHS.
@@ -298,7 +299,7 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     else:
         w_out, h_out = w_big, h_big
             
-    print "imgpaths_to_mat -- using rszFac={0}".format(rszFac)
+    printv("imgpaths_to_mat -- using rszFac={0}".format(rszFac), VERBOSE)
 
     data = np.zeros((len(imgpaths), h_out*w_out), dtype='float32')
     Iref = None
@@ -467,6 +468,13 @@ def resize_mat(mat, shape, rszFac=None):
     j = min(mat_rsz.shape[1], out.shape[1])
     out[0:i,0:j] = mat_rsz[0:i, 0:j]
     return out
+
+def printv(msg, VERBOSE=False, *args):
+    if VERBOSE:
+        print msg,
+        for s in args:
+            print s,
+        print
 
 def _test_resize_mat():
     foo = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
