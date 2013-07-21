@@ -321,14 +321,67 @@ class GridShow(wx.ScrolledWindow):
         except:
             traceback.print_exc()
             pdb.set_trace()
+        '''
+        # Old Version purely using PIL -- a bit slow
         copy = jpg.copy()
         imd = ImageDraw.Draw(copy)
         imd.rectangle((self.targetw*(i-imgIdx), 0,
                        self.targetw*(i-imgIdx)+self.targetw-1, self.targeth-1),
                       fill=(255,0,0))
         self.jpgs[imgIdx] = Image.blend(jpg, copy, .3)
+        '''
+        # New version that uses numpy -- not much faster.
+        target_np = np.fromstring(jpg.tostring(), dtype='uint8').reshape(jpg.size[1], jpg.size[0], 3)
+        x1, y1 = self.targetw * (i - imgIdx), 0
+        x2, y2 = self.targetw * (i - imgIdx) + self.targetw - 1, self.targeth - 1
+        
+        C = 0.7
+        RED = np.array([255, 0, 0], dtype='uint8')
+        target_np[y1:y2, x1:x2] *= C
+        target_np[y1:y2, x1:x2] += (1 - C) * RED
+        target_np_pil = Image.fromarray(target_np)
+        self.jpgs[imgIdx] = target_np_pil
+        
         self.images[imgIdx].Destroy()
         self.addimg(imgIdx)
+
+    def drawWrongMarks(self, idxs, C=0.7):
+        """ Draws a red transparent mask on all visible targets. These
+        targets are targets that the user manually marked as being 
+        'wrong' (by left-clicking them).
+        Input:
+            list IDXS:
+            float C: In range [0.0, 1.0]
+                How transparent the red mask should be. 1.0 is no red,
+                0.0 is completely red.
+        """
+        imgIdx2pilimg = {} # maps {int imgIdx: Image pilimg}
+        imgIdx2idxs = {} # maps {int imgIdx: [int i0, ...]}
+        RED = np.array([255, 0, 0], dtype='uint8')
+        w_jpg, h_jpg = None, None
+        for i in idxs:
+            i_vis = self.index_to_visible[i]
+            imgIdx = i_vis - (i_vis % self.numcols)
+            pilimg = imgIdx2pilimg.get(imgIdx, None)
+            if pilimg == None:
+                pilimg = self.basejpgs[imgIdx]
+                imgIdx2pilimg[imgIdx] = pilimg
+            if w_jpg == None:
+                w_jpg, h_jpg = pilimg.size[0], pilimg.size[1]
+            imgIdx2idxs.setdefault(imgIdx, []).append(i_vis)
+
+        for imgIdx, idxs in imgIdx2idxs.iteritems():
+            pilimg = imgIdx2pilimg[imgIdx]
+            row_np = np.fromstring(pilimg.tostring(), dtype='uint8').reshape(pilimg.size[1], pilimg.size[0], 3)
+            for i in idxs:
+                x1, y1 = self.targetw * (i - imgIdx), 0
+                x2, y2 = self.targetw * (i - imgIdx) + self.targetw - 1, self.targeth - 1
+                row_np[y1:y2, x1:x2] *= C
+                row_np[y1:y2, x1:x2] += (1 - C) * RED
+            row_pil = Image.fromarray(row_np)
+            self.jpgs[imgIdx] = row_pil
+            self.images[imgIdx].Destroy()
+            self.addimg(imgIdx)
 
     def markWrong(self, which, evt=None):
         # Input which is the wrong mark in visible coordinates.
@@ -357,15 +410,14 @@ class GridShow(wx.ScrolledWindow):
             self.images[imgIdx].Destroy()
             self.addimg(imgIdx)
             del self.wrong[converted_id]
+            idxs_wrong_todraw = []
             for each in self.wrong:
                 if each/self.numcols == converted_id/self.numcols:
-                    self.drawWrongMark(each)
+                    idxs_wrong_todraw.append(each)
+            self.drawWrongMarks(idxs_wrong_todraw)
             if self.threshold != None:
                 self.drawThreshold()
         self.Refresh()
-
-        #print "WRONG IS", self.wrong
-
 
     def drawThreshold(self):
         if self.threshold not in self.index_to_visible: return
@@ -779,10 +831,7 @@ class GridShow(wx.ScrolledWindow):
         #print
 
     def onScroll(self, pos=None, evtpos=None):
-        #_ttot = time()
-
         if evtpos != None:
-            #print "SET FROM", evtpos
             pos = int(evtpos/self.targeth*self.numcols)
         else:
             pos = pos - pos%self.numcols
@@ -798,9 +847,7 @@ class GridShow(wx.ScrolledWindow):
         qt = set(self.quarantined_targets)
 
         # Draw the images from low to high.
-        #print "Drawing from", low, "to", high
         for i in range(low,high,self.numcols):
-            #print i
             if i in self.jpgs:
                 # If we've drawn it before, then it's still there, skip over it
                 continue
@@ -825,15 +872,13 @@ class GridShow(wx.ScrolledWindow):
                 if i+j in qt:
                     self.markQuarantine(i+j)
 
-        # This could get very slow on big elections with lots of wrong marks
-        #print 'len(self.index_to_visible): {0} len(self.wrong): {1}'.format(len(self.index_to_visible), len(self.wrong))
-        #_t = time()
+        ## Draw red mask over wrong targets
+        idxs_wrong_todraw = []
         for each in self.wrong:
             if each in self.index_to_visible:
                 if (self.index_to_visible[each]/self.numcols)*self.numcols in self.jpgs:
-                    self.drawWrongMark(each)
-        #_dur = time() - _t
-        #print "(Info) drawWrongMark: {0:.4f}s".format(_dur)
+                    idxs_wrong_todraw.append(each)
+        self.drawWrongMarks(idxs_wrong_todraw)
 
         if self.threshold != None and self.threshold in self.index_to_visible:
             if self.index_to_visible[self.threshold]/self.numcols*self.numcols in self.jpgs:
@@ -841,18 +886,11 @@ class GridShow(wx.ScrolledWindow):
 
         # Scroll us to the right place.
         if evtpos != None:
-            #print 'scroll to right pos'
             self.Scroll(0, evtpos)
         else:
-            #print "SCROLL TO", pos*self.targeth/self.numcols
             self.Scroll(0, pos*self.targeth/self.numcols)
         # Record where we were last time.
         wx.CallAfter(self.Refresh)
-
-        #_durtot = time() - _ttot
-        #print "(onScroll) {0:.4f}s Total".format(_durtot)
-        #if _durtot != 0:
-        #    print "    drawWrongMarks: {0:.4f}s ({1:.4f}%)".format(_dur, 100.0 * (_dur / _durtot))
 
     def dosave(self):
         """
@@ -994,4 +1032,3 @@ class ThresholdPanel(wx.Panel):
             print e
     def onButton_printpos(self, evt):
         print "self.tabOne.lastpos is:", self.tabOne.lastpos
-
