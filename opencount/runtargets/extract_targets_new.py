@@ -31,7 +31,8 @@ Extraction, but you just want to create the Image File:")
         txt.Hide()
         btn_createImageFile = wx.Button(self, label="Advanced: Only create Image File...")
         btn_createImageFile.Bind(wx.EVT_BUTTON, self.onButton_createImageFile)
-        #btn_createImageFile.Hide()
+        if not config.IS_DEV:
+            btn_createImageFile.Hide()
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(self.btn_run)
 

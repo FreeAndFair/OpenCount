@@ -19,7 +19,7 @@ import wx.lib
 import wx.lib.dialogs
 
 sys.path.append('..')
-import util
+import util, config
 from util import is_image_ext, pil2wxb, MyGauge
 import ViewOverlays
 
@@ -997,6 +997,9 @@ class ThresholdPanel(wx.Panel):
         button6.Bind(wx.EVT_BUTTON, self.onButton_jumpto)
         button7 = wx.Button(self, label="(Dev) Print self.lastpos")
         button7.Bind(wx.EVT_BUTTON, self.onButton_printpos)
+        if not config.IS_DEV:
+            button6.Hide()
+            button7.Hide()
 
         top.Add(button1)
         top.Add(button2)

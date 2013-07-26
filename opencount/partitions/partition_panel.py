@@ -346,7 +346,10 @@ unnecessary.", 100)
         btn_loadPartialDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadPartialDecoding)
         btn_loadDecoding = wx.Button(self, label="(Dev) Load complete previous decoding results.")
         btn_loadDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadDecoding)
-        
+
+        if not config.IS_DEV:
+            btn_loadPartialDecoding.Hide()
+            btn_loadDecoding.Hide()
         sizer_devButtons.AddMany([(btn_loadPartialDecoding,), ((10,0),), (btn_loadDecoding)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)

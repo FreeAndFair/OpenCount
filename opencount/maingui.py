@@ -1,4 +1,4 @@
-import os, sys, csv, datetime
+import os, sys, csv, datetime, argparse
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -15,7 +15,6 @@ from partitions.partition_panel import PartitionMainPanel
 from specify_voting_targets.select_targets import SelectTargetsMainPanel
 from labelcontest.labelcontest import LabelContest
 from grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
-#from digits_ui.digits_ui import LabelDigitsPanel
 from digits_ui.labeldigits import LabelDigitsPanel
 from grouping.run_grouping import RunGroupingMainPanel
 from grouping.verify_grouping_panel import VerifyGroupingMainPanel
@@ -29,30 +28,6 @@ import config, util
 
 """
 The main module for OpenCount.
-
-Usage:
-    $ python maingui.py [-h --help -help] [--time [PREFIX]] [-n BALLOT_LIMIT]
-"""
-
-USAGE = """Usage:
-
-    $ python maingui.py [-h --help -help] [--time [PREFIX]] [-n BALLOT_LIMIT]
-
--h, --help, -help
-    Print this usage information, and exit.
-
---time [PREFIX_FILENAME]
-    If '--time' is given, then OpenCount will output timing statistics
-    to a logfile. If PREFIX is given as 'foo', then the output filename
-    is:
-        foo_YEAR_MONTH_DAY_HOUR_MINUTE.log
-    Otherwise, the filename defaults PREFIX to be empty ''.
-
--n BALLOT_LIMIT
-    Adds an upper-bound on how many ballots OpenCount will process. For
-    instance, running OpenCount with 'maingui.py -n 1000' will process
-    an election with (at most) 1000 ballots. Used for testing/dev purposes.
-
 """
 
 PROJROOTDIR = 'projects_new'
@@ -420,39 +395,38 @@ def exists_attrs(proj):
     else:
         return True
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--num", type=int, dest='n',
+                        help="Only process the first N ballots.")
+    parser.add_argument("--time", metavar="PREFIX",
+                        help="OpenCount will output timing statistics \
+to a logfile. If PREFIX is given as 'foo', then the output filename \
+is: \n\
+        foo_YEAR_MONTH_DAY_HOUR_MINUTE.log")
+    parser.add_argument("--dev", action='store_true',
+                        help="Run OpenCount in Development mode. This \
+enables a few dev-specific buttons in the UI which are useful when \
+debugging projects.")
+    return parser.parse_args()
+
 def main():
-    args = sys.argv[1:]
-    if '-h' in args or '--help' in args or '-help' in args:
-        print USAGE
-        return 0
-    if '-n' in args:
-        try:
-            n = int(args[args.index('-n')+1])
-        except:
-            print "Invalid handling of '-n' option."
-            print USAGE
-            return 0
-        print "(OpenCount) -- User passed '-n {0}', processing first {0} ballots".format(n)
-        config.BALLOT_LIMIT = n
-    if '--time' in args:
-        try:
-            try:
-                prefix = args[args.index('--time')+1]
-            except:
-                print "(Warning) No prefix to --time. Using empty prefix for timing log file."
-                prefix = ''
-            now = datetime.datetime.now()
-            date_suffix = "{0}_{1}_{2}_{3}_{4}".format(now.year, now.month, now.day,
-                                                       now.hour, now.minute)
-            # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
-            timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
-            config.TIMER = util.MyTimer(timing_filepath)
-            print "User passed in '--time': Saving timing statistics to {0}".format(timing_filepath)
-        except Exception as e:
-            print "Warning: Malformed '--time' argument passed."
-            print "    {0}".format(e.message)
-            print USAGE
-            return 1
+    args = parse_args()
+    if args.n:
+        print "(Info) Processing first {0} ballots [user passed in -n,--num]".format(args.n)
+        config.BALLOT_LIMIT = args.n
+    config.IS_DEV = args.dev
+    if config.IS_DEV:
+        print "(Info) Running in dev-mode"
+    if args.time:
+        prefix = args.time
+        now = datetime.datetime.now()
+        date_suffix = "{0}_{1}_{2}_{3}_{4}".format(now.year, now.month, now.day,
+                                                   now.hour, now.minute)
+        # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
+        timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
+        config.TIMER = util.MyTimer(timing_filepath)
+        print "(Info) User passed in '--time': Saving timing statistics to {0}".format(timing_filepath)
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())

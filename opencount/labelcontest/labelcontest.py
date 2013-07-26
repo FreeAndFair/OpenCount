@@ -243,8 +243,8 @@ class LabelContest(wx.Panel):
         textbox.Add(self.curBlankBallotNum)
 
         template = wx.BoxSizer(wx.VERTICAL)
-        button3 = wx.Button(self, label='Previous Ballot')
-        button4 = wx.Button(self, label='Next Ballot')
+        button3 = wx.Button(self, label='Previous Style')
+        button4 = wx.Button(self, label='Next Style')
         button3.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(-1))
         button4.Bind(wx.EVT_BUTTON, lambda x: self.nexttemplate(1))
 
@@ -292,13 +292,13 @@ class LabelContest(wx.Panel):
             template.Add(regexnext)
 
         def goto_num(x=None):
-            popup = wx.TextEntryDialog(None, "Enter the ballot to go to", 'Title', '')
+            popup = wx.TextEntryDialog(None, "Enter the style number to jump to", 'Title', '')
     
             if popup.ShowModal() == wx.ID_OK:
                 val = popup.GetValue()
                 self.nexttemplate(int(val)-self.templatenum)
 
-        goto = wx.Button(self, label='Go to ballot number')
+        goto = wx.Button(self, label='Jump to style number')
         goto.Bind(wx.EVT_BUTTON, goto_num)
     
         template.Add(goto)
@@ -386,6 +386,8 @@ class LabelContest(wx.Panel):
 
         if self.proj.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
+            if not config.IS_DEV:
+                button5.Hide()
             def declareReady(x):
                 dlg = wx.MessageDialog(None, "Are you sure?\nThis will destroy all text you have entered.", style=wx.YES_NO | wx.NO_DEFAULT)
                 status = dlg.ShowModal()
@@ -1100,7 +1102,7 @@ class LabelContest(wx.Panel):
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
         num_blanks = len(self.dirList)
-        self.curBlankBallotNum.SetLabel("On Blank Ballot {0} of {1}".format(self.templatenum, num_blanks))
+        self.curBlankBallotNum.SetLabel("On Style {0} of {1}".format(self.templatenum, num_blanks))
 
     def addText(self):
         """

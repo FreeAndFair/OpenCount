@@ -605,8 +605,8 @@ voting target on this ballot.")
         sizer_btnmove = wx.BoxSizer(wx.VERTICAL)
         sizer_btnmove.AddMany([(btn_next,), (btn_prev,)])
 
-        btn_nextpartition = wx.Button(self, label="Next Partition...")
-        btn_prevpartition = wx.Button(self, label="Previous Partition...")
+        btn_nextpartition = wx.Button(self, label="Next Style...")
+        btn_prevpartition = wx.Button(self, label="Previous Style...")
         sizer_partitionbtns = wx.BoxSizer(wx.VERTICAL)
         sizer_partitionbtns.AddMany([(btn_nextpartition,), (btn_prevpartition,)])
 
@@ -627,17 +627,21 @@ voting target on this ballot.")
         btn_nextpage.Bind(wx.EVT_BUTTON, self.onButton_nextpage)
         btn_prevpage.Bind(wx.EVT_BUTTON, self.onButton_prevpage)
 
-        btn_jump_partition = wx.Button(self, label="Jump to Partition...")
+        sizer_jump_stylebal = wx.BoxSizer(wx.VERTICAL)
+
+        btn_jump_partition = wx.Button(self, label="Jump to Style...")
         btn_jump_ballot = wx.Button(self, label="Jump to Ballot...")
+        sizer_jump_stylebal.AddMany([(btn_jump_partition,), (btn_jump_ballot,)])
+        
         btn_jump_error = wx.Button(self, label="Next Error...")
         btn_selectIref = wx.Button(self, label="Select as reference image.")
         btn_selectIref.Bind(wx.EVT_BUTTON, self.onButton_selectIref)
-        btn_flag_partition = wx.Button(self, label="Quarantine this Partition")
+        btn_flag_partition = wx.Button(self, label="Quarantine this Style")
         btn_flag_partition.Bind(wx.EVT_BUTTON, self.onButton_flagpartition)
 
         sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
-        sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
+        #sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
+        #sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_error, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_selectIref, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_flag_partition, border=10, flag=wx.ALL)
@@ -648,16 +652,19 @@ voting target on this ballot.")
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.Add(sizer_btnmove, border=10, flag=wx.ALL)
         btn_sizer.Add(sizer_partitionbtns, border=10, flag=wx.ALL)
+        btn_sizer.Add((80,0))
         btn_sizer.Add(sizer_ballotbtns, border=10, flag=wx.ALL)
         btn_sizer.Add(sizer_pagebtns, border=10, flag=wx.ALL)
+        btn_sizer.Add(sizer_jump_stylebal, border=10, flag=wx.ALL)
+        btn_sizer.Add((60,0))
         btn_sizer.Add(sizer_btn_jump, border=10, flag=wx.ALL)
 
-        txt1 = wx.StaticText(self, label="Partition: ")
+        txt1 = wx.StaticText(self, label="Style: ")
         self.txt_curpartition = wx.StaticText(self, label="1")
         txt_slash0 = wx.StaticText(self, label=" / ")
         self.txt_totalpartitions = wx.StaticText(self, label="Foo")
         
-        txt2 = wx.StaticText(self, label="Ballot (subset of full partition): ")
+        txt2 = wx.StaticText(self, label="Ballot (subset of full): ")
         self.txt_curballot = wx.StaticText(self, label="1")
         txt_slash1 = wx.StaticText(self, label=" / ")
         self.txt_totalballots = wx.StaticText(self, label="Bar")
@@ -1095,6 +1102,19 @@ voting target on this ballot.")
         self.display_image(self.cur_i, self.cur_j, idx)
 
     def infercontests(self):
+        def are_there_boxes():
+            for i, sides in self.boxes.iteritems():
+                if sides:
+                    return True
+            return False
+        if not self.boxsize or not are_there_boxes():
+            dlg = wx.MessageDialog(self, style=wx.OK, caption="Can't detect \
+contests right now",
+                                   message="Please annotate voting targets \
+before running the automatic contest detection routine.")
+            dlg.ShowModal()
+            return
+                                   
         if config.TIMER:
             config.TIMER.start_task("SelectTargets_InferContestRegions_CPU")
         imgpaths_exs = [] # list of [imgpath_i, ...]

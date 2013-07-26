@@ -98,6 +98,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         ssizer_ballotgroup.AddMany([(sizer_regex1,), ((0,10),), (txt_or,0,wx.ALIGN_CENTER), ((0,10),), (self.alternate_chkbox,)])
         
         self.is_straightened = wx.CheckBox(self, -1, label="Ballots already straightened.")
+        self.is_straightened.Hide()
         
         txt_vendor = wx.StaticText(self, label="What is the ballot vendor?")
         self.vendor_dropdown = wx.ComboBox(self, style=wx.CB_READONLY, choices=BALLOT_VENDORS)
