@@ -298,12 +298,12 @@ class LabelContest(wx.Panel):
                 val = popup.GetValue()
                 self.nexttemplate(int(val)-self.templatenum)
 
-        goto = wx.Button(self, label='Jump to style number')
+        goto = wx.Button(self, label='Jump to style number...')
         goto.Bind(wx.EVT_BUTTON, goto_num)
     
         template.Add(goto)
     
-        button6 = wx.Button(self, label="Compute Equiv Classes")
+        button6 = wx.Button(self, label="Detect Contest Duplicates...")
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
 
@@ -381,7 +381,7 @@ class LabelContest(wx.Panel):
 
             return
 
-        button6 = wx.Button(self, label="Mark as Multi-Box")
+        button6 = wx.Button(self, label="Mark as Multi-Box...")
         button6.Bind(wx.EVT_BUTTON, addmultibox)
         template.Add(button6)
 
