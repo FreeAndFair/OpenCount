@@ -66,7 +66,7 @@ class ConfigPanel(wx.Panel):
         
         txt_numpages = wx.StaticText(self, label="Number of pages: ")
         self.numpages_txtctrl = wx.TextCtrl(self, value="2")
-        self.varnumpages_chkbox = wx.CheckBox(self, label="Variable Number of Pages: ")
+        self.varnumpages_chkbox = wx.CheckBox(self, label="Variable Number of Pages")
         self.varnumpages_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_varnumpages)
         sizer_numpages = wx.BoxSizer(wx.HORIZONTAL)
         sizer_numpages.AddMany([(txt_numpages,), ((10,0),), (self.numpages_txtctrl,),
@@ -86,16 +86,26 @@ class ConfigPanel(wx.Panel):
         self.regex_ctr_chkbox = wx.CheckBox(self, label="Do the filenames end in \
 incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.regex_ctr_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_regexCtr)
-        sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
-        sizer_regex1.AddMany([((0, 10),), (sizer_regexShr,), ((0,10),), (sizer_regexDiff,)])
-        sizer_regex1.AddMany([((0, 10),), (self.regex_ctr_chkbox)])
+        self.sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
+        self.sizer_regex1.AddMany([((0, 10),), (sizer_regexShr,), ((0,10),), (sizer_regexDiff,)])
+        self.sizer_regex1.AddMany([((0, 10),), (self.regex_ctr_chkbox)])
 
-        txt_or = wx.StaticText(self, label="- Or -")
+        self.txt_or = wx.StaticText(self, label="- Or -")
+        self.txt_regex_shr = txt_regex_shr
+        self.txt_regex_diff = txt_regex_diff
 
         self.alternate_chkbox = wx.CheckBox(self, label="Ballots alternate front and back")
         self.alternate_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_alternate)
+        self.alternate_chkbox.SetValue(True)
 
-        ssizer_ballotgroup.AddMany([(sizer_regex1,), ((0,10),), (txt_or,0,wx.ALIGN_CENTER), ((0,10),), (self.alternate_chkbox,)])
+        ssizer_ballotgroup.Add(self.alternate_chkbox, border=10, flag=wx.ALL)
+        ssizer_ballotgroup.AddMany([((0,10),), (self.txt_or,0,wx.ALIGN_CENTER, 10, wx.ALL), ((0,10),), (self.sizer_regex1, 0, wx.ALL, 10)])
+        self.txt_or.Hide()
+        self.regexShr_txtctrl.Hide()
+        self.regexDiff_txtctrl.Hide()
+        self.regex_ctr_chkbox.Hide()
+        self.txt_regex_shr.Hide()
+        self.txt_regex_diff.Hide()
         
         self.is_straightened = wx.CheckBox(self, -1, label="Ballots already straightened.")
         self.is_straightened.Hide()
@@ -350,13 +360,20 @@ new images.".format(self.project.voteddir),
     def onCheckBox_alternate(self, evt):
         if self.alternate_chkbox.GetValue():
             # We're going from False -> True
-            self.regexShr_txtctrl.Disable()
-            self.regexDiff_txtctrl.Disable()
-            self.regex_ctr_chkbox.Disable()
+            self.txt_or.Hide()
+            self.txt_regex_shr.Hide()
+            self.txt_regex_diff.Hide()
+            self.regexShr_txtctrl.Hide()
+            self.regexDiff_txtctrl.Hide()
+            self.regex_ctr_chkbox.Hide()
         else:
-            self.regexShr_txtctrl.Enable()
-            self.regexDiff_txtctrl.Enable()
-            self.regex_ctr_chkbox.Enable()
+            self.txt_or.Show()
+            self.txt_regex_shr.Show()
+            self.txt_regex_diff.Show()
+            self.regexShr_txtctrl.Show()
+            self.regexDiff_txtctrl.Show()
+            self.regex_ctr_chkbox.Show()
+        self.Layout()
 
     def onCheckBox_varnumpages(self, evt):
         if self.varnumpages_chkbox.GetValue():

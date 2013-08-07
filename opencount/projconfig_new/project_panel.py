@@ -122,10 +122,10 @@ project {0}, as well as all of its files within {1}?".format(proj.name, projdir)
 
 def is_valid_projectname(name):
     """
-    Only allow letters, numbers, and [', ", _, (, )].
+    Only allow letters, numbers, and [_, (, )].
     """
-    pattern = r'(\w|\d|[_\'"()])+'
-    return not re.match(pattern, name) == None
+    pattern = r'(\w|\d|[_\()])+'
+    return ' ' not in name and (not re.match(pattern, name) == None)
 
 class Project(object):
     """
