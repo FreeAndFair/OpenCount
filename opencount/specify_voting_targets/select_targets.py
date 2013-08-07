@@ -1213,13 +1213,15 @@ class Toolbar(wx.Panel):
         self.btn_opts = wx.Button(self, label="Advanced: Options")
         self.btn_resize_targets = wx.Button(self, label="Resize Voting Targets")
         self.btn_detect_errors = wx.Button(self, label="Detect Errors")
+        self.btn_set_target_roi = wx.Button(self, label="Set Mark Region")
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(self.btn_addtarget,), (self.btn_forceaddtarget,), 
                            (self.btn_addcontest), (self.btn_modify,),
                            (self.btn_zoomin,), (self.btn_zoomout,),
                            (self.btn_infercontests,), (self.btn_opts,),
-                           (self.btn_resize_targets,), (self.btn_detect_errors,)])
+                           (self.btn_resize_targets,), (self.btn_detect_errors,),
+                           (self.btn_set_target_roi)])
         self.sizer.Add(btn_sizer)
         self.SetSizer(self.sizer)
 
@@ -1234,6 +1236,7 @@ class Toolbar(wx.Panel):
         self.btn_opts.Bind(wx.EVT_BUTTON, self.onButton_opts)
         self.btn_resize_targets.Bind(wx.EVT_BUTTON, self.onButton_resizetargets)
         self.btn_detect_errors.Bind(wx.EVT_BUTTON, self.onButton_detecterrors)
+        self.btn_set_target_roi.Bind(wx.EVT_BUTTON, self.onButton_settargetroi)
     def onButton_addtarget(self, evt):
         self.setmode(BoxDrawPanel.M_CREATE)
         self.parent.imagepanel.boxtype = TargetBox
@@ -1363,7 +1366,32 @@ Then, you may resize the voting targets here.").ShowModal()
         for (ballot,side),votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
             print ballot+1, side, votes, stats_by_ballot[ballot,side]
         print events
-                
+
+    def onButton_settargetroi(self, evt):
+        if not self.GetParent().boxsize:
+            dlg = wx.MessageDialog(self, style=wx.OK,
+                                   message="Please select at least one voting \
+target first.")
+            dlg.ShowModal()
+            return
+        imgpath = self.GetParent().partitions[0][0][0]
+        # boxes: {int i: [[Box_iFront, ...], ...]}
+        box = self.GetParent().boxes[0][0][0]
+        # targetroi: [int x1, int y1, int x2, int y2]
+        targetroi = self.GetParent().target_roi
+
+        I = scipy.misc.imread(imgpath, flatten=True)
+        Itarget = I[box.y1:box.y2, box.x1:box.x2]
+        
+        dlg = DrawROIDialog(self, Itarget, roi=targetroi)
+        status = dlg.ShowModal()
+        if status == wx.CANCEL:
+            return
+        # tuple ROI: (int x1, y1, x2, y2)
+        roi = dlg.roi
+
+        print "(SelectTargets) Set target_roi from {0} to: {1}".format(self.GetParent().target_roi, roi)
+        self.GetParent().set_target_roi(roi)
         
 class ResizeTargetsDialog(wx.Dialog):
     def __init__(self, parent, boxsize, *args, **kwargs):
@@ -2320,7 +2348,7 @@ class DrawROIDialog(wx.Dialog):
     or:
         b.) Cancels the action.
     """
-    def __init__(self, parent, npimg, *args, **kwargs):
+    def __init__(self, parent, npimg, roi=None, *args, **kwargs):
         wx.Dialog.__init__(self, parent, title="Draw Target Region-of-Interest", size=(600, 400),
                            style=wx.RESIZE_BORDER | wx.CAPTION | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX, *args, **kwargs)
         if npimg.dtype != 'uint8':
@@ -2338,6 +2366,8 @@ the voting target where voter marks are expected to be made.", 75))
         stxt_inst = wx.StaticText(self, label=txt_inst)
 
         self.boxdrawpanel = SimpleImagePanel(self, self.wximg)
+        self.boxdrawpanel.box = roi
+
         self.boxdrawpanel.rescale(250)
 
         btn_ok = wx.Button(self, label="Use this region")
