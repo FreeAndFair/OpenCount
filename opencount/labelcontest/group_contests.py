@@ -1523,8 +1523,8 @@ def group_given_contests_map(arg):
     lang = lang_map[f] if f in lang_map else 'eng'
     return ballot_preprocess(i, f, im, conts, sum(giventargets[i],[]), lang, vendor)
         
-@pdb_on_crash
-def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map = {}):
+#@pdb_on_crash
+def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map = {}, NPROC=None):
     global tmp, flipped
     #print "ARGUMENTS", (t, paths, giventargets, lang_map)
     #print 'giventargets', giventargets
@@ -1535,15 +1535,25 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
-    pool = mp.Pool(mp.cpu_count())
-    args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
-    #print paths, giventargets, contests
-    #print paths[11], giventargets[11], contests[11]
-    #exit(0)
-    ballots = pool.map(group_given_contests_map, args)
-    pool.close()
-    pool.join()
-    #ballots = map(group_given_contests_map, args)
+    if NPROC == None:
+        NPROC = mp.cpu_count()
+    if NPROC == 1:
+        print "(Info) Using 1 process for group_given_contests"
+        ballots = []
+        args = [(vendor, lang_map, giventargets, x) for x in enumerate(zip(paths, contests))]
+        for arg in args:
+            ballots.append(group_given_contests_map(arg))
+    else:
+        print "(Info) Using {0} processors for group_given_contests".format(NPROC)
+        pool = mp.Pool(NPROC)
+        args = [(vendor,lang_map,giventargets,x) for x in enumerate(zip(paths,contests))]
+        #print paths, giventargets, contests
+        #print paths[11], giventargets[11], contests[11]
+        #exit(0)
+        ballots = pool.map(group_given_contests_map, args)
+        pool.close()
+        pool.join()
+        #ballots = map(group_given_contests_map, args)
     print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 

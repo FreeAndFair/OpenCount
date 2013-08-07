@@ -1,6 +1,6 @@
 import wx
 import sys
-import os
+import os, pdb
 
 sys.path.append("..")
 from util import pdb_on_crash
@@ -82,7 +82,7 @@ def align(groupid, dat):
             Inorm = make_norm(I, Iref)
             
             (H,imres,err)=imagesAlign.imagesAlign(Inorm,Iref,trfm_type='translation')
-            
+
             r_img.append((make_norm(I_orig, Iref_orig), H))
             r.append(translate(group[i]))
 
@@ -106,13 +106,12 @@ def align(groupid, dat):
             c_res.append(align_res)
         translated_images.append(c_res)
     translated_images = zip(*translated_images)
-            
 
     return res, translated_images
 
 
 class VerifyContestGrouping:
-    def __init__(self, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback):
+    def __init__(self, ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests, callback, NPROC=None):
         #print "ARGS", (ocrdir, dirList, equivs, reorder, reorder_inverse, mapping, mapping_inverse, multiboxcontests)
         global TMP
         self.callback = callback
@@ -128,17 +127,24 @@ class VerifyContestGrouping:
         self.multiboxcontests = multiboxcontests
         self.processgroups = [i for i,x in enumerate(self.equivs) if len(x) > 1]
 
-        print self.equivs
-        print self.processgroups
+        #print self.equivs
+        #print self.processgroups
         res = []
-        pool = mp.Pool(mp.cpu_count())
-
-        print "Go up to", len(self.processgroups)
-
-        res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
+        if NPROC == None:
+            NPROC = mp.cpu_count()
+        print "(Info) Using {0} processes for merge_and_align".format(NPROC)
+        if NPROC == 1:
+            res = []
+            args = enumerate(map(self.generate_one, range(len(self.processgroups))))
+            for arg in args:
+                res.append(merge_and_align(arg))
+                
+        else:
+            pool = mp.Pool(mp.cpu_count())
+            print "Go up to", len(self.processgroups)
+            res = pool.map(merge_and_align, enumerate(map(self.generate_one, range(len(self.processgroups)))))
         res = [x for y in res for x in y]
-        
-        print len(res), map(len,res)
+        #print len(res), map(len,res)
         
         # TODO: Provide the 'realign_callback' function for realigning a
         # set of overlay'd contest patches. See the docstring for 

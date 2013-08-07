@@ -313,8 +313,8 @@ class LabelContest(wx.Panel):
             for bid in range(len(self.grouping_cached)):
                 order = []
                 for cid in range(len(self.grouping_cached[bid])-1):
-                    print (bid,cid)
-                    print self.multiboxcontests
+                    #print (bid,cid)
+                    #print self.multiboxcontests
                     if any((bid,self.contest_order[bid][cid+1]) in mult for mult in self.multiboxcontests):
                         continue
                     if any((bid,self.contest_order[bid][cid+1]) in mult for mult in self.multiboxcontests):
@@ -323,19 +323,19 @@ class LabelContest(wx.Panel):
                     m2 = self.mapping_inverse[(bid,self.contest_order[bid][cid+1])]
                     order.append((m1,m2))
                 orders.append(order)
-            print "ORDS", orders
-            print "inv", self.mapping_inverse
+            #print "ORDS", orders
+            #print "inv", self.mapping_inverse
             if any(any((self.templatenum, self.contest_order[self.templatenum][self.count+x]) in y for y in self.multiboxcontests) for x in range(2)): return
             extension, newgroup = extend_multibox(self.grouping_cached,
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count])],
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
                                         orders)
-            print "EXTENSION", extension
-            print "NEWGROUP", newgroup
+            #print "EXTENSION", extension
+            #print "NEWGROUP", newgroup
             self.multiboxcontests_enter += [tuple([(self.mapping[x][0], self.contest_order[self.mapping[x][0]].index(self.mapping[x][1])) for x in pair]) for pair in extension]
             
-            print "MULTIBOX"
-            print self.multiboxcontests_enter
+            #print "MULTIBOX"
+            #print self.multiboxcontests_enter
 
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             cleared = []
@@ -360,7 +360,7 @@ class LabelContest(wx.Panel):
                 # HACK -- WE DON'T USE THE VERIFICATION STUFF AT ALL
     
                 old = self.equivs_processed
-                print "OLD", self.equivs_processed
+                #print "OLD", self.equivs_processed
                 new_processed = []
                 for each in self.equivs_processed:
                     new_each = [x for x in each if x not in ids_in_new_group]
@@ -368,13 +368,14 @@ class LabelContest(wx.Panel):
                         new_processed.append(new_each)
                 new_processed.append(ids_in_new_group)
                 self.equivs_processed = new_processed
-                print "NEW", self.equivs_processed
-                print "DIFF"
-                for a in self.equivs_processed:
-                    if a not in old:
-                        print a
+                #print "NEW", self.equivs_processed
+                #print "DIFF"
+                #for a in self.equivs_processed:
+                #    if a not in old:
+                #        print a
     
             ids_in_new_group = [self.mapping[x] for x in boxes_in_new_group]
+
             print 'verify here'
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [ids_in_new_group], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
 
@@ -499,20 +500,21 @@ class LabelContest(wx.Panel):
                                                    self.boxes, 
                                                    self.flipped,
                                                    vendor,
-                                                   languages)
+                                                   languages,
+                                                   NPROC=None)
             self.grouping_cached = ballots
-            print "CACHED", ballots
+            #print "CACHED", ballots
 
         self.groups_saved = groups
         self.compute_equivs_2()
     
     def compute_equivs_2(self, run_verification=True):
         groups = self.groups_saved
-        print "GROUPS IS", groups
+        #print "GROUPS IS", groups
 
         gr = [[(b[0][0],b[0][1]) for b in group] for group in groups]
 
-        print gr
+        #print gr
         mapping = {}
         # Parallelize this!
         for ballot_count, ballot in enumerate(self.groupedtargets):
@@ -560,11 +562,11 @@ class LabelContest(wx.Panel):
 
         self.equivs = [[mapping[bid,bboxes[0]] for bid,bboxes in group] for group in gr]
         
-        print "MAPPING", self.mapping
-        print "MAPPING_INVERSE", self.mapping_inverse
-        print "REORDER", self.reorder
-        print "REORDER_INVERSE", self.reorder_inverse
-        print "EQUIVS", self.equivs
+        #print "MAPPING", self.mapping
+        #print "MAPPING_INVERSE", self.mapping_inverse
+        #print "REORDER", self.reorder
+        #print "REORDER_INVERSE", self.reorder_inverse
+        #print "EQUIVS", self.equivs
         #pdb.set_trace()
 
         def putresults(data):
@@ -577,13 +579,20 @@ class LabelContest(wx.Panel):
         if config.TIMER:
             config.TIMER.stop_task("LabelContests_ComputeEquivClasses_CPU")
 
-        #pdb.set_trace()
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
             if config.TIMER:
                 config.TIMER.start_task("LabelContests_VerifyContestGrouping_H")
-            VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs, self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+            VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs,
+                                  self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse,
+                                  self.multiboxcontests, putresults,
+                                  NPROC=None)
+        else:
+            print "(Info) No equiv groups found."
         print "(ComputeEquivClasses) Done."
+        dlg = wx.MessageDialog(self, style=wx.OK,
+                               message="Contest duplicate detection complete!")
+        dlg.ShowModal()
 
     def stop(self):
         self.save()
