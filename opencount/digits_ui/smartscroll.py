@@ -167,6 +167,30 @@ class SmartScrolledGridPanel(ScrolledPanel):
             print "(SmartScroll) Invalid mode passed to set_mode:", mode
             return
         self.mode = mode
+        self.update_cursor()
+
+    def update_cursor(self):
+        """ Updates the mouse pointer based on current state. """
+        if self.mode == CREATE:
+            cursor = wx.StockCursor(wx.CURSOR_CROSS)
+        elif self.mode == IDLE:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        else:
+            cursor = wx.StockCursor(wx.CURSOR_ARROW)
+        # Set the cursor for all active ImagePanels
+        for idx_page, item_page in enumerate([s for s in self.sizer.GetChildren()]):
+            if item_page.IsSpacer():
+                # This is a dummy inactive page -- replace with a resized spacer
+                continue
+            sizer_page = item_page.GetSizer() # This is an active page
+            for sizer_row in [s.GetSizer() for s in sizer_page.GetChildren()]:
+                for i, item in enumerate(sizer_row.GetChildren()):
+                    if item.IsSpacer():
+                        # This is a dummy-spacer
+                        continue
+                    elif item.IsWindow():
+                        # This is an ImagePanel
+                        item.GetWindow().SetCursor(cursor)
 
     def start(self, imgpaths, cellsize=(100, 50), colors=('red', 'blue', 'green', 'white', 'black'),
               num_cols=4,
