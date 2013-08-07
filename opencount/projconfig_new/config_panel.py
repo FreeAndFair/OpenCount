@@ -280,9 +280,20 @@ new images.".format(self.project.voteddir),
             if self.varnumpages_chkbox.GetValue():
                 self.numpages_txtctrl.Disable()
             if self.alternate_chkbox.GetValue():
-                self.regexShr_txtctrl.Disable()
-                self.regexDiff_txtctrl.Disable()
-                self.regex_ctr_chkbox.Disable()
+                self.txt_or.Hide()
+                self.txt_regex_shr.Hide()
+                self.txt_regex_diff.Hide()
+                self.regexShr_txtctrl.Hide()
+                self.regexDiff_txtctrl.Hide()
+                self.regex_ctr_chkbox.Hide()
+            else:
+                self.txt_or.Show()
+                self.txt_regex_shr.Show()
+                self.txt_regex_diff.Show()
+                self.regexShr_txtctrl.Show()
+                self.regexDiff_txtctrl.Show()
+                self.regex_ctr_chkbox.Show()
+
             self.onCheckBox_regexCtr(None)
         except:
             return False
