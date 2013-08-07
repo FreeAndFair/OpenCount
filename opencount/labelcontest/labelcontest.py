@@ -579,6 +579,10 @@ class LabelContest(wx.Panel):
         if config.TIMER:
             config.TIMER.stop_task("LabelContests_ComputeEquivClasses_CPU")
 
+        dlg = wx.MessageDialog(self, style=wx.OK,
+                               message="Contest duplicate detection complete!")
+        dlg.ShowModal()
+
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
             if config.TIMER:
@@ -590,9 +594,6 @@ class LabelContest(wx.Panel):
         else:
             print "(Info) No equiv groups found."
         print "(ComputeEquivClasses) Done."
-        dlg = wx.MessageDialog(self, style=wx.OK,
-                               message="Contest duplicate detection complete!")
-        dlg.ShowModal()
 
     def stop(self):
         self.save()
