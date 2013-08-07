@@ -277,6 +277,7 @@ The page counts are:\n{2}\n\
         print "(Partition) Total Time to Export Results: {0:.8f}s".format(dur_total)
 
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (JOBID_EXPORT_RESULTS,))
+        thread_listen._stop.set()
 
         if config.TIMER:
             config.TIMER.stop_task("Partition_ExportResults_CPU")
@@ -555,12 +556,14 @@ unnecessary.", 100)
         numtasks = len(b2imgs)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
-        if config.TIMER:
-            config.TIMER.start_task("Partition_Decode_CPU")
-        tlisten.start()
-        t.start()
         gauge.Show()
         wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
+
+        if config.TIMER:
+            config.TIMER.start_task("Partition_Decode_CPU")
+
+        tlisten.start()
+        t.start()
         
     def on_decodedone(self, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
@@ -903,14 +906,15 @@ Adding to separate partitions...".format(len(bad_ballotids))
                 self.queue_mygauge = queue_mygauge
                 self.thread_listen = thread_listen
             def run(self):
-                self.fn_tocall(self.queue_mygauge, self.thread_listen)
+                wx.CallAfter(self.fn_tocall, self.queue_mygauge, self.thread_listen)
         class ThreadListen(threading.Thread):
             def __init__(self, queue_mygauge, jobid, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
                 self.queue_mygauge = queue_mygauge
                 self.jobid = jobid
+                self._stop = threading.Event()
             def run(self):
-                while True:
+                while not self._stop.is_set():
                     try:
                         val = self.queue_mygauge.get(block=True, timeout=1)
                         if val == True:
@@ -920,11 +924,12 @@ Adding to separate partitions...".format(len(bad_ballotids))
         manager = multiprocessing.Manager()
         queue_mygauge = manager.Queue()
         t_listen = ThreadListen(queue_mygauge, JOBID_EXPORT_RESULTS)
-        #t_listen.start()
         t_export = ThreadExport(self.GetParent().export_results, t_listen, queue_mygauge)
-        t_export.start()
         mygauge = util.MyGauge(self, 4, thread=t_export, msg="Exporting Results...", job_id=JOBID_EXPORT_RESULTS)
         mygauge.Show()
+
+        t_listen.start()
+        t_export.start()
         
     def on_export_done(self):
         self.display_partition_stats()
