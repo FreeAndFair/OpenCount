@@ -1104,8 +1104,9 @@ class AddAttributeDialog(wx.Dialog):
 
         if not attrtypes_map:
             # Auto-ask the first attrtype/attrval pair.
-            self.onButton_attrtype_add(None)
-            self.onButton_attrval_add(None)
+            isdigattr = self.onButton_attrtype_add(None)
+            if not isdigattr:
+                self.onButton_attrval_add(None)
         self.Refresh()
         self.Layout()
     
@@ -1215,12 +1216,48 @@ for tabulation purposes only?")
             self.spinctrl_numdigits.Disable()
 
     def onButton_attrtype_add(self, evt):
+        class AttrtypeDialog(wx.Dialog):
+            def __init__(self, parent, *args, **kwargs):
+                wx.Dialog.__init__(self, parent, title="New Attribute Type", *args, **kwargs)
+
+                self.attrname = None
+                self.is_digit = None
+
+                sizer_attrname = wx.BoxSizer(wx.HORIZONTAL)
+                stxt_attrname = wx.StaticText(self, label="Please enter the \
+name of the new attribute type.")
+                self.txtctrl_attrname = wx.TextCtrl(self, size=(150,-1), style=wx.TE_PROCESS_ENTER)
+                self.txtctrl_attrname.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
+                sizer_attrname.AddMany([(stxt_attrname, 0, wx.ALL, 10), (self.txtctrl_attrname, 0, wx.ALL, 10)])
+                
+                self.chkbox_isdigit = wx.CheckBox(self, label="Is this a digit attribute?")
+
+                sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
+                btn_ok = wx.Button(self, label="Ok")
+                btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+                btn_cancel = wx.Button(self, label="Cancel")
+                btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
+                sizer_btns.AddMany([(btn_ok, 0, wx.ALL | wx.ALIGN_CENTER, 10), (btn_cancel, 0, wx.ALL | wx.ALIGN_CENTER, 10)])
+                
+                self.sizer = wx.BoxSizer(wx.VERTICAL)
+                self.sizer.AddMany([(sizer_attrname, 0, wx.ALL, 5), (self.chkbox_isdigit, 0, wx.ALL, 5)])
+                self.sizer.Add(sizer_btns, 0, flag=wx.ALL | wx.ALIGN_CENTER, border=5)
+
+                self.SetSizer(self.sizer)
+                self.Fit()
+                self.txtctrl_attrname.SetFocus()
+            def onButton_ok(self, evt):
+                self.attrname = self.txtctrl_attrname.GetValue()
+                self.is_digit = self.chkbox_isdigit.GetValue()
+                self.EndModal(wx.ID_OK)
+                
         dlg = wx.TextEntryDialog(self, message="Please enter the name of \
 the new attribute type.", caption="New Attribute Type")
+        dlg = AttrtypeDialog(self)
         status = dlg.ShowModal()
-        if status == wx.CANCEL:
+        if status == wx.ID_CANCEL:
             return
-        attrtype_new = dlg.GetValue()
+        attrtype_new = dlg.attrname
         if '_' in attrtype_new:
             wx.MessageDialog(self, message="Please don't include the \
 following characters: _", style=wx.OK).ShowModal()
@@ -1229,6 +1266,10 @@ following characters: _", style=wx.OK).ShowModal()
             self.cbox_prev_attrtypes.Append(attrtype_new)
         self.cbox_prev_attrtypes.SetStringSelection(attrtype_new)
         self.Layout()
+        if dlg.is_digit:
+            return True
+        else:
+            return False
 
     def onButton_attrval_add(self, evt):
         dlg = wx.TextEntryDialog(self, message="Please enter the name of \
@@ -1255,7 +1296,7 @@ following characters: _", style=wx.OK).ShowModal()
         self.is_tabulationonly = self.chk_isTabOnly.GetValue()
         self.is_consistent_part = self.chk_is_consistent_part.GetValue()
 
-        if (not self.attrtype_new or not self.attrval_new):
+        if (not self.attrtype_new or (not self.is_digitbased and not self.attrval_new)):
             wx.MessageDialog(self, message="You must enter an attribute \
 type and an attribute value!", style=wx.OK).ShowModal()
             return
