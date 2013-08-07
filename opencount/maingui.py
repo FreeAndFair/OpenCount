@@ -194,6 +194,18 @@ proceed. Please address the prior warnings first.",
                 # Grouping wasn't performed, which means that we should
                 # simply use the partitions as the groups, since the user
                 # 'knows' that the partitions also specify a grouping.
+                if not os.path.exists(pathjoin(self.project.projdir_path,
+                                               self.project.partitions_map)):
+                    print "(Notice) Couldn't find {0}. Was decoding not performed?".format(pathjoin(self.project.projdir_path,
+                                                                                                    self.project.partitions_map))
+                    dlg = wx.MessageDialog(self, style=wx.OK,
+                                           message="You must first run Decoding (Partitioning) \
+before proceeding to this step. OpenCount will take you there now.")
+                    dlg.ShowModal()
+                    self.notebook.ChangeSelection(self.PARTITION)
+                    self.notebook.SendPageChangedEvent(self.SELTARGETS, self.PARTITION)
+                    return
+                    
                 print "(Notice) No Attributes Exists, so, using Partitioning as the Grouping."
                 partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
                                                            self.project.partitions_map), 'rb'))
