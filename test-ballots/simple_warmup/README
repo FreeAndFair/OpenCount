@@ -1,5 +1,8 @@
-This is a set of six (6) artificially-marked ballots, to be used as a 
+This is a set of nine (9) artificially-marked ballots, to be used as a 
 simple test dataset for OpenCount.
+
+There are two different ballot styles (groupA, groupB). These ballots
+are double-sided, and the filenames alternate. The vendor is: Hart.
 
 The test images were created by manually adding voter marks in a simple
 image-editor program (Kolourpaint) to blank sample ballot images. 
@@ -12,219 +15,17 @@ Expected OpenCount results can be found in:
     results/cvr.csv
     results/cvr/*
 
-========================================
-======== OpenCount Instructions ========
-========================================
+====================================
+======== OpenCount Tutorial ========
+====================================
 
-This section will take you through the OpenCount pipeline, step-by-step.
+A step-by-step illustrated tutorial can be found at the OpenCount
+GoogleCode page, at:
 
-==== Project Configuration ====
+    https://code.google.com/p/opencount/wiki/Tutorial
 
-Voted Directory: 
-    simple_warmup/votedballots/
-
-Number of Pages: 2
-
-Ballot Grouping/Pairing Configuration:
-    Ballots alternate front and back: YES
-        Note: For alternating ballotname formats, regexes are
-	      not necessary.
-
-Ballots already straightened: YES
-
-Ballot Vendor: Hart
-
-==== Partition Ballots ====
-
-In this step, the voted ballots will be grouped by ballot layout, aka
-into a set of 'partitions'. All ballots in a partition P will have the
-same ballot layout. The partitioning is done by decoding barcode-like
-values on each ballot, and grouping ballots based on the decoded values.
-
-At the 'Partition Ballots' step, after you click the 'Run Partitioning...'
-button, a window will popup after some computation is done.
-
-In this window, you'll see a few images labeled 'min' and 'max'. You
-should click the 'Matches' button for each group until all groups are
-verified (the window will exit itself). 
-
-In this step, the results of barcode decoding are visually inspected and
-verified by the user. However, because the barcodes of Hart ballots have
-significant noise, the resulting overlays end up looking noisy as well.
-
-Once you are done with this Partitioning verification, you may skip
-directly to 'Select Voting Targets'. The steps 'Define Ballot Attributes',
-'Label Ballot Attributes', 'Label Digit-Based Attributes', 'Run Grouping',
-and 'Correct Grouping' are not necessary for this vendor type.
-
-==== Select Voting Targets ====
-
-Here, you will, using your mouse, draw boxes around each voting target.
-Each time you draw a box around a box, OpenCount will try to automatically
-find other instances of the selected box on all ballots.
-
-The workflow should be similar to this:
-
-    a.) Select all voting targets (both filled and unfilled) on the
-        current side S of the current partition P.
-    b.) Once OpenCount has found all boxes on the current side S,
-        repeat (a) on the next side S+1. Repeat for all sides.
-    c.) Move onto the next partition P+1. Repeat steps (a), (b).
-
-Recall that each partition P contains ballots with the same ballot
-layout. As a result, when verifying if all voting targets have been
-found on a given side S in a partition P, you only need to look at
-one exemplar ballot image B from each partition. 
-
-To delete/move targets, click the "Modify" button on the button
-toolbar near the top. This will enter Modification mode.
-
-In Modification mode, you can select a target T by clicking on it.
-You can move selected targets by clicking and dragging per usual.
-You can delete a selected target by pressing the <DELETE> or
-<BACKSPACE> keys. Resizing targets is also possible.
-
-Finally, you can select multiple boxes by dragging a selection box:
-    a.) Click anywhere in the background
-    b.) While the mouse is still depressed, drag a selection box
-        around any number of targets
-    c.) Release the mouse. All target enclosed by the selection box
-        will be selected. This allows a convenient way to delete
-        multiple boxes at once.
-
-To go back to adding voting target boxes, click the 'Add Target' button.
-
-Once you have verified that all voting targets have been found, please
-click the 'Infer Contest Regions' button. This will automatically infer
-the contest bounding boxes. Once this computation is done, please verify
-that all contests are correctly demarcated. Then you may move onto the
-next step.
-
-'Force Add Target': If you want to force the system to add a voting target
-box at some location (or you want to add a target without running the
-automated target search), click the 'Force Add Target' button. In this
-mode, any boxes you add will not trigger the automated target search.
-
-'Add Contest': If, for some reason, the 'Infer Contest Regions' computation
-did not find all contests, you can manually add a contest box by clicking 
-the 'Add Contest' button. In this mode, you can create blue contest boxes.
-
-==== Label Contests ====
-
-The first thing you will want to do is click the 'Compute Equiv Classes'
-button. This will start some computation, which attempts to infer which
-contests are duplicated across the ballots.
-
-After the computation is done, another window will popup, with labeled
-images such as 'min', 'max'. 
-
-If the 'min' image looks reasonably similar to the 'max' image (e.g. 
-there are only /minor/ differences), then click the 'Matches' button
-to indicate that these are the same contest.
-
-However, if the 'min' image looks /much/ different than the 'max', then
-click the 'Explode Group' button to indicate that these are not the
-same contest.
-
-    Note: Always choosing 'Explode Group' is "safe", in that the only
-          consequence is that the operator does slightly more work
-          when manually typing in the contest/candidate names.
-          
-Finally: during contest labeling, if you encounter a contest that 
-takes up more than one column (e.g. the 'United States Senator' contest),
-then you will first need to click the 'Mark as Multi-Box' button. After
-some computation, another window will popup - choose the 'Matches' or
-'Explode Group' button as earlier.
-
-==== Extract Targets ====
-
-Click the 'Run Target Extraction...' button to start some computation.
-Once this is done, move onto the 'Set Threshold' step.
-
-Note: The UI doesn't currently visually tell the user that the computation
-      is done. But, if you go to your terminal, you'll know that the 
-      target extraction computation is finished if you see the following
-      text in stdout:
-      
-...Finished post-target-extraction work (0.229722976685 s).
-...Finished Target Extraction. (8.0711710453 s).
- ...TargetExtraction Done!...
-    doExtract: 97.150%  |  7.841 s
-    post-work: 2.846%  |  0.230 s
-        longestPrefix: 0.248%  |  0.001 s
-        classifiedWrite: 0.483%  |  0.001 s
-        imageFileMake: 95.989%   |  0.221 s
-
-==== Set Threshold ====
-
-Here, all extracted targets (both filled and unfilled) are displayed
-in a grid-like fashion. The targets are sorted by average pixel
-intensity - thus, it is expected that the grid will first contain
-all filled-in targets at the top, followed by the unfilled targets
-at the bottom.
-
-The user's job here is to explicitly specify a separating line between
-the 'filled' and 'unfilled' targets. To do so, right click on the space
-between the last filled target and the first unfilled target, and choose
-the 'Set Threshold' menu option. This will draw a green line at the place
-you clicked on, indicating where the separating boundary is.
-
-Note that OpenCount first proposes an initial guess about the separating
-boundary. 
-
-Finally: sometimes, it is not possible to completely-separate the 'filled'
-and 'unfilled' targets with a single line (for instance, even with the
-'best' separating line, there may still be a few unfilled targets on the
-'filled' side of the line, and vice-versa). 
-
-To address this issue, you can tell OpenCount that a target T should be
-interpreted as the opposite interpretation by clicking on it. 
-
-For instance, if a target T is on the 'filled' side of the line, but it
-really is an unfilled target, then you can click on T to indicate that
-this is actually an unfilled target.
-
-Similarly, if a target T is on the 'unfilled' side of the line, but it
-really is a filled target, then you will click on T to indicate that T
-is really a filled target.
-
-For this particular dataset, you'll probably find that the separating 
-line found by OpenCount cleanly separates the filled and unfilled targets.
-But for large, real-world datasets, the user will probably not be so
-lucky - fortunately, the ordering-by-average-pixel-intensity heuristic
-works very well in practice to determine outliers.
-
-Once you are satisfied with the line, you will move onto the next step.
-
-==== Process Quarantine ====
-
-If, during the processing of OpenCount, any ballots happen to trigger
-some red flag, these ballots are quarantined, i.e. set aside for manual
-inspection. 
-
-Thus, during this step, these quarantined ballots are manually inspected
-by the user. At worst, the user has to enter in all information about the
-ballot (such as contest/candidate information, as well as votes). 
-
-If there are no quarantined ballots, OpenCount will automatically take you
-to the next (and final) step.
-
-==== Results ====
-
-Finally, OpenCount generates the final election results and CVRs. To
-view these text-file results, go to your project folder, and view
-the following files/directories:
-
-    opencount/opencount/projects_new/<PROJ_NAME>/election_results.txt
-    opencount/opencount/projects_new/<PROJ_NAME>/election_results_batches.txt
-        Note: Only present if relevant.
-    opencount/opencount/projects_new/<PROJ_NAME>/cvr/
-
-The cvr/* directory contains an individual Cast Vote Record for each
-individual ballot. The directory structure of the cvr/* directory 
-mimics the directory structure of the input voted ballots directory,
-which will make it easier to match up ballot image with its corresponding
-CVR.
+Please follow the tutorials listed above to learn how to use the
+OpenCount software.
 
 If any issues arise, please don't hesitate to contact the OpenCount
 team.
