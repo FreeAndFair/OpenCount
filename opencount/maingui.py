@@ -279,6 +279,28 @@ before proceeding to this step. OpenCount will take you there now.")
             self.panel_partition.start(self.project, pathjoin(self.project.projdir_path,
                                                               '_state_partition.p'))
         elif new == MainFrame.BALLOT_ATTRIBUTES:
+            # A (crude) way of detecting if the user started working on
+            # ballot attributes already
+            is_attrs_started = os.path.exists(pathjoin(self.project.projdir_path,
+                                                       '_state_ballot_attributes.p'))
+            if not is_attrs_started:
+                dlg = wx.MessageDialog(self, style=wx.YES_NO,
+                                       message="Do you wish to define any Ballot \
+Attributes? \n\n\
+If you intend to define ballot attributes (precinct number, tally group, etc.), then \
+click 'Yes'.\n\n\
+Otherwise, click 'No'.")
+                resp = dlg.ShowModal()
+                if resp == wx.ID_NO:
+                    dlg = wx.MessageDialog(self, style=wx.OK,
+                                           message="You indicated that you \
+do not want to define any Ballot Attributes.\n\n\
+You will now be taken to the Ballot Annotation stage.")
+                    dlg.ShowModal()
+                    self.notebook.ChangeSelection(self.SELTARGETS)
+                    self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES, self.SELTARGETS)
+                    return
+                
             if config.TIMER:
                 config.TIMER.start_task("BallotAttributes_Total")
             self.panel_ballot_attributes.start(self.project, pathjoin(self.project.projdir_path,
