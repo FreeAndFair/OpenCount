@@ -385,6 +385,16 @@ class LabelContest(wx.Panel):
         button6.Bind(wx.EVT_BUTTON, addmultibox)
         template.Add(button6)
 
+
+        def clear_names(evt):
+            """ Clears all text input widgets for candidate names. """
+            for cbox_name in self.text_targets:
+                cbox_name.SetValue("")
+            self.Layout()
+        button_clearnames = wx.Button(self, label="Clear Names")
+        button_clearnames.Bind(wx.EVT_BUTTON, clear_names)
+        template.Add(button_clearnames)
+
         if self.proj.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
             if not config.IS_DEV:
@@ -970,6 +980,13 @@ class LabelContest(wx.Panel):
         else:
             return [item]
 
+    def is_multibox_contest(self, contestid):
+        """ Returns True if the given contest is part of a multibox contest,
+        False o.w. 
+        Input:
+            tuple CONTESTID: (int STYLENUM, int ID)
+        """
+        return any([contestid in tuples for tuples in self.multiboxcontests])
 
     @util.pdb_on_crash
     def saveText(self, removeit=True):
@@ -1124,7 +1141,6 @@ class LabelContest(wx.Panel):
             """
             We run this whenever we've changed the title so that we can autopopulate the rest.
             """
-
             # If override is set to true, it means we should clear it anyways.
             if self.doNotClear and not override:
                 return
@@ -1284,13 +1300,29 @@ class LabelContest(wx.Panel):
             def c(j):
 
                 def rotate(evt):
+                    contestid = self.currentcontests[self.count]
+                    if self.is_multibox_contest(contestid):
+                        dlg = wx.MessageDialog(self, style=wx.OK,
+                                               message="Sorry: Candidate name \
+rotation doesn't currently work for multibox contests.")
+                        dlg.ShowModal()
+                        return
                     pos = self.curtext_matched.index(self.text_targets[j].GetValue())
-                    print "POS", pos
-                    wi = len([x for x in self.curtext_matched if x.lower() == 'write in'])
-                    neworder = self.curtext_matched[pos:-wi]+self.curtext_matched[:pos]
+                    wi = len([name for name in self.curtext_matched if is_writein(name)])
+                    if wi == 0:
+                        # No writein candidate. Either this is a multibox contest (and
+                        # the writein candidate is on the 'next' column), or this contest
+                        # simply has no writein candidate.
+                        # TODO: This doesn't quite to the right thing for multibox
+                        # contests. We need to know the candidate names on the "other"
+                        # column to do this properly. We'd also have to modify the
+                        # candidate name ordering on the "other" column as well.
+                        neworder = self.curtext_matched[pos:] + self.curtext_matched[:pos]
+                    else:
+                        # Ensure that the writein candidates always stay at the end
+                        neworder = self.curtext_matched[pos:-wi]+self.curtext_matched[:pos]
                     for i,l in enumerate(neworder):
                         self.text_targets[i].SetValue(l)
-    
 
                 tt.Bind(wx.EVT_COMBOBOX, rotate)
 
@@ -1402,3 +1434,13 @@ class LabelContest(wx.Panel):
 
         self.Fit()
 
+def is_writein(name):
+    """ Returns True if the candidate name is a write-in name.
+    We define a write in name if it starts with the phrase 'write', i.e.:
+        write in
+        write-in
+        writein
+        writein1, writein2, etc.
+    """
+    name = name.lower()
+    return name.startswith("write")
