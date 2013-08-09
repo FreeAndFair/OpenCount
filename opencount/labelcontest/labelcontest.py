@@ -296,7 +296,7 @@ class LabelContest(wx.Panel):
     
             if popup.ShowModal() == wx.ID_OK:
                 val = popup.GetValue()
-                self.nexttemplate(int(val)-self.templatenum)
+                self.nexttemplate((int(val)-self.templatenum) - 1)
 
         goto = wx.Button(self, label='Jump to style number...')
         goto.Bind(wx.EVT_BUTTON, goto_num)
@@ -1112,7 +1112,7 @@ class LabelContest(wx.Panel):
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
         num_blanks = len(self.dirList)
-        self.curBlankBallotNum.SetLabel("On Style {0} of {1}".format(self.templatenum, num_blanks))
+        self.curBlankBallotNum.SetLabel("On Style {0} of {1}".format(self.templatenum + 1, num_blanks))
 
     def addText(self):
         """
@@ -1290,6 +1290,7 @@ class LabelContest(wx.Panel):
                     neworder = self.curtext_matched[pos:-wi]+self.curtext_matched[:pos]
                     for i,l in enumerate(neworder):
                         self.text_targets[i].SetValue(l)
+    
 
                 tt.Bind(wx.EVT_COMBOBOX, rotate)
 
