@@ -309,6 +309,7 @@ class LabelContest(wx.Panel):
 
         @util.pdb_on_crash
         def addmultibox(x):
+            print "ADD MULTI BOX CLICKED HERE"
             orders = []
             for bid in range(len(self.grouping_cached)):
                 order = []
@@ -353,6 +354,7 @@ class LabelContest(wx.Panel):
 
             #print "BEFORE", self.equivs_processed
             self.compute_equivs_2(run_verification=False)
+            print "AND I HAVE REORDER", self.reorder
             #print "AFTER", self.equivs_processed
 
             def putresults(get_result):
