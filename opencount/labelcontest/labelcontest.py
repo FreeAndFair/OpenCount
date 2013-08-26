@@ -331,12 +331,12 @@ class LabelContest(wx.Panel):
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count])],
                                         self.mapping_inverse[(self.templatenum, self.contest_order[self.templatenum][self.count+1])],
                                         orders)
-            #print "EXTENSION", extension
-            #print "NEWGROUP", newgroup
+            print "EXTENSION", extension
+            print "NEWGROUP", newgroup
             self.multiboxcontests_enter += [tuple([(self.mapping[x][0], self.contest_order[self.mapping[x][0]].index(self.mapping[x][1])) for x in pair]) for pair in extension]
             
-            #print "MULTIBOX"
-            #print self.multiboxcontests_enter
+            print "MULTIBOX"
+            print self.multiboxcontests_enter
 
             boxes_in_new_group = [bid_cid for pair in extension for bid_cid in pair]
             cleared = []
@@ -358,11 +358,12 @@ class LabelContest(wx.Panel):
             #print "AFTER", self.equivs_processed
 
             def putresults(get_result):
-                ids_in_new_group = get_result[0]
+                ids_in_new_group = [x for x in get_result if any(self.templatenum==y[0] for y in x)][0]
+                print "take it", ids_in_new_group
                 # HACK -- WE DON'T USE THE VERIFICATION STUFF AT ALL
     
                 old = self.equivs_processed
-                #print "OLD", self.equivs_processed
+                print "OLD", self.equivs_processed
                 new_processed = []
                 for each in self.equivs_processed:
                     new_each = [x for x in each if x not in ids_in_new_group]
@@ -370,7 +371,7 @@ class LabelContest(wx.Panel):
                         new_processed.append(new_each)
                 new_processed.append(ids_in_new_group)
                 self.equivs_processed = new_processed
-                #print "NEW", self.equivs_processed
+                print "NEW", self.equivs_processed
                 #print "DIFF"
                 #for a in self.equivs_processed:
                 #    if a not in old:
@@ -1247,6 +1248,8 @@ class LabelContest(wx.Panel):
             self.did_prefill = True
             if self.text[self.currentcontests[self.count]] != []: return
 
+            if any([self.currentcontests[self.count] in x for x in self.multiboxcontests]): return
+
             if self.count != 0:
                 prev = self.text[self.currentcontests[self.count-1]]
                 if prev == []:
@@ -1262,6 +1265,7 @@ class LabelContest(wx.Panel):
                 order = self.contest_order[template]
                 if prev == None:
                     if len(order) == 0: continue
+                    if any([(template,order[0]) in x for x in self.multiboxcontests]): continue
                     maybe = self.text[template,order[0]]
                     if len(maybe)-1 == len(self.text_targets):
                         possible.append((tuple(maybe),self.voteupto[template,order[0]]))
@@ -1272,6 +1276,7 @@ class LabelContest(wx.Panel):
                     if self.text[template,order[i-1]] == prev:
                         maybe = self.text[template,order[i]]
                         #print 'yes', len(maybe)
+                        if any([(template,order[i]) in x for x in self.multiboxcontests]): continue
                         if len(maybe)-1 == len(self.text_targets):
                             possible.append((tuple(maybe),self.voteupto[template,order[i]]))
             if len(possible) != 0:
