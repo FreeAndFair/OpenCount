@@ -2,7 +2,7 @@ OpenCount
 ===
 
 *OpenCount* is part of the Verfiable Elections software suite of
-projects, developed by Verifiable Elections, Inc. It has two
+products, developed by Verifiable Elections, Inc. It has two
 components: *OpenCount Tabulator* (hereafter,
 *Tabulator*), which tabulates results from ballots cast in an election, and *OpenCount Auditor* (hereafter, *Auditor*), which is designed
 to assist with post-election audits of elections conducted using
