@@ -2,7 +2,11 @@ import os, time, math
 from optparse import OptionParser
 import Image, cv
 import wx
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 BIN_SIZE = 10000
 
@@ -25,7 +29,7 @@ def sanity_check(templatesdir, samplesdir, frame):
     wx.PostEvent(frame, SanityCheckEvent(('templates', will_skip)))
     _,_,_,_,_,_,will_skip2 = collect_stats(samplesdir)
     wx.PostEvent(frame, SanityCheckEvent(('samples', will_skip2)))
-    wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.done")
+    wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.done")
 
 def safe_open(image_path):
     try:
@@ -83,7 +87,7 @@ def collect_stats(dir):
             else:
                 non_image_files.append(f)
                 will_skip[imgpath.replace(dir,'')[1:]] = 'not an image'
-            wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.tick")
+            wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.tick")
     return files_processed, images, image_sizes, image_formats, image_modes, non_image_files, will_skip
 
 if __name__ == "__main__":

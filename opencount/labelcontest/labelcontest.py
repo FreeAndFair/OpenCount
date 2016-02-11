@@ -21,7 +21,11 @@ sys.path.append('..')
 from util import ImageManipulate
 import util, config
 
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+    pub = Publisher()
+except:
+    from wx.lib.pubsub import Publisher
 
 class LabelContest(wx.Panel):
     def __init__(self, parent, size):
@@ -35,7 +39,7 @@ class LabelContest(wx.Panel):
         #  {(ballotid, contestid): 
         self.text = {}
         
-        Publisher().subscribe(self.getproj, "broadcast.project")
+        pub.subscribe(self.getproj, "broadcast.project")
     
     def getproj(self, msg):
         self.proj = msg.data
@@ -417,7 +421,7 @@ class LabelContest(wx.Panel):
                 print "TEXT NOW", self.text
                 self.restoreText()
                 self.canMoveOn = True
-                Publisher().sendMessage("broadcast.can_proceed")
+                pub.sendMessage("broadcast.can_proceed")
             button5.Bind(wx.EVT_BUTTON, declareReady)
             template.Add(button5)
 
@@ -1128,7 +1132,7 @@ class LabelContest(wx.Panel):
         didsofar = min(didsofar, num)
         self.canMoveOn = didsofar == num
         if self.canMoveOn:
-            Publisher().sendMessage("broadcast.can_proceed")
+            pub.sendMessage("broadcast.can_proceed")
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
         num_blanks = len(self.dirList)

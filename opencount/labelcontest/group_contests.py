@@ -16,7 +16,11 @@ from vendors import Vendor
 import threading
 import util
 import wx
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 import numpy as np
 from scipy.optimize import fmin
 import specify_voting_targets.select_targets
@@ -1490,7 +1494,7 @@ def find_contests(t, paths, giventargets):
     while got < len(args):
         sys.stderr.write('.')
         val = queue.get(block=True)
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick")
         got += 1
 
     pool.close()

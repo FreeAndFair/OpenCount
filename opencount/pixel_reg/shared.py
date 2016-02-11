@@ -7,7 +7,7 @@ import string
 import math
 import imagesAlign as lk
 from scipy import misc
-from wx.lib.pubsub import Publisher
+from wx.lib.pubsub import pub as Publisher
 
 MAX_PRECINCT_PATCH_DIM=800
 MIN_PRECINCT_PATCH_DIM=20

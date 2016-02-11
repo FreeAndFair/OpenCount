@@ -1,6 +1,10 @@
 import os, pdb, shutil, tempfile
 from PIL import Image
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 import wx
 import numpy as np
 import sys, traceback
@@ -198,7 +202,7 @@ def makeOneFile_(prefix, src, radix, dst):
             print 'loop', time.time()-now
             now = time.time()
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick")
         #tout.write("X")
         #out.write("a"*(100*50))
         #open(os.path.join(prefix, each)).read()

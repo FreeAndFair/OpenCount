@@ -4,7 +4,11 @@ except ImportError: import pickle
 from os.path import join as pathjoin
 
 import wx, numpy as np, cv, scipy.misc
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 sys.path.append('..')
 
@@ -291,7 +295,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
         gauge = util.MyGauge(self, 1, msg="Running Template Matching...",
                              job_id=self.DIGIT_TEMPMATCH_ID)
         gauge.Show()
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.DIGIT_TEMPMATCH_ID))
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numtasks, self.DIGIT_TEMPMATCH_ID))
 
         print "(TempMatchGrid) Running template matching on {0} images for label: '{1}'".format(len(imgpaths_in), label)
         do_tempmatch_async(patch, imgpaths_in, lambda res: self.on_tempmatch_done(res, label, patch, t_listen, self.DIGIT_TEMPMATCH_ID), self.outdir,
@@ -319,7 +323,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
         if t_listen != None:
             t_listen.stop_running.set()
         if jobid != None:
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (jobid,))
 
         imgpaths = []
         patch2match = {} # maps {str patchpath: (int cellid, float sc2, x1, y1, x2, y2)}
@@ -646,7 +650,7 @@ class ThreadUpdateGauge(threading.Thread):
         while not self.stop_running.is_set():
             try:
                 self.progress_queue.get(True, 2)
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
             except Queue.Empty:
                 pass
 

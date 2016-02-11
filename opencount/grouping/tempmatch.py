@@ -1,7 +1,11 @@
 import traceback, threading, multiprocessing, pdb, os
 import cv, numpy as np
 
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 from Queue import Empty
 import wx
 
@@ -94,7 +98,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
                                        int(w_A), int(h_A)))
                 cv.SaveImage(outpath, Iorig)
         if jobid and wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (jobid,))
         if queue_mygauge != None:
             queue_mygauge.put(True)
 
@@ -240,7 +244,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             # Note: I don't think this actually does anything, since this
             # is living in a separate process, which can't communicate
             # to the wx App instance living in the original host process
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (jobid,))
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (jobid,))
         if jobid and queue_mygauge != None and wx.App.IsMainLoopRunning():
             queue_mygauge.put(True)
     return results
@@ -307,7 +311,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
         traceback.print_exc()
         result = {}
     if jobid and wx.App.IsMainLoopRunning():
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (jobid,))
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (jobid,))
     if tick_thread:
         tick_thread.turn_me_off()
 
@@ -328,7 +332,7 @@ class ThreadTicker(threading.Thread):
         while not self.i_am_listening.isSet():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
             except Empty:
                 pass
         return True
@@ -363,7 +367,7 @@ def smooth_mat(Imat, xwin, ywin, bordertype=None, val=255.0):
     if bordertype == 'const':
         #Ibig = cv.CreateImage((w+2*xwin, h+2*ywin), I.depth, I.channels)
         Ibig = cv.CreateMat(h+2*ywin, w+2*xwin, Imat.type)
-        
+
         cv.CopyMakeBorder(Imat, Ibig, (xwin, ywin), 0, value=val)
         cv.SetImageROI(Ibig, (xwin, ywin, w, h))
     else:
@@ -374,4 +378,3 @@ def smooth_mat(Imat, xwin, ywin, bordertype=None, val=255.0):
     return Iout
     '''
     return cv.GetMat(smooth(cv.GetImage(Imat), xwin, ywin, bordertype=bordertype, val=val))
-    

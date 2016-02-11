@@ -9,8 +9,13 @@ from os.path import join as pathjoin
 
 sys.path.append('..')
 
-import wx, cv, numpy as np, Image, scipy, scipy.misc
-from wx.lib.pubsub import Publisher
+import wx, cv, numpy as np, scipy, scipy.misc
+import PIL.Image as Image
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 from wx.lib.scrolledpanel import ScrolledPanel
 
 from panel_opencount import OpenCountPanel
@@ -115,7 +120,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                                                        N=None)
                 dur = time.time() - t
                 print '...Finished globally-aligning a subset of each partition ({0:.4f} s)'.format(dur)
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
                 wx.CallAfter(self.callback, groups_align_map, self.ocrtmpdir)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
@@ -135,7 +140,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                     try:
                         val = self.queue.get(block=True, timeout=1)
                         if val == True:
-                            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
                     except Queue.Empty:
                         pass
 
@@ -154,7 +159,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             gauge = util.MyGauge(self, 1, thread=workthread, msg="Running Global Alignment...",
                                  job_id=self.GLOBALALIGN_JOBID)
             gauge.Show()
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numtasks, self.GLOBALALIGN_JOBID))
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numtasks, self.GLOBALALIGN_JOBID))
         else:
             # SelectTargets restores its self.partitions from stateP.
             seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
@@ -812,7 +817,7 @@ voting target on this ballot.")
                              msg="Finding Voting Targets...")
         gauge.Show()
         num_tasks = len(imgpaths)
-        Publisher().sendMessage("signals.MyGauge.nextjob", (num_tasks, JOBID_TEMPMATCH_TARGETS))
+        pub.sendMessage("signals.MyGauge.nextjob", (num_tasks, JOBID_TEMPMATCH_TARGETS))
 
     def on_tempmatch_done(self, results, w, h):
         """ Invoked after template matching computation is complete. 
@@ -1173,14 +1178,14 @@ before running the automatic contest detection routine.")
                 
             def run(self):
                 self.tt = group_contests.find_contests(ocrtempdir, imgpaths_exs, targets)
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done")
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.done")
 
         tt = RunThread()
         tt.start()
 
         gauge = util.MyGauge(self, 1, ondone=lambda: infercontest_finish(tt.tt))
         gauge.Show()
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(imgpaths_exs))
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", len(imgpaths_exs))
 
     def set_target_roi(self, roi):
         """ Updates/sets the target region-of-interest (ROI), which is the

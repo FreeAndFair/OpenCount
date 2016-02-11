@@ -5,7 +5,11 @@ try:
 except ImportError:
     import pickle
 import wx
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 import cv
 
 sys.path.append('..')
@@ -320,7 +324,7 @@ new images.".format(self.project.voteddir),
         self.voteddir = os.path.abspath(path)
         self.box_samples.txt_samplespath.SetLabel(self.wrap(self.voteddir))
         self.project.raw_samplesdir = self.voteddir
-        Publisher().sendMessage("processing.register", data=self.project)
+        pub.sendMessage("processing.register", data=self.project)
     def get_samplepath(self):
         return self.box_samples.txt_samplespath.GetLabelText().replace("\n", "")
         

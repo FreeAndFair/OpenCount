@@ -1,6 +1,7 @@
 import sys, os
 
-import wx, Image
+import wx
+import PIL.Image as Image
 from wx.lib.scrolledpanel import ScrolledPanel
 
 import grouping.make_overlays as make_overlays

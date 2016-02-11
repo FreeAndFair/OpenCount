@@ -5,7 +5,11 @@ from imagesAlign import *
 import traceback, time
 import os
 import multiprocessing as mp
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 import wx
 from util import create_dirs
 import pickle
@@ -452,7 +456,7 @@ def quarantineCheckMAP(jobs, targetDiffDir, quarantined_outP, img2bal, bal2targe
 
     print 'Done w/ hash.'
     if wx.App.IsMainLoopRunning():
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", len(jobs))
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", len(jobs))
 
     # STEP 1: load in all error values
     ErrHash={}
@@ -520,7 +524,7 @@ target defined. This is probably a mistake in SelectTargets!\n\
             JobHash[k1]=jList
             K+=1
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick")
 
     print 'Done reading in errs.'
 
@@ -669,7 +673,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
             print "I AM DONE NOW!"
         '''
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", num_jobs)
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", num_jobs)
         print "GOING UP TO", num_jobs
         #pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
         pool.map_async(convertImagesWorkerMAP, jobs)
@@ -678,7 +682,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
             val = queue.get(block=True)
             if val == True:
                 if wx.App.IsMainLoopRunning():
-                    wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick")
+                    wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick")
                 cnt += 1
             elif type(val) in (str, unicode):
                 # Something went wrong!

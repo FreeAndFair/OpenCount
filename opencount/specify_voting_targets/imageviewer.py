@@ -12,49 +12,17 @@ Contains two main widgets:
 ## Import 3rd party libraries
 ####
 
-try:
-    import wx
-    import wx.animate
-except ImportError:
-    print """Error importing wxPython (wx) -- to install wxPython (a Python GUI \
-library), do (if you're on Linux):
-    sudo apt-get install python-wxgtk2.8
-Or go to: 
-    http://www.wxpython.org/download.php
-For OS-specific installation instructions."""
-    exit(1)
-try:
-    import Image
-except ImportError:
-    print """Error importing Python Imaging Library (Image) -- to install \
-PIL (a Python image-processing library), go to: 
-    http://www.pythonware.com/products/pil/"""
-    exit(1)
-try:
-    import cv2
-except ImportError:
-    print """Error importing OpenCV w/ Python bindings (cv2) -- to install \
-OpenCV w/ Python bindings (a Python computer vision library), go to:
-    http://opencv.willowgarage.com/wiki/
-Note that documentation for installing OpenCV is pretty shaky in my \
-experience. A README section on installing OpenCV will be created soon.
-On Windows, to get the Python bindings, copy/paste the contents of:
-    opencv/build/python/2.7 (or 2.6)
-to the site-packages directory of your Python installation, i.e.:
-    C:/Python27/Lib/site-packages/
-For me, this means that you'll be adding two new files to that directory:
-    C:/Python27/Lib/site-packages/cv.py
-    C:/Python27/Lib/site-packages/cv2.pyd"""
-    exit(1)
-try:
-    import numpy as np
-except ImportError:
-    print """Error importing Numpy (numpy) -- to install Numpy, go to:
-    http://numpy.scipy.org/
-You'll probably want to install both scipy and numpy."""
-    exit(1)
+import wx
+import wx.animate
+from PIL import Image
+import cv2
+import numpy as np
 import wx.lib.inspection
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
@@ -175,11 +143,11 @@ class ImageViewer(wx.ScrolledWindow):
         
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
-            Publisher().subscribe(callback, topic)
+            pub.subscribe(callback, topic)
 
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
-            Publisher().unsubscribe(callback, topic)
+            pub.unsubscribe(callback, topic)
 
     def _init_ui(self):
         # Grab default image
@@ -378,7 +346,7 @@ class ImageViewer(wx.ScrolledWindow):
         oldstate = self.pop_state()
         if oldstate:
             self.world.mutate(oldstate)
-            Publisher().sendMessage("broadcast.updated_world")
+            pub.sendMessage("broadcast.updated_world")
             
     def set_cursor(self, state):
         if state == ImageViewer.STATE_ZOOM_IN or state == ImageViewer.STATE_ZOOM_OUT:
@@ -1027,10 +995,10 @@ class WorldState(object):
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
-            Publisher().subscribe(callback, topic)
+            pub.subscribe(callback, topic)
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
-            Publisher().unsubscribe(callback, topic)
+            pub.unsubscribe(callback, topic)
 
     def get_boxes(self, imgpath):
         return self.box_locations.get(imgpath, [])
@@ -1279,7 +1247,7 @@ class BallotViewer(wx.Panel):
 
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
-            Publisher().subscribe(callback, topic)
+            pub.subscribe(callback, topic)
         self.ballotscreen.subscribe_pubsubs()
 
     def unsubscribe_pubsubs(self):
@@ -1288,7 +1256,7 @@ class BallotViewer(wx.Panel):
         widget isn't active.
         """
         for (topic, callback) in self.callbacks:
-            Publisher().unsubscribe(callback, topic)
+            pub.unsubscribe(callback, topic)
         self.ballotscreen.unsubscribe_pubsubs()
 
     def set_image(self, imgpath):
@@ -1347,10 +1315,10 @@ class ToolBar(wx.Panel):
         self._bind_events()
         
         ### PubSub Subscribing
-        Publisher().subscribe(self._enter_autodetect, "signals.enter_autodetect")
-        Publisher().subscribe(self._cancel_autodetect, "signals.cancel_autodetect")
-        Publisher().subscribe(self._leave_autodetect_verify, "signals.leave_autodetect_verify")
-        Publisher().subscribe(self._clear_buttons, "signals.Toolbar.clear_buttons")
+        pub.subscribe(self._enter_autodetect, "signals.enter_autodetect")
+        pub.subscribe(self._cancel_autodetect, "signals.cancel_autodetect")
+        pub.subscribe(self._leave_autodetect_verify, "signals.leave_autodetect_verify")
+        pub.subscribe(self._clear_buttons, "signals.Toolbar.clear_buttons")
 
     def _bind_events(self):
         self.btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
@@ -1590,10 +1558,10 @@ class ToolBar(wx.Panel):
         
     #### Event handling
     def onButton_zoomin(self, event):
-        Publisher().sendMessage("signals.BallotScreen.zoom", 'in')
+        pub.sendMessage("signals.BallotScreen.zoom", 'in')
         event.Skip()
     def onButton_zoomout(self, event):
-        Publisher().sendMessage("signals.BallotScreen.zoom", 'out')
+        pub.sendMessage("signals.BallotScreen.zoom", 'out')
         event.Skip()
     def onButton_addtarget(self, event):
         if not self.state_addtarget:
@@ -1607,16 +1575,16 @@ class ToolBar(wx.Panel):
             self.clear_btns()
             self.state_select = True
             self.btn_select.SetBitmapLabel(self.bitmaps['select_sel'])
-            Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
+            pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
         event.Skip()
     def onButton_undo(self, event):
-        Publisher().sendMessage("broadcast.undo")
+        pub.sendMessage("broadcast.undo")
     def onButton_addcontest(self, event):
         if not self.state_addcontest:
             self.clear_btns()
             self.state_addcontest = True
             self.btn_addcontest.SetBitmapLabel(self.bitmaps['addcontest_sel'])
-            Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_ADD_CONTEST)
+            pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_ADD_CONTEST)
         event.Skip()
     def onButton_splitcontest(self, event):
         self.clear_btns()
@@ -1630,8 +1598,8 @@ class ToolBar(wx.Panel):
             self.clear_btns()
             return
         splitmode = dlg.get_splitmode()
-        Publisher().sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_SPLIT_CONTEST)
-        Publisher().sendMessage("signals.BallotScreen.set_splitmode", splitmode)
+        pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_SPLIT_CONTEST)
+        pub.sendMessage("signals.BallotScreen.set_splitmode", splitmode)
 
     def onButton_infercontests(self, event):
         # Call SpecifyTargetsPanel.do_infer_contests
@@ -1650,28 +1618,28 @@ next step.", style=wx.OK)
             self.Enable()
             
     def onEnter_zoomin(self, event):
-        Publisher().sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
+        pub.sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
         event.Skip()
     def onLeave_zoomin(self, event):
-        Publisher().sendMessage('signals.StatusBar.pop', None)
+        pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
     def onEnter_zoomout(self, event):
-        Publisher().sendMessage('signals.StatusBar.push', "Zoom out of the opened image.")
+        pub.sendMessage('signals.StatusBar.push', "Zoom out of the opened image.")
         event.Skip()
     def onLeave_zoomout(self, event):
-        Publisher().sendMessage('signals.StatusBar.pop', None)
+        pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
     def onEnter_addtarget(self, event):
-        Publisher().sendMessage('signals.StatusBar.push', "Create new voting targets.")
+        pub.sendMessage('signals.StatusBar.push', "Create new voting targets.")
         event.Skip()
     def onLeave_addtarget(self, event):
-        Publisher().sendMessage('signals.StatusBar.pop', None)
+        pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
     def onEnter_select(self, event):
-        Publisher().sendMessage('signals.StatusBar.push', 'Select voting targets.')
+        pub.sendMessage('signals.StatusBar.push', 'Select voting targets.')
         event.Skip()
     def onLeave_select(self, event):
-        Publisher().sendMessage('signals.StatusBar.pop', None)
+        pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
 
 class BallotScreen(ImageViewer):
@@ -1724,7 +1692,7 @@ class BallotScreen(ImageViewer):
                      ("signals.BallotScreen.set_splitmode", self._pubsub_set_splitmode))
         self.callbacks.extend(callbacks)
         for (topic, callback) in callbacks:
-            Publisher().subscribe(callback, topic)
+            pub.subscribe(callback, topic)
         
     def _bind_events(self):
         ImageViewer._bind_events(self)
@@ -1886,8 +1854,8 @@ class BallotScreen(ImageViewer):
             t_h_rel = (self._autodetect_region.size[1] / float(h_img))
             self.target_width, self.target_height = (int(round(t_w_rel * self.GetClientSize()[0])),
                                                      int(round(t_h_rel * self.GetClientSize()[1])))
-            Publisher().sendMessage("signals.TargetDimPanel", (self.target_width, self.target_height))
-            Publisher().sendMessage("signals.autodetect.final_refimg", self._autodetect_region)
+            pub.sendMessage("signals.TargetDimPanel", (self.target_width, self.target_height))
+            pub.sendMessage("signals.autodetect.final_refimg", self._autodetect_region)
             self.candidate_targets = self.autodetect_targets(self.img_pil, self._autodetect_region)
             #frame = Autodetect_Confirm(self, self.candidate_targets)
             #frame.Show()
@@ -1913,9 +1881,9 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
     def _fit_autodetect_region(self, msg):
         if self._autodetect_region:
             self._autodetect_region = util_gui.fit_image(self._autodetect_region)
-            Publisher().sendMessage("signals.autodetect.updatebox", 
+            pub.sendMessage("signals.autodetect.updatebox", 
                                     self._autodetect_region)
-            Publisher().sendMessage("signals.TargetDimPanel", (self._autodetect_region.size))
+            pub.sendMessage("signals.TargetDimPanel", (self._autodetect_region.size))
         self.Refresh()
     def pubsub_set_targets(self, msg):
         imgpath, boxes = msg.data
@@ -1935,7 +1903,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
     def select_target(self, t):
         ImageViewer.select_target(self, t)
         w_client, h_client = self.GetClientSize()
-        Publisher().sendMessage("signals.TargetDimPanel._set_sel_target_size", (int(round(t.width*w_client)), int(round(t.height*h_client))))
+        pub.sendMessage("signals.TargetDimPanel._set_sel_target_size", (int(round(t.width*w_client)), int(round(t.height*h_client))))
 
     def autodetect_targets(self, img, refimg):
         """
@@ -2051,9 +2019,9 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                     contests = [b for b in self.get_boxes() if b.is_contest]
                     for target in [b for b in self.get_boxes() if not b.is_contest]:
                         target.contest_id = util_gui.find_assoc_contest(target, contests).contest_id
-                    Publisher().sendMessage("broadcast.updated_world")
-                    Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, c1))
-                    Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, c2))
+                    pub.sendMessage("broadcast.updated_world")
+                    pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, c1))
+                    pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, c2))
                     print "Split successful."
                     self.Refresh()
                 except TypeError as e:
@@ -2107,21 +2075,21 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             # auto-fit around it, then add the auto-cropped bounding
             # box to world
             if new_box.is_contest:
-                Publisher().sendMessage("broadcast.ballotscreen.added_contest", 
+                pub.sendMessage("broadcast.ballotscreen.added_contest", 
                                         (self.current_imgpath, new_box))
             else:
-                Publisher().sendMessage("broadcast.ballotscreen.added_target", 
+                pub.sendMessage("broadcast.ballotscreen.added_target", 
                                         (self.current_imgpath, new_box))
-            Publisher().sendMessage("broadcast.updated_world")
+            pub.sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.is_select_target()):
             moved_contests = [b for b in self._sel_boxes if b.is_contest]
             for contest in moved_contests:
-                Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, contest))
+                pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, contest))
             self.disable_dragging()
             self._dragselectregion = []
-            Publisher().sendMessage("broadcast.updated_world")            
+            pub.sendMessage("broadcast.updated_world")            
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
               and self._dragselectregion):
@@ -2138,7 +2106,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             boxes = util_gui.get_boxes_inside(self.get_boxes(), dragselectregion_rel)
             for box in boxes:
                 self.select_target(box)
-            Publisher().sendMessage("broadcast.updated_world")
+            pub.sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate == BallotScreen.STATE_AUTODETECT and self._autodet_rect):
             try:
@@ -2157,11 +2125,11 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             #region_threshold = util_gui.fit_image(region)
             
             self._autodetect_region = region
-            Publisher().sendMessage("signals.autodetect.updatebox", self._autodetect_region)
+            pub.sendMessage("signals.autodetect.updatebox", self._autodetect_region)
         
         if self.is_resize_target() and self.is_resize_enabled():
             # Finalize the current resizing
-            Publisher().sendMessage("broadcast.push_state", self.world)
+            pub.sendMessage("broadcast.push_state", self.world)
             x, y = mousepos
             x1, y1, x2, y2 = self._resize_rect
             (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
@@ -2177,9 +2145,9 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 alltargets = [b for b in self.world.get_boxes_all_list() if not b.is_contest]
                 util_gui.resize_boxes(alltargets, (w_rel, h_rel), self._resize_mode)
             if self._resize_target.is_contest:
-                Publisher().sendMessage("broadcast.freeze_contest", (self.current_imgpath, self._resize_target))
+                pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, self._resize_target))
             self.unset_resize_target()
-            Publisher().sendMessage("broadcast.updated_world")
+            pub.sendMessage("broadcast.updated_world")
             self.set_auxstate(self._prev_auxstate)
             self._prev_auxstate = None
         self.Refresh()
@@ -2340,13 +2308,13 @@ selected box...in your imagination."
             if ((keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK) 
                     and self.is_delete_enabled()
                     and self.is_modify_enabled()):
-                Publisher().sendMessage("broadcast.push_state", self.world)
+                pub.sendMessage("broadcast.push_state", self.world)
                 deleted_boxes = self.get_selected_boxes()
                 for box in self.get_selected_boxes()[:]:
                     self.delete_target(box)
                 
-                Publisher().sendMessage("broadcast.updated_world")
-                Publisher().sendMessage("broadcast.deleted_targets", (self.current_imgpath, deleted_boxes))
+                pub.sendMessage("broadcast.updated_world")
+                pub.sendMessage("broadcast.deleted_targets", (self.current_imgpath, deleted_boxes))
             elif ((keycode in (wx.WXK_UP, wx.WXK_DOWN, wx.WXK_LEFT, wx.WXK_RIGHT))
                   and self.is_modify_enabled()):
                 w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
@@ -2483,7 +2451,7 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         self.rect_coords = None
         
         # PubSub Subscribing
-        Publisher().subscribe(self._boxupdate, "signals.autodetect.updatebox")
+        pub.subscribe(self._boxupdate, "signals.autodetect.updatebox")
         
     #### Pubsub Callbacks
     def _boxupdate(self, msg):
@@ -2502,16 +2470,16 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         
     def onButton_continue(self, event):
         if self._did_user_select:
-            Publisher().sendMessage("signals.enter_autodetect_verify", None)
+            pub.sendMessage("signals.enter_autodetect_verify", None)
         else:
-            Publisher().sendMessage("signals.cancel_autodetect", None)
+            pub.sendMessage("signals.cancel_autodetect", None)
         self._did_i_destroy = True
         event.Skip()
     def onButton_cancel(self, event):
-        Publisher().sendMessage("signals.cancel_autodetect", None)
+        pub.sendMessage("signals.cancel_autodetect", None)
         self._did_i_destroy = True
     def onButton_fit(self, event):
-        Publisher().sendMessage("signals.BallotScreen.fit_autodetect_region", None)
+        pub.sendMessage("signals.BallotScreen.fit_autodetect_region", None)
         event.Skip()
         
     def onWindowDestroy(self, event):
@@ -2563,15 +2531,15 @@ offending target, or proceed by choosing 'Done.'""".format(len(target_candidates
         self.Fit()
     def onButtonDone(self, evt):
         self._did_i_destroy = True
-        Publisher().sendMessage("signals.leave_autodetect_verify")
+        pub.sendMessage("signals.leave_autodetect_verify")
         #self.Destroy()
     def onButtonRemoveAll(self, evt):
         self._did_i_destroy = True
-        Publisher().sendMessage("signals.leave_autodetect_verify", 'remove_all')
+        pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
         #self.Destroy()
     def onWindowDestroy(self, evt):
         if self._did_i_destroy != True:
-            Publisher().sendMessage("signals.leave_autodetect_verify", 'remove_all')
+            pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
         evt.Skip()
         
 def split_contest(mousepos, contest, boxes, mode='horizontal'):

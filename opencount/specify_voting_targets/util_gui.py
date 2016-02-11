@@ -3,7 +3,8 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
-import scipy, cv
+import scipy
+import cv2 as cv
 import scipy.ndimage
 import scipy.misc
 import imageviewer
@@ -29,7 +30,7 @@ Or go to:
 For OS-specific installation instructions."""
     exit(1)
 try:
-    import Image
+    from PIL import Image
 except ImportError:
     print """Error importing Python Imaging Library (Image) -- to install \
 PIL (a Python image-processing library), go to: 

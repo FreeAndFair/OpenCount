@@ -1,9 +1,16 @@
 import time, math, datetime, re, pdb
 import wx
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 import numpy as np
-import Image
-import cv
+try:
+    import Image
+except:
+    from PIL import Image
+import cv2 as cv
 from specify_voting_targets import util_gui
 import os
 from os.path import join as pathjoin
@@ -94,9 +101,9 @@ class MyGauge(wx.Frame):
         panel.Fit()
         self.Fit()
         
-        Publisher().subscribe(self._pubsub_done, "signals.MyGauge.done")
-        Publisher().subscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
-        Publisher().subscribe(self._pubsub_tick, "signals.MyGauge.tick")
+        pub.subscribe(self._pubsub_done, "signals.MyGauge.done")
+        pub.subscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
+        pub.subscribe(self._pubsub_tick, "signals.MyGauge.tick")
 
         self.inittime = self.startTime = time.time()
         self.updater = wx.CallLater(1000, self.update)
@@ -144,9 +151,9 @@ class MyGauge(wx.Frame):
     def _pubsub_done(self, msg):
         if not self.is_event_relevant(msg):
             return
-        Publisher().unsubscribe(self._pubsub_done)
-        Publisher().unsubscribe(self._pubsub_tick)
-        Publisher().unsubscribe(self._pubsub_nextjob)
+        pub.unsubscribe(self._pubsub_done)
+        pub.unsubscribe(self._pubsub_tick)
+        pub.unsubscribe(self._pubsub_nextjob)
         if self.tofile != None: 
             self.tofile.write("done " + str(time.time()) + "\n")
             self.tofile.close()
@@ -507,7 +514,7 @@ def cvImg2np(Icv):
     else:
         dtype = 'uint8'
     nparray = np.fromstring(Icv.tostring(), dtype=dtype)
-    
+
     w, h = cv.GetSize(Icv)
     if Icv.channels == 3:
         nparray = nparray.reshape((h,w,3))

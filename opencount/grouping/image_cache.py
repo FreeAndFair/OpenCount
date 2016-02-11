@@ -1,6 +1,7 @@
 import sys, os, time, pdb, traceback
 from collections import deque
-import Image, cv, scipy.misc, numpy as np
+import cv, scipy.misc, numpy as np
+from PIL import Image
 
 """
 A module to help maintain an in-memory cache of images. 

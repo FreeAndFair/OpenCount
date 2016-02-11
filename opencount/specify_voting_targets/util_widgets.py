@@ -4,7 +4,11 @@ import grouping.common as common
 import wx
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 """
 A module to store widgets that might be useful in several
@@ -39,8 +43,8 @@ class ProgressGauge(wx.Frame):
         panel.Fit()
         self.Fit()
         
-        Publisher().subscribe(self._pubsub_done, "signals.ProgressGauge.done")
-        Publisher().subscribe(self._pubsub_tick, "signals.ProgressGauge.tick")
+        pub.subscribe(self._pubsub_done, "signals.ProgressGauge.done")
+        pub.subscribe(self._pubsub_tick, "signals.ProgressGauge.tick")
         
     def _pubsub_done(self, msg):
         self.Destroy()
@@ -356,7 +360,7 @@ class ImageMosaicPanel(ScrolledPanel):
         """ Selects the cell given by imgpath. """
         #print "imgpath: {0}".format(imgpath)
         #print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
-        Publisher().sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
+        pub.sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
         self.unselect_all()
         self.get_cellpanel(imgpath).select()
 
@@ -578,12 +582,12 @@ class _WorkThread(threading.Thread):
             #time.sleep(1.0)
             sum(range(5000000))
             print 'a'
-            #Publisher().sendMessage("signals.ProgressGauge.tick")
-            wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.tick")
+            #pub.sendMessage("signals.ProgressGauge.tick")
+            wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.tick")
 
         # Notify ProgressGauge that the work is done
-        #Publisher().sendMessage("signals.ProgressGauge.done")        
-        wx.CallAfter(Publisher().sendMessage, "signals.ProgressGauge.done")
+        #pub.sendMessage("signals.ProgressGauge.done")        
+        wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.done")
 
 def demo_progressgauge():
     app = wx.App(False)

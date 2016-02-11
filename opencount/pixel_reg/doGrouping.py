@@ -6,7 +6,11 @@ import cv
 import traceback, os, shutil, time
 import multiprocessing as mp
 import wx
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 try:
     import cPickle as pickle
 except ImportError:
@@ -697,7 +701,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
             if job_status == False:
                 print "...Uhoh, ballotid={0} had a grouping failure.".format(job_ballotid)
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_IMGBASED,))
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_IMGBASED,))
             i += 1
 
         while not it[0]:

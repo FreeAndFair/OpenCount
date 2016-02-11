@@ -4,6 +4,9 @@ try:
 except ImportError as e:
     import pickle
 
+import matplotlib
+matplotlib.use('Agg')
+
 from os.path import join as pathjoin
 
 import wx

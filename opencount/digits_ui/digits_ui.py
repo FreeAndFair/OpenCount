@@ -7,7 +7,11 @@ except ImportError as e:
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 import numpy as np
 from os.path import join as pathjoin
@@ -960,7 +964,7 @@ class ThreadDoTempMatch(threading.Thread):
         h, w =  self.img1.shape
         bb = [0, h-1, 0, w-1]
         regions = []
-        #wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
+        #wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for imgpath in self.imgpaths:
             regions.append(imgpath)
         try:
@@ -977,9 +981,9 @@ class ThreadDoTempMatch(threading.Thread):
         print "DONE with temp matching. Found: {0} matches".format(len(matches))
         self.queue.put(self.img1)
         self.queue.put(matches)
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick",
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick",
                      (self.job_id,))
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done",
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done",
                      (self.job_id,))
 
     def abort(self):

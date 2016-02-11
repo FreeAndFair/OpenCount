@@ -9,9 +9,14 @@ from Queue import Empty
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
-import cv, numpy as np, scipy, scipy.misc, Image
+import cv, numpy as np, scipy, scipy.misc
+from PIL import Image
 import make_overlays
 import cluster_imgs
 from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_GRAYSCALE
@@ -258,7 +263,7 @@ class ViewOverlays(ScrolledPanel):
                                  msg="Generating Min/Max Overlays...",
                                  thread=thread)
             gauge.Show()
-            wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_GENERATE_MINMAX_OVERLAYS))
+            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_GENERATE_MINMAX_OVERLAYS))
         else:
             self.set_minmax_imgs(group.overlay_min, group.overlay_max)
 
@@ -1965,7 +1970,7 @@ class ThreadGenerateOverlays(threading.Thread):
         overlay_min, overlay_max = self.group.get_overlays(bbs_map=self.bbs_map, imgCache=self.imgCache,
                                                            queue_mygauge=self.queue_mygauge)
         self.thread_listener.stop_running()
-        wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.done", (self.jobid,))
+        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
         wx.CallAfter(self.callback, overlay_min, overlay_max)
 class ThreadListen(threading.Thread):
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
@@ -1981,7 +1986,7 @@ class ThreadListen(threading.Thread):
         while self.do_i_keep_running():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(Publisher().sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
             except Empty:
                 pass
 

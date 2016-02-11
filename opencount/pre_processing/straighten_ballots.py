@@ -15,7 +15,11 @@ http://code.google.com/p/straightener/"""
 
 import util
 from os.path import join as pathjoin
-from wx.lib.pubsub import Publisher
+try:
+    from wx.lib.pubsub import pub
+except:
+    from wx.lib.pubsub import Publisher
+    pub = pub
 from specify_voting_targets import util_gui as util_gui
 
 # Global vars job_ids for the MyGauge instances
@@ -126,7 +130,7 @@ might be fine at this early stage, eventually other components will \
 depend on straightening being done, making it imperative that the \
 code be correctly imported."
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(Publisher().sendMessage,
+                wx.CallAfter(pub.sendMessage,
                              "signals.MyGauge.done",
                              (self.job_id,))
             return
@@ -139,16 +143,16 @@ already been straightened, so straightening will not be run. If this \
 isn't the case (i.e. if you terminated the previous straightening \
 in a previous session), then remove all images in {1}".format(self.imgsdir, self.outdir)
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(Publisher().sendMessage,
+                wx.CallAfter(pub.sendMessage,
                              "signals.MyGauge.nextjob",
                              (self.num_tasks, self.job_id))
-                wx.CallAfter(Publisher().sendMessage, 
+                wx.CallAfter(pub.sendMessage, 
                              "signals.MyGauge.done",
                              (self.job_id,))
             return
 
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage,
+            wx.CallAfter(pub.sendMessage,
                          "signals.MyGauge.nextjob",
                          (self.num_tasks, self.job_id))
         manager = multiprocessing.Manager()
@@ -165,12 +169,12 @@ in a previous session), then remove all images in {1}".format(self.imgsdir, self
                     print" == Fatal Error: I detected that a subprocess \
 died. You should probably exit."
                 if wx.App.IsMainLoopRunning():
-                    wx.CallAfter(Publisher().sendMessage, 
+                    wx.CallAfter(pub.sendMessage, 
                                  "signals.MyGauge.tick",
                                  (self.job_id,))
                 count += 1
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(Publisher().sendMessage,
+            wx.CallAfter(pub.sendMessage,
                          "signals.MyGauge.done",
                          (self.job_id,))
 
