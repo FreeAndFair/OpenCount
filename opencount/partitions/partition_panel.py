@@ -8,11 +8,6 @@ except:
 from os.path import join as pathjoin
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 
 sys.path.append('..')
 
@@ -75,11 +70,11 @@ class PartitionMainPanel(wx.Panel):
         # 0.) Record all pages outputted by the decoder, in order to
         # normalize the pages to start at 0.
         num_tasks = len(self.partitionpanel.imginfo) * 2
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
+        JOBID_EXPORT_RESULTS.next_job(num_tasks)
         pages_counter = util.Counter()
         for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
             pages_counter[imginfo['page']] += 1
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+            JOBID_EXPORT_RESULTS.tick()
         pages_norm_map = {} # maps {int decoderPage: int normPage}
         _prev_count = None
         flag_uneven_pages = False
@@ -92,7 +87,7 @@ class PartitionMainPanel(wx.Panel):
                 flag_uneven_pages = True
             _prev_count = pages_counter[decoderPage]
             pages_norm_map[decoderPage] = i
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+            JOBID_EXPORT_RESULTS.tick()
 
         #######################
         #### Sanity Checks ####
@@ -160,13 +155,15 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
         # Take care to detect these cases.
         ballots_unevenpages = []
         num_tasks = len(img2b)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
+        JOBID_EXPORT_RESULTS.next_job(num_tasks)
+
         for (partitionID, ballotIDs) in self.partitionpanel.partitioning.iteritems():
             if not ballotIDs:
                 continue
             atLeastOne = False
             for ballotID in ballotIDs:
-                if ballotID in self.partitionpanel.quarantined_bals or ballotID in self.partitionpanel.discarded_bals:
+                if (ballotID in self.partitionpanel.quarantined_bals or
+                    ballotID in self.partitionpanel.discarded_bals):
                     continue
                 imgpaths = b2imgs[ballotID]
                 pages_set = set()
@@ -177,7 +174,7 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     page_normed = pages_norm_map[decoderPage]
                     pages_set.add(page_normed)
                     _img2page[imgpath] = page_normed
-                    wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+                    JOBID_EXPORT_RESULTS.tick()
                 if not self.proj.is_varnum_pages and len(pages_set) != self.proj.num_pages:
                     # We have a ballot with a weird number of sides
                     ballots_unevenpages.append((ballotID, _img2page))
@@ -191,7 +188,7 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                 curPartID += 1
         # 2.) Grab NUM_EXMPLS number of exemplars from each partition
         num_tasks = len(partitions_map)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
+        JOBID_EXPORT_RESULTS.next_job(num_tasks)
         for partitionID, ballotIDs in partitions_map.iteritems():
             exmpls = set()
             for ballotID in ballotIDs:
@@ -199,7 +196,7 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     exmpls.add(ballotID)
             if exmpls:
                 partition_exmpls[partitionID] = sorted(list(exmpls))
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+            JOBID_EXPORT_RESULTS.tick()
 
         if not self.proj.is_varnum_pages and ballots_unevenpages:
             _msg = 'Page Counts:\n'
@@ -244,48 +241,48 @@ The page counts are:\n{2}\n\
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
         # Finally, also output the quarantined/discarded ballots
         num_tasks = 8
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_EXPORT_RESULTS))
+        JOBID_EXPORT_RESULTS.next_job(num_tasks)
 
-        pickle.dump(tuple(self.partitionpanel.quarantined_bals), 
+        pickle.dump(tuple(self.partitionpanel.quarantined_bals),
                     open(pathjoin(self.proj.projdir_path, self.proj.partition_quarantined), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(tuple(self.partitionpanel.discarded_bals),
                     open(pathjoin(self.proj.projdir_path, self.proj.partition_discarded), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(partitions_map, open(partitions_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(self.partitionpanel.img2decoding, open(img2decoding_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(self.partitionpanel.imginfo, open(imginfo_map_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(image_to_page, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_page), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(image_to_flip, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.image_to_flip), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.tick()
         pickle.dump(partition_exmpls, open(partition_exmpls_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
 
         dur_total = time.time() - t_total
         print "(Partition) Total Time to Export Results: {0:.8f}s".format(dur_total)
 
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (JOBID_EXPORT_RESULTS,))
+        JOBID_EXPORT_RESULTS.done()
         thread_listen._stop.set()
 
         if config.TIMER:
             config.TIMER.stop_task("Partition_ExportResults_CPU")
-        
+
         wx.CallAfter(self.partitionpanel.on_export_done)
 
 class PartitionPanel(ScrolledPanel):
@@ -494,7 +491,7 @@ unnecessary.", 100)
                 dur = time.time() - t
                 print "...Done Decoding Ballots ({0} s).".format(dur)
                 print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
+                self.jobid.done()
                 wx.CallAfter(self.callback, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
@@ -514,7 +511,7 @@ unnecessary.", 100)
                     try:
                         val = self.queue.get(block=True, timeout=1)
                         if val == True:
-                            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                            self.jobid.tick()
                     except Queue.Empty:
                         pass
 
@@ -534,7 +531,7 @@ unnecessary.", 100)
                      pathjoin(self.proj.projdir_path, self.proj.group_to_ballots),
                      pathjoin(self.proj.projdir_path, self.proj.ballot_to_group),
                      pathjoin(self.proj.projdir_path, 'groupsAlign_seltargs')):
-            try: 
+            try:
                 if os.path.isfile(path):
                     os.remove(path)
                 else:
@@ -561,14 +558,14 @@ unnecessary.", 100)
         gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
         gauge.Show()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numtasks, self.PARTITION_JOBID))
+        self.PARTITION_JOBID.next_job(numtasks)
 
         if config.TIMER:
             config.TIMER.start_task("Partition_Decode_CPU")
 
         tlisten.start()
         t.start()
-        
+
     def on_decodedone(self, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
         Input:
@@ -579,7 +576,7 @@ unnecessary.", 100)
             list ERR_IMGPATHS:
                 List of images that the decoder was unable to decode
                 with high certainty.
-            list IOERR_IMGPATHS: 
+            list IOERR_IMGPATHS:
                 List of images that were unable to be read by OpenCount
                 due to a read/load error (e.g. IOError).
         """
@@ -721,7 +718,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         manager = multiprocessing.Manager()
         queue_mygauge = manager.Queue()
 
-        thread_updateMyGauge = ThreadUpdateMyGauge(queue_mygauge, self.JOBID_EXTRACT_BARCODE_MARKS)
+        thread_updateMyGauge = ThreadUpdateMyGauge(queue_mygauge,
+                                                   self.JOBID_EXTRACT_BARCODE_MARKS)
         thread_updateMyGauge.start()
 
         thread_doextract = ThreadExtractBarcodePatches(verifypatch_bbs, flipmap, img2decoding,
@@ -739,7 +737,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         gauge.Show()
 
         num_tasks = len(flipmap)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, self.JOBID_EXTRACT_BARCODE_MARKS))
+        self.JOBID_EXTRACT_BARCODE_MARKS.next_job(num_tasks)
 
     def on_extract_done(self, img2patch, patch2stuff, verifypatch_bbs, flipmap, img2decoding):
         """ Invoked once all barcode value patches have been extracted.
@@ -750,7 +748,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             dict FLIPMAP: {imgpath: bool isFlipped}
             dict IMG2DECODING: {imgpath: (str decoding_0, ...)}
         """
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.JOBID_EXTRACT_BARCODE_MARKS,))
+        self.JOBID_EXTRACT_BARCODE_MARKS.done()
         if config.TIMER:
             config.TIMER.stop_task("Partition_ExtractBarcodePatches_CPU")
         cattag = 'BarcodeCategory'
@@ -922,7 +920,7 @@ Adding to separate partitions...".format(len(bad_ballotids))
                     try:
                         val = self.queue_mygauge.get(block=True, timeout=1)
                         if val == True:
-                            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                            self.jobid.tick()
                     except Queue.Empty:
                         pass
         manager = multiprocessing.Manager()
@@ -1308,7 +1306,7 @@ class ThreadUpdateMyGauge(threading.Thread):
         while self.i_am_running():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                self.jobid.tick()
             except Empty as e:
                 pass
         print "ThreadUpdateMyGauge is done."

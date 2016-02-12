@@ -100,7 +100,7 @@ class MyGauge(wx.Frame):
         panel.SetSizer(panel.sizer)
         panel.Fit()
         self.Fit()
-        
+
         pub.subscribe(self._pubsub_done, "signals.MyGauge.done")
         pub.subscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
         pub.subscribe(self._pubsub_tick, "signals.MyGauge.tick")
@@ -112,7 +112,7 @@ class MyGauge(wx.Frame):
 
     def my_id(self):
         return self.job_id
-        
+
     def is_event_relevant(self, msg):
         """
         Return True iff I should react to this event.
@@ -121,40 +121,38 @@ class MyGauge(wx.Frame):
         If I have a job_id:
             True iff msg has a job_id, and it matches self.my_id()
         """
-        data = msg.data
-        if isinstance(data, list) or isinstance(data, tuple):
-            last_item = data[-1]
+        if isinstance(msg, list) or isinstance(msg, tuple):
+            last_item = msg[-1]
             if isinstance(last_item, GaugeID):
                 return self.my_id() == last_item
             else:
                 return False if self.my_id() else True
         else:
             return False if self.my_id() else True
-    
+
     def _munge_msg(self, msg):
         """
         For backwards compatibility, remove the 'job_id' argument
         in msg.data, returning a stripped msg.data.
         Also, if after stripping job_id, the resulting data is a
         tuple with one element, this method returns just the
-        element. 
+        element.
         """
-        data = msg.data
-        if isinstance(data, list) or isinstance(data, tuple):
-            last_item = data[-1]
+        if isinstance(msg, list) or isinstance(msg, tuple):
+            last_item = msg[-1]
             if isinstance(last_item, GaugeID):
-                data = data[:-1]
-                if len(data) == 1:
-                    data = data[0]
-        return data
-                
+                msg = msg[:-1]
+                if len(msg) == 1:
+                    msg = msg[0]
+        return msg
+
     def _pubsub_done(self, msg):
         if not self.is_event_relevant(msg):
             return
-        pub.unsubscribe(self._pubsub_done)
-        pub.unsubscribe(self._pubsub_tick)
-        pub.unsubscribe(self._pubsub_nextjob)
-        if self.tofile != None: 
+        pub.unsubscribe(self._pubsub_done, "signals.MyGauge.done")
+        pub.unsubscribe(self._pubsub_tick, "signals.MyGauge.tick")
+        pub.unsubscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
+        if self.tofile != None:
             self.tofile.write("done " + str(time.time()) + "\n")
             self.tofile.close()
         if self.ondone:
@@ -187,8 +185,8 @@ class MyGauge(wx.Frame):
 
         self.updater.Restart()
         t = time.time()-self.startTime
-        
-        text = "On task %d of %d"%(self.ontask, self.numtasks)        
+
+        text = "On task %d of %d"%(self.ontask, self.numtasks)
         self.txt2.SetLabel(text)
         self.txt3.SetLabel("Elapsed Time: " + self.totime(t))
         if self.val == 0:
@@ -208,7 +206,7 @@ class MyGauge(wx.Frame):
         if fnc != None:
             self.val = fnc()
             self.gauge.SetValue(self.val)
-            if self.tofile != None: 
+            if self.tofile != None:
                 self.tofile.write("updatefun " + str(time.time()) + " " + str(self.val) + "\n")
 
     def _pubsub_nextjob(self, msg):
@@ -227,11 +225,12 @@ class MyGauge(wx.Frame):
     def _pubsub_tick(self, msg):
         if not self.is_event_relevant(msg):
             return
-        if self.tofile != None: self.tofile.write("tick " + str(time.time()) + "\n")
+        if self.tofile != None:
+            self.tofile.write("tick " + str(time.time()) + "\n")
         self.finishedon = time.time()
         self.val += 1
         self.gauge.SetValue(self.val)
-    
+
     def onbutton_abort(self, evt):
         if self.thethread:
             self.thethread.abort()
@@ -244,28 +243,41 @@ class MyGauge(wx.Frame):
 
 class GaugeID(object):
     """
-    A class to facilitate JOB_IDS for MyGauge.
+    A class to facilitate JOB_IDS for MyGauge. This also
+    provides abstractions for manipulating timers themselves.
     """
     def __init__(self, job_id):
         self.job_id = job_id
+
     def __eq__(self, other):
         try:
             return self.job_id == other.job_id
         except AttributeError as e:
             return False
+
     def __repr__(self):
         return 'GaugeID({0})'.format(self.job_id)
-    def __str__(self):
-        return 'GaugeID({0})'.format(self.job_id)
+
+    def next_job(self, num_tasks):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.nextjob",
+                     msg=(num_tasks, self))
+
+    def tick(self):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.tick",
+                     msg=(self,))
+
+    def done(self):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.done",
+                     msg=(self,))
 
 class MyTimer(object):
     def __init__(self, filepath):
         self.filepath = filepath
-        
         self.start_times = {} # {str task: int starttime}
-
         self.tasks_ordered = [] # [str task0, ..., str taskN]
-
         self.total_times = {} # {str task: int dur}
 
     def prelude(self, f):

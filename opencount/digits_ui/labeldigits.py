@@ -1,24 +1,33 @@
-import sys, os, pdb, time, traceback, argparse, threading, multiprocessing, math, Queue, random, hashlib
+import sys
+import os
+import time
+import traceback
+import argparse
+import threading
+import multiprocessing
+import math
+import Queue
+import random
 try: import cPickle as pickle
 except ImportError: import pickle
 from os.path import join as pathjoin
 
-import wx, numpy as np, cv, scipy.misc
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
+import wx
+import cv
+import scipy.misc
 
-sys.path.append('..')
 
-import pixel_reg.shared as shared, util, specify_voting_targets.util_gui as util_gui
+import pixel_reg.shared as shared
+import util
+import specify_voting_targets.util_gui as util_gui
 
 from asize import asizeof
 from panel_opencount import OpenCountPanel
 from grouping import verify_overlays_new, partask
 
 from smartscroll import SmartScrolledGridPanel, CREATE, IDLE, npgray2rgb
+
+sys.path.append('..')
 
 """
 TODO:
@@ -295,7 +304,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
         gauge = util.MyGauge(self, 1, msg="Running Template Matching...",
                              job_id=self.DIGIT_TEMPMATCH_ID)
         gauge.Show()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numtasks, self.DIGIT_TEMPMATCH_ID))
+        self.DIGIT_TEMPMATCH_ID.next_job(numtasks)
 
         print "(TempMatchGrid) Running template matching on {0} images for label: '{1}'".format(len(imgpaths_in), label)
         do_tempmatch_async(patch, imgpaths_in, lambda res: self.on_tempmatch_done(res, label, patch, t_listen, self.DIGIT_TEMPMATCH_ID), self.outdir,
@@ -323,7 +332,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
         if t_listen != None:
             t_listen.stop_running.set()
         if jobid != None:
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (jobid,))
+            jobid.done()
 
         imgpaths = []
         patch2match = {} # maps {str patchpath: (int cellid, float sc2, x1, y1, x2, y2)}
@@ -650,7 +659,7 @@ class ThreadUpdateGauge(threading.Thread):
         while not self.stop_running.is_set():
             try:
                 self.progress_queue.get(True, 2)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                self.jobid.tick()
             except Queue.Empty:
                 pass
 

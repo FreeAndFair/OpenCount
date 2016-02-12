@@ -5,11 +5,6 @@ import shared as sh
 import time, sys
 import distance_transform
 import wx
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 
 sys.path.append('..')
 
@@ -467,7 +462,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, flipmap=None, hspace=20,
                 print "...Uhoh, imP={0} failed in digit-grouping computation.".format(job_metadata[0])
                 print "       ErrMsg was:", job_metadata[1]
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_DIGITBASED,))
+                JOBID_GROUPING_DIGITBASED.tick()
     else:
         pool = mp.Pool(processes=nProc)
         #results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
@@ -482,7 +477,7 @@ def digitParse(digit_hash,imList,bbSearch,nDigits, flipmap=None, hspace=20,
                 print "...Uhoh, imP={0} failed in digit-grouping computation.".format(job_metadata[0])
                 print "       ErrMsg was:", job_metadata[1]
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (JOBID_GROUPING_DIGITBASED,))
+                JOBID_GROUPING_DIGITBASED.tick()
             i += 1
 
         pool.join()

@@ -23,9 +23,9 @@ import util, config
 
 try:
     from wx.lib.pubsub import pub
-    pub = Publisher()
 except:
     from wx.lib.pubsub import Publisher
+    pub = Publisher()
 
 class LabelContest(wx.Panel):
     def __init__(self, parent, size):
@@ -1132,7 +1132,7 @@ class LabelContest(wx.Panel):
         didsofar = min(didsofar, num)
         self.canMoveOn = didsofar == num
         if self.canMoveOn:
-            pub.sendMessage("broadcast.can_proceed")
+            pub
         
         self.remainingText.SetLabel("Completed %d of %d."%(didsofar, num) )
         num_blanks = len(self.dirList)

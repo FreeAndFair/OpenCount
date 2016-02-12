@@ -120,7 +120,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                                                        N=None)
                 dur = time.time() - t
                 print '...Finished globally-aligning a subset of each partition ({0:.4f} s)'.format(dur)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
+                self.jobid.done()
                 wx.CallAfter(self.callback, groups_align_map, self.ocrtmpdir)
                 self.tlisten.stop()
         class ListenThread(threading.Thread):
@@ -140,7 +140,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                     try:
                         val = self.queue.get(block=True, timeout=1)
                         if val == True:
-                            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                            self.jobid.tick()
                     except Queue.Empty:
                         pass
 
@@ -159,7 +159,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             gauge = util.MyGauge(self, 1, thread=workthread, msg="Running Global Alignment...",
                                  job_id=self.GLOBALALIGN_JOBID)
             gauge.Show()
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numtasks, self.GLOBALALIGN_JOBID))
+            self.GLOBALALIGN_JOBID.next_job(numtasks)
         else:
             # SelectTargets restores its self.partitions from stateP.
             seltargets_stateP = pathjoin(self.proj.projdir_path, '_state_selecttargets.p')
@@ -817,7 +817,7 @@ voting target on this ballot.")
                              msg="Finding Voting Targets...")
         gauge.Show()
         num_tasks = len(imgpaths)
-        pub.sendMessage("signals.MyGauge.nextjob", (num_tasks, JOBID_TEMPMATCH_TARGETS))
+        JOBID_TEMPMATCH_TARGETS.next_job(num_tasks)
 
     def on_tempmatch_done(self, results, w, h):
         """ Invoked after template matching computation is complete. 
@@ -1175,7 +1175,7 @@ before running the automatic contest detection routine.")
         class RunThread(threading.Thread):
             def __init__(self, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
-                
+
             def run(self):
                 self.tt = group_contests.find_contests(ocrtempdir, imgpaths_exs, targets)
                 wx.CallAfter(pub.sendMessage, "signals.MyGauge.done")
@@ -1197,12 +1197,12 @@ before running the automatic contest detection routine.")
         """
         self.target_roi = tuple([int(round(coord)) for coord in roi])
         return self.target_roi
-        
+
 class Toolbar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        
+
         self._setup_ui()
         self._setup_evts()
         self.Layout()
@@ -1627,7 +1627,7 @@ class ImagePanel(ScrolledPanel):
         self.imgbitmap = img_to_wxbitmap(self.img, (new_w, new_h))
         self.npimg = wxBitmap2np_v2(self.imgbitmap, is_rgb=True)
 
-        self.sizer.Detach(0)
+#        self.sizer.Detach(0)
         self.sizer.Add(self.imgbitmap.GetSize())
         self.SetupScrolling()
 
@@ -2134,7 +2134,7 @@ class BoxDrawPanel(ImagePanel):
         h, w = npimg_cpy.shape[:2]
         t = time.time()
         _image = wx.EmptyImage(w, h)
-        _image.SetData(npimg_cpy.tostring())
+        _image.SetData(npimg_cpy.tobytes())
         bitmap = _image.ConvertToBitmap()
         dur_img2bmp = time.time() - t
 
@@ -2186,7 +2186,7 @@ class BoxDrawPanel(ImagePanel):
 
             t = time.time()
             _image = wx.EmptyImage(_w, _h)
-            _image.SetData(np_rect.tostring())
+            _image.SetData(np_rect.tobytes())
             bitmap = _image.ConvertToBitmap()
             dur_img2bmp = time.time() - t
 
@@ -2564,7 +2564,7 @@ class TM_Thread(threading.Thread):
     def run(self):
         print "...running template matching..."
         t = time.time()
-        #patch_str = self.patch.tostring()
+        #patch_str = self.patch.tobytes()
         w, h = cv.GetSize(self.patch)
         # results: {str imgpath: [(x,y,score_i), ...]}
         #results = partask.do_partask(do_find_matches, self.imgpaths, 
@@ -3041,11 +3041,11 @@ def img_to_wxbitmap(img, size=None):
 def pil2iplimage(img):
     """ Converts a (grayscale) PIL img IMG to a CV IplImage. """
     img_cv = cv.CreateImageHeader(map(int, img.size), cv.IPL_DEPTH_8U, 1)
-    cv.SetData(img_cv, img.tostring())
+    cv.SetData(img_cv, img.tobytes())
     return img_cv
 def iplimage2pil(img):
     """ Converts a (grayscale) CV IplImage to a PIL image. """
-    return Image.fromstring("L", cv.GetSize(img), img.tostring())
+    return Image.fromstring("L", cv.GetSize(img), img.tobytes())
 
 def bestmatch(A, B):
     """ Tries to find the image A within the (larger) image B.

@@ -7,11 +7,6 @@ except ImportError as e:
 import wx, cv, scipy, Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 
 import numpy as np
 from os.path import join as pathjoin
@@ -981,10 +976,8 @@ class ThreadDoTempMatch(threading.Thread):
         print "DONE with temp matching. Found: {0} matches".format(len(matches))
         self.queue.put(self.img1)
         self.queue.put(matches)
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick",
-                     (self.job_id,))
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done",
-                     (self.job_id,))
+        self.job_id.tick()
+        self.job_id.done()
 
     def abort(self):
         print "Sorry, abort not implemented yet. :("

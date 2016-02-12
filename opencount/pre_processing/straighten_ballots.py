@@ -15,11 +15,6 @@ http://code.google.com/p/straightener/"""
 
 import util
 from os.path import join as pathjoin
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = pub
 from specify_voting_targets import util_gui as util_gui
 
 # Global vars job_ids for the MyGauge instances
@@ -130,9 +125,7 @@ might be fine at this early stage, eventually other components will \
 depend on straightening being done, making it imperative that the \
 code be correctly imported."
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(pub.sendMessage,
-                             "signals.MyGauge.done",
-                             (self.job_id,))
+                self.job_id.done()
             return
         elif is_there_image(self.outdir):
             # Current simple thing: if there's at least one image in the
@@ -143,18 +136,12 @@ already been straightened, so straightening will not be run. If this \
 isn't the case (i.e. if you terminated the previous straightening \
 in a previous session), then remove all images in {1}".format(self.imgsdir, self.outdir)
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(pub.sendMessage,
-                             "signals.MyGauge.nextjob",
-                             (self.num_tasks, self.job_id))
-                wx.CallAfter(pub.sendMessage, 
-                             "signals.MyGauge.done",
-                             (self.job_id,))
+                self.job_id.next_job(num_tasks)
+                self.job_id.done()
             return
 
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(pub.sendMessage,
-                         "signals.MyGauge.nextjob",
-                         (self.num_tasks, self.job_id))
+            self.job_id.next_job(self.num_tasks)
         manager = multiprocessing.Manager()
         queue = manager.Queue()
         start_straightening(self.imgsdir, self.outdir, self.num_tasks, queue, size=self.project.imgsize)
@@ -169,14 +156,10 @@ in a previous session), then remove all images in {1}".format(self.imgsdir, self
                     print" == Fatal Error: I detected that a subprocess \
 died. You should probably exit."
                 if wx.App.IsMainLoopRunning():
-                    wx.CallAfter(pub.sendMessage, 
-                                 "signals.MyGauge.tick",
-                                 (self.job_id,))
+                    self.job_id.tick()
                 count += 1
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(pub.sendMessage,
-                         "signals.MyGauge.done",
-                         (self.job_id,))
+            self.job_id.done()
 
 def is_there_image(dir):
     """

@@ -5,13 +5,7 @@ except:
     import pickle
 
 from os.path import join as pathjoin
-
 import wx
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 
 sys.path.append('..')
 
@@ -183,7 +177,7 @@ class RunGroupingMainPanel(wx.Panel):
                 else:
                     num_tasks += _num_ballots - _num_badballots
             print "Number of img-based grouping tasks:", num_tasks
-            pub.sendMessage("signals.MyGauge.nextjob", (num_tasks, doGrouping.JOBID_GROUPING_IMGBASED))
+            doGrouping.JOBID_GROUPING_IMGBASED.next_job(num_tasks)
             gauge.Show()
 
     def on_imggrouping_done(self, imggrouping_results):
@@ -203,7 +197,7 @@ class RunGroupingMainPanel(wx.Panel):
         self._dur_imggrp = time.time() - self._t_imggrp
         print "...Finished ImgBased-Grouping ({0:.4f}s)".format(self._dur_imggrp)
         self.extract_results = imggrouping_results
-        pub.sendMessage("signals.MyGauge.done", (doGrouping.JOBID_GROUPING_IMGBASED,))
+        doGrouping.JOBID_GROUPING_IMGBASED.done()
 
         self.run_digitbased_grouping()
 
@@ -249,7 +243,7 @@ class RunGroupingMainPanel(wx.Panel):
                 else:
                     num_tasks += _num_ballots - num_badballots
             print "Number of Digit-based grouping tasks:", num_tasks
-            pub.sendMessage("signals.MyGauge.nextjob", (num_tasks, part_match.JOBID_GROUPING_DIGITBASED))
+            part_match.JOBID_GROUPING_DIGITBASED.next_job(num_tasks)
 
     def on_digitgrouping_done(self, digitgrouping_results_tpl):
         """
@@ -267,7 +261,7 @@ class RunGroupingMainPanel(wx.Panel):
         self._dur_digitgrp = time.time() - self._t_digitgrp
         print "...Finished DigitGrouping ({0:.4f}s)".format(self._dur_digitgrp)
         self.digitgroup_results = digitgrouping_results
-        pub.sendMessage("signals.MyGauge.done", (part_match.JOBID_GROUPING_DIGITBASED,))
+        part_match.JOBID_GROUPING_DIGITBASED.done()
 
         self.on_grouping_done()
 

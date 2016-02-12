@@ -7,11 +7,6 @@ from Queue import Empty
 from os.path import join as pathjoin
 
 import wx, cv
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
@@ -325,7 +320,7 @@ Would you like to review the ballot annotations?",
             gauge = util.MyGauge(self, 1, thread=t, msg="Computing Multiple Exemplars...",
                                  job_id=JOBID_COMPUTE_MULT_EXEMPLARS)
             gauge.Show()
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_COMPUTE_MULT_EXEMPLARS))
+            JOBID_COMPUTE_MULT_EXEMPLARS.next_job(num_tasks)
         else:
             self.on_compute_mult_exemplars_done(None)
     def on_compute_mult_exemplars_done(self, multexemplars_map):
@@ -551,7 +546,7 @@ Would you like to review the ballot annotations?",
         gauge = util.MyGauge(self, 1, msg="Finding Attribute Matches...",
                              thread=thread, job_id=jobid)
         gauge.Show()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, jobid))
+        jobid.next_job(num_tasks)
 
     def on_findmatches_done(self, matches, patchpath2bal, attrbox):
         """ Invoked once the template-matching attribute matching is
@@ -1658,7 +1653,7 @@ class ThreadFindAttrMatches(threading.Thread):
                                                             self.exemplar_imgpath,
                                                             self.queue_mygauge, self.jobid)
         self.thread_listener.stop_listening()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
+        self.jobid.done()
         wx.CallAfter(self.callback, matches, patchpath2bal, attrbox)
 
 class ThreadComputeMultExemplars(threading.Thread):
@@ -1674,7 +1669,7 @@ class ThreadComputeMultExemplars(threading.Thread):
                                                    self.patch2bal, self.bal2patches, self.attrprops,
                                                    queue_mygauge=self.queue_mygauge)
         self.tlisten.stop_listening()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
+        self.jobid.done()
         wx.CallAfter(self.callback, multexemplars_map)
 
 class ThreadListener(threading.Thread):
@@ -1692,7 +1687,7 @@ class ThreadListener(threading.Thread):
         while self.i_am_listening():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                self.jobid.tick()
             except Empty:
                 pass
 

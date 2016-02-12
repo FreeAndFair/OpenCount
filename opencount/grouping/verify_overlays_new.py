@@ -9,11 +9,6 @@ from Queue import Empty
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 
 import cv, numpy as np, scipy, scipy.misc
 from PIL import Image
@@ -263,7 +258,7 @@ class ViewOverlays(ScrolledPanel):
                                  msg="Generating Min/Max Overlays...",
                                  thread=thread)
             gauge.Show()
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (num_tasks, JOBID_GENERATE_MINMAX_OVERLAYS))
+            JOBID_GENERATE_MINMAX_OVERLAYS.next_job(num_tasks)
         else:
             self.set_minmax_imgs(group.overlay_min, group.overlay_max)
 
@@ -1970,7 +1965,7 @@ class ThreadGenerateOverlays(threading.Thread):
         overlay_min, overlay_max = self.group.get_overlays(bbs_map=self.bbs_map, imgCache=self.imgCache,
                                                            queue_mygauge=self.queue_mygauge)
         self.thread_listener.stop_running()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (self.jobid,))
+        self.jobid.done()
         wx.CallAfter(self.callback, overlay_min, overlay_max)
 class ThreadListen(threading.Thread):
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
@@ -1986,7 +1981,7 @@ class ThreadListen(threading.Thread):
         while self.do_i_keep_running():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                self.jobid.tick()
             except Empty:
                 pass
 

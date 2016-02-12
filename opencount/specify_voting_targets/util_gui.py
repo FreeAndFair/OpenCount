@@ -282,7 +282,7 @@ def PilImageToWxImage( myPilImage, copyAlpha=True ) :
 def imageToPil( myWxImage , flatten=False):
     w, h = myWxImage.GetWidth(), myWxImage.GetHeight()
     myPilImage = Image.new( 'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()) )
-    myPilImage.fromstring( myWxImage.GetData() )
+    myPilImage.frombytes( myWxImage.GetData() )
     if flatten:
         myPilImage = myPilImage.convert("L")
     return myPilImage

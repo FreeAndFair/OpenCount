@@ -1,11 +1,6 @@
 import traceback, threading, multiprocessing, pdb, os
 import cv, numpy as np
 
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 from Queue import Empty
 import wx
 
@@ -98,7 +93,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
                                        int(w_A), int(h_A)))
                 cv.SaveImage(outpath, Iorig)
         if jobid and wx.App.IsMainLoopRunning():
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (jobid,))
+            jobid.tick()
         if queue_mygauge != None:
             queue_mygauge.put(True)
 
@@ -244,7 +239,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             # Note: I don't think this actually does anything, since this
             # is living in a separate process, which can't communicate
             # to the wx App instance living in the original host process
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (jobid,))
+            jobid.tick()
         if jobid and queue_mygauge != None and wx.App.IsMainLoopRunning():
             queue_mygauge.put(True)
     return results
@@ -311,11 +306,11 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
         traceback.print_exc()
         result = {}
     if jobid and wx.App.IsMainLoopRunning():
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.done", (jobid,))
+        jobid.done()
     if tick_thread:
         tick_thread.turn_me_off()
 
-    return result    
+    return result
 
 class ThreadTicker(threading.Thread):
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
@@ -332,7 +327,7 @@ class ThreadTicker(threading.Thread):
         while not self.i_am_listening.isSet():
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick", (self.jobid,))
+                self.jobid.tick()
             except Empty:
                 pass
         return True
