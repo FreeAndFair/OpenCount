@@ -11,11 +11,6 @@ sys.path.append('..')
 
 import wx, cv, numpy as np, scipy, scipy.misc
 import PIL.Image as Image
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
 from wx.lib.scrolledpanel import ScrolledPanel
 
 from panel_opencount import OpenCountPanel
@@ -1178,14 +1173,17 @@ before running the automatic contest detection routine.")
 
             def run(self):
                 self.tt = group_contests.find_contests(ocrtempdir, imgpaths_exs, targets)
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.done")
+                util.Gauges.infer_contests.done()
 
         tt = RunThread()
         tt.start()
 
-        gauge = util.MyGauge(self, 1, ondone=lambda: infercontest_finish(tt.tt))
+        gauge = util.MyGauge(self,
+                             1,
+                             ondone=lambda: infercontest_finish(tt.tt),
+                             job_id=util.Gauges.infer_contests)
         gauge.Show()
-        wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", len(imgpaths_exs))
+        util.Gauges.infer_contests.next_job(len(imgpaths_exs))
 
     def set_target_roi(self, roi):
         """ Updates/sets the target region-of-interest (ROI), which is the
@@ -2075,17 +2073,17 @@ class BoxDrawPanel(ImagePanel):
             x1 = max(x1, 0)
             y1 = max(y1, 0)
             # Top
-            npimg[y1:y1+T, x1:x2] *= 0.2
-            npimg[y1:y1+T, x1:x2] += clr*0.8
+            npimg[y1:y1+T, x1:x2] = npimg[y1:y1+T, x1:x2] * 0.2
+            npimg[y1:y1+T, x1:x2] = npimg[y1:y1+T, x1:x2] + clr*0.8
             # Bottom
-            npimg[max(0, (y2-T)):y2, x1:x2] *= 0.2
-            npimg[max(0, (y2-T)):y2, x1:x2] += clr*0.8
+            npimg[max(0, (y2-T)):y2, x1:x2] = npimg[max(0, (y2-T)):y2, x1:x2] * 0.2
+            npimg[max(0, (y2-T)):y2, x1:x2] = npimg[max(0, (y2-T)):y2, x1:x2] + clr*0.8
             # Left
-            npimg[y1:y2, x1:(x1+T)] *= 0.2
-            npimg[y1:y2, x1:(x1+T)] += clr*0.8
+            npimg[y1:y2, x1:(x1+T)] = npimg[y1:y2, x1:(x1+T)] * 0.2
+            npimg[y1:y2, x1:(x1+T)] = npimg[y1:y2, x1:(x1+T)] + clr*0.8
             # Right
-            npimg[y1:y2, max(0, (x2-T)):x2] *= 0.2
-            npimg[y1:y2, max(0, (x2-T)):x2] += clr*0.8
+            npimg[y1:y2, max(0, (x2-T)):x2] = npimg[y1:y2, max(0, (x2-T)):x2] * 0.2
+            npimg[y1:y2, max(0, (x2-T)):x2] = npimg[y1:y2, max(0, (x2-T)):x2] + clr*0.8
             return npimg
 
         # Handle legacy-ContestBoxes that don't have the .colour property
@@ -2107,8 +2105,8 @@ class BoxDrawPanel(ImagePanel):
                 _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
                 _x2, _y2 = self.img2c(contestbox.x2, contestbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
-                np_rect[:,:] *= 0.7
-                np_rect[:,:] += transparent_color*0.3
+                np_rect[:,:] = np_rect[:,:] * 0.7
+                np_rect[:,:] = np_rect[:,:] + transparent_color*0.3
                 dur_wxbmp2np = time.time() - t
             
             contestbox._dirty = False
@@ -2125,8 +2123,8 @@ class BoxDrawPanel(ImagePanel):
                 _x1, _y1 = self.img2c(targetbox.x1, targetbox.y1)
                 _x2, _y2 = self.img2c(targetbox.x2, targetbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
-                np_rect[:,:] *= 0.7
-                np_rect[:,:] += transparent_color*0.3
+                np_rect[:,:] = np_rect[:,:] * 0.7
+                np_rect[:,:] = np_rect[:,:] + transparent_color*0.3
                 dur_wxbmp2np = time.time() - t
             
             targetbox._dirty = False
@@ -2178,8 +2176,8 @@ class BoxDrawPanel(ImagePanel):
             # I don't think I need to do a .copy() here...
             #np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True).copy()
             np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True)
-            np_rect[:,:] *= 0.7
-            np_rect[:,:] += transparent_color*0.3
+            np_rect[:,:] = np_rect[:,:] * 0.7
+            np_rect[:,:] = np_rect[:,:] + transparent_color*0.3
             dur_wxbmp2np = time.time() - t
 
             _h, _w, channels = np_rect.shape

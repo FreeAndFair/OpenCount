@@ -202,7 +202,7 @@ def makeOneFile_(prefix, src, radix, dst):
             print 'loop', time.time()-now
             now = time.time()
             if wx.App.IsMainLoopRunning():
-                wx.CallAfter(pub.sendMessage, "signals.MyGauge.tick")
+                util.MyGauge.all_tick()
         #tout.write("X")
         #out.write("a"*(100*50))
         #open(os.path.join(prefix, each)).read()

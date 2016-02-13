@@ -196,7 +196,7 @@ class RunThread(threading.Thread):
         time_doandgetAvg = time.time()
 
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", total)
+            util.MyGauge.all_next_job(total)
         fulllst = sorted(avg_intensities, key=lambda x: x[1])  # sort by avg. intensity
 
         del avg_intensities ## Try to reclaim some memory
@@ -246,8 +246,8 @@ class RunThread(threading.Thread):
             config.TIMER.stop_task("TargetExtract_DoPostWork_CPU")
 
         if wx.App.IsMainLoopRunning():
-            wx.CallAfter(pub.sendMessage, "broadcast.rundone")
-            wx.CallAfter(pub.sendMessage, "signals.MyGauge.done")
+            wx.CallAfter(pub.sendMessage, "broadcast.rundone", msg=())
+            util.MyGauge.all_done()
         
         dur_post = time.time() - time_post
         print "...Finished post-target-extraction work ({0} s).".format(dur_post)

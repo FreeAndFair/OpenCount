@@ -248,7 +248,7 @@ def PilImageToWxBitmap( myPilImage ) :
 
 def PilImageToWxImage( myPilImage ):
     myWxImage = wx.EmptyImage( myPilImage.size[0], myPilImage.size[1] )
-    myWxImage.SetData( myPilImage.convert( 'RGB' ).tostring() )
+    myWxImage.SetData( myPilImage.convert( 'RGB' ).tobytes() )
     return myWxImage
 
 # Or, if you want to copy any alpha channel, too (available since wxPython 2.5)
@@ -263,16 +263,16 @@ def PilImageToWxImage( myPilImage, copyAlpha=True ) :
         myWxImage = wx.EmptyImage( *myPilImage.size )
         myPilImageCopyRGBA = myPilImage.copy()
         myPilImageCopyRGB = myPilImageCopyRGBA.convert( 'RGB' )    # RGBA --> RGB
-        myPilImageRgbData =myPilImageCopyRGB.tostring()
+        myPilImageRgbData =myPilImageCopyRGB.tobytes()
         myWxImage.SetData( myPilImageRgbData )
-        myWxImage.SetAlphaData( myPilImageCopyRGBA.tostring()[3::4] )  # Create layer and insert alpha values.
+        myWxImage.SetAlphaData( myPilImageCopyRGBA.tobytes()[3::4] )  # Create layer and insert alpha values.
 
     else :    # The resulting image will not have alpha.
 
         myWxImage = wx.EmptyImage( *myPilImage.size )
         myPilImageCopy = myPilImage.copy()
         myPilImageCopyRGB = myPilImageCopy.convert( 'RGB' )    # Discard any alpha from the PIL image.
-        myPilImageRgbData =myPilImageCopyRGB.tostring()
+        myPilImageRgbData =myPilImageCopyRGB.tobytes()
         myWxImage.SetData( myPilImageRgbData )
 
     return myWxImage

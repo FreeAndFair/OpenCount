@@ -1,9 +1,13 @@
-import os, sys, traceback, pdb, time, argparse, multiprocessing
+import os
+import sys
+import pdb
+import time
+import argparse
+import multiprocessing
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
-from os.path import join as pathjoin
 
 import cv
 
@@ -24,17 +28,24 @@ except NameError:
     # This script is being run directly
     MYDIR = os.path.abspath(sys.path[0])
 
-TOP_GUARD_IMGP = pathjoin(MYDIR, 'hart_topguard.png')
-BOT_GUARD_IMGP = pathjoin(MYDIR, 'hart_botguard.png')
+TOP_GUARD_IMGP = os.path.join(MYDIR, 'hart_topguard.png')
+BOT_GUARD_IMGP = os.path.join(MYDIR, 'hart_botguard.png')
 
-TOP_GUARD_SKINNY_IMGP = pathjoin(MYDIR, 'hart_topguard_skinny.png')
-BOT_GUARD_SKINNY_IMGP = pathjoin(MYDIR, 'hart_botguard_skinny.png')
+TOP_GUARD_SKINNY_IMGP = os.path.join(MYDIR, 'hart_topguard_skinny.png')
+BOT_GUARD_SKINNY_IMGP = os.path.join(MYDIR, 'hart_botguard_skinny.png')
 
 class HartVendor(Vendor):
     def __init__(self, proj):
         self.proj = proj
-    
-    def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, cache=None, *args, **kwargs):
+
+    def decode_ballots(self,
+                       ballots,
+                       manager=None,
+                       queue=None,
+                       skipVerify=True,
+                       cache=None,
+                       *args,
+                       **kwargs):
         """
         Input:
             dict BALLOTS: {int ballotid: (str imgpath_0, ...)}
@@ -227,7 +238,13 @@ def _do_decode_ballots(ballots, (topbot_paths, skipVerify, cache), queue=None):
             queue.put(True)
     return results
 
-def decode_ballots(ballots, topbot_paths, manager, queue, skipVerify=True, N=None, cache=None):
+def decode_ballots(ballots,
+                   topbot_paths,
+                   manager,
+                   queue,
+                   skipVerify=True,
+                   N=None,
+                   cache=None):
     t = time.time()
     decoded_results = partask.do_partask(_do_decode_ballots,
                                          ballots,
@@ -283,7 +300,7 @@ def main():
     else:
         balids = None
 
-    bal2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p')))
+    bal2imgs = pickle.load(open(os.path.join(projdir, 'ballot_to_images.p')))
     if not balids:
         balids = []
         if args.n != None:

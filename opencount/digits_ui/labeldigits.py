@@ -242,8 +242,6 @@ digit labels.".format(self.gridpanel.NUM_OBJECTS)
         return [(flag_ok, True, fail_msg, 0, None)]
 
 class TempMatchGrid(SmartScrolledGridPanel):
-    DIGIT_TEMPMATCH_ID = util.GaugeID("LabelDigitTempMatchID")
-
     def __init__(self, parent, *args, **kwargs):
         SmartScrolledGridPanel.__init__(self, parent, *args, **kwargs)
 
@@ -297,18 +295,18 @@ class TempMatchGrid(SmartScrolledGridPanel):
 
         m = multiprocessing.Manager()
         progress_queue = m.Queue()
-        t_listen = ThreadUpdateGauge(progress_queue, self.DIGIT_TEMPMATCH_ID)
+        t_listen = ThreadUpdateGauge(progress_queue, self.util.Gauges.label_digit_match)
         t_listen.start()
 
         numtasks = len(imgpaths_in)
         gauge = util.MyGauge(self, 1, msg="Running Template Matching...",
-                             job_id=self.DIGIT_TEMPMATCH_ID)
+                             job_id=self.util.Gauges.label_digit_match)
         gauge.Show()
-        self.DIGIT_TEMPMATCH_ID.next_job(numtasks)
+        self.util.Gauges.label_digit_match.next_job(numtasks)
 
         print "(TempMatchGrid) Running template matching on {0} images for label: '{1}'".format(len(imgpaths_in), label)
-        do_tempmatch_async(patch, imgpaths_in, lambda res: self.on_tempmatch_done(res, label, patch, t_listen, self.DIGIT_TEMPMATCH_ID), self.outdir,
-                           THRESHOLD=self.TM_THRESHOLD, NPROCS=self.NPROCS, jobid=self.DIGIT_TEMPMATCH_ID, progress_queue=progress_queue)
+        do_tempmatch_async(patch, imgpaths_in, lambda res: self.on_tempmatch_done(res, label, patch, t_listen, self.util.Gauges.label_digit_match), self.outdir,
+                           THRESHOLD=self.TM_THRESHOLD, NPROCS=self.NPROCS, jobid=self.util.Gauges.label_digit_match, progress_queue=progress_queue)
 
     def on_tempmatch_done(self, matches, label, exemplarimg, t_listen=None, jobid=None):
         """

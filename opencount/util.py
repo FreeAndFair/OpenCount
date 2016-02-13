@@ -1,42 +1,37 @@
-import time, math, datetime, re, pdb
-import wx
-try:
-    from wx.lib.pubsub import pub
-except:
-    from wx.lib.pubsub import Publisher
-    pub = Publisher()
+import contextlib
+import itertools
+import math
+import os
+import re
+import time
+import threading
+
+import cv
 import numpy as np
+import wx
+from wx.lib.pubsub import pub
 try:
     import Image
 except:
     from PIL import Image
-import cv2 as cv
+
 from specify_voting_targets import util_gui
-import os
-from os.path import join as pathjoin
-import hashlib
-from operator import itemgetter
-from heapq import nlargest
-from itertools import repeat, ifilter
-import sys
 
-try:
-    import psutil
-except ImportError:
-    pass
 
-class MyGauge(wx.Frame):
+
+
+class MyGauge(wx.Dialog):
     """
     A dialog that pops up to display a progress gauge when some
     long-running process is running.
     """
-    def __init__(self, parent, numtasks, funs=None, tofile=None, 
-                 msg="Please wait...", ondone=None, ispanel=None, 
-                 destroyondone=True, thread=None, size=(400, 300), 
+    def __init__(self, parent, numtasks, funs=None, tofile=None,
+                 msg="Please wait...", ondone=None, ispanel=None,
+                 destroyondone=True, thread=None, size=(400, 300),
                  job_id=None, *args, **kwargs):
         """
         obj parent: Parent widget
-        int numtasks: 
+        int numtasks:
         lst funs:
         obj tofile:
         str msg: Message displayed to user.
@@ -49,15 +44,15 @@ class MyGauge(wx.Frame):
                     multiple MyGauge instances to co-exist peacefully.
                     If no job_id is given, then this MyGauge instance
                     will react to /all/ PubSub events that don't have
-                    a job_id in the msg.data. This is an instance of 
+                    a job_id in the msg.data. This is an instance of
                     GaugeID.
-        """             
+        """
         self.job_id = job_id
+        if not self.job_id:
+            raise Exception("All Gauges now must have a Job ID.")
+
         self.destroyondone = destroyondone
-        if ispanel:
-            wx.Panel.__init__(self, parent, size=size, *args, **kwargs)
-        else:
-            wx.Frame.__init__(self, parent, size=size, *args, **kwargs)
+        wx.Dialog.__init__(self, parent, size=size, *args, **kwargs)
 
         self.thethread = thread
         self.ondone = ondone
@@ -73,15 +68,15 @@ class MyGauge(wx.Frame):
             self.tofile = None
 
         self.uid = time.time()
-        
+
         self.parent = parent
         panel = wx.Panel(self)
-        
-        self.val = 0        
+
+        self.val = 0
         self.numtasks = numtasks
         self.upto = 0
         self.ontask = 0
-        
+
         self.txt1 = wx.StaticText(panel, label=msg)
         self.txt2 = wx.StaticText(panel, label="")
         self.txt3 = wx.StaticText(panel, label="")
@@ -89,7 +84,7 @@ class MyGauge(wx.Frame):
         self.gauge = wx.Gauge(panel, size=(200, 25))
         self.btn_abort = wx.Button(panel, label="Abort")
         self.btn_abort.Bind(wx.EVT_BUTTON, self.onbutton_abort)
-        
+
         panel.sizer = wx.BoxSizer(wx.VERTICAL)
         panel.sizer.Add(self.txt1)
         panel.sizer.Add(self.txt2)
@@ -101,9 +96,10 @@ class MyGauge(wx.Frame):
         panel.Fit()
         self.Fit()
 
-        pub.subscribe(self._pubsub_done, "signals.MyGauge.done")
-        pub.subscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
-        pub.subscribe(self._pubsub_tick, "signals.MyGauge.tick")
+        signal = 'signals.MyGauge'
+        pub.subscribe(self._pubsub_done, signal + '.done')
+        pub.subscribe(self._pubsub_nextjob, signal + '.nextjob')
+        pub.subscribe(self._pubsub_tick, signal + '.tick')
 
         self.inittime = self.startTime = time.time()
         self.updater = wx.CallLater(1000, self.update)
@@ -239,15 +235,43 @@ class MyGauge(wx.Frame):
             t = time.time()-self.inittime
             self.txt3.SetLabel("Time taken: " + str(self.totime(t)))
             self.txt4.SetLabel("")
-        #self.Destroy()
+
+    def next_job(self, num_tasks):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.nextjob",
+                     msg=(num_tasks, self.job_id))
+
+    def tick(self):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.tick",
+                     msg=(self.job_id,))
+
+    def done(self):
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.done",
+                     msg=(self.job_id,))
+
+    @staticmethod
+    def all_next_job(num_tasks):
+        raise Exception('REPLACE ME')
+
+    @staticmethod
+    def all_tick():
+        raise Exception('REPLACE ME')
+
+    @staticmethod
+    def all_done():
+        raise Exception('REPLACE ME')
 
 class GaugeID(object):
+    new_id = 0
     """
     A class to facilitate JOB_IDS for MyGauge. This also
     provides abstractions for manipulating timers themselves.
     """
-    def __init__(self, job_id):
-        self.job_id = job_id
+    def __init__(self, job_id=None):
+        self.job_id = self.__class__.new_id
+        self.__class__.new_id += 1
 
     def __eq__(self, other):
         try:
@@ -273,6 +297,28 @@ class GaugeID(object):
                      "signals.MyGauge.done",
                      msg=(self,))
 
+class Gauges:
+    '''
+    An object for holding all the possible GaugeIds for
+    all the gauges used throughout the application.
+    '''
+    infer_contests              = GaugeID()
+    label_digit_match           = GaugeID()
+    digit_match                 = GaugeID()
+    partitioning_export_results = GaugeID()
+    partitioning                = GaugeID()
+    extract_barcode_marks       = GaugeID()
+    template_match_targets      = GaugeID()
+    global_align                = GaugeID()
+    blank_straighten_ballots    = GaugeID()
+    voted_straighten_ballots    = GaugeID()
+    grouping_imagebased         = GaugeID()
+    grouping_digitbased         = GaugeID()
+    find_attr_matches           = GaugeID()
+    compute_mult_exemplars      = GaugeID()
+    generate_mix_max_overlays   = GaugeID()
+    select_attrs                = GaugeID()
+
 class MyTimer(object):
     def __init__(self, filepath):
         self.filepath = filepath
@@ -285,6 +331,7 @@ class MyTimer(object):
         Include a separator indicating that we're starting to log
         to the logfile for this session.
         """
+        import datetime
         print >>f, "="*16
         print >>f, "Beginning new log session, on:"
         print >>f, datetime.datetime.now()
@@ -350,7 +397,7 @@ class WarningDialog(wx.Dialog):
         sizer.Add(sizer_btns, border=10, flag=wx.BOTTOM | wx.ALIGN_CENTER)
         self.SetSizer(sizer)
         self.Fit()
-        
+
     def onButton(self, evt):
         btn = evt.GetEventObject()
         self.EndModal(btn._mystatusval)
@@ -366,14 +413,14 @@ def contains_image(dir):
     """
     for dirpath, dirnames, filenames in os.walk(dir):
         for imgname in [f for f in filenames if is_image_ext(f)]:
-            imgpath = pathjoin(dirpath, imgname)
+            imgpath = os.path.join(dirpath, imgname)
             try:
                 Image.open(imgpath)
                 return True
             except:
                 pass
     return False
-            
+
 def contains_file(dir):
     """
     Returns True if the given directory contains at least one
@@ -399,7 +446,7 @@ def get_filename(filepath, NO_EXT=False):
     """
     filename = os.path.split(filepath)[1]
     return os.path.splitext(filename)[0] if NO_EXT else filename
-    
+
 def create_dirs(*dirs):
     """
     For each dir in dirs, create the directory if it doesn't yet
@@ -497,7 +544,7 @@ def np2wxImage(nparray):
     """ Converts a numpy array to a wxImage. Note that wxImages are
     always RGB (3-channeled) - if a single-channel (grayscale) nparray
     image is passed, then it will be silently-converted to a three-channel
-    image. 
+    image.
     """
     if len(nparray.shape) == 2:
         Inp = np.zeros((nparray.shape[0], nparray.shape[1], 3), dtype=nparray.dtype)
@@ -519,7 +566,7 @@ def np2wxBitmap(nparray):
     return wximg.ConvertToBitmap()
 
 def cvImg2np(Icv):
-    """ Converts from the OpenCV ImageIpl class to a numpy array. 
+    """ Converts from the OpenCV ImageIpl class to a numpy array.
     Assumes that Icv has datatype either IPL_DEPTH_32F or IPL_DEPTH_8U. """
     if Icv.depth == cv.IPL_DEPTH_32F:
         dtype = 'float32'
@@ -550,7 +597,7 @@ def np2cvImg(Inp):
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, *args, **kwargs):
-        wx.Frame.__init__(self, parent, size=(800, 800), 
+        wx.Frame.__init__(self, parent, size=(800, 800),
                           title='Image Manipulate', *args, **kwargs)
         self.img_manipulate = ImageManipulate(self, size=(500, 600))
         self.img_manipulate.set_image(Image.open('a_election/colored_test/20111129143441041_0001-a.jpg'),
@@ -597,7 +644,7 @@ class ImageManipulate(wx.Panel):
     A widget that both displays an image, and allows you to pan
     around the image by clicking and dragging. Also lets you
     zoom in and out.
-    
+
     Relevant Methods:
         set_image(img, scale=1.0, center=None)
             Sets the image to display.
@@ -616,14 +663,14 @@ class ImageManipulate(wx.Panel):
         zoomout(amt)
             I.e., zoomin(0.5), zoomout(0.3)
     """
-    
+
     STATE_IDLE = 0
     STATE_ZOOMIN = 1
     STATE_ZOOMOUT = 2
 
     def __init__(self, parent, size=(300, 300), *args, **kwargs):
         wx.Panel.__init__(self, parent, size=size, *args, **kwargs)
-        
+
         # Instance vars
         self.parent = parent
         self.img = None
@@ -684,7 +731,7 @@ class ImageManipulate(wx.Panel):
                       int(round(self.img.shape[0]/2.0)))
         self.center = center
         self.Refresh()
-        
+
     def set_size(self, size):
         """
         Set the size of the viewport.
@@ -731,7 +778,7 @@ class ImageManipulate(wx.Panel):
         x,y = self.center
         x -= xamt
         y -= yamt
-        def compute(): 
+        def compute():
             w, h = width/2/self.scale, height/2/self.scale
             return x-w, y-h, x+w, y+h
         ul_x, ul_y, dr_x, dr_y = compute()
@@ -748,7 +795,7 @@ class ImageManipulate(wx.Panel):
             y -= dr_y-self.img.shape[0]
             ul_x, ul_y, dr_x, dr_y = compute()
         self.set_center((x,y))
-        
+
     def _update_buffer(self):
         """
         Update self._buffer.
@@ -857,7 +904,7 @@ def focus_on_contest(imgman, contest_bbox):
     imgman.set_size((int(round(imgman.scale*w)),
                      new_h))
     imgman.parent.Layout()
-    
+
 """
 For compatibility with Python 2.6, including the Counter class in this
 file.
@@ -885,7 +932,7 @@ class Counter(dict):
         >>> c = Counter({'a': 4, 'b': 2})           # a new counter from a mapping
         >>> c = Counter(a=4, b=2)                   # a new counter from keyword args
 
-        '''        
+        '''
         self.update(iterable, **kwds)
 
     def __missing__(self, key):
@@ -898,10 +945,11 @@ class Counter(dict):
         >>> Counter('abracadabra').most_common(3)
         [('a', 5), ('r', 2), ('b', 2)]
 
-        '''        
+        '''
+        import heapq
         if n is None:
-            return sorted(self.iteritems(), key=itemgetter(1), reverse=True)
-        return nlargest(n, self.iteritems(), key=itemgetter(1))
+            return sorted(self.iteritems(), key=lambda l: l[1], reverse=True)
+        return heapq.nlargest(n, self.iteritems(), key=lambda l: l[1])
 
     def elements(self):
         '''Iterator over elements repeating each as many times as its count.
@@ -915,7 +963,7 @@ class Counter(dict):
 
         '''
         for elem, count in self.iteritems():
-            for _ in repeat(None, count):
+            for _ in itertools.repeat(None, count):
                 yield elem
 
     # Override dict methods where the meaning changes for Counter objects.
@@ -937,7 +985,7 @@ class Counter(dict):
         >>> c['h']                      # four 'h' in which, witch, and watch
         4
 
-        '''        
+        '''
         if iterable is not None:
             if hasattr(iterable, 'iteritems'):
                 if self:
@@ -1040,13 +1088,14 @@ class Counter(dict):
         result = Counter()
         if len(self) < len(other):
             self, other = other, self
-        for elem in ifilter(self.__contains__, other):
+        for elem in itertools.ifilter(self.__contains__, other):
             newcount = _min(self[elem], other[elem])
             if newcount > 0:
                 result[elem] = newcount
         return result
 
 def encodepath(p):
+    import hashlib
     return hashlib.sha224(p).hexdigest()
 
 def is_multipage(project):
@@ -1095,28 +1144,28 @@ def replace_exts(files, ext):
     """
     return [os.path.splitext(f)[0]+ext for f in files]
 
-def sort_nicely( l ): 
+def sort_nicely( l ):
   """ Sort the given list in the way that humans expect. Does an inplace sort.
   From:
       http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
-  """ 
-  convert = lambda text: int(text) if text.isdigit() else text 
-  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
-  l.sort( key=alphanum_key ) 
-    
-def sorted_nicely( l ): 
+  """
+  convert = lambda text: int(text) if text.isdigit() else text
+  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+  l.sort( key=alphanum_key )
+
+def sorted_nicely( l ):
   """ Sort the given list in the way that humans expect. Returns a new
   list.
   From:
       http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
-  """ 
-  convert = lambda text: int(text) if text.isdigit() else text 
-  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+  """
+  convert = lambda text: int(text) if text.isdigit() else text
+  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
   return sorted(l, key=alphanum_key)
 
 def pdb_on_crash(f):
     """
-    Decorator to run PDB on crashing  
+    Decorator to run PDB on crashing
     """
     def res(*args, **kwargs):
         try:
@@ -1134,10 +1183,36 @@ def get_memory_stats():
         (int available, int total)
     """
     try:
+        import psutil
         virtmem = psutil.virtual_memory()
         return virtmem.available, virtmem.total
-    except NameError:
+    except ImportError:
         raise Exception("Module psutil not detected.")
+
+def as_thread(func):
+    '''
+    This decorator allows us to wrap up a single lexically scoped
+    block of code as a thread. Eventually, this helper should ideally
+    be phased out by eliminating the need for threaded code in
+    general , but it makes a lot of code shorter right now.
+    '''
+    class WrappedFunction(threading.Thread):
+        def run(self):
+            return func()
+    WrappedFunction.__name__ = func.__name__
+    return WrappedFunction()
+
+@contextlib.contextmanager
+def time_operation(op):
+    '''
+    Time an operation, taking a timing measurement at the beginning
+    and at the end and printing them accordingly.
+    '''
+    t = time.time()
+    print 'starting: {0}'.format(op)
+    yield
+    dur = time.time() - t
+    print 'done {0} in {1}s'.format(op, dur)
 
 def main():
     app = wx.App(False)

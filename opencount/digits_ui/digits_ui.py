@@ -255,7 +255,6 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     # Per page
     NUM_COLS = 4
     NUM_ROWS = 3
-    DIGITTEMPMATCH_JOB_ID = util.GaugeID('DigitTempMatchID')
     # Temp image files that we currently use.
     PATCH_TMP = '_patch_tmp.png'
     REGION_TMP = '_region_tmp.png'
@@ -506,12 +505,10 @@ digit.")
         self.current_digit = digitval
 
         self.queue = Queue.Queue()
-        t = ThreadDoTempMatch(imgpatch, self.imgpaths, self.queue, self.DIGITTEMPMATCH_JOB_ID)
+        t = ThreadDoTempMatch(imgpatch, self.imgpaths, self.queue, self.util.Gauges.digit_match)
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
                              msg="Finding digit instances...",
-                             job_id=self.DIGITTEMPMATCH_JOB_ID)
-        t.start()
-        gauge.Show()
+                             job_id=self.util.Gauges.digit_match)
 
     def on_tempmatchdone(self):
         """Called when the template-matching thread is finished. 
@@ -959,7 +956,6 @@ class ThreadDoTempMatch(threading.Thread):
         h, w =  self.img1.shape
         bb = [0, h-1, 0, w-1]
         regions = []
-        #wx.CallAfter(pub.sendMessage, "signals.MyGauge.nextjob", (numticks, self.job_id))
         for imgpath in self.imgpaths:
             regions.append(imgpath)
         try:

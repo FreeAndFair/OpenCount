@@ -1,5 +1,13 @@
-import sys, os, threading, multiprocessing, Queue, time, textwrap, pdb, shutil
-from Queue import Empty
+import os
+import multiprocessing
+import Queue
+import pdb
+import shutil
+import sys
+import textwrap
+import time
+import threading
+
 try:
     import cPickle as pickle
 except:
@@ -15,8 +23,16 @@ import extract_patches
 import util, config, asize
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
+from ffwx import *
 
 JOBID_EXPORT_RESULTS = util.GaugeID("PartitioningExportResults")
+
+class Strings:
+    BARCODE_OVERLAY_HELP = \
+"Would you like to skip barcode overlay \
+verification? It tends to be computationally time-consuming, not \
+very helpful for certain vendors (e.g. Hart), and and typically is \
+unnecessary."
 
 class PartitionMainPanel(wx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
@@ -291,7 +307,7 @@ class PartitionPanel(ScrolledPanel):
 
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
-        
+
         self.voteddir = None
         # PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         self.partitioning = None
@@ -306,57 +322,69 @@ class PartitionPanel(ScrolledPanel):
         self.init_ui()
 
     def init_ui(self):
-        self.sizer_stats = wx.BoxSizer(wx.VERTICAL)
-
-        sizer_totalnum = wx.BoxSizer(wx.HORIZONTAL)
-        txt1 = wx.StaticText(self, label="Number of Partitions: ")
-        self.num_partitions_txt = wx.StaticText(self)
-        sizer_totalnum.AddMany([(txt1,), (self.num_partitions_txt,)])
-        
-        sizer_largest = wx.BoxSizer(wx.HORIZONTAL)
-        txt2 = wx.StaticText(self, label="Largest Partition Size: ")
-        self.txt_part_largest = wx.StaticText(self)
-        sizer_largest.AddMany([(txt2,), (self.txt_part_largest,)])
-
-        sizer_smallest = wx.BoxSizer(wx.HORIZONTAL)
-        txt3 = wx.StaticText(self, label="Smallest Partition Size: ")
-        self.txt_part_smallest = wx.StaticText(self)
-        sizer_smallest.AddMany([(txt3,), (self.txt_part_smallest,)])
-
-        self.sizer_stats.AddMany([(sizer_totalnum,), (sizer_largest,), (sizer_smallest,)])
+        # statistics panel:
+        self.num_partitions = FFStatLabel(self, 'Number of Partitions')
+        self.part_largest = FFStatLabel(self, 'Largest Partition Size')
+        self.part_smallest = FFStatLabel(self, 'Smallest Partition Size')
+        self.sizer_stats = ff_vbox(
+            self.num_partitions,
+            self.part_largest,
+            self.part_smallest,
+        )
         self.sizer_stats.ShowItems(False)
 
-        self.btn_run = wx.Button(self, label="Run Partitioning...")
-        self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_run)
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(self.btn_run,)])
+        # run button:
+        self.btn_run = FFButton(
+            self,
+            label='Run Partitioning',
+            on_click=self.onButton_run
+        )
+        btn_sizer = ff_hbox(self.btn_run)
 
-        msg = textwrap.fill("Would you like to skip barcode overlay \
-verification? It tends to be computationally time-consuming, not \
-very helpful for certain vendors (e.g. Hart), and and typically is \
-unnecessary.", 100)
-        txt_skipHelp = wx.StaticText(self, label=msg)
-        self.chkbox_skip_verify = wx.CheckBox(self, label="Skip Overlay Verification (Recommended)")
-        self.chkbox_skip_verify.SetValue(True)
-        
-        sizer_skipVerify = wx.BoxSizer(wx.VERTICAL)
-        sizer_skipVerify.AddMany([(txt_skipHelp,), (self.chkbox_skip_verify,)])
+        # 'skip verification' checkbox:
+        txt_skiphelp = ff_static_wrap(
+            self,
+            Strings.BARCODE_OVERLAY_HELP,
+            100
+        )
+        self.chkbox_skip_verify = FFCheckBox(
+            self,
+            label='Skip Overlay Verification (Recommended)',
+            default=True)
+        sizer_skipVerify = ff_vbox(
+            txt_skiphelp,
+            self.chkbox_skip_verify,
+        )
 
-        sizer_devButtons = wx.BoxSizer(wx.HORIZONTAL)
-        
-        btn_loadPartialDecoding = wx.Button(self, label="(Dev) Apply previous decoding results, decode remaining images. [only valid with Skip Overlay Verify]")
-        btn_loadPartialDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadPartialDecoding)
-        btn_loadDecoding = wx.Button(self, label="(Dev) Load complete previous decoding results.")
-        btn_loadDecoding.Bind(wx.EVT_BUTTON, self.onButton_loadDecoding)
+        # dev button options
+        btn_loadPartialDecoding = FFButton(
+            self,
+            label="(Dev) Apply previous decoding results, decode remaining images. [only valid with Skip Overlay Verify]",
+            on_click=self.onButton_loadPartialDecoding,
+        )
+        btn_loadDecoding = FFButton(
+            self,
+            label="(Dev) Load complete previous decoding results.",
+            on_click=self.onButton_loadDecoding,
+        )
 
         if not config.IS_DEV:
             btn_loadPartialDecoding.Hide()
             btn_loadDecoding.Hide()
-        sizer_devButtons.AddMany([(btn_loadPartialDecoding,), ((10,0),), (btn_loadDecoding)])
+        sizer_devbuttons = ff_hbox(
+            btn_loadPartialDecoding,
+            (10,0),
+            btn_loadDecoding,
+        )
 
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.AddMany([(btn_sizer,), ((50, 50),), (sizer_skipVerify,), ((50,50),), (self.sizer_stats,)])
-        self.sizer.Add(sizer_devButtons)
+        self.sizer = ff_vbox(
+            btn_sizer,
+            (50, 50),
+            sizer_skipVerify,
+            (50,50),
+            self.sizer_stats,
+            sizer_devbuttons
+        )
         self.SetSizer(self.sizer)
         self.Layout()
         self.SetupScrolling()
@@ -552,10 +580,24 @@ unnecessary.", 100)
         manager = multiprocessing.Manager()
         progress_queue = manager.Queue()
         tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
-        t = PartitionThread(b2imgs, vendor_obj, self.on_decodedone,
-                            self.PARTITION_JOBID, manager, progress_queue, tlisten, skipVerify)
+
+        @util.as_thread
+        def partition_thread():
+            with util.time_operation('decoding {0} ballots'.format(len(b2imgs))):
+                results = vendor_obj.decode_ballots(b2imgs,
+                                                    manager=manager,
+                                                    queue=progress_queue,
+                                                    skipVerify=skipVerify,
+                                                    cache=cache)
+            self.PARTITION_JOBID.done()
+            wx.CallAfter(self.on_decodedone, *results)
+            tlisten.stop()
+
         numtasks = len(b2imgs)
-        gauge = util.MyGauge(self, 1, thread=t, msg="Running Partitioning...",
+        gauge = util.MyGauge(self,
+                             1,
+                             thread=partition_thread,
+                             msg="Running Partitioning...",
                              job_id=self.PARTITION_JOBID)
         gauge.Show()
         self.PARTITION_JOBID.next_job(numtasks)
@@ -564,7 +606,7 @@ unnecessary.", 100)
             config.TIMER.start_task("Partition_Decode_CPU")
 
         tlisten.start()
-        t.start()
+        partition_thread.start()
 
     def on_decodedone(self, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
@@ -951,11 +993,11 @@ You may move onto the next step.").ShowModal()
             n = len(ballotids)
             largest = (max(largest, n) if largest != None else n)
             smallest = (min(smallest, n) if smallest != None else n)
-    
+
         num_partitions = len(self.partitioning)
-        self.num_partitions_txt.SetLabel(str(num_partitions))
-        self.txt_part_largest.SetLabel(str(largest))
-        self.txt_part_smallest.SetLabel(str(smallest))
+        self.num_partitions.set_value(num_partitions)
+        self.part_largest.set_value(largest)
+        self.part_smallest.set_value(smallest)
         self.sizer_stats.ShowItems(True)
 
         self.Layout()
@@ -1272,7 +1314,7 @@ class ThreadExtractBarcodePatches(threading.Thread):
         self.queue_mygauge = queue_mygauge
         self.thread_updateMyGauge = thread_updateMyGauge
         self.callback = callback
-        
+
     def run(self):
         print "==== ThreadExtractBarcodePatches: Starting extract_barcode_patches()"
         t = time.time()
@@ -1284,7 +1326,7 @@ class ThreadExtractBarcodePatches(threading.Thread):
         print "==== ThreadExtractBarcodePatches: Finished extracted_barcode_patches ({0:.4f}s)".format(dur)
         self.thread_updateMyGauge.stop_running()
         wx.CallAfter(self.callback, img2patch, patch2stuff, self.verifypatch_bbs, self.flipmap, self.img2decoding)
-        
+
 class ThreadUpdateMyGauge(threading.Thread):
     """ A Thread that listens on self.queue_mygauge, and throws out
     'tick' messages to a MyGauge instance, based on self.jobid.
@@ -1307,7 +1349,7 @@ class ThreadUpdateMyGauge(threading.Thread):
             try:
                 val = self.queue_mygauge.get(block=True, timeout=1)
                 self.jobid.tick()
-            except Empty as e:
+            except Queue.Empty as e:
                 pass
         print "ThreadUpdateMyGauge is done."
 

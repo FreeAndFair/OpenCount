@@ -917,19 +917,19 @@ class LabelContest(wx.Panel):
             if c == self.count:
                 pass
             elif self.text[self.currentcontests[c]] != []:
-                img[u:d, l:r] *= .5
-                img[u:d, l:r] += np.array([0, 200, 0])*.5#dr.rectangle(box, fill=(0,200,0))
+                img[u:d, l:r] = img[u:d, l:r] * .5
+                img[u:d, l:r] = img[u:d, l:r] + np.array([0, 200, 0])*.5#dr.rectangle(box, fill=(0,200,0))
             else:
-                img[u:d, l:r] *= .5
-                img[u:d, l:r] += np.array([200, 0, 0])*.5#dr.rectangle(box, fill=(200,0,0))
+                img[u:d, l:r] = img[u:d, l:r] * .5
+                img[u:d, l:r] = img[u:d, l:r] + np.array([200, 0, 0])*.5#dr.rectangle(box, fill=(200,0,0))
 
             c += 1
         # Redraw the yellow on the current so it goes on top of everything else
         l,u,r,d = fix(self.boxes[self.templatenum][self.count])
         #dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
         img[u:d, l:r] = self.imgo_resize[u:d, l:r]
-        img[u:d, l:r] *= .5
-        img[u:d, l:r] += np.array([200, 200, 0])*.5
+        img[u:d, l:r] = img[u:d, l:r] * .5
+        img[u:d, l:r] = img[u:d, l:r] + np.array([200, 200, 0])*.5
 
         bothcontests = self.continued_contest(self.currentcontests[self.count])
         if len(bothcontests) > 1:
@@ -937,8 +937,8 @@ class LabelContest(wx.Panel):
             l,u,r,d = fix(self.boxes[nextbox[0]][self.contest_order[nextbox[0]].index(nextbox[1])])
             #dr.rectangle(, fill=(0,0,200))
             img[u:d, l:r] = self.imgo_resize[u:d, l:r]
-            img[u:d, l:r] *= .5
-            img[u:d, l:r] += np.array([0, 0, 200])*.5
+            img[u:d, l:r] = img[u:d, l:r] * .5
+            img[u:d, l:r] = img[u:d, l:r] + np.array([0, 0, 200])*.5
 
         #new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
             
@@ -1217,14 +1217,14 @@ class LabelContest(wx.Panel):
                 #print box
                 #dr.rectangle(box, fill=(0,250,0))
                 # TODO to get performance, only draw the contest bounding box once
-                mine[u:d, l:r] *= .85
-                mine[u:d, l:r] += np.array([250, 250, 0])*.15
+                mine[u:d, l:r] = mine[u:d, l:r] * .85
+                mine[u:d, l:r] = mine[u:d, l:r] + np.array([250, 250, 0])*.15
                 if where != None:
                     # Extract the coords, ignore the IDs
                     l,u,r,d = where[2:]
-                    mine[u:d, l:r] -= np.array([250, 250, 0])*.15
-                    mine[u:d, l:r] *= .85
-                    mine[u:d, l:r] += np.array([0, 0, 250])*.15
+                    mine[u:d, l:r] = mine[u:d, l:r] - np.array([250, 250, 0])*.15
+                    mine[u:d, l:r] = mine[u:d, l:r] * .85
+                    mine[u:d, l:r] = mine[u:d, l:r] + np.array([0, 0, 250])*.15
                     #print todraw
                 return mine#Image.blend(mine, img, .85)
             self.changeFocusImage(applyfn=doDraw)

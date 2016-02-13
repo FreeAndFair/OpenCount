@@ -1989,7 +1989,7 @@ def PilImageToWxBitmap( myPilImage ) :
     return WxImageToWxBitmap( PilImageToWxImage( myPilImage ) )
 def PilImageToWxImage( myPilImage ):
     myWxImage = wx.EmptyImage( myPilImage.size[0], myPilImage.size[1] )
-    myWxImage.SetData( myPilImage.convert( 'RGB' ).tostring() )
+    myWxImage.SetData( myPilImage.convert( 'RGB' ).tobytes() )
     return myWxImage
 def WxImageToWxBitmap( myWxImage ) :
     return myWxImage.ConvertToBitmap()
@@ -2003,7 +2003,7 @@ def NumpyToWxBitmap(img):
 def iplimage2np(iplimage):
     """ Assumes IPLIMAGE has depth cv.CV_8U. """
     w, h = cv.GetSize(iplimage)
-    img_np = np.fromstring(iplimage.tostring(), dtype='uint8')
+    img_np = np.fromstring(iplimage.tobytes(), dtype='uint8')
     img_np = img_np.reshape(h, w)
     
     return img_np
