@@ -73,15 +73,13 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
                 _i = random.choice(_len)
             initial_idxs.append(_i)
         initial = data[initial_idxs]
-    if VERBOSE:
-        print "...initial means:", initial
+    debug("initial means: {0}", initial)
     means = initial
     assigns = np.zeros(data.shape[0])
     done = False
     iters = 0
     while not done:
-        if VERBOSE:
-            print "...kmeans iteration", iters
+        debug("kmeans iteration", iters)
         # 1.) Assignment of data to current means
         prev_assigns = assigns.copy()
         assigns = assignment(data, assigns, means, distfn)
@@ -122,7 +120,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                     traceback.print_exc()
                     pdb.set_trace()
                 if dist == np.nan:
-                    print "Uhoh, nan dist."
+                    error("Uhoh, nan dist.")
                     pdb.set_trace()
                 if bestidx == None or dist < mindist:
                     if dist == mindist:
@@ -140,12 +138,12 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
             cluster_i = data[np.where(assigns == i)]
             if len(cluster_i) == 0:
                 # Empty cluster - reinitialize with a random datapoint
-                print "...Empty cluster for mean {0}, reinitializing.".format(i)
+                warn("Empty cluster for mean {0}, reinitializing.", i)
                 means[i] = random.choice(data)
                 continue
             mean_i = mean_nan(cluster_i)
             if len(mean_i[~np.isnan(mean_i)]) == 0:
-                print "Uhoh, only NaN's here."
+                error("Uhoh, only NaN's here.")
                 pdb.set_trace()
             means[i] = mean_i
         return means
@@ -166,17 +164,15 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         means = initial
     # TODO: Why infinite loop?
     #initial_idxs = [np.array([16]), np.array([23])]
-    if VERBOSE:
-        print "...initial means:", means
+    debug("...initial means: {0}", means)
     assigns = np.zeros(data.shape[0])
     done = False
     iters = 0
     prevprev_assigns = None
     while not done:
-        if VERBOSE:
-            print "...kmeans iteration", iters
+        debug("kmeans iteration {0}", iters)
         if iters >= MAX_ITERS:
-            print "...Exceeded MAX_ITERS:", MAX_ITERS
+            debug("Exceeded MAX_ITERS: {0}", MAX_ITERS)
             done = True
         # 1.) Assignment of data to current means
         prev_assigns = assigns.copy()
@@ -185,7 +181,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
         elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
-            print "...len-2 Cycle detected, restarting..."
+            warn("len-2 Cycle detected, restarting")
             means = update_means(data, assigns, means)
             iters += 1
             #means = data[init_means(data)]
@@ -199,7 +195,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
     if np.all(assigns == assigns[0]):
         # Currently, this happens if all elements in DATA are 'too close',
         # i.e. distfn always outputs 0.0.
-        print "Degenerate clustering detected - splitting evenly."
+        debug("Degenerate clustering detected - splitting evenly.")
         _chunk = int(len(assigns) / K)
         out = np.zeros(data.shape[0])
         for i in xrange(K-1):
@@ -260,18 +256,18 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                     if elem_idx1 == elem_idx2: continue
                     cost += distmat[elem_idx1, elem_idx2]
                 if mincost == None or cost < mincost:
-                    print "...swapped mediod: cost {0} -> {1}".format(mincost, cost)
+                    debug("swapped mediod: cost {0} -> {1}", mincost, cost)
                     mincost = cost; minidx = elem_idx1
             # 2.) Update the mediod of M.
             if minidx == None:
-                print "Uhoh, problem."
+                error("Uhoh, problem.")
                 pdb.set_trace()
             mediods[i] = minidx
         return mediods
     distfn = _get_distfn(distfn_method)
-    print "...computing distance matrix"
+    debug("computing distance matrix")
     distmat = compute_distmat(data, distfn)
-    print "...Finished computing distance matrix."
+    debug("Finished computing distance matrix.")
 
     if initial == None:
         initial_idxs = []
@@ -282,10 +278,9 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                 _i = random.choice(_len)
             initial_idxs.append(_i)
     if len(set(initial_idxs)) != K:
-        print "Invalid setting of initial mediods."
+        error("Invalid setting of initial mediods.")
         pdb.set_trace()
-    if VERBOSE:
-        print "...initial idxs:", initial_idxs
+    debug("...initial idxs:", initial_idxs)
     mediods = initial_idxs
     assigns = np.zeros(data.shape[0])
 
@@ -293,10 +288,9 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
     iters = 0
     prevprev_assigns = None
     while not done:
-        if VERBOSE:
-            print "...kmediods iteration", iters
+        debug("...kmediods iteration {0}", iters)
         if iters >= MAX_ITERS:
-            print "...Exceeded MAX_ITERS:", MAX_ITERS
+            debug("Exceeded MAX_ITERS:", MAX_ITERS)
             done = True
         # 1.) Assignment of data to current mediods
         prev_assigns = assigns.copy()
@@ -305,7 +299,7 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
         elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
-            print "...len-2 Cycle detected, aborting."
+            debug("len-2 Cycle detected, aborting.")
             done = True
         else:
             # 3.) Re-compute clusters from new clusters
@@ -489,14 +483,14 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
     elif clusterdist_method == 'complete':
         clusterdist = complete_linkage
     else:
-        print "Unrecognized clusterdist method: {0}. Using 'single'.".format(clusterdist_method)
+        warn("Unrecognized clusterdist method: {0}. Using 'single'.",
+             clusterdist_method)
         clusterdist = single_linkage
     clusters = [HAG_Leaf(rowidx) for rowidx in xrange(data.shape[0])]
     curiter = 0
     memo = {}    # maps {(i, j) : float dist between data[i,j]}
     while len(clusters) != 1:
-        if VERBOSE:
-            print "...HAG Cluster iteration: {0}".format(curiter)
+        debug("HAG Cluster iteration: {0}", curiter)
         # 0.) Compute pair-wise distances between all clusters
         c1_min, c2_min, mindist = None, None, None
         for i, c1 in enumerate(clusters):
@@ -509,8 +503,7 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
                     c2_min = c2
                     mindist = dist
         # 1.) Merge two-closest clusters.
-        if VERBOSE:
-            print "...Merging clusters {0}, {1}. Dist: {2}".format(c1_min, c2_min, mindist)
+        debug("...Merging clusters {0}, {1}. Dist: {2}", c1_min, c2_min, mindist)
         parent = HAG_Node((c1_min, c2_min), dist=mindist)
         c1_min.parent = parent
         c2_min.parent = parent
@@ -647,7 +640,7 @@ def test_kmeans():
                       [48, 45]])
     data1 = np.random.random((400, 2))
     assigns = kmeans(data1)
-    print "assigns is:", assigns
+    debug("assigns is: {0}", assigns)
     cluster1 = data1[np.where(assigns == 0)]
     cluster2 = data1[np.where(assigns == 1)]
     plt.plot(cluster1[:, 0], cluster1[:, 1], 'ro')

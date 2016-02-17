@@ -9,6 +9,7 @@ from Queue import Empty
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
+from ffwx import *
 
 import cv, numpy as np, scipy, scipy.misc
 from PIL import Image
@@ -18,6 +19,7 @@ from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_G
 
 sys.path.append('..')
 import util
+from util import debug, warn, error
 
 # Max. allowable size of each group. If None, then no upper-limit.
 GLOB_MAX_GROUP_SIZE = 75000
@@ -128,8 +130,9 @@ class ViewOverlays(ScrolledPanel):
         self.listbox_groups = wx.ListBox(self, size=(200, 300))
         self.listbox_groups.Hide()
         self.listbox_groups.Bind(wx.EVT_LISTBOX, self.onListBox_groups)
-        self.btn_showhidelistbox = wx.Button(self, label="Show List")
-        self.btn_showhidelistbox.Bind(wx.EVT_BUTTON, self.onButton_showhidelistbox)
+        self.btn_showhidelistbox = FFButton(
+            self, label="Show List", on_click=self.onButton_showhidelistbox
+        )
         sizer_grplabel = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_grplabel = sizer_grplabel
         # Align self.cbox_grplabel, self.txtctrl_num_elements as a column
@@ -387,7 +390,7 @@ class ViewOverlays(ScrolledPanel):
         next group (if any) and displays it to the user.
         """
         if group not in self.groups:
-            print "(VerifyOverlays) Warning: Trying to remove group not in self.groups:", group
+            warn("Trying to remove group not in self.groups: {0}", group)
             return
         idx = self.groups.index(group)
         self.groups.pop(idx)
@@ -440,7 +443,7 @@ class ViewOverlays(ScrolledPanel):
 
     def restore_session(self):
         try:
-            print 'trying to load:', self.stateP
+            debug('trying to load: {0}', self.stateP)
             state = pickle.load(open(self.stateP, 'rb'))
             groups = state['groups']
             self.groups = []
@@ -515,32 +518,32 @@ class SplitOverlaysPanel(ViewOverlaysPanel):
 class SplitOverlaysFooter(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-
         self.init_ui()
+
     def init_ui(self):
-        btn_split = wx.Button(self, label="Split and continue")
-        self.btn_split = btn_split
-        btn_split.Bind(wx.EVT_BUTTON, self.onButton_split)
-        btn_setsplitmode = wx.Button(self, label="Set Split Mode...")
+        self.btn_split = FFButton(
+            self, label="Split and continue", on_click=self.onButton_split
+        )
+        btn_setsplitmode = FFButton(
+            self,
+            label="Set Split Mode...",
+            on_click=self.onButton_setsplitmode,
+        )
         btn_setsplitmode.Hide() # Not necessary for the user to fuss with
-        btn_setsplitmode.Bind(wx.EVT_BUTTON, self.onButton_setsplitmode)
-        sizer_split = wx.BoxSizer(wx.VERTICAL)
-        sizer_split.AddMany([(btn_split,0,wx.ALIGN_CENTER), (btn_setsplitmode,0,wx.ALIGN_CENTER)])
+        sizer_split = ff_vbox(self.btn_split, btn_setsplitmode)
 
-        btn_larger = wx.Button(self, label="Show Larger")
-        btn_larger.Bind(wx.EVT_BUTTON, self.onButton_showlarger)
-        btn_smaller = wx.Button(self, label="Show Smaller")
-        btn_smaller.Bind(wx.EVT_BUTTON, self.onButton_showsmaller)
-        sizer_scaling = wx.BoxSizer(wx.VERTICAL)
-        sizer_scaling.AddMany([(btn_larger,0,wx.ALIGN_CENTER), ((10,10),),(btn_smaller,0,wx.ALIGN_CENTER)])
+        btn_larger = FFButton (
+            self, label="Show Larger", on_click=self.onButton_showlarger
+        )
+        btn_smaller = FFButton(
+            self, label="Show Smaller", on_click=self.onButton_showsmaller
+        )
+        sizer_scaling = ff_vbox(btn_larger, (10,10), btn_smaller)
 
-        self.btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.btn_sizer.AddMany([(sizer_split,), ((35, 0),), (sizer_scaling,)])
+        self.btn_sizer = ff_hbox(sizer_split, (35, 0), sizer_scaling)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-
         self.sizer.Add(self.btn_sizer, proportion=0, border=10, flag=wx.ALL)
-
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -600,7 +603,8 @@ class SplitOverlays(ViewOverlays):
         groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=self.imgCache)
         self.enable_ui()
         dur = time.time() - t
-        print "...Split took {0:.4f}s ({1} total new groups added)".format(dur, len(groups))
+        debug("...Split took {0:.4f}s ({1} total new groups added)",
+              dur, len(groups))
         for group in groups:
             self.add_group(group)
         self.remove_group(curgroup)
@@ -640,9 +644,9 @@ class VerifyOverlaysPanel(SplitOverlaysPanel):
 class VerifyOverlaysFooter(SplitOverlaysFooter):
     def init_ui(self):
         SplitOverlaysFooter.init_ui(self)
-        btn_matches = wx.Button(self, label="Accept all as *")
-        self.btn_matches = btn_matches
-        btn_matches.Bind(wx.EVT_BUTTON, self.onButton_matches)
+        self.btn_matches = FFButton(
+            self, label="Accept all as *", on_click=self.onButton_matches
+        )
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")
         self.btn_manual_relabel.Bind(wx.EVT_BUTTON, self.onButton_manual_relabel)
         self.btn_manual_relabel.Hide() # This has been replaced
@@ -665,7 +669,7 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
         self.sizer_exmpls.ShowItems(False) # Hide the next/prev exemplar widgets
 
-        self.btn_sizer.Insert(0, btn_matches)
+        self.btn_sizer.Insert(0, self.btn_matches)
         self.btn_sizer.Insert(1, (10,0))
         self.btn_sizer.AddMany([(self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
@@ -673,9 +677,10 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         btn_print_imgs = wx.Button(self, label="(Debug) Print imgpaths")
         self.btn_sizer.AddMany([((25,0),), (btn_print_imgs,)])
         def dbg_print_imgs(evt):
-            print "[DEBUG] Printing imgpaths of current group ({0} imgs):".format(len(self.GetParent().overlaypanel.get_current_group().imgpaths))
+            debug("Printing imgpaths of current group ({0} imgs):",
+                  len(self.GetParent().overlaypanel.get_current_group().imgpaths))
             for imgpath in self.GetParent().overlaypanel.get_current_group().imgpaths:
-                print imgpath
+                debug(imgpath)
         btn_print_imgs.Bind(wx.EVT_BUTTON, dbg_print_imgs)
 
         txt_curlabel0 = wx.StaticText(self, label="Current guess: ")
@@ -798,10 +803,10 @@ class VerifyOverlays(SplitOverlays):
                 fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
             self.finished_groups = fingroups_new
             self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
-            print '...Successfully loaded VerifyOverlays state...'
+            debug('Successfully loaded VerifyOverlays state')
             return state
         except Exception as e:
-            print '...Failed to load VerifyOverlays state...'
+            error('Failed to load VerifyOverlays state')
             return False
     def create_state_dict(self):
         state = SplitOverlays.create_state_dict(self)
@@ -880,13 +885,13 @@ class VerifyOverlays(SplitOverlays):
             _added_amt = 50 + 50 # Padding added between images
             _added_frac = _added_amt / float(w_space)
             c_out = c_horiz - _added_frac
-            print "Chose Horizontal, c_out={0:.5f}".format(c_out)
+            debug("Chose Horizontal, c_out={0:.5f}", c_out)
             return 'horizontal', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
         else:
             _added_amt = max(_h0, _h1, _h2+_h3) + 50 + 50 # Padding added btwn imgs
             _added_frac = _added_amt / float(h_space)
             c_out = c_vert - _added_frac
-            print "Chose Vertical, c_out={0:.5f}".format(c_out)
+            debug("Chose Vertical, c_out={0:.5f}", c_out)
             return 'vertical', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
 
     def rescale_images(self, rszfac):
@@ -912,7 +917,7 @@ class VerifyOverlays(SplitOverlays):
             self.sizer_attrpatch.ShowItems(True)
         exemplar_paths = self.exemplar_imgpaths[grouptag]
         if exmpl_idx < 0 or exmpl_idx >= len(exemplar_paths):
-            print "...Invalid exmpl_idx: {0}...".format(exmpl_idx)
+            error("Invalid exmpl_idx: {0}", exmpl_idx)
             return
         if type(exemplar_paths[exmpl_idx]) in (str, unicode):
             exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx], flatten=True)
@@ -939,7 +944,7 @@ class VerifyOverlays(SplitOverlays):
         data structures and UI components. 
         """
         if group not in self.groups:
-            print "(VerifyOverlays) Warning: Trying to finalize group not present in self.groups:", group
+            warn("Trying to finalize group not present in self.groups:", group)
             return
         tag = group.tag
         self.finished_groups.setdefault(tag, []).append(group)
@@ -1048,10 +1053,10 @@ class VerifyOrFlagOverlays(VerifyOverlays):
                 fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
             self.finished_groups = fingroups_new
             self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
-            print '...Successfully loaded VerifyOverlays state...'
+            debug('Successfully loaded VerifyOverlays state')
             return state
         except Exception as e:
-            print '...Failed to load VerifyOverlays state...'
+            debug('Failed to load VerifyOverlays state')
             return False
     def create_state_dict(self):
         state = VerifyOverlays.create_state_dict(self)
@@ -1149,12 +1154,12 @@ class VerifyOverlaysMultCats(wx.Panel):
         Input:
             dict VERIFY_RESULTS: {grouptag: [imgpath_i, ...]}
         """
-        print "...In on_cat_done..."
+        debug("In on_cat_done")
         curcat = self.page2cat[self.nb.GetSelection()]
         self.verify_results_cat[curcat] = verify_results
 
         if len(self.verify_results_cat) == len(self.cat2page):
-            print "We're done verifying all categories!"
+            debug("We're done verifying all categories!")
             self.Disable()
             if self.ondone:
                 #self.ondone(self.verify_results_cat)
@@ -1529,7 +1534,8 @@ class Group(object):
             IplImage minimg, IplImage maximg.
         """
         if self.overlay_min == None or force:
-            print "...Computing Min/Max Overlays for {0} images...".format(len(self.imgpaths))
+            debug("...Computing Min/Max Overlays for {0} images...",
+                  len(self.imgpaths))
             t = time.time()
             #minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
             #                                         rszFac=0.75, bbs_map=bbs_map)
@@ -1545,7 +1551,7 @@ class Group(object):
                                                                rszFac=0.75, imgCache=imgCache,
                                                                queue_mygauge=queue_mygauge)
             dur = time.time() - t
-            print "...Finished Computing Min/Max Overlays ({0} s).".format(dur)
+            debug("...Finished Computing Min/Max Overlays ({0} s).", dur)
             self.overlay_min = minimg
             self.overlay_max = maximg
         return self.overlay_min, self.overlay_max
@@ -1581,15 +1587,14 @@ class SplitGroup(Group):
                 type(self)(imgsB, tag=self.tag, do_align=self.do_align)]
 
     def split_kmeans(self, K=2, imgCache=None):
-        t = time.time()
-        print "...running k-means..."
-        clusters = cluster_imgs.cluster_imgs_kmeans(self.imgpaths, k=K, do_downsize=True,
-                                                    do_align=False, imgCache=imgCache)
-        dur = time.time() - t
-        print "...Completed k-means ({0} s)".format(dur)
+        with util.time_operation("k-means"):
+            clusters = cluster_imgs.cluster_imgs_kmeans(
+                self.imgpaths, k=K, do_downsize=True,
+                do_align=False, imgCache=imgCache)
         if len(clusters) != K:
-            print "...Warning: Kmeans only found {0} clusters, yet user \
-specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            warn("Kmeans only found {0} clusters, yet user "\
+                 "specified K={1}. Falling back to simple "\
+                 "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
@@ -1598,14 +1603,13 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         return groups
 
     def split_pca_kmeans(self, K=2, N=3):
-        t = time.time()
-        print "...running PCA+k-means..."
-        clusters = cluster_imgs.cluster_imgs_pca_kmeans(self.imgpaths, k=K, do_align=False)
-        dur = time.time() - t
-        print "...Completed PCA+k-means ({0} s)".format(dur)
+        with util.time_operation("PCA+k-means"):
+            clusters = cluster_imgs.cluster_imgs_pca_kmeans(
+                self.imgpaths, k=K, do_align=False)
         if len(clusters) != K:
-            print "...Warning: PCA+Kmeans only found {0} clusters, yet user \
-specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            warn("PCA+Kmeans only found {0} clusters, yet user "\
+                 "specified K={1}. Falling back to simple "\
+                 "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
@@ -1614,15 +1618,15 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         return groups
         
     def split_kmeans2(self, K=2):
-        t = time.time()
-        print "...running k-meansV2..."
-        clusters = cluster_imgs.kmeans_2D(self.imgpaths, k=K, distfn_method='vardiff',
-                                          do_align=False)
-        dur = time.time() - t
-        print "...Completed k-meansV2 ({0} s)".format(dur)
+        with util.time_operation("k-meansV2"):
+            clusters = cluster_imgs.kmeans_2D(self.imgpaths,
+                                              k=K,
+                                              distfn_method='vardiff',
+                                              do_align=False)
         if len(clusters) != K:
-            print "...Warning: Kmeans2 only found {0} clusters, yet user \
-specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            warn("Kmeans2 only found {0} clusters, yet user "\
+                 "specified K={1}. Falling back to simple "\
+                 "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
@@ -1631,15 +1635,15 @@ specified K={1}. Falling back to simple split-down-the-middle.".format(len(clust
         return groups
 
     def split_kmediods(self, K=2):
-        t = time.time()
-        print "...running k-mediods..."
-        clusters = cluster_imgs.kmediods_2D(self.imgpaths, k=K, distfn_method='vardiff',
-                                            do_align=False)
-        dur = time.time() - t
-        print "...Completed k-mediods ({0} s)".format(dur)
+        with util.time_operation("k-mediods"):
+            clusters = cluster_imgs.kmediods_2D(self.imgpaths,
+                                                k=K,
+                                                distfn_method='vardiff',
+                                                do_align=False)
         if len(clusters) != K:
-            print "...Warning: Kmediods only found {0} clusters, yet user \
-specified K={1}. Falling back to simple split-down-the-middle.".format(len(clusters), K)
+            warn("Kmediods only found {0} clusters, yet user "\
+                 "specified K={1}. Falling back to simple "\
+                 "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
@@ -1795,7 +1799,9 @@ def trim_groups_by_mem(groups, max_mem_usage):
             continue
         n_kbytes = I.nbytes / 1000
         group_size_kbytes = len(group.imgpaths) * n_kbytes
-        print "Group_Size (MB) = {0}    (Limit: {1} MB)".format(group_size_kbytes / 1000, max_mem_usage)
+        debug("Group_Size (MB) = {0}    (Limit: {1} MB)",
+              group_size_kbytes / 1000,
+              max_mem_usage)
         if group_size_kbytes >= mem_limit_kbytes:
             num_groups = min(int(math.ceil(group_size_kbytes / mem_limit_kbytes)),
                              len(group.imgpaths))
@@ -1900,7 +1906,8 @@ class ChooseSplitModeDialog(wx.Dialog):
         elif parent.splitmode == 'kmediods':
             self.kmediods_rbtn.SetValue(1)
         else:
-            print "Unrecognized parent.splitmode: {0}. Defaulting to kmeans.".format(parent.splitmode)
+            debug("Unrecognized parent.splitmode: {0}. "\
+                  "Defaulting to kmeans.", parent.splitmode)
             self.kmeans_rbtn.SetValue(1)
 
         if self.ID_MIDSPLIT in disable:
@@ -1945,7 +1952,7 @@ class ChooseSplitModeDialog(wx.Dialog):
         elif self.kmediods_rbtn.GetValue():
             self.EndModal(self.ID_KMEDIODS)
         else:
-            print "Unrecognized split mode. Defaulting to K-means."
+            debug("Unrecognized split mode. Defaulting to K-means.")
             self.EndModal(self.ID_KMEANS)
 
 class ThreadGenerateOverlays(threading.Thread):
@@ -2054,14 +2061,13 @@ def test_verifyoverlays(imgsdir, exmpls_dir):
             self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=False, ondone=self.ondone, auto_ondone=True)
 
         def ondone(self, verify_results):
-            print '...In ondone...'
-            print 'verify_results:', verify_results
+            debug('verify_results: {0}', verify_results)
 
     imggroups = {} # maps {str groupname: [imgpath_i, ...]}
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         imggroup = []
         groupname = os.path.split(dirpath)[1]
-        print filenames, groupname
+        debug('{0} {1}', filenames, groupname)
         for imgname in [f for f in filenames if is_img_ext(f)]:
             imggroup.append(os.path.join(dirpath, imgname))
         if imggroup:
@@ -2096,8 +2102,7 @@ def test_checkimgequal(imgsdir, catimgpath):
             self.chkimgequals.start(imgpaths, catimgpath, do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
-            print '...In TestFrame.ondone...'
-            print 'verify_results:', verify_results
+            debug('verify_results: {0}', verify_results)
 
     imgpaths = []
     for dirpath, dirnames, filenames in os.walk(imgsdir):
@@ -2125,7 +2130,7 @@ def test_verifycategories(imgsdir, exmpls_dir):
                                     do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
-            print 'verify_results:', verify_results
+            debug('verify_results: {0}', verify_results)
 
     imgcats = {} # maps {cat_tag: {str groupname: [imgpath_i, ...]}}
     for catdir in os.listdir(imgsdir):
@@ -2168,7 +2173,7 @@ def test_separateimages(imgsdir, altimg=None):
                                       realign_callback=realign_callback)
 
         def ondone(self, verify_results):
-            print "Number of groups:", len(verify_results)
+            debug("Number of groups: {0}", len(verify_results))
             self.separateimages.Hide()
 
         def realign(self, imgpaths):

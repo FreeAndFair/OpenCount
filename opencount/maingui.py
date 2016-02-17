@@ -26,6 +26,9 @@ from threshold.threshold import ThresholdPanel
 from quarantine.quarantinepanel import QuarantinePanel
 from post_processing.postprocess import ResultsPanel
 
+from ffwx import *
+from util import debug, warn, error
+
 import specify_voting_targets.util_gui as util_gui
 import config, util
 
@@ -129,7 +132,7 @@ proceed. Please address the prior warnings first.",
                 evt.Veto()
                 return
         else:
-            print "(Warning) Class {0} has no can_move_on method.".format(curpanel)
+            warn("Class {0} has no can_move_on method", curpanel)
 
         if old == MainFrame.CONFIG:
             self.panel_config.stop()
@@ -199,17 +202,18 @@ proceed. Please address the prior warnings first.",
                 # 'knows' that the partitions also specify a grouping.
                 if not os.path.exists(pathjoin(self.project.projdir_path,
                                                self.project.partitions_map)):
-                    print "(Notice) Couldn't find {0}. Was decoding not performed?".format(pathjoin(self.project.projdir_path,
-                                                                                                    self.project.partitions_map))
-                    dlg = wx.MessageDialog(self, style=wx.OK,
-                                           message="You must first run Decoding (Partitioning) \
-before proceeding to this step. OpenCount will take you there now.")
+                    debug("Couldn't find {0}. Was decoding not performed?",
+                          pathjoin(self.project.projdir_path,
+                                   self.project.partitions_map))
+                    ff_warn(self, 'You must first run decoding (partitioning) \
+                                  \before proceeding to this step. OpenCount will \
+                                  \tak you there now.')
                     dlg.ShowModal()
                     self.notebook.ChangeSelection(self.PARTITION)
                     self.notebook.SendPageChangedEvent(self.SELTARGETS, self.PARTITION)
                     return
                     
-                print "(Notice) No Attributes Exists, so, using Partitioning as the Grouping."
+                debug("No Attributes Exists, so, using Partitioning as the Grouping.")
                 partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
                                                            self.project.partitions_map), 'rb'))
                 partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
@@ -228,7 +232,6 @@ before proceeding to this step. OpenCount will take you there now.")
                         continue
                     propdict = {'pid': partitionid}
                     grp_infomap[curgroupid] = propdict
-                    #print 'extend', curgroupid, 'by', ballotids
                     grp2bals.setdefault(curgroupid, []).extend(ballotids)
                     for ballotid in ballotids:
                         bal2grp[ballotid] = curgroupid
@@ -242,7 +245,6 @@ before proceeding to this step. OpenCount will take you there now.")
 
                 # Also, export to proj.group_results.csv, for integration with
                 # quarantine/post-processing panels.
-                #print "SET TO", grp2bals
                 fields = ('ballotid', 'groupid')
                 csvfile = open(self.project.grouping_results, 'wb')
                 dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
@@ -450,11 +452,11 @@ debugging projects.")
 def main():
     args = parse_args()
     if args.n:
-        print "(Info) Processing first {0} ballots [user passed in -n,--num]".format(args.n)
+        debug("Processing first {0} ballots [user passed in -n,--num]", args.n)
         config.BALLOT_LIMIT = args.n
     config.IS_DEV = args.dev
     if config.IS_DEV:
-        print "(Info) Running in dev-mode"
+        debug("Running in dev-mode")
     if args.time:
         prefix = args.time
         now = datetime.datetime.now()
@@ -463,7 +465,8 @@ def main():
         # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
         timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
         config.TIMER = util.MyTimer(timing_filepath)
-        print "(Info) User passed in '--time': Saving timing statistics to {0}".format(timing_filepath)
+        debug("User passed in '--time': Saving timing statistics to {0}",
+              timing_filepath)
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())

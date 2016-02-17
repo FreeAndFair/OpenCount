@@ -1,6 +1,7 @@
 import os, sys, time, pdb, threading, random
 import cv, Image
 import wx
+from ffwx import *
 
 try:
     import cPickle as pickle
@@ -25,7 +26,7 @@ class SelectAttributesMasterPanel(wx.Panel):
     """ Panel meant to be directly integrated with OpenCount. """
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         self.project = None
         # BOXES := {str ballotid: [((x1, y1, x2, y2), str attrtype, str attrval, str patchpath, subpatchP), ...]}
         self.boxes = None
@@ -36,7 +37,7 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.inv_mapping = None
 
         # maps {str attrtype: [(attrval, i, str patchpath, str blankpath (x1,y1,x2,y2)), ...]}
-        self.usersel_exs = {} 
+        self.usersel_exs = {}
 
         self.attridx = None
         self.attrtypes = None
@@ -62,7 +63,7 @@ class SelectAttributesMasterPanel(wx.Panel):
         # First check to see if there even exist any img-based attributes
         attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
         if not exists_imgattr(attrs):
-            print "...No Img-based attributes in this election..."
+            error("No Img-based attributes in this election")
             return
         self.project = proj
         self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
@@ -71,7 +72,7 @@ class SelectAttributesMasterPanel(wx.Panel):
             proj.addCloseEvent(self.stop)
         self.statefileP = pathjoin(proj.projdir_path, '_selectattrs_state.p')
         if self.load_session():
-            print "...Loaded Select Attributes State..."
+            debug("Loaded Select Attributes State")
             self.attridx = 0
         else:
             self.boxes = {}
@@ -144,7 +145,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                  "attrtypes": self.attrtypes,
                  "usersel_exs": self.usersel_exs}
         pickle.dump(state, f, pickle.HIGHEST_PROTOCOL)
-        print "...saved Select Attributes state..."
+        debug("saved Select Attributes state")
         return True
 
     def export_results(self):
@@ -154,7 +155,7 @@ class SelectAttributesMasterPanel(wx.Panel):
         if not self.boxes:
             return
         self.save_boxes()
-        print "...Exporting Select Attributes Results..."
+        debug("Exporting Select Attributes Results")
         img2b = pickle.load(open(self.project.image_to_ballot, 'rb'))
         partition_attrmap = {} # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
                                #                          attrval, page, is_digitbased, is_tabulationonly], ...]
@@ -210,10 +211,10 @@ class SelectAttributesMasterPanel(wx.Panel):
         # 1.) For each attrval of each attrtype, run the clustering
         attrtype_exemplars = {} # maps {attrtype: {attrval: [(patchpath_i, bb_i), ...]}}
         for attrtype, attrvalmap in blankpatches.iteritems():
-            print "...running on attrtype: {0}...".format(attrtype)
+            debug("running on attrtype: {0}", attrtype)
             exemplars = group_attrs.compute_exemplars_fullimg(attrvalmap)
             _n = sum(map(len, exemplars.values()))
-            print "...For Attribute {0}, {1} exemplars were found.".format(attrtype, _n)
+            debug("For Attribute {0}, {1} exemplars were found", attrtype, _n)
             attrtype_exemplars[attrtype] = exemplars
         # 2.) Export results.
         outfile_map = {} # maps {attrtype: {attrval: [(subpatchpath_i, blankpath_i, bb_i), ...]}}
@@ -243,7 +244,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                 outfile_map[attrtype][attrval].append((subpatchpath, blankpath, bb))
         pickle.dump(outfile_map, open(pathjoin(self.project.projdir_path,
                                                self.project.multexemplars_map), 'wb'))
-        print "...Done saving multexemplar patches..."
+        debug("Done saving multexemplar patches")
     
     def do_labelattribute(self, attridx):
         """ Sets up UI to allow user to label attribute at ATTRIDX.
@@ -356,24 +357,32 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
     def init_ui(self):
         util_widgets.MosaicPanel.init_ui(self)
         self.btn_sizer.Add((50, 0))
-        self.btn_nextattr = wx.Button(self, label="Next Attribute")
-        self.btn_prevattr = wx.Button(self, label="Previous Attribute")
-        txt0 = wx.StaticText(self, label="Current Attribute: ")
-        self.txt_attrtype = wx.StaticText(self, label="Foo (0/0).")
-        btn_opts = wx.Button(self, label="Options...")
-        btn_hide = wx.Button(self, label="Hide Labeled Patches")
-        btn_show = wx.Button(self, label="Show Labeled Patches")
+        self.btn_nextattr = FFButton(
+            self,
+            label='Next Attribute',
+            on_click=lambda evt: self.GetParent().GetParent().next_attribute(),
+        )
+        self.btn_prevtattr = FFButton(
+            self,
+            label='Previous Attribute',
+            on_click=lambda evt: self.GetParent().GetParent().prev_attribute(),
+        )
+        self.attrtype = FFStatLabel(self, 'Current Attribute', '(0/0)')
+        # txt0 = wx.StaticText(self, label="Current Attribute: ")
+        # self.txt_attrtype = wx.StaticText(self, label="Foo (0/0).")
+        btn_opts = FFButton(self, label="Options...", on_click=self.onButton_opts)
+        btn_hide = FFButton(
+            self, label="Hide Labeled Patches", on_click=self.onButton_hide
+        )
+        btn_show = FFButton(
+            self, label="Show Labeled Patches", on_click=self.onButton_show
+        )
         self.btn_sizer.AddMany([(self.btn_nextattr,), (self.btn_prevattr,),
                                 ((30,0),),
                                 (txt0,), (self.txt_attrtype,),
                                 ((50,0),),
                                 (btn_opts,),
                                 (btn_hide,), (btn_show,)])
-        self.btn_nextattr.Bind(wx.EVT_BUTTON, lambda evt: self.GetParent().GetParent().next_attribute())
-        self.btn_prevattr.Bind(wx.EVT_BUTTON, lambda evt: self.GetParent().GetParent().prev_attribute())
-        btn_hide.Bind(wx.EVT_BUTTON, self.onButton_hide)
-        btn_show.Bind(wx.EVT_BUTTON, self.onButton_show)
-        btn_opts.Bind(wx.EVT_BUTTON, self.onButton_opts)
         self.Layout()
 
     def onButton_hide(self, evt):
@@ -400,10 +409,12 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
                 sizer0 = wx.BoxSizer(wx.HORIZONTAL)
                 sizer0.AddMany([(txt0,), (self.txtin_tmthresh,)])
 
-                btn_ok = wx.Button(self, label="Ok")
-                btn_cancel = wx.Button(self, label="Cancel")
-                btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
-                btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+                btn_ok = FFButton(
+                    self, label="Ok", on_click=self.onButton_ok
+                )
+                btn_cancel = FFButton(
+                    self, label="Cancel", on_click=self.onButton_cancel
+                )
                 btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
                 btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
                 
@@ -417,7 +428,7 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
                 try:
                     self.thresh_out = float(self.txtin_tmthresh.GetValue())
                 except:
-                    print "Invalid input:", self.txtin_tmthresh.GetValue()
+                    error("Invalid input: {0}", self.txtin_tmthresh.GetValue())
                 self.EndModal(wx.ID_OK)
             def onButton_cancel(self, evt):
                 self.EndModal(wx.ID_CANCEL)
@@ -488,7 +499,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
                 
         t = TM_Thread(patch, unlabeled_imgpaths, attrval, self.TEMPMATCH_JOB_ID,
                       callback=self.on_tempmatchdone)
-        print "...starting TM Thread..."
+        debug("starting TM Thread")
         numtasks = len(unlabeled_imgpaths)
         gauge = util.MyGauge(self, numtasks, thread=t, msg="Running template matching...",
                              job_id=self.TEMPMATCH_JOB_ID)
@@ -501,7 +512,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             dict RESULTS: {str regionpath: (x, y, float score)}
             int W, H: Width/Height of patch being searched for.
         """
-        print "...TempMatching done!"
+        debug("TempMatching done!")
         # 1.) Extract+Save imgs, so that ViewOverlays can access them.
         outpaths = []
         patch2img = {} # maps {str patchpath: str imgpath}
@@ -567,12 +578,12 @@ class TM_Thread(threading.Thread):
         self.attrval = attrval
         self.jobid = jobid
     def run(self):
-        print "...calling template matching..."
+        debug("calling template matching")
         t = time.time()
         results = tempmatch.bestmatch_par(self.patch, self.regionpaths, do_smooth=tempmatch.SMOOTH_BOTH,
                                           xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=12, jobid=self.jobid)
         dur = time.time() - t
-        print "...finished template matching ({0} s)".format(dur)
+        debug("finished template matching ({0} s)", dur)
         if self.callback:
             w, h = cv.GetSize(self.patch)
             wx.CallAfter(self.callback, results, w, h, self.attrval)
@@ -601,12 +612,11 @@ class AttrValueDialog(wx.Dialog):
         sizer_in.Add(txt0)
         sizer_in.Add(self.attrval_in)
 
-        btn_ok = wx.Button(self, label="Ok")
-        btn_cancel = wx.Button(self, label="Cancel")
-        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
-        btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
+        btn_ok = FFButton(self, label="Ok", on_click=self.onButton_ok)
+        btn_cancel = FFButton(
+            self, label="Cancel", on_click=lambda e: self.EndModal(wx.ID_CANCEL)
+        )
+        btn_sizer = ff_hbox(btn_ok, btn_cancel)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.sbitmap, flag=wx.ALIGN_CENTER)
@@ -817,8 +827,8 @@ def extract_attr_patches(blanks, (proj, img2flip)):
                         # PIL: ~0.168s
                         # OpenCV: ~0.06s
                         if abs(y1-y2) == 0 or abs(x1-x2) == 0:
-                            print "Uh oh, about to crash. Why is this happening?"
-                            print "    (y1,y2,x1,x2):", (y1,y2,x1,x2)
+                            error("About to crash. Why is this happening?")
+                            error("    (y1,y2,x1,x2): {0}", (y1,y2,x1,x2))
                             pdb.set_trace()
                         img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
                         if img2flip[imgpath]:

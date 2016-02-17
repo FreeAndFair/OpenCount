@@ -6,8 +6,12 @@ except:
 
 from os.path import join as pathjoin
 
+
+from ffwx import *
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
+
+from util import debug, warn, error
 
 sys.path.append('..')
 import specify_voting_targets.select_targets as select_targets
@@ -246,43 +250,60 @@ class DefineAttributesPanel(ScrolledPanel):
 class ToolBar(wx.Panel):
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
         self.init_ui()
 
     def init_ui(self):
-        btn_addattr = wx.Button(self, label="Add Attribute")
-        btn_addattr.Bind(wx.EVT_BUTTON, self.onButton_addattr)
-        btn_modify = wx.Button(self, label="Modify")
-        btn_modify.Bind(wx.EVT_BUTTON, self.onButton_modify)
-        btn_zoomin = wx.Button(self, label="Zoom In")
-        btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
-        btn_zoomout = wx.Button(self, label="Zoom Out")
-        btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
-        btn_addcustomattr = wx.Button(self, label="Advanced: Add Custom Attribute...")
-        btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
-        btn_viewcustomattrs = wx.Button(self, label="Advanced: View Custom Attributes...")
-        btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
-                           (btn_viewcustomattrs,), 
-                           ((50,50),), 
-                           (btn_zoomin,), (btn_zoomout,)])
+        btn_addattr = FFButton (
+            self, label="Add Attribute", on_click=self.onButton_addattr
+        )
+        btn_modify = FFButton (
+            self, label="Modify", on_click=self.onButton_modify
+        )
+        btn_zoomin = FFButton(
+            self, label="Zoom In", on_click=self.onButton_zoomin
+        )
+        btn_zoomout = FFButton(
+            self, label="Zoom Out", on_click=self.onButton_zoomout
+        )
+        btn_addcustomattr = FFButton(
+            self,
+            label="Advanced: Add Custom Attribute",
+            on_click=self.onButton_addcustomattr,
+        )
+        btn_viewcustomattrs = FFButton(
+            self,
+            label="Advanced: View Custom Attributes",
+            on_click=self.onButton_viewcustomattrs,
+        )
+        btn_sizer = ff_hbox(
+            btn_addattr,
+            btn_modify,
+            btn_addcustomattr,
+            btn_viewcustomattrs,
+            (50,50),
+            btn_zoomin,
+            btn_zoomout,
+        )
 
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(btn_sizer)
+        self.sizer = ff_vbox(btn_sizer)
 
         self.SetSizer(self.sizer)
         self.Layout()
+
     def onButton_zoomin(self, evt):
         self.GetParent().boxdraw.zoomin()
+
     def onButton_zoomout(self, evt):
         self.GetParent().boxdraw.zoomout()
+
     def onButton_addattr(self, evt):
         boxdrawpanel = self.GetParent().boxdraw
         boxdrawpanel.set_mode_m(boxdrawpanel.M_CREATE)
+
     def onButton_modify(self, evt):
         boxdrawpanel = self.GetParent().boxdraw
         boxdrawpanel.set_mode_m(boxdrawpanel.M_IDLE)
+
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
@@ -297,7 +318,7 @@ class ToolBar(wx.Panel):
         elif choice == SPREADSHEET:
             attrtypes = self.GetParent().get_attrtypes()
             if len(attrtypes) == 0:
-                print "No attrtypes created yet, can't do this."
+                warn("No attrtypes created yet, can't do this.")
                 d = wx.MessageDialog(self, message="You must first create \
     Ballot Attributes, before creating Custom Ballot Attributes.")
                 d.ShowModal()
@@ -329,7 +350,7 @@ spreadsheet path.")
                                                 is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
         elif choice == FILENAME:
-            print "Handling Filename-based Custom Attribute."
+            debug("Handling Filename-based Custom Attribute.")
             dlg = FilenameAttrDialog(self)
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
@@ -357,16 +378,18 @@ an Attribute Name.")
             d = wx.MessageDialog(self, message="No Custom Attributes yet.")
             d.ShowModal()
             return
-        print "Custom Attributes are:"
+        debug("Custom Attributes are:")
         for cattr in custom_attrs:
             attrname = cattr.attrname
             if isinstance(cattr, cust_attrs.Spreadsheet_Attr):
-                print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
-                                                                             cattr.sspath,
-                                                                             cattr.attrin)
+                debug("  Attrname: {0} SpreadSheet: {1} Attr_In: {2}",
+                      attrname,
+                      cattr.sspath,
+                      cattr.attrin)
             elif isinstance(cattr, cust_attrs.Filename_Attr):
-                print "  Attrname: {0} FilenameRegex: {1}".format(attrname,
-                                                                  cattr.filename_regex)
+                debug("  Attrname: {0} FilenameRegex: {1}",
+                      attrname,
+                      cattr.filename_regex)
 class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
     def __init__(self, parent, *args, **kwargs):
         select_targets.BoxDrawPanel.__init__(self, parent, *args, **kwargs)
@@ -380,7 +403,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             return
 
         if self.mode_m == self.M_CREATE:
-            print "...Creating Attr Box..."
+            debug("Creating Attr Box")
             self.clear_selected()
             self.startBox(x, y, AttrBox)
         elif self.mode_m == self.M_IDLE:
@@ -422,7 +445,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
         elif self.mode_m == self.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
             boxes = select_targets.get_boxes_within(self.boxes, box)
-            print "...Selecting {0} boxes.".format(len(boxes))
+            debug("...Selecting {0} boxes.", len(boxes))
             self.select_boxes(*boxes)
         self.Refresh()
 
@@ -527,11 +550,14 @@ class DefineAttributeDialog(wx.Dialog):
         caption_txt = wx.StaticText(self, label=message)
         self.sizer.Add(caption_txt, border=10, flag=wx.ALL)
         gridsizer = wx.GridSizer(rows=0, cols=2, hgap=5, vgap=3)
-        btn_add = wx.Button(self, label="+")
+        btn_add = FFButton(
+            self,
+            label="+",
+            on_click=self.onButton_add,
+            on_focus=self.onAddButtonFocus,
+        )
         self.btn_add = btn_add
-        btn_add.Bind(wx.EVT_BUTTON, self.onButton_add)
-        btn_add.Bind(wx.EVT_SET_FOCUS, self.onAddButtonFocus)
-        
+
         horizsizer = wx.BoxSizer(wx.HORIZONTAL)
         horizsizer.Add(btn_add, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
 
@@ -590,11 +616,11 @@ class DefineAttributeDialog(wx.Dialog):
             self._panel_btn = None
         panel_btn = wx.Panel(self)
         self._panel_btn = panel_btn
-        btn_ok = wx.Button(panel_btn, id=wx.ID_OK)
-        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        btn_ok = FFButton(panel_btn, id=wx.ID_OK, on_click=self.onButton_ok)
         self.btn_ok = btn_ok
-        btn_cancel = wx.Button(panel_btn, id=wx.ID_CANCEL)
-        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
+        btn_cancel = FFButton (
+            panel_btn, id=wx.ID_CANCEL, on_click=self.onButton_cancel
+        )
         panel_btn.sizer = wx.BoxSizer(wx.HORIZONTAL)
         panel_btn.sizer.Add(btn_ok, border=10, flag=wx.RIGHT)
         panel_btn.sizer.Add(btn_cancel, border=10, flag=wx.LEFT)
@@ -652,8 +678,9 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         txt = wx.StaticText(self, label="Spreadsheet File:")
         file_inputctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
         self.file_inputctrl = file_inputctrl
-        btn_select = wx.Button(self, label="Select...")
-        btn_select.Bind(wx.EVT_BUTTON, self.onButton_selectfile)
+        btn_select = FFButton(
+            self, label="Select...", on_click=self.onButton_selectfile
+        )
 
         sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
         txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
@@ -741,14 +768,12 @@ regex that will match the attribute value.")
         self.is_tabulationonly_chkbox = wx.CheckBox(self, label="Is this \
 for Tabulation Only?")
         sizer.Add(self.is_tabulationonly_chkbox)
-        
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_ok = wx.Button(self, label="Ok")
-        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
-        btn_sizer.Add(btn_ok)
-        btn_cancel = wx.Button(self, label="Cancel")
-        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
-        btn_sizer.Add(btn_cancel)
+
+        btn_ok = FFButton(self, label="Ok", on_click=self.onButton_ok)
+        btn_cancel = FFButton(
+            self, label="Cancel", on_click=self.onButton_cancel
+        )
+        btn_sizer = ff_hbox(btn_ok, btn_cancel)
 
         sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
         self.SetSizer(sizer)

@@ -252,14 +252,14 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
             Iref = img
         elif do_align:
             (H, img, err) = imagesAlign(img, Iref, fillval=0, rszFac=rszFac)
-        if (overlayMin == None):
+        if overlayMin is None:
             overlayMin = img
         else:
             if overlayMin.shape != img.shape:
                 h, w = overlayMin.shape
                 img = resize_img_norescale(img, (w,h))
             overlayMin = np.fmin(overlayMin, img)
-        if (overlayMax == None):
+        if overlayMax is None:
             overlayMax = img
         else:
             if overlayMax.shape != img.shape:
@@ -436,10 +436,6 @@ def partition_im(images, box):
             partition[1].append(i)
     if len(partition[0]) > len(partition[1]):
         partition.reverse()
-    #print ["%3.5f"%f for f in means]
-    #print ["%3.5f"%f for f in ave_intensity]
-    #print ["%3.5f"%f for f in stack.min(1)]
-    #print thresh
     return partition # ave_intensity, [len(partition[0]), len(partition[1])] 
 
 def ave(l):
@@ -470,7 +466,6 @@ threshold = otsu( im )
         right = hist[(t+1):]
         if sum(left) * sum(right) == 0: continue # skip degenerate cases
         inter_class_variance = sum(left) * sum(right) * (histogram_mean(left) - histogram_mean(right, len(left)))**2
-        # print "%s, %5.5f" % (t, inter_class_variance)
         if best == None or inter_class_variance > best[1]:
             best = (t, inter_class_variance)
     return best[0]
@@ -480,7 +475,6 @@ def kmeans(itemlist, k=2, rounds=10, iterations=5):
     for n in range(iterations):
         means  = random.sample(list(itemlist),k) # Want any k distinct items.
         for i in range(rounds):
-            # print "round", i
             counts   = [0.0] * k
             newmeans = [0.0] * k
             score    = 0
@@ -493,9 +487,8 @@ def kmeans(itemlist, k=2, rounds=10, iterations=5):
                 score += best[0]**2
                 newmeans[best[1]] = newmeans[best[1]] - (newmeans[best[1]] - best[2]) * (1/(counts[best[1]]))
             means = newmeans
-            # print score, means
         if not overall_best or score < overall_best[0]:
-            if overall_best: print "K-means: Yay! Iteration did something."
+            if overall_best: debug("K-means: Yay! Iteration did something.")
             overall_best = (score, means)
     return overall_best[1]
 

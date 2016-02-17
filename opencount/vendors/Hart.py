@@ -18,6 +18,8 @@ sys.path.append('..')
 import barcode.hart as hart, asize
 from grouping import partask
 
+from util import debug, warn, error
+
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where
 # this script lives (which is important for loading resources like
@@ -76,7 +78,7 @@ class HartVendor(Vendor):
                 flipmap[imgpath] = isflipped
                 bc_ul = bcs[0]
                 if not bc_ul:
-                    print "..error on: {0}".format(imgpath)
+                    error("error on: {0}", imgpath)
                     err_imgpaths.append(imgpath)
                 elif skipVerify:
                     img2decoding[imgpath] = (bc_ul,)
@@ -98,13 +100,23 @@ class HartVendor(Vendor):
             nbytes = asize.asizeof(thing)
             return "{0} bytes ({1} MB)".format(nbytes, nbytes / 1e6)
         total_bytes = asize.asizeof(decoded_results_map) + asize.asizeof(flipmap) + asize.asizeof(bbstripes_map)
-        print "decoded_results_map: {0} ({1:.4f}%)".format(sizeit(decoded_results_map), 100.0 * (asize.asizeof(decoded_results_map) / float(total_bytes)))
-        print "flipmap: {0} ({1:.4f}%)".format(sizeit(flipmap), 100.0 * (asize.asizeof(flipmap) / float(total_bytes)))
-        print "bbstripes_map: {0} ({1:.4f}%)".format(sizeit(bbstripes_map), 100.0 * (asize.asizeof(bbstripes_map) / float(total_bytes)))
+        debug("decoded_results_map: {0} ({1:.4f}%)",
+              sizeit(decoded_results_map),
+              100.0 * (asize.asizeof(decoded_results_map) / float(total_bytes)))
+        debug("flipmap: {0} ({1:.4f}%)",
+              sizeit(flipmap),
+              100.0 * (asize.asizeof(flipmap) / float(total_bytes)))
+        debug("bbstripes_map: {0} ({1:.4f}%)",
+              sizeit(bbstripes_map),
+              100.0 * (asize.asizeof(bbstripes_map) / float(total_bytes)))
 
-        print "    Total: {0} bytes ({1} MB)".format(total_bytes, total_bytes / 1e6)
+        debug("    Total: {0} bytes ({1} MB)",
+              total_bytes,
+              total_bytes / 1e6)
         total_bytes_oc = (666137 / (float(len(flipmap)))) * total_bytes
-        print "    Total (Extrapolate to Full OC): {0} MB ({1} GB)".format(total_bytes_oc / 1e6, total_bytes_oc / 1e9)
+        debug( "    Total (Extrapolate to Full OC): {0} MB ({1} GB)",
+               total_bytes_oc / 1e6,
+               total_bytes_oc / 1e9)
 
         """ TODO: Crazy Memory usage here. At this point, for full OC estimate, we would
         use:
@@ -209,7 +221,7 @@ class HartVendor(Vendor):
 
     def get_grouping_propnames(self):
         """ Hart ballots group by: Language, Party, Precinct. """
-        return ('precinct', 'language', 'party') 
+        return ('precinct', 'language', 'party')
 
     def __repr__(self):
         return 'HartVendor()'
@@ -254,7 +266,8 @@ def decode_ballots(ballots,
                                          pass_queue=queue,
                                          N=N)
     dur = time.time() - t
-    print "...finished decoding {0} ballots ({1:.2f}s, {2:.5f} secs per ballot)".format(len(ballots), dur, dur / float(len(ballots)))
+    debug("...finished decoding {0} ballots ({1:.2f}s, {2:.5f} secs per ballot)",
+          len(ballots), dur, dur / float(len(ballots)))
     return decoded_results
 
 def parse_args():
@@ -295,7 +308,7 @@ def main():
                 try:
                     balids.append(int(line))
                 except:
-                    print "(Main) Error trying to read ballotid:", line
+                    error("Error trying to read ballotid: {0}", line)
             f.close()
     else:
         balids = None
@@ -315,7 +328,7 @@ def main():
         bal2imgs_in[balid] = imgpaths
         cnt_imgs += len(imgpaths)
 
-    print "(Info) Decoding {0} ballots ({1} images)".format(len(balids), cnt_imgs)
+    debug("Decoding {0} ballots ({1} images)", len(balids), cnt_imgs)
 
     topbot_paths = [[TOP_GUARD_IMGP, BOT_GUARD_IMGP], [TOP_GUARD_SKINNY_IMGP, BOT_GUARD_SKINNY_IMGP]]    
     manager = multiprocessing.Manager()
@@ -329,7 +342,7 @@ def main():
     err_imgpaths, ioerr_imgpaths = [], []
     
     for i, (balid, infotuples) in enumerate(sorted(decoded_results.iteritems())):
-        print "({0}) ballotid={1}".format(i, balid)
+        debug("({0}) ballotid={1}", i, balid)
         imgpaths = bal2imgs[balid]
         for j, subtuple in enumerate(infotuples):
             if issubclass(type(subtuple), IOError):
@@ -339,9 +352,9 @@ def main():
             bcs, isflipped, bbs, bbstripes_dict = subtuple
             bc_ul = bcs[0]
             if not bc_ul:
-                print "..error on: {0}".format(imgpath)
+                error("..error on: {0}", imgpath)
                 err_imgpaths.append(imgpath)
-            print "    ({0}) bc={1} isflip={2}".format(j, bc_ul, isflipped)
+            debug("    ({0}) bc={1} isflip={2}", j, bc_ul, isflipped)
             img2dec[imgpath] = bc_ul
             img2flip[imgpath] = isflipped
 

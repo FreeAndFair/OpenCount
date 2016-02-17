@@ -1,8 +1,10 @@
 import contextlib
 import itertools
 import math
+import multiprocessing
 import os
 import re
+import sys
 import time
 import threading
 
@@ -16,16 +18,41 @@ except:
     from PIL import Image
 
 from specify_voting_targets import util_gui
+from ffwx import *
 
+if sys.stderr.isatty():
+    SIGIL_DICT = dict(
+        warn='\x1b[93m?',
+        error='\x1b[91m!',
+        info='@',
+    )
+    CODA = '\x1b[39m'
+else:
+    SIGIL_DICT = dict(warn='?', error='!', debug='@')
+    CODA = ''
 
+def debug(msg, *args, **kwargs):
+    dbg_level = kwargs.pop('debug_level', 'info')
+    sigil = SIGIL_DICT.get(dbg_level, '@')
+    stamped = '{sigil}{time}: {msg}{coda}\n'.format(
+        time=time.time(),
+        msg=msg.format(*args, **kwargs),
+        sigil=sigil,
+        coda=CODA)
+    sys.stderr.write(stamped)
 
+def warn(str, *args, **kwargs):
+    debug(str, *args, level='warn', **kwargs)
+
+def error(str, *args, **kwargs):
+    debug(str, *args, level='error', **kwargs)
 
 class MyGauge(wx.Dialog):
     """
     A dialog that pops up to display a progress gauge when some
     long-running process is running.
     """
-    def __init__(self, parent, numtasks, funs=None, tofile=None,
+    def __init__(self, parent, numtasks, funs=None,
                  msg="Please wait...", ondone=None, ispanel=None,
                  destroyondone=True, thread=None, size=(400, 300),
                  job_id=None, *args, **kwargs):
@@ -33,7 +60,6 @@ class MyGauge(wx.Dialog):
         obj parent: Parent widget
         int numtasks:
         lst funs:
-        obj tofile:
         str msg: Message displayed to user.
         fn ondone:
         bool ispanel:
@@ -60,14 +86,6 @@ class MyGauge(wx.Dialog):
             self.funs = funs
         else:
             self.funs = [None]*numtasks
-
-        if tofile != None:
-            self.tofile = open(tofile, "w")
-            self.tofile.write("init " + str(time.time()) + "\n")
-        else:
-            self.tofile = None
-
-        self.uid = time.time()
 
         self.parent = parent
         panel = wx.Panel(self)
@@ -148,9 +166,6 @@ class MyGauge(wx.Dialog):
         pub.unsubscribe(self._pubsub_done, "signals.MyGauge.done")
         pub.unsubscribe(self._pubsub_tick, "signals.MyGauge.tick")
         pub.unsubscribe(self._pubsub_nextjob, "signals.MyGauge.nextjob")
-        if self.tofile != None:
-            self.tofile.write("done " + str(time.time()) + "\n")
-            self.tofile.close()
         if self.ondone:
             self.ondone()
         if self.destroyondone:
@@ -202,14 +217,11 @@ class MyGauge(wx.Dialog):
         if fnc != None:
             self.val = fnc()
             self.gauge.SetValue(self.val)
-            if self.tofile != None:
-                self.tofile.write("updatefun " + str(time.time()) + " " + str(self.val) + "\n")
 
     def _pubsub_nextjob(self, msg):
         if not self.is_event_relevant(msg):
             return
         data = self._munge_msg(msg)
-        if self.tofile != None: self.tofile.write("nextjob " + str(time.time()) + "\n")
         self.gauge.SetRange(data)
         self.upto = data
         self.gauge.SetValue(0)
@@ -221,8 +233,6 @@ class MyGauge(wx.Dialog):
     def _pubsub_tick(self, msg):
         if not self.is_event_relevant(msg):
             return
-        if self.tofile != None:
-            self.tofile.write("tick " + str(time.time()) + "\n")
         self.finishedon = time.time()
         self.val += 1
         self.gauge.SetValue(self.val)
@@ -1202,6 +1212,22 @@ def as_thread(func):
     WrappedFunction.__name__ = func.__name__
     return WrappedFunction()
 
+def as_process(func):
+    '''
+    This decorator allows us to wrap up a single lexically scoped
+    block of code as a thread. Eventually, this helper should ideally
+    be phased out by eliminating the need for threaded code in
+    general , but it makes a lot of code shorter right now.
+    '''
+    queue = multiprocessing.Queue()
+    class WrappedFunction(multiprocessing.Process):
+        def run(self):
+            queue.put(func())
+    WrappedFunction.__name__ = func.__name__
+    w = WrappedFunction()
+    w.start()
+    return queue.get
+
 @contextlib.contextmanager
 def time_operation(op):
     '''
@@ -1209,10 +1235,10 @@ def time_operation(op):
     and at the end and printing them accordingly.
     '''
     t = time.time()
-    print 'starting: {0}'.format(op)
+    debug('starting: {0}', op)
     yield
     dur = time.time() - t
-    print 'done {0} in {1}s'.format(op, dur)
+    debug('done {0} in {1}s', op, dur)
 
 def main():
     app = wx.App(False)

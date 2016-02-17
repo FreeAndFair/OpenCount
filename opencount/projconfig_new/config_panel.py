@@ -12,6 +12,9 @@ except:
     pub = Publisher()
 import cv
 
+from ffwx import *
+from util import debug, warn, error
+
 sys.path.append('..')
 
 import util
@@ -193,8 +196,10 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
                 stats_numpages[_numpages] += 1
             if not self.varnumpages_chkbox.GetValue() and len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
                 # Ballot has too many/few sides.
-                print "Warning -- found Ballot with {0} sides, yet project \
-specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()))
+                debug("Warning -- found Ballot with {0} sides, yet project \
+                      \specified {1} sides.",
+                      len(imgpaths),
+                      int(self.numpages_txtctrl.GetValue()))
                 weirdballots.append(imgpaths)
             elif config.BALLOT_LIMIT != None and i >= config.BALLOT_LIMIT:
                 break
@@ -203,17 +208,22 @@ specified {1} sides.".format(len(imgpaths), int(self.numpages_txtctrl.GetValue()
                 for imgpath in imgpaths:
                     image_to_ballot[imgpath] = curballotid
                 curballotid += 1
-        print "(Stats) Number of pages in a ballot for the election:"
+        debug("Number of pages in a ballot for the election:")
         for _numpages, cnt in sorted(stats_numpages.iteritems()):
-            print "    {0} pages: {1} ballots".format(_numpages, cnt)
-        print "Detected {0} weird ballots with too many/few sides.".format(len(weirdballots))
+            debug("    {0} pages: {1} ballots", _numpages, cnt)
+        debug("Detected {0} weird ballots with too many/few sides.",
+              len(weirdballots))
         if weirdballots:
-            dlg = wx.MessageDialog(self, message="Warning: OpenCount detected {0} ballots \
-that had too many/few sides. The project specified that there are {1} \
-sides for each ballot. These ballots will be discarded from the \
-election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), self.numpages_txtctrl.GetValue()),
-                                   style=wx.OK)
-            dlg.ShowModal()
+            ff_warn(self,
+                    "Warning: OpenCount detected {0} ballots \
+                    \that had too many/few sides. The project \
+                    \specified that there are {1} sides for \
+                    \each ballot. These ballots will be discarded \
+                    \from the election, but stored in \
+                    \'_config_weirdballots.p'.".format(
+                        len(weirdballots),
+                        self.numpages_txtctrl.GetValue()))
+
         pickle.dump(weirdballots, open(pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
         pickle.dump(ballot_to_images, open(self.project.ballot_to_images, 'wb'), pickle.HIGHEST_PROTOCOL)
         pickle.dump(image_to_ballot, open(self.project.image_to_ballot, 'wb'), pickle.HIGHEST_PROTOCOL)
@@ -221,16 +231,20 @@ election, but stored in '_config_weirdballots.p'.".format(len(weirdballots), sel
         self.project.voteddir = self.voteddir
         # 3.) Set project.imgsize, assuming that all image dimensions are the same
         if len(image_to_ballot) == 0:
-            dlg = wx.MessageDialog(self, message="Fatal Error: OpenCount \
-couldn't find any valid ballots in the directory:\n\n\
-{0}\n\n\
-Are you sure this is the correct directory containing the voted ballots?\n\n\
-Alternately, is the correct vendor specified in the configuration?\n\n\
-Please correct the misconfiguration (if any) and create a new Project \
-with the corrections.".format(self.voteddir),
-                                   style=wx.OK)
-            dlg.ShowModal()
-            print "Everything is going to break. OpenCount didn't find any ballots."
+            ff_warn(self,
+                    "Fatal Error: OpenCount couldn't \
+                    \find any valid ballots in the \
+                    \directory:\n\n {0}\n\n \
+                    \Are you sure this is the correct \
+                    \directory containing the voted \
+                    \ballots?\n\n \
+                    \Alternately, is the correct vendor \
+                    \specified in the configuration?\n\n\
+                    \Please correct the misconfiguration \
+                    \(if any) and create a new Project \
+                    \with the corrections.".format(self.voteddir))
+            error("Everything is going to break. OpenCount didn't find \
+                  \any ballots.")
             return
         w, h = None, None
         for imgpath in image_to_ballot.keys():
@@ -242,16 +256,16 @@ with the corrections.".format(self.voteddir),
             except IOError as e:
                 pass
         if w == None:
-            dlg = wx.MessageDialog(self, message="Fatal Error: OpenCount \
-couldn't open any of the ballot images in {0}. Processing can not continue. \
-If you believe the images are in fact not corrupt, you could try converting \
-all images to new PNG images, in the hopes of OpenCV being able to read the \
-new images.".format(self.project.voteddir),
-                                   style=wx.ID_OK)
-            dlg.ShowModal()
-            print "==== Fatal Error ===="
+            ff_warn(self, "Fatal Error: OpenCount couldn't open any of \
+                          \the ballot images in {0}. Processing can not \
+                          \continue. If you believe the images are in \
+                          \fact not corrupt, you could try converting \
+                          \all images to new PNG images, in the hopes \
+                          \of OpenCV being able to read the \
+                          \new images.".format(self.project.voteddir))
+            error("Cannot open any ballot images.")
             exit(1)
-            
+
         self.project.imgsize = (w, h)
         # 4.) Set project.is_multipage
         if int(self.numpages_txtctrl.GetValue()) >= 2:
@@ -437,8 +451,7 @@ class DoubleSideDialog(wx.Dialog):
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
 
-def separate_imgs(voteddir, num_pages, 
-                  MODE,
+def separate_imgs(voteddir, num_pages, MODE,
                   regexShr=None, regexDiff=None):
     """ Separates images into sets of Ballots.
     Input:
@@ -456,8 +469,8 @@ def separate_imgs(voteddir, num_pages,
     elif MODE == SEPARATE_MODE_REGEX_CTR:
         return separate_regex_ctr(voteddir, regexShr)
     else:
-        print "Fatal Error: Unrecognized separate_imgs mode: '{0}'".format(MODE)
-        raise Exception("Bad mode: '{0}'".fomrat(MODE))
+        error("Fatal Error: Unrecognized separate_imgs mode: '{0}'", MODE)
+        raise Exception("Bad mode: '{0}'".format(MODE))
 
 def separate_singlesided(voteddir):
     ballots = []
@@ -467,14 +480,18 @@ def separate_singlesided(voteddir):
             imgpath = pathjoin(dirpath, imgname)
             ballots.append([imgpath])
     return ballots
+
 def separate_alternating(voteddir, num_pages):
     ballots = []
     for dirpath, dirnames, filenames in os.walk(voteddir):
         imgnames = [f for f in filenames if util.is_image_ext(f)]
         imgnames_ordered = util.sorted_nicely(imgnames)
         if len(imgnames_ordered) % num_pages != 0:
-            print "Uh oh -- there are {0} images in directory {1}, \
-which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, num_pages)
+            error("There are {0} images in directory {1}, which \
+                  \isn't divisible by num_pages {2}",
+                  len(imgnames_ordered),
+                  dirpath,
+                  num_pages)
             pdb.set_trace()
             raise RuntimeError
         i = 0
@@ -485,6 +502,7 @@ which isn't divisible by num_pages {2}".format(len(imgnames_ordered), dirpath, n
                 curballot.append(imgpath)
             ballots.append(curballot)
     return ballots
+
 def separate_regex_simple(voteddir, regexShr, regexDiff):
     ballots = []
     for dirpath, dirnames, filenames in os.walk(voteddir):
@@ -497,8 +515,9 @@ def separate_regex_simple(voteddir, regexShr, regexDiff):
             sim_match = shrPat.match(imgname)
             diff_match = diffPat.match(imgname)
             if sim_match == None or diff_match == None:
-                print "Warning: ballot {0} was skipped because it didn't \
-match the regular expressions.".format(imgpath)
+                warn("Ballot {0} was skipped because it didn't \
+                     \match the regular expressions.",
+                     imgpath)
                 continue
             sim_part = sim_match.groups()[0]
             diff_part = diff_match.groups()[0]
@@ -509,6 +528,7 @@ match the regular expressions.".format(imgpath)
             imgpaths_sorted = [t[0] for t in tuples_sorted]
             ballots.append(imgpaths_sorted)
     return ballots
+
 def separate_regex_ctr(voteddir, regexShr):
     """ Separates ballots whose filenames start with a shared prefix
     REGEXSHR, but then contain two incrementing counters (very-much
@@ -530,8 +550,8 @@ def separate_regex_ctr(voteddir, regexShr):
             imgpath = pathjoin(dirpath, imgname)
             sim_match = shrPat.match(imgname)
             if sim_match == None:
-                print "Warning: ballot {0} was skipped because it didn't \
-match the regular expressions.".format(imgpath)
+                warn("Ballot {0} was skipped because it didn't \
+                     \match the regular expressions.", imgpath)
                 continue
             sim_part = sim_match.groups()[0]
             # Assumes filename is := <SIM_PART>_N1_N2.png
@@ -543,7 +563,7 @@ match the regular expressions.".format(imgpath)
             for imgpaths in consecs:
                 ballots.append(imgpaths)
     return ballots
-    
+
 def get_consecutives(tuples):
     """
     Input:
@@ -551,12 +571,11 @@ def get_consecutives(tuples):
     Output:
         (tuple IMGPATHS0, tuple IMGPATHS1, ...)
     """
-    # 
     # Assume that the N1 ctr val increases monotonically,
     # but the N2 ctr val increases monotonically only within
-    # a single ballot, and drops down for 
+    # a single ballot, and drops down for
     # sort by images with consecutive ctr_vals
-    tuples_sorted = sorted(tuples, key=lambda t: t[1][0])    
+    tuples_sorted = sorted(tuples, key=lambda t: t[1][0])
     imgpath_groups = [] # [tuple IMGPATHS0, ...]
     cur_group = []
     prev_N1, prev_N2 = None, None
@@ -596,14 +615,14 @@ def test_get_consecutives():
              ('2_1_1_1.png', (1, 1)),
 
              ('2_1_2_1.png', (2, 1)),
-             
+
              ('2_1_3_1.png', (3, 1)),
              ('2_1_4_2.png', (4, 2)))
     ballots = get_consecutives(test0)
     for i, imgpaths in enumerate(ballots):
-        print "Ballot '{0}':".format(i)
+        debug("Ballot '{0}':", i)
         for imgpath in imgpaths:
-            print "    {0}".format(imgpath)
+            debug("    {0}", imgpath)
     pdb.set_trace()
 
 if __name__ == '__main__':

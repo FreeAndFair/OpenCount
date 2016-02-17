@@ -6,6 +6,9 @@ except ImportError:
     import pickle
 import wx
 
+from ffwx import *
+from util import debug, warn, error
+
 PROJ_FNAME = 'proj.p'
 
 class ProjectPanel(wx.Panel):
@@ -28,18 +31,18 @@ class ProjectPanel(wx.Panel):
         ssizer1 = wx.StaticBoxSizer(box1, wx.VERTICAL)
 
         self.listbox_projs = wx.ListBox(self, choices=(), size=(500, 400))
-        
-        btn_create = wx.Button(self, label="Create New Project...")
-        btn_create.Bind(wx.EVT_BUTTON, self.onButton_create)
-        btn_remove = wx.Button(self, label="Delete Selected Project...")
-        btn_remove.Bind(wx.EVT_BUTTON, self.onButton_remove)
-        btnsizer = wx.BoxSizer(wx.HORIZONTAL)
-        btnsizer.AddMany([(btn_create,), (btn_remove,)])
-        
+        btn_create = FFButton(
+            self, label='Create New Project', on_click=self.onButton_create
+        )
+        btn_remove = FFButton(
+            self, label="Delete Selected Project", on_click=self.onButton_remove
+        )
+        btnsizer = ff_hbox(btn_create, btn_remove)
+
         ssizer1.AddMany([(self.listbox_projs,), (btnsizer,)])
 
         ssizer0.AddMany([(txt0,), (ssizer1,)])
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(ssizer0)
         self.SetSizer(self.sizer)
@@ -64,7 +67,7 @@ class ProjectPanel(wx.Panel):
         """ Returns the Project instance of the selected project. """
         idx = self.listbox_projs.GetSelection()
         if idx == wx.NOT_FOUND:
-            print "NONE SELECTED"
+            error("NONE SELECTED")
             return None
         return self.projects[idx]
 
@@ -248,7 +251,7 @@ class Project(object):
             setattr(self, k, v)
 
     def save(self):
-        print '...saving project: {0}...'.format(self)
+        debug('saving project: {0}', self)
         write_project(self)
 
     def __repr__(self):
@@ -278,7 +281,9 @@ def load_projects(projdir):
                         # Add in any new Project properties to PROJ
                         for prop, propval_default in dummy_proj.vals.iteritems():
                             if not hasattr(proj, prop):
-                                print '...adding property {0}->{1} to project...'.format(prop, propval_default)
+                                debug('adding property {0}->{1} to project',
+                                      prop,
+                                      propval_default)
                                 setattr(proj, prop, propval_default)
                         projects.append(proj)
                     except:

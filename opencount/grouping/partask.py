@@ -1,5 +1,7 @@
 import multiprocessing, random, math
 
+from util import debug, warn, error
+
 """
 A utility script/tool that handles performing an embarassingly
 parallelizable task.
@@ -48,10 +50,10 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         return fn(jobs, _args, *moreargs)
 
     if manager == None:
-        print "...creating new Manager..."
+        debug("creating new multiprocessing.Manager")
         manager = multiprocessing.Manager()
     else:
-        print "...Received Your Manager, roger..."
+        debug("received existing multiprocessing.Manager")
     queue = manager.Queue()
 
     p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx, pass_queue, N))
@@ -110,7 +112,7 @@ def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=N
     cnt = 0
     for i, job in enumerate(divy_list(jobs, n_procs)):
         num_tasks = len(job)
-        print "Process {0} got {1} tasks.".format(i, num_tasks)
+        debug("Process {0} got {1} tasks.", i, num_tasks)
 
         the_args = (job,)
         if _args != None:
@@ -170,32 +172,26 @@ def square_nums(nums):
 def test0():
     nums = [random.random() for _ in range(1)]
     nums_squared = do_partask(square_nums, nums)
-    print "Input nums:"
-    print nums
-    print "Output nums:"
-    print nums_squared
+    debug("Input nums: {0}", nums)
+    debug("Output nums: {0}", nums_squared)
 
 def test0_a():
     nums = [random.random() for _ in range(2)]
     nums_squared = do_partask(square_nums, nums)
-    print "Input nums:"
-    print nums
-    print "Output nums:"
-    print nums_squared
-    
+    debug("Input nums:", nums)
+    debug("Output nums:", nums_squared)
+
 def test1():
     nums = [random.random() for _ in range(10000)]
     # Fascinating -- 'square' must be defined as a function with 'def',
     # you can't just do:
     # square = lambda x: x * x
     nums_squared = do_partask(square_nums, nums)
-    print "Input nums:"
-    print nums[0:10]
-    print "Output nums:"
-    print nums_squared[0:10]
+    debug("Input nums: {0}", nums[0:10])
+    debug("Output nums: {0}", nums_squared[0:10])
 
 def eval_quadratic(nums, (a, b, c)):
-    """ 
+    """
     Evalutes 'x' with the following quadratic:
         a*x**2 + b*x + c
     """
@@ -204,10 +200,8 @@ def eval_quadratic(nums, (a, b, c)):
 def test2():
     nums = [random.random() for _ in range(10000)]
     result = do_partask(eval_quadratic, nums, _args=[4, 3, 2])
-    print "Input nums:"
-    print nums[0:4]
-    print "Output nums:"
-    print result[0:4]
+    debug("Input nums: {0}", nums[0:4])
+    debug("Output nums: {0}", result[0:4])
 
 def count_occurs(strs):
     res = {}
@@ -235,26 +229,26 @@ def test3():
             'a', 'a',
             'z', 'z', 'z')
     counts = do_partask(count_occurs, strs, combfn=count_combfn, init={})
-    print counts
+    debug('{0}', counts)
 
 def run_tests():
-    print "==== Running tests..."
-    print "== 1.) Square 1 number."
+    debug("==== Running tests...")
+    debug("== 1.) Square 1 number.")
     test0()
 
-    print "== 1.a.) Square 2 numbers."
+    debug("== 1.a.) Square 2 numbers.")
     test0_a()
 
-    print "== 2.) Square 10,000 numbers."
+    debug("== 2.) Square 10,000 numbers.")
     test1()
 
-    print "== 3.) Eval a quadratic-expression of 10,000 numbers."
+    debug("== 3.) Eval a quadratic-expression of 10,000 numbers.")
     test2()
 
-    print "== 4.) Counting occurrences of strings."
+    debug("== 4.) Counting occurrences of strings.")
     test3()
 
-    print "==== Completed tests."
+    debug("==== Completed tests.")
 
 if __name__ == '__main__':
     run_tests()

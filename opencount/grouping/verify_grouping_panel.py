@@ -20,7 +20,7 @@ class VerifyGroupingMainPanel(wx.Panel):
 
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         self.proj = None
         self.stateP = None
 
@@ -36,7 +36,7 @@ class VerifyGroupingMainPanel(wx.Panel):
 
     def init_ui(self):
         self.verify_panel = VerifyBallotOverlaysMultCats(self)
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.verify_panel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
@@ -72,15 +72,15 @@ class VerifyGroupingMainPanel(wx.Panel):
         verifyoverlays_stateP = pathjoin(proj.projdir_path, '_state_verifyoverlays.p')
 
         if self.imgpath_groups:
-            self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars, 
+            self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars,
                                     patch2imgpath, digpatch2imgpath,
-                                    ondone=self.on_verify_done, do_align=False, 
+                                    ondone=self.on_verify_done, do_align=False,
                                     verifypanelClass=VerifyBallotAttributesPanel)
         else:
-            print "(VerifyGrouping): No img/digit-based attrs required to verify."
-            wx.MessageDialog(self, message="It is not necessary to verify any groups. Please move onto the \
-next step.", style=wx.OK).ShowModal()
-            
+            debug("No img/digit-based attrs required to verify.")
+            ff_warn(self, "It is not necessary to verify any groups. "\
+                          "Please move onto the next step.")
+
         self.Layout()
 
     def stop(self):
@@ -120,7 +120,8 @@ next step.", style=wx.OK).ShowModal()
             {int groupID: [int ballotID_i, ...]}
         """
         if not self.verify_results:
-            print "(VerifyGrouping): self.verify_results is empty, implies no non-tabulationonly img/digit-based attrs"
+            debug("self.verify_results is empty, implies no "\
+                  "non-tabulationonly img/digit-based attrs")
             self.verify_results = {}
 
         b2g = {}
@@ -140,13 +141,13 @@ next step.", style=wx.OK).ShowModal()
             where ATTRMODE in ('DIGITBASED', 'IMGBASED', 'CUSTATTR')
             and PROPS has keys: 'attrtype', 'x1','y1','x2','y2', 'is_tabulationonly',
                                 'side', 'grp_per_partition', 'num_digits'
-        """                   
-        attrprops = pickle.load(open(pathjoin(self.proj.projdir_path, 
+        """
+        attrprops = pickle.load(open(pathjoin(self.proj.projdir_path,
                                               self.proj.attrprops), 'rb'))
         # dict part2attrs: {int partitionid: [(imgpath,x1,y1,w,h,attrtype,attrval,side,isdigitbased,istabonly),...]}
         part2attrs = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                self.proj.partition_attrmap), 'rb'))
-        
+
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
         attrmap = {} # maps {str attrtype: dict attr_marsh}
         for attr in attrs:
@@ -175,7 +176,7 @@ next step.", style=wx.OK).ShowModal()
         for partitionid, ballotids in partitions_map.iteritems():
             for ballotid in ballotids:
                 ballot_attrvals[ballotid] = {'pid': partitionid}
-            
+
         # Note: For an attr, if groupingmode was PER_PARTITION, then
         # grouping was not done -- use the per-partition labeling.
         for partitionid, attrtupls in part2attrs.iteritems():
@@ -186,7 +187,7 @@ next step.", style=wx.OK).ShowModal()
                         attrval = get_digit_val(partitionid)
                     for balid in ballotids:
                         ballot_attrvals.setdefault(balid, {})[attrtype] = attrval
-                    
+
         for attrtype, attrvaldict in self.verify_results.iteritems():
             if is_part_consistent(attrtype):
                 # Grouping isn't done for partition-consistent attrs
@@ -252,7 +253,7 @@ next step.", style=wx.OK).ShowModal()
             for propname in propnames:
                 out_dict[propname] = info[propname]
             return out_dict
-            
+
         for ballotid, ballotprops in ballot_attrvals.iteritems():
             # 2.a.) Filter out any 'is_tabulationonly' attrtypes
             ballotprops_grp = {} # maps {attrtype: attrval}
@@ -288,7 +289,7 @@ next step.", style=wx.OK).ShowModal()
                 # NOTE: This code will NOT gracefully handle the case where
                 #       some ballots are found in B2G_OLD, and others are not
                 #       found in B2G_OLD. The latter ballots may get assigned
-                #       groupids that were assigned to the former ballots - 
+                #       groupids that were assigned to the former ballots -
                 #       however, this case should only happen if more ballots
                 #       were added since the last grouping (at which case
                 #       the project should have just been started over)
@@ -335,7 +336,8 @@ next step.", style=wx.OK).ShowModal()
         dictwriter.writerows(rows)
         csvfile.close()
 
-        print "...{0} ballots have made it this far past grouping...".format(len(ballot_attrvals))
+        debug("{0} ballots have made it this far past grouping",
+              len(ballot_attrvals))
 
         pickle.dump(group_infomap, open(pathjoin(self.proj.projdir_path,
                                                  self.proj.group_infomap), 'wb'),
@@ -355,19 +357,19 @@ next step.", style=wx.OK).ShowModal()
             pickle.dump(group_exmpls, open(pathjoin(self.proj.projdir_path,
                                                     self.proj.group_exmpls), 'wb'),
                         pickle.HIGHEST_PROTOCOL)
-        
+
     def on_verify_done(self, verify_results, quarantined_results):
-        """ 
+        """
         Input:
             dict VERIFY_RESULTS: maps {attrtype: {attrval: [imgpath_i, ...]}}
             dict QUARANTINED_RESULTS: {attrtype: [patchpath_i, ...]}
         """
-        print "...Verify Done!..."
+        debug("verify done")
         if config.TIMER:
             config.TIMER.stop_task("VerifyGrouping_Verify_H")
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
         if exists_imgattr(self.proj):
-            # Convert the attrpatchpaths in VERIFY_RESULTS back into 
+            # Convert the attrpatchpaths in VERIFY_RESULTS back into
             # voted imgpaths, using imgpatch2imgpath
             imgpatch2imgpath = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                          self.proj.imgpatch2imgpath), 'rb'))
@@ -415,7 +417,7 @@ next step.", style=wx.OK).ShowModal()
                 if imgpath == None:
                     imgpath, idx = digpatch2imgpath.get(patchpath, (None, None))
                     if imgpath == None:
-                        print "Hey, imgpath is None. patchpath:", patchpath
+                        error("imgpath is None. patchpath: {0}", patchpath)
                         pdb.set_trace()
                 if not attrmap[attrtype]['grp_per_partition']:
                     # groupmode is GRP_PER_BALLOT
@@ -425,8 +427,9 @@ next step.", style=wx.OK).ShowModal()
                     for ballotid in partitions_map[partitions_invmap[img2bal[imgpath]]]:
                         ballotids.add(ballotid)
                 qballots = qballots.union(ballotids)
-                    
-        print "...Quarantined {0} ballots from grouping...".format(len(qballots))
+
+        debug("quarantined {0} ballots from grouping...",
+              len(qballots))
 
         pickle.dump(list(qballots), open(pathjoin(self.proj.projdir_path,
                                                   self.proj.grouping_quarantined), 'wb'))
@@ -447,8 +450,8 @@ class VerifyBallotAttributesFooter(VerifyOrFlagOverlaysFooter):
 class VerifyBallotAttributes(VerifyOrFlagOverlays):
     def __init__(self, parent, *args, **kwargs):
         VerifyOrFlagOverlays.__init__(self, parent, *args, **kwargs)
-        
-    def start(self, imgpath_groups, group_exemplars, rlist_map, 
+
+    def start(self, imgpath_groups, group_exemplars, rlist_map,
               patch2imgpath, digpatch2imgpath,
               do_align=False, bbs_map=None, ondone=None, auto_ondone=False,
               stateP=None):
@@ -475,7 +478,7 @@ class VerifyBallotAttributes(VerifyOrFlagOverlays):
 
     def remove_element_with(self, imgpath):
         """ For each group (self.groups, self.finished_groups), remove
-        all elements whose patchpath maps to IMGPATH. 
+        all elements whose patchpath maps to IMGPATH.
         """
         for group in (self.groups + sum(self.finished_groups.values(), [])):
             removeit = []
@@ -484,7 +487,7 @@ class VerifyBallotAttributes(VerifyOrFlagOverlays):
                 if imgpath_this == None:
                     imgpath_this, idx = self.digpatch2imgpath.get(patchpath, (None, None))
                 if imgpath_this == None:
-                    print "Hey, imgpath_this was None. patchpath:", patchpath
+                    error("imgpath_this was None. patchpath: {0}", patchpath)
                     pdb.set_trace()
                 if imgpath_this == imgpath:
                     removeit.append(patchpath)
@@ -504,7 +507,7 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
                                      cat_exemplars,
                                      do_align=do_align,
                                      bbs_map_cats=bbs_map_cats,
-                                     ondone=ondone, 
+                                     ondone=ondone,
                                      verifypanelClass=verifypanelClass)
 
     def onPageChange(self, evt):
@@ -519,9 +522,9 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
         verifyoverlays = self.nb.GetPage(new)
         stateP = pathjoin(self.proj.projdir_path,
                           '_state_verifyoverlays_{0}.p'.format(curcat))
-        verifyoverlays.start(imgpath_groups, exemplar_groups, None, 
+        verifyoverlays.start(imgpath_groups, exemplar_groups, None,
                              self.patch2imgpath, self.digpatch2imgpath,
-                             bbs_map=bbs_map, do_align=self.do_align, 
+                             bbs_map=bbs_map, do_align=self.do_align,
                              stateP=stateP,
                              ondone=self.on_cat_done, auto_ondone=True)
         self.started_pages[new] = True
@@ -535,9 +538,9 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
             if imgpath == None:
                 imgpath, idx = self.digpatch2imgpath.get(patchpath, (None, None))
             if imgpath == None:
-                print "Hey, imgpath is None. Why? Patchpath:", patchpath
+                error("imgpath is None. Patchpath: {0}", patchpath)
                 pdb.set_trace()
-            # Remove all elements from each group from each verifypanel 
+            # Remove all elements from each group from each verifypanel
             # with IMGPATH as an element.
             for p in pages:
                 verifypanel = self.nb.GetPage(p)
@@ -550,26 +553,22 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
             dict VERIFY_RESULTS: {grouptag: [patchpath_i, ...]}
             list QUARANTINE_RESULTS: [patchpath_i, ...]
         """
-        print "...In on_cat_done..."
+        debug("in on_cat_done")
         curcat = self.page2cat[self.nb.GetSelection()]
         self.verify_results_cat[curcat] = verify_results
         self.quarantine_results_cat[curcat] = quarantine_results
 
         if len(self.verify_results_cat) == len(self.cat2page):
-            print "We're done verifying all categories!"
+            debug("We're done verifying all categories!")
             self.Disable()
-            wx.MessageDialog(self, style=wx.OK,
-                             message="You've finished verifying all \
-categories.\n\n\
-You may proceed to the next task.",
-                             caption="Grouping Verification Completed").ShowModal()
+            ff_warn(self, "You've finished verifying all categories.\n\n\ "\
+                          "You may proceed to the next task.")
             if self.ondone:
                 self.ondone(self.verify_results_cat, self.quarantine_results_cat)
         else:
-            wx.MessageDialog(self, style=wx.OK,
-                             message="You've finished verifying category '{0}'.\n\n\
-You may move onto the next category.".format(curcat),
-                             caption="Category Completed").ShowModal()
+            ff_warn(self,
+                    "You've finished verifying category '{0}'.\n\n" \
+                    "You may move onto the next category.".format(curcat))
 
 def exists_imgattr(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
@@ -604,7 +603,7 @@ def create_groups(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     imgpath_groups0 = create_imgbased_groups(extract_results, attrs,
                                              b2imgs, img2page, proj)
-    imgpath_groups1 = create_digitbased_groups(digitgroup_results, 
+    imgpath_groups1 = create_digitbased_groups(digitgroup_results,
                                                attrs, b2imgs, img2page, proj)
     return dict(imgpath_groups0.items() + imgpath_groups1.items())
 
@@ -655,7 +654,7 @@ def create_digitbased_groups(digitgroup_results, attrs, b2imgs, img2page, proj):
             attrtypestr = '_'.join(sorted(attr['attrs']))
             if attrtypestr == attrtype:
                 return attr['side']
-        print "Badness -- couldn't find attribute {0}.".format(attrtype)
+        error("Badness -- couldn't find attribute {0}.", attrtype)
         pdb.set_trace()
         return None
     if not digitgroup_results:
@@ -692,7 +691,7 @@ def get_img_exemplars(proj):
         return {}
     multexemplars_map = pickle.load(open(pathjoin(proj.projdir_path,
                                                   proj.multexemplars_map), 'rb'))
-    exemplars = {} 
+    exemplars = {}
     for attrtype, attrdict in multexemplars_map.iteritems():
         for attrval, tuples in attrdict.iteritems():
             for (subpatchP, blankpath, (x1,y1,x2,y2)) in tuples:
@@ -748,7 +747,7 @@ def apply_patch2imgpath_fix(verify_results, attrs, imgpatch2imgpath):
             attrtypestr = '_'.join(sorted(attr['attrs']))
             if attrtypestr == attrtype:
                 return not attr['is_digitbased']
-        print "Uh oh, couldn't find attrtype {0}.".format(attrtype)
+        error("Couldn't find attrtype {0}.", attrtype)
         pdb.set_trace()
     out = {}
     for attrtype, attrvaldict in verify_results.iteritems():
@@ -776,7 +775,7 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
             digitattrtype = '_'.join(sorted(attr['attrs']))
             break
     assert digitattrtype != None
-    
+
     d_map = {} # maps {imgpath: {int idx: str digit}}
     verify_results_fixed = {}
 
@@ -788,7 +787,7 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
                     d_map.setdefault(imgpath, {})[idx] = attrval
             else:
                 verify_results_fixed.setdefault(attrtype, {})[attrval] = digpatchpaths
-            
+
     for imgpath, digitidx_map in d_map.iteritems():
         digits_lst = []
         for i, idx in enumerate(sorted(digitidx_map.keys())):
@@ -797,7 +796,7 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
             assert i == idx
             digits_lst.append(digitidx_map[idx])
         digitstrval = ''.join(digits_lst)
-        print "For imgP {0}, digitval is: {1}".format(imgpath, digitstrval)
+        debug("For imgP {0}, digitval is: {1}", imgpath, digitstrval)
         verify_results_fixed.setdefault(digitattrtype, {}).setdefault(digitstrval, []).append(imgpath)
     return verify_results_fixed
 

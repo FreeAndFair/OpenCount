@@ -21,6 +21,7 @@ sys.path.append('..')
 
 import extract_patches
 import util, config, asize
+from util import debug, warn, error
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
 from ffwx import *
@@ -28,11 +29,25 @@ from ffwx import *
 JOBID_EXPORT_RESULTS = util.GaugeID("PartitioningExportResults")
 
 class Strings:
-    BARCODE_OVERLAY_HELP = \
-"Would you like to skip barcode overlay \
-verification? It tends to be computationally time-consuming, not \
-very helpful for certain vendors (e.g. Hart), and and typically is \
-unnecessary."
+    BARCODE_OVERLAY_HELP = "Would you like to skip barcode overlay "\
+      "verification? It tends to be computationally time-consuming, not "\
+      "very helpful for certain vendors (e.g. Hart), and and typically is "\
+      "unnecessary."
+    UNEVEN_SIDES = "Warning: OpenCount detected an uneven number of "\
+      "images per side. This violates the assumption that there are "\
+      "{0} sides per ballot.\n\n "\
+      "In particular, there were {1} ballots with an unusual number of "\
+      "reported sides.\n\n\ "\
+      "Is this perhaps an election with a variable-number of pages? \n\n "\
+      "Or perhaps a few images are missing in the dataset? \n\n "\
+      "These {1} ballots will be quarantined.\n\n "\
+      "The page counts are:\n{2}\n "\
+      "(Detailed info on these ballots have been saved to: \n "\
+      "opencount/<projdir>/_ballots_unevenpages.txt"
+    WRONG_NUM_PAGES = "User specified that this is an election with "\
+      "{0} pages, yet partitioning only discovered {1} pages.\n "\
+      "Please go back and correct the 'number of pages' option "\
+      "in the previous step."
 
 class PartitionMainPanel(wx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
@@ -72,11 +87,11 @@ class PartitionMainPanel(wx.Panel):
         t_total = time.time()
 
         # partitioning: {int partitionID: [int ballotID_i, ...]}
-        partitions_map = {} 
+        partitions_map = {}
         partitions_invmap = {}
         partition_exmpls = {}
         # Note: IMAGE_TO_PAGE will normalize the pages s.t. they start
-        # from 0, and increase by 1. 
+        # from 0, and increase by 1.
         image_to_page = {} # maps {str imgpath: int side}
         image_to_flip = {} # maps {str imgpath: bool isflip}
         img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
@@ -95,11 +110,13 @@ class PartitionMainPanel(wx.Panel):
         _prev_count = None
         flag_uneven_pages = False
         for i, decoderPage in enumerate(sorted(pages_counter.keys())):
-            print "...There are {0} images from side {1}...".format(pages_counter[decoderPage], decoderPage)
+            debug("There are {0} images from side {1}",
+                  pages_counter[decoderPage],
+                  decoderPage)
             if _prev_count == None:
                 _prev_count = pages_counter[decoderPage]
             if pages_counter[decoderPage] != _prev_count:
-                print "...Uhoh, detected uneven pages, might be problem..."
+                debug("...Uhoh, detected uneven pages, might be problem...")
                 flag_uneven_pages = True
             _prev_count = pages_counter[decoderPage]
             pages_norm_map[decoderPage] = i
@@ -109,17 +126,25 @@ class PartitionMainPanel(wx.Panel):
         #### Sanity Checks ####
         #######################
 
-        # 1.) Perform a few sanity checks if this is a single-sided 
+        # 1.) Perform a few sanity checks if this is a single-sided
         #     election.
         if not self.proj.is_varnum_pages and self.proj.num_pages == 1 and len(pages_norm_map) != self.proj.num_pages:
-            print "...Uhoh, detected {0} pages, but election specifies {1} pages.".format(len(pages_norm_map), self.proj.num_pages)
-            msg = "Warning: The user specified \
-that this is a {0}-sided election. However, OpenCount just detected that {1} \
-sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
+            debug("...Uhoh, detected {0} pages, but election \
+                  \specifies {1} pages.",
+                  len(pages_norm_map),
+                  self.proj.num_pages)
+            msg = "Warning: The user specified that this is a "\
+                  "{0}-sided election. However, OpenCount just "\
+                  "detected that {1} sides are present\n".format(
+                      self.proj.num_pages,
+                      len(pages_norm_map))
+
             for decoderPage in pages_norm_map.keys():
-                msg += "    Page {0}: {1} images".format(decoderPage, pages_counter[decoderPage])
-                msg += "\n"
+                msg += "    Page {0}: {1} images\n".format(
+                    decoderPage,
+                    pages_counter[decoderPage])
             msg += "What should OpenCount do?"
+
             dlg = BadPagesDialog(self, msg, pages_counter)
             if config.TIMER:
                 config.TIMER.start_task("Partition_DialogBadPages_H")
@@ -143,28 +168,23 @@ sides are present. \n".format(self.proj.num_pages, len(pages_norm_map))
                     decoderPage = imginfo['page']
                     if decoderPage != keepDecoderPage:
                         if doQuarantine:
-                            print "...quarantining ballot {0}".format(img2b[imgpath])
+                            debug("quarantining ballot {0}", img2b[imgpath])
                         else:
-                            print "...discarding ballot {0}".format(img2b[imgpath])
+                            debug("discarding ballot {0}", img2b[imgpath])
                         handleballot(img2b[imgpath])
         if not self.proj.is_varnum_pages and len(set(pages_norm_map.values())) != self.proj.num_pages:
-            print "...Warning: User specified this is an election with \
-{0} pages, yet partitioning only discovered {1} pages.".format(self.proj.num_pages,
-                                                               len(set(pages_norm_map.values())))
-            dlg = wx.MessageDialog(self, style=wx.ID_OK,
-                                   message="Warning: User specified that this \
-is an election with {0} pages, yet partitioning only discovered {1} pages.\n\
-Please go back and correct the 'Number of Pages' option in the previous step.".format(self.proj.num_pages,
-                                                                                      len(set(pages_norm_map.values()))))
-            if config.TIMER:
-                config.TIMER.start_task("Partition_DialogIncorrectNumPages_H")
-            dlg.ShowModal()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_DialogIncorrectNumPages_H")
+            warn("Warning: User specified this is an election with "\
+                 "{0} pages, yet partitioning only discovered {1} pages",
+                 self.proj.num_pages,
+                 len(set(pages_norm_map.values())))
+            ff_warn(self,
+                    Strings.WRONG_NUM_PAGES.format(
+                        self.proj.num_pages,
+                        len(set(pages_norm_map.values()))))
             return
 
         #### END Sanity Checks
-                        
+
         # 1.) Build up partitions_map, partitions_invmap
         # Note: self.partitionpanel.partitioning may have partitions
         # with either no ballotids, or ballotids that are all quarantined/discarded.
@@ -218,9 +238,10 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
             _msg = 'Page Counts:\n'
             for decoderPage in sorted(pages_counter.keys()):
                 _msg += '    Page {0}: {1}\n'.format(decoderPage, pages_counter[decoderPage])
-            print "...Warning: Uneven page numbers detected for {0} ballots.".format(len(ballots_unevenpages))
-            print _msg
-            print "Relevant Ballots:"
+            warn("...Warning: Uneven page numbers detected for {0} ballots.",
+                 len(ballots_unevenpages))
+            warn(_msg)
+            warn("Relevant Ballots:")
             _errf = open(pathjoin(self.proj.projdir_path,
                                   "_ballots_unevenpages.txt"), 'w')
             for i, (ballotid, _img2page) in enumerate(ballots_unevenpages):
@@ -230,23 +251,10 @@ Please go back and correct the 'Number of Pages' option in the previous step.".f
                     print "    {0} -> Page {1}".format(_imP, pg)
                     print >>_errf, "    {0} -> Page {1}".format(_imP, pg)
             _errf.close()
-            if config.TIMER:
-                config.TIMER.start_task("Partition_DialogUnevenPagesPerSide_H")
-            dlg = wx.MessageDialog(self, style=wx.ID_OK,
-                                   message="Warning: OpenCount detected \
-an uneven number of images per side. This violates the assumption that \
-there are {0}-sides per ballot. \n\n\
-In particular, there were {1} ballots with an unusual number of reported \
-sides.\n\n\
-Is this perhaps an election with a variable-number of pages? \n\n\
-Or perhaps a few images are missing in the dataset? \n\n\
-These {1} ballots will be quarantined.\n\n\
-The page counts are:\n{2}\n\
-(Detailed info on these ballots have been saved to: \n\
-    opencount/<projdir>/_ballots_unevenpages.txt".format(self.proj.num_pages, len(ballots_unevenpages), _msg))
-            dlg.ShowModal()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_DialogUnevenPagesPerSide_H")
+            ff_warn(self, message=Strings.UNEVEN_SIDES.format(
+                self.proj.num_pages,
+                len(ballots_unevenpages),
+                _msg))
         for (ballotid, _img2page) in ballots_unevenpages:
             self.partitionpanel.quarantined_bals.add(ballotid)
 
@@ -256,8 +264,7 @@ The page counts are:\n{2}\n\
         imginfo_map_outP = pathjoin(self.proj.projdir_path, self.proj.imginfo_map)
         partition_exmpls_outP = pathjoin(self.proj.projdir_path, self.proj.partition_exmpls)
         # Finally, also output the quarantined/discarded ballots
-        num_tasks = 8
-        JOBID_EXPORT_RESULTS.next_job(num_tasks)
+        JOBID_EXPORT_RESULTS.next_job(8)
 
         pickle.dump(tuple(self.partitionpanel.quarantined_bals),
                     open(pathjoin(self.proj.projdir_path, self.proj.partition_quarantined), 'wb'),
@@ -291,7 +298,8 @@ The page counts are:\n{2}\n\
                     pickle.HIGHEST_PROTOCOL)
 
         dur_total = time.time() - t_total
-        print "(Partition) Total Time to Export Results: {0:.8f}s".format(dur_total)
+        debug("(Partition) Total Time to Export Results: {0:.8f}s",
+              dur_total)
 
         JOBID_EXPORT_RESULTS.done()
         thread_listen._stop.set()
@@ -405,15 +413,15 @@ class PartitionPanel(ScrolledPanel):
         try:
             d = pickle.load(open(fpath1, 'rb'))
         except IOError as e:
-            print "(Error) Couldn't open: {0}".format(fpath1)
-            print "    Exception:", e.message
+            error("(Error) Couldn't open: {0}", fpath1)
+            error("    Exception {0}", e.message)
             return
         img2decoding = d['img2decoding']
         try:
             img2flip = pickle.load(open(fpath2, 'rb'))
         except IOError as e:
-            print "(Error) Couldn't open: {0}".format(fpath2)
-            print "    Exception:", e.message
+            error("(Error) Couldn't open: {0}", fpath2)
+            error("    Exception: {0}", e.message)
 
         cache = {} # maps {str imgpath: (tuple decodings, bool isflipped)}
         cnt = 0
@@ -422,9 +430,9 @@ class PartitionPanel(ScrolledPanel):
             if isflip != None:
                 cache[imgpath] = (decoding, isflip)
                 cnt += 1
-        print "(Info) Loaded {0} previous decodings into cache.".format(cnt)
+        debug("(Info) Loaded {0} previous decodings into cache.", cnt)
         self.run_decoding(cache=cache)
-        
+
     def onButton_loadDecoding(self, evt):
         """ A Dev feature to allow someone to load-in the previous results of
         decoding the images in this election, without having to re-decode
@@ -438,8 +446,8 @@ class PartitionPanel(ScrolledPanel):
             # dict DECODER_OUT, keys: 'img2decoding', 'flipmap', 'verifypatch_bbs', 'err_imgpaths', 'ioerr_imgpaths'
             d = pickle.load(open(filepath, 'rb'))
         except IOError as e:
-            print "(Error) Couldn't open: {0}".format(filepath)
-            print "    Exception:", e.message
+            error("(Error) Couldn't open: {0}", filepath)
+            error("    Exception: {0}", e.message)
             return
         img2decoding, flipmap = d['img2decoding'], d['flipmap']
         verifypatch_bbs       = d['verifypatch_bbs']
@@ -447,7 +455,7 @@ class PartitionPanel(ScrolledPanel):
         self.on_decodedone(img2decoding, flipmap, verifypatch_bbs, err_imPs, ioerr_imPs)
 
     def start(self, proj, voteddir, stateP='_state_partition.p'):
-        """ 
+        """
         Input:
             str VOTEDDIR: Root directory of voted ballots.
         """
@@ -455,7 +463,7 @@ class PartitionPanel(ScrolledPanel):
         self.voteddir = voteddir
         self.stateP = stateP
         self.restore_session()
-        
+
     def stop(self):
         self.save_session()
 
@@ -480,7 +488,7 @@ class PartitionPanel(ScrolledPanel):
             return False
         return True
     def save_session(self):
-        print "...PartitionPanel: Saving state..."
+        debug("...PartitionPanel: Saving state...")
         state = {'voteddir': self.voteddir,
                  'partitioning': self.partitioning,
                  'img2decoding': self.img2decoding,
@@ -512,13 +520,13 @@ class PartitionPanel(ScrolledPanel):
                 self.skipVerify = skipVerify
             def run(self):
                 t = time.time()
-                print "...Running Decoding ({0} ballots)...".format(len(self.b2imgs))
-                # Pass in self.manager and self.queue to allow cross-process 
+                debug("Running Decoding ({0} ballots)...", len(self.b2imgs))
+                # Pass in self.manager and self.queue to allow cross-process
                 # communication (for multiprocessing)
                 img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(self.b2imgs, manager=self.manager, queue=self.queue, skipVerify=self.skipVerify, cache=cache)
                 dur = time.time() - t
-                print "...Done Decoding Ballots ({0} s).".format(dur)
-                print "    Avg. Time Per Ballot:", dur / float(len(self.b2imgs))
+                debug("Done Decoding Ballots ({0} s).", dur)
+                debug("    Avg. Time Per Ballot:", dur / float(len(self.b2imgs)))
                 self.jobid.done()
                 wx.CallAfter(self.callback, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
                 self.tlisten.stop()
@@ -577,36 +585,14 @@ class PartitionPanel(ScrolledPanel):
 
         skipVerify = self.chkbox_skip_verify.GetValue()
 
-        manager = multiprocessing.Manager()
-        progress_queue = manager.Queue()
-        tlisten = ListenThread(progress_queue, self.PARTITION_JOBID)
-
-        @util.as_thread
-        def partition_thread():
-            with util.time_operation('decoding {0} ballots'.format(len(b2imgs))):
-                results = vendor_obj.decode_ballots(b2imgs,
-                                                    manager=manager,
-                                                    queue=progress_queue,
-                                                    skipVerify=skipVerify,
-                                                    cache=cache)
-            self.PARTITION_JOBID.done()
-            wx.CallAfter(self.on_decodedone, *results)
-            tlisten.stop()
-
-        numtasks = len(b2imgs)
-        gauge = util.MyGauge(self,
-                             1,
-                             thread=partition_thread,
-                             msg="Running Partitioning...",
-                             job_id=self.PARTITION_JOBID)
-        gauge.Show()
-        self.PARTITION_JOBID.next_job(numtasks)
-
-        if config.TIMER:
-            config.TIMER.start_task("Partition_Decode_CPU")
-
-        tlisten.start()
-        partition_thread.start()
+        progress_bar = FFProgressBar(self)
+        @util.as_process
+        def part_thread():
+            with progress_bar:
+                return vendor_obj.decode_ballots(b2imgs,
+                                                 skipVerify=skipVerify,
+                                                 cache=cache)
+        progress_bar.on_finish(lambda: self.on_decodedone(*part_thread()))
 
     def on_decodedone(self, img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths):
         """
@@ -622,15 +608,15 @@ class PartitionPanel(ScrolledPanel):
                 List of images that were unable to be read by OpenCount
                 due to a read/load error (e.g. IOError).
         """
-        print "...Decoding Done!"
+        debug("Decoding Done!")
         if config.TIMER:
             config.TIMER.stop_task("Partition_Decode_CPU")
             config.TIMER.start_task("Partition_HandleDecodingResults_CPU")
-        print 'Errors ({0} total): {1}'.format(len(err_imgpaths), err_imgpaths)
-        print 'IOErrors ({0} total): {1}'.format(len(ioerr_imgpaths), ioerr_imgpaths)
+        debug('Errors ({0} total): {1}', len(err_imgpaths), err_imgpaths)
+        debug('IOErrors ({0} total): {1}', len(ioerr_imgpaths), ioerr_imgpaths)
         # Save the raw decoding output, in case for later usage
-        pickle.dump({'img2decoding': img2decoding, 
-                     'flipmap': flipmap, 'verifypatch_bbs': verifypatch_bbs, 
+        pickle.dump({'img2decoding': img2decoding,
+                     'flipmap': flipmap, 'verifypatch_bbs': verifypatch_bbs,
                      'err_imgpaths': err_imgpaths, 'ioerr_imgpaths': ioerr_imgpaths},
                     open(pathjoin(self.proj.projdir_path, '_decoder_output.p'), 'wb'),
                     pickle.HIGHEST_PROTOCOL)
@@ -652,7 +638,7 @@ class PartitionPanel(ScrolledPanel):
             self.errs_flipmap = {}
         if ioerr_imgpaths:
             self.ioerr_imgpaths = ioerr_imgpaths
-            errpath = os.path.join(self.proj.projdir_path, 
+            errpath = os.path.join(self.proj.projdir_path,
                                    'ioerr_imgpaths.txt')
             dlg = wx.MessageDialog(self, message="Warning: {0} images \
 were unable to be read by OpenCount. These images (and associated \
@@ -668,7 +654,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                     for ioerr_imgpath in ioerr_imgpaths:
                         print >>errf, ioerr_imgpath
             except IOError as e:
-                print "...Warning: Unable to write ioerr_imgpaths to:", errpath
+                error("Warning: Unable to write ioerr_imgpaths to {0}", errpath)
         else:
             self.ioerr_imgpaths = []
         # Output all ioerr ballot ids for future stages to be aware
@@ -677,7 +663,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             ioerr_balids.add(img2bal[ioerr_imgpath])
         pickle.dump(ioerr_balids, open(pathjoin(self.proj.projdir_path,
                                                 self.proj.partition_ioerr), 'wb'))
-        
+
         def nuke_ballots(ballotids, img2decoding, verifypatch_bbs, flipmap):
             """ Removes all references to ballotids in BALLOTIDS from
             data structs IMG2DECODING, VERIFYPATCH_BBS and FLIPMAP.
@@ -732,8 +718,9 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         #       Either speed this up, or add a progress bar?
         nuke_ballots(nuke_ballotids, img2decoding, verifypatch_bbs, flipmap)
 
-        print "{0} Quarantined Ballots, {1} Discarded Ballots".format(len(self.quarantined_bals),
-                                                                      len(self.discarded_bals))
+        debug("{0} Quarantined Ballots, {1} Discarded Ballots",
+              len(self.quarantined_bals),
+              len(self.discarded_bals))
         if config.TIMER:
             config.TIMER.stop_task("Partition_HandleDecodingResults_CPU")
         self.start_verify(img2decoding, flipmap, verifypatch_bbs)
@@ -747,7 +734,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 Will be None if skipVerify was True.
         """
         if self.chkbox_skip_verify.GetValue() or verifypatch_bbs == None:
-            print "...Skipping Barcode Overlay Verification..."
+            debug("...Skipping Barcode Overlay Verification...")
             wx.CallAfter(self.on_verify_done, None, None, img2decoding, flipmap, verifypatch_bbs, skipVerify=True)
             return
 
@@ -774,7 +761,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         thread_doextract.start()
 
         gauge = util.MyGauge(self, 1, thread=thread_doextract,
-                             msg="Extracting Barcode Values...", 
+                             msg="Extracting Barcode Values...",
                              job_id=self.JOBID_EXTRACT_BARCODE_MARKS)
         gauge.Show()
 
@@ -820,7 +807,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             of imgpaths that the user claimed is part of GROUPTAG.
             Will be None if skipVerify was True.
         """
-        print "...barcode patch verification done!"
+        debug("...barcode patch verification done!")
         if config.TIMER:
             config.TIMER.stop_task("Partition_VerifyBarcodeMarks_H")
         verified_decodes = {} # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
@@ -840,7 +827,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 # barcode values.
                 decodings = tuple([s.strip() for s in label.split(",")])
                 manual_labeled[imgpath] = decodings
-        print "...generating partitions..."
+        debug("generating partitions")
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
         if config.TIMER:
             config.TIMER.start_task("Partition_GeneratePartitions_CPU")
@@ -850,7 +837,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(img2decoding, verified_decodes, manual_labeled)
         if config.TIMER:
             config.TIMER.stop_task("Partition_GeneratePartitions_CPU")
-        print "...done generating partitions..."
+        debug("...done generating partitions...")
         # Add in manually-corrected flipped
         for imgpath, isflip in self.errs_flipmap.iteritems():
             flipmap[imgpath] = isflip
@@ -867,70 +854,24 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             num_pages = max([len(bal2imgs[b]) for b in ballotids])
             cur_bad_ballotids = [b for b in ballotids if len(bal2imgs[b]) != num_pages]
             if cur_bad_ballotids:
-                print '...REMOVING {0} ballots from partition {1}...'.format(len(cur_bad_ballotids),
-                                                                             partitionID)
-                print "    Should have {0} Pages".format(num_pages)
-                print "    {0}".format([len(bal2imgs[b]) for b in cur_bad_ballotids])
-                                                                                 
+                debug('REMOVING {0} ballots from partition {1}...',
+                      len(cur_bad_ballotids),
+                      partitionID)
+                debug("\tShould have {0} Pages", num_pages)
+                debug("\t{0}", [len(bal2imgs[b]) for b in cur_bad_ballotids])
             bad_ballotids.extend(cur_bad_ballotids)
             cur_bad_ballotids = set(cur_bad_ballotids)
             ballotids[:] = [b for b in ballotids if b not in cur_bad_ballotids]
 
         # For each 'bad' ballotid, add them into its own new partition
-        print "...There were {0} ballotids with anomalous page numbers. \
-Adding to separate partitions...".format(len(bad_ballotids))
+        debug("...There were {0} ballotids with anomalous page numbers. "
+              "Adding to separate partitions...",
+              len(bad_ballotids))
         curPartId = len(self.partitioning)
         for badballotid in bad_ballotids:
             self.partitioning[curPartId] = [badballotid]
             curPartId += 1
 
-        # Also, for single-sided elections, quarantine any ballots which
-        # has a very-rare page. NOTE: Commenting out this check, since
-        # it might be best to just partition also by page for single-sided.
-        '''
-        if self.proj.num_pages == 1:
-            page_counter = util.Counter() # keeps track of page# occurrences
-            # 0.) Initialize page count PAGE_COUNTER
-            for partitionID, ballotIDs in self.partitioning.iteritems():
-                for ballotID in ballotIDs:
-                    if ballotID in self.quarantined_bals or ballotID in self.discarded_bals:
-                        continue
-                    imgpaths = bal2imgs[ballotID]
-                    for imgpath in imgpaths:
-                        page = self.imginfo[imgpath]['page']
-                        page_counter[page] += 1
-            def is_anomalous_page(page, page_stats, T=0.02):
-                """ Reject pages that rarely occur """
-                if page not in page_stats:
-                    return True
-                elif page_stats[page] <= T:
-                    return True
-                return False
-            # 0.a.) Compute page statistics
-            page_stats = {} # maps {page: float percentage}
-            total_count = sum(page_counter.values())
-            for pagenum, count in page_counter.iteritems():
-                page_stats[pagenum] = count / float(total_count)
-            print page_stats
-            pdb.set_trace()
-            # 1.) Perform anomaly detection
-            anom_cnt = 0
-            for partitionid, ballotids in self.partitioning.iteritems():
-                for ballotid in ballotids:
-                    if ballotID in self.quarantined_bals or ballotID in self.discarded_bals:
-                        continue
-                    imgpaths = bal2imgs[ballotid]
-                    flagit = False
-                    for imgpath in imgpaths:
-                        page = self.imginfo[imgpath]['page']
-                        if is_anomalous_page(page, page_stats):
-                            flagit = True
-                            anom_cnt += 1
-                            break
-                    if flagit:
-                        self.quarantine_ballot(ballotid)
-            print "    Detected {0} anomalous ballots (weird page number)".format(anom_cnt)
-        '''
         # 2.) Finally, remove all quarantined/discarded ballotids from
         # self.PARTITIONING.
         bad_ballotids = self.quarantined_bals.union(self.discarded_bals)
@@ -942,7 +883,7 @@ Adding to separate partitions...".format(len(bad_ballotids))
                     ballotids.pop(i)
                 else:
                     i += 1
-                    
+
         class ThreadExport(threading.Thread):
             def __init__(self, fn_tocall, thread_listen, queue_mygauge, *args, **kwargs):
                 threading.Thread.__init__(self, *args, **kwargs)
@@ -974,13 +915,13 @@ Adding to separate partitions...".format(len(bad_ballotids))
 
         t_listen.start()
         t_export.start()
-        
+
     def on_export_done(self):
         self.display_partition_stats()
         self.btn_run.Disable()
         self.chkbox_skip_verify.Disable()
         self.Layout()
-        
+
         wx.MessageDialog(self, style=wx.OK, caption="Partitioning Done",
                          message="Partitioning is complete. \n\n\
 You may move onto the next step.").ShowModal()
@@ -1017,7 +958,7 @@ class VerifyOverlaysFrame(wx.Frame):
         Input:
         dict IMGCATEGORIES: {cat_tag: {grouptag: [imgpath_i, ...]}}
             For each category CAT_TAG, GROUPTAG is an identifier for
-            a set of imgpaths. 
+            a set of imgpaths.
         dict EXMPLCATEGORIES: {cat_tag: {grouptag: [exmplpath_i, ...]}}
             For each category CAT_TAG, GROUPTAG is an identifier for
             a set of exemplar imgpatches.
@@ -1037,10 +978,10 @@ class VerifyOverlaysFrame(wx.Frame):
         self.Layout()
 
     def start(self):
-        self.verifyoverlays.start(self.imgcategories, self.exmplcategories, 
+        self.verifyoverlays.start(self.imgcategories, self.exmplcategories,
                                   do_align=False, ondone=self.on_verify_done)
         self.Layout()
-    
+
     def on_verify_done(self, verify_results):
         self.Close()
         wx.CallAfter(self.ondone, verify_results)
@@ -1064,9 +1005,9 @@ class LabelOrDiscardPanel(label_imgs.LabelPanel):
 ballot, or mark as quarantined/discarded.""") + "\n\n" +
                 textwrap.fill("""(Sequoia) -- Please enter the two \
 8-bit barcode-values as comma-separated bitstrings, in Left to Right order. \
-Within each barcode, interpret the bits in Top to Down order. E.g: 01000000, 00001111.""") + "\n" + 
+Within each barcode, interpret the bits in Top to Down order. E.g: 01000000, 00001111.""") + "\n" +
                 textwrap.fill("""    Note: If the image is the backside \
-of a ballot, then enter the special label: '0,' (no quotes).""") + "\n\n" + 
+of a ballot, then enter the special label: '0,' (no quotes).""") + "\n\n" +
                 textwrap.fill("""(Hart) -- Please enter the decimal digits \
 displayed below the upper-left barcode. Enter the digits starting from the \
 bottom-most digit.""") + "\n\n" +
@@ -1075,7 +1016,7 @@ bitstring along the bottom of the ballot page, from Left to Right order. \
 Do not include the left-most and right-most marks.""") + "\n\n")
         self.txt_inst.SetLabel(inst)
 
-        self.radio_quarantine = wx.RadioButton(self, label="Quarantine (Process Later)", 
+        self.radio_quarantine = wx.RadioButton(self, label="Quarantine (Process Later)",
                                                style=wx.RB_GROUP)
         self.radio_quarantine.Bind(wx.EVT_RADIOBUTTON, self.onRadioBtn_quar)
         self.radio_discard = wx.RadioButton(self, label="Discard (Don't Process)")
@@ -1087,10 +1028,16 @@ Do not include the left-most and right-most marks.""") + "\n\n")
                                 (self.radio_normal,)])
         self.chkbox_isflip = wx.CheckBox(self, label="Is the ballot flipped (upside down)?")
 
-        btn_quarantine_all = wx.Button(self, label="Quarantine REST of images")
-        btn_quarantine_all.Bind(wx.EVT_BUTTON, self.onButton_quarAll)
-        btn_discard_all = wx.Button(self, label="Discard REST of images")
-        btn_discard_all.Bind(wx.EVT_BUTTON, self.onButton_discardAll)
+        btn_quarantine_all = FFButton(
+            self,
+            label='Quarantine REST of images',
+            on_click=self.onButton_quarAll,
+        )
+        btn_discard_all = FFButton(
+            self,
+            label="Discard REST of images",
+            on_click=self.onButton_discardAll
+        )
         self.btn_sizer.AddMany([(radiobtn_sizer,), (self.chkbox_isflip,),
                                 ((0,50),),
                                 (btn_quarantine_all,), ((0,10),),
@@ -1111,7 +1058,7 @@ information, such as voter marks and contest information.".format(num_rest)).Sho
             except: pass
             self.quar_imgpaths.add(imgpath)
         self.callback(self.imagelabels)
-        
+
     def onButton_discardAll(self, evt):
         total = len(self.imagepaths)
         num_rest = total - self.cur_imgidx
@@ -1178,7 +1125,7 @@ steps, and will not be included in the final results.".format(num_rest)).ShowMod
             self.chkbox_isflip.SetValue(True)
 
 class LabelDialog(wx.Dialog):
-    """ 
+    """
     A Modal Dialog that lets the user label a set of images.
     """
     class QuarantineID(object):
@@ -1198,12 +1145,12 @@ class LabelDialog(wx.Dialog):
 
     ID_Quarantine = QuarantineID()
     ID_Discard = DiscardID()
-    def __init__(self, parent, imageslist, captions=None, possibles=None, 
+    def __init__(self, parent, imageslist, captions=None, possibles=None,
                  outfile=None, *args, **kwargs):
-        wx.Dialog.__init__(self, parent, title="Label These Images", 
-                           size=(1000, 800), style=wx.CAPTION | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.RESIZE_BORDER, 
+        wx.Dialog.__init__(self, parent, title="Label These Images",
+                           size=(1000, 800), style=wx.CAPTION | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.RESIZE_BORDER,
                            *args, **kwargs)
-        
+
         self.labelpanel = LabelOrDiscardPanel(self)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -1241,11 +1188,14 @@ class BadPagesDialog(wx.Dialog):
 
         self.keep_page = None
         self.do_quarantine = None
-        
+
         txt = wx.StaticText(self, label=msg)
 
-        btn_treatNormal = wx.Button(self, label="Process All")
-        btn_treatNormal.Bind(wx.EVT_BUTTON, self.onButton_treatNormal)
+        btn_treatnormal = FFButton(
+            self,
+            label='Process All',
+            on_click=self.onButton_treatNormal,
+        )
 
         _msg_treatNormal = "    In other words, treat each image as if \
 it were the front-side of a ballot."
@@ -1259,38 +1209,28 @@ it were the front-side of a ballot."
             choices.append("Page {0} -- {1} images".format(page, cnt))
         self.cb_pages = wx.ComboBox(self, choices=choices, style=wx.CB_READONLY)
 
-        sizer_choose = wx.BoxSizer(wx.VERTICAL)
+        sizer_choose = ff_vbox(txt_choose, self.cb_pages)
 
-        sizer_choose.AddMany([(txt_choose,), (self.cb_pages,)])
-        
         txt_others = wx.StaticText(self, label="And do the following to the other sides:")
         self.rb_quarantine = wx.RadioButton(self, label="Quarantine the other sides", style=wx.RB_GROUP)
         self.rb_discard = wx.RadioButton(self, label="Discard the other sides")
 
-        sizer_others = wx.BoxSizer(wx.VERTICAL)
-        sizer_others.AddMany([(txt_others,), (self.rb_quarantine,), (self.rb_discard,)])
+        sizer_others = ff_vbox(txt_others, self.rb_quarantine, self.rb_discard)
 
-        sizer2 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer2.AddMany([(sizer_choose,), (sizer_others)])
-        btn_ok = wx.Button(self, label="Ok")
-        btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
+        sizer2 = ff_hbox(sizer_choose, sizer_others)
+        btn_ok = FFButton(self, label='Ok', on_click=self.onButton_ok)
         sizer2.Add(btn_ok, flag=wx.ALIGN_CENTER)
 
-        sizer_treatNormal = wx.BoxSizer(wx.VERTICAL)
-        sizer_treatNormal.Add(btn_treatNormal)
-        sizer_treatNormal.Add(txt_treatNormal)
-
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(sizer_treatNormal,), ((50,0),), (sizer2,)])
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.AddMany([(txt,), (btn_sizer,)])
+        sizer_treatNormal = ff_vbox(btn_treatNormal, txt_treatNormal)
+        btn_sizer = ff_hbox(sizer_treatNormal, (50,0), sizer2)
+        sizer = ff_vbox(txt, btn_sizer)
 
         self.SetSizer(sizer)
         self.Fit()
 
     def onButton_treatNormal(self, evt):
         self.EndModal(self.ID_TREATNORMAL)
+
     def onButton_ok(self, evt):
         self.keep_page = self.cb_pages.GetSelection()
         self.do_quarantine = True if self.rb_quarantine.GetValue() else False
@@ -1299,8 +1239,8 @@ it were the front-side of a ballot."
 class ThreadExtractBarcodePatches(threading.Thread):
     """ A separate thread to run the extract_barcode_patches call. """
     def __init__(self, verifypatch_bbs, flipmap, img2decoding,
-                 outrootdir, voteddir, 
-                 manager, queue_mygauge, 
+                 outrootdir, voteddir,
+                 manager, queue_mygauge,
                  thread_updateMyGauge,
                  callback=None,
                  *args, **kwargs):
@@ -1316,14 +1256,12 @@ class ThreadExtractBarcodePatches(threading.Thread):
         self.callback = callback
 
     def run(self):
-        print "==== ThreadExtractBarcodePatches: Starting extract_barcode_patches()"
-        t = time.time()
-        img2patch, patch2stuff = extract_barcode_patches(self.verifypatch_bbs, self.flipmap,
-                                                         self.outrootdir, self.voteddir,
-                                                         manager=self.manager,
-                                                         queue_mygauge=self.queue_mygauge)
-        dur = time.time() - t
-        print "==== ThreadExtractBarcodePatches: Finished extracted_barcode_patches ({0:.4f}s)".format(dur)
+        with util.time_operation('extract_barcode_patches'):
+            img2patch, patch2stuff = extract_barcode_patches(
+                self.verifypatch_bbs, self.flipmap,
+                self.outrootdir, self.voteddir,
+                manager=self.manager,
+                queue_mygauge=self.queue_mygauge)
         self.thread_updateMyGauge.stop_running()
         wx.CallAfter(self.callback, img2patch, patch2stuff, self.verifypatch_bbs, self.flipmap, self.img2decoding)
 
@@ -1351,7 +1289,6 @@ class ThreadUpdateMyGauge(threading.Thread):
                 self.jobid.tick()
             except Queue.Empty as e:
                 pass
-        print "ThreadUpdateMyGauge is done."
 
 def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
                             manager=None, queue_mygauge=None):
@@ -1376,11 +1313,11 @@ def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
     bc_val_cnt = {} # maps {bc_val: int cnt}
     bc_val_dircnt = {} # maps {bc_val: int dircnt}
     img_ctr = util.Counter()
-    print "...creating jobs for barcode-patch extraction..."
+    debug("...creating jobs for barcode-patch extraction...")
     for bc_val, tups in verifypatch_bbs.iteritems():
         for (imgpath, (x1,y1,x2,y2), userdata) in tups:
             i = bc_val_cnt.get(bc_val, None)
-            if i == None: 
+            if i == None:
                 bc_val_cnt[bc_val] = 0
                 bc_val_dircnt[bc_val] = 0
                 i = 0
@@ -1393,19 +1330,15 @@ def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
             outpath = pathjoin(outrootdir, rp, "{0}_{1}.png".format(imgname, img_ctr[imgpath]))
             img_ctr[imgpath] += 1
             # use the loc as the ID, in case USERDATA isn't used
-            ID = (x1,y1,x2,y2) 
+            ID = (x1,y1,x2,y2)
             tag = (bc_val, userdata, ID)
             isflip = flipmap[imgpath]
             imgpatches.setdefault(imgpath, []).append(((x1,y1,x2,y2), isflip, outpath, tag))
             i += 1
-    print '...extracting...'
-    t = time.time()
-
-    img2patch, patch2stuff = extract_patches.extract(imgpatches, manager=manager, queue_mygauge=queue_mygauge)
-
-    dur = time.time() - t
-    num_ballots = len(flipmap)
-    print '...done extracting ({0} s)...'.format(dur)
-    print "    Avg. Time Per Image:", dur / float(num_ballots)
+    with util.time_operation('...extracting...'):
+        img2patch, patch2stuff = extract_patches.extract(
+            imgpatches,
+            manager=manager,
+            queue_mygauge=queue_mygauge)
 
     return img2patch, patch2stuff
