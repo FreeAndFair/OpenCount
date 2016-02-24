@@ -16,6 +16,8 @@ import grouping.digit_group_new as digit_group_new
 import specify_voting_targets.util_gui as util_gui
 import config
 
+from util import debug, warn, error
+
 GRP_PER_BALLOT = 0
 GRP_PER_PARTITION = 1 
 
@@ -158,7 +160,7 @@ class RunGroupingMainPanel(wx.Panel):
             # Grab the quarantined/discarded ballot ids
             badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
             patchDestDir_root = pathjoin(self.proj.projdir_path, 'grp_outpatches')
-            print "...Running Extract Attrvals..."
+            debug("Running Extract Attrvals")
             thread = Thread_RunGrpImgBased(b2imgs, partitions_map, partition_exmpls,
                                            multexemplars_map, img2page, img2flip,
                                            badballotids, attrprops, patchDestDir_root, 
@@ -176,7 +178,7 @@ class RunGroupingMainPanel(wx.Panel):
                     num_tasks += _num_partitions
                 else:
                     num_tasks += _num_ballots - _num_badballots
-            print "Number of img-based grouping tasks:", num_tasks
+            debug("Number of img-based grouping tasks: {0}", num_tasks)
             doGrouping.JOBID_GROUPING_IMGBASED.next_job(num_tasks)
             gauge.Show()
 
@@ -195,7 +197,7 @@ class RunGroupingMainPanel(wx.Panel):
         if config.TIMER:
             config.TIMER.stop_task("Grouping_ImgBased_CPU")
         self._dur_imggrp = time.time() - self._t_imggrp
-        print "...Finished ImgBased-Grouping ({0:.4f}s)".format(self._dur_imggrp)
+        debug("Finished ImgBased-Grouping ({0:.4f}s)", self._dur_imggrp)
         self.extract_results = imggrouping_results
         doGrouping.JOBID_GROUPING_IMGBASED.done()
 
@@ -242,7 +244,7 @@ class RunGroupingMainPanel(wx.Panel):
                     num_tasks += _num_partitions
                 else:
                     num_tasks += _num_ballots - num_badballots
-            print "Number of Digit-based grouping tasks:", num_tasks
+            debug("Number of Digit-based grouping tasks: {0}", num_tasks)
             part_match.JOBID_GROUPING_DIGITBASED.next_job(num_tasks)
 
     def on_digitgrouping_done(self, digitgrouping_results_tpl):
@@ -259,7 +261,7 @@ class RunGroupingMainPanel(wx.Panel):
         if digit_dist != None:
             self.digitdist = digit_dist
         self._dur_digitgrp = time.time() - self._t_digitgrp
-        print "...Finished DigitGrouping ({0:.4f}s)".format(self._dur_digitgrp)
+        debug("Finished DigitGrouping ({0:.4f}s)", self._dur_digitgrp)
         self.digitgroup_results = digitgrouping_results
         part_match.JOBID_GROUPING_DIGITBASED.done()
 
@@ -269,10 +271,14 @@ class RunGroupingMainPanel(wx.Panel):
         """ Both Image-based and Digit-based grouping is finished. """
         dur_total = time.time() - self._t_total
         dur_total = 0.0001 if dur_total == 0.0 else dur_total # avoid div-by-0
-        print "...Grouping Done ({0:.4f}s)".format(dur_total)
-        print "    Image-Based: {0:.2f}s ({1:.4f}%)".format(self._dur_imggrp, 100.0*(self._dur_imggrp / dur_total))
-        print "    Digit-Based: {0:.2f}s ({1:.4f}%)".format(self._dur_digitgrp, 100.0*(self._dur_digitgrp / dur_total))
-        
+        debug("Grouping Done ({0:.4f}s)", dur_total)
+        debug("    Image-Based: {0:.2f}s ({1:.4f}%)",
+              self._dur_imggrp,
+              100.0*(self._dur_imggrp / dur_total))
+        debug("    Digit-Based: {0:.2f}s ({1:.4f}%)",
+              self._dur_digitgrp,
+              100.0*(self._dur_digitgrp / dur_total))
+
         wx.MessageDialog(self, message="Grouping is finished ({0:.2f} seconds elapsed).\n\n\
 You may proceed to the next task.".format(dur_total),
                          style=wx.OK,
@@ -337,7 +343,7 @@ the state files from the prior grouping will NOT be deleted."
         else:
             remove_related_files()
 
-        print "...Starting Grouping..."
+        debug("Starting Grouping")
         self._t_total = time.time()
         self.btn_rungrouping.Disable()
         self.run_imgbased_grouping()
@@ -441,8 +447,8 @@ def run_grouping_digitbased(proj, digitdist):
     pickle.dump(digitmultexemplars_map, open(pathjoin(proj.projdir_path,
                                                       proj.digitmultexemplars_map), 'wb'))
     for digit, tups in sorted(digitmultexemplars_map.iteritems(), key=lambda t: t[0]):
-        print "Digit {0} had: {1} exemplars".format(digit, len(tups))
-        
+        debug("Digit {0} had: {1} exemplars", digit, len(tups))
+
     # Grab the quarantined/discarded ballot ids
     badballotids = get_quarantined_bals(proj) + get_discarded_bals(proj) + get_ioerr_bals(proj)
     all_results = {} # maps {str attrtype: dict results}
@@ -455,8 +461,9 @@ def run_grouping_digitbased(proj, digitdist):
     try:
         os.remove(digpatch2imgpath_outP)
     except: pass
-    print "...DigitGroup Mode: {0}...".format({GRP_PER_PARTITION: 'GRP_PER_PARTITION', 
-                                               GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
+    debug("DigitGroup Mode: {0}",
+          {GRP_PER_PARTITION: 'GRP_PER_PARTITION',
+           GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
     voteddir_root = proj.voteddir
     if digitdist == None:
         digitdist = compute_median_dist(proj)
@@ -503,7 +510,7 @@ def compute_median_dist(proj):
         median_dist = min(dists)
     else:
         median_dist = dists[int(len(dists) / 2)]
-    print "(compute_median_dist) median digit dist is:", median_dist
+    debug("median digit dist is: {0}", median_dist)
     return median_dist
 
 def exists_digattr(proj):
@@ -541,7 +548,7 @@ def get_digitgroup_mode(proj):
     for attr in attrs:
         if attr['is_digitbased']:
             return GRP_PER_PARTITION if attr['grp_per_partition'] else GRP_PER_BALLOT
-    print "uhoh, shouldn't get here."
+    error("uhoh, shouldn't get here.")
     raise Exception
 
 def get_quarantined_bals(proj):

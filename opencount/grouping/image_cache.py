@@ -3,8 +3,10 @@ from collections import deque
 import cv, scipy.misc, numpy as np
 from PIL import Image
 
+from util import debug, warn, error
+
 """
-A module to help maintain an in-memory cache of images. 
+A module to help maintain an in-memory cache of images.
 
 Designed to prevent memory usage from spiraling madly out of control.
 
@@ -13,7 +15,7 @@ WARNING: PIL has an upper-limit on how many files can be open at once!
 
 TODO
 - estimate_imgsize_bytes for OpenCV is always an overestimate, but I
-  don't know why. 
+  don't know why.
 """
 
 SIZECAP_UNBOUNDED = -1
@@ -67,7 +69,7 @@ def _load_opencv(imgpath, img_mode=IM_MODE_UNCHANGED):
 def _load_binarydata(idx, fimgdata, imgdims, img_mode=IM_MODE_GRAYSCALE):
     """ Loads in image data from an input binary file.
     Input:
-        int IDX: 
+        int IDX:
         file FIMGDATA:
         tuple IMGDIMS: (int w, int h)
     Output:
@@ -86,13 +88,13 @@ _imgload_fns = {IM_FORMAT_PIL: _load_pil,
                 IM_FORMAT_BINARYDATA: _load_binarydata}
 
 class ImageCache(object):
-    
+
     def __init__(self, SIZECAP=SIZECAP_UNBOUNDED, img_format=IM_FORMAT_SCIPY, img_mode=IM_MODE_UNCHANGED):
         """
         Input:
-            int SIZECAP: 
+            int SIZECAP:
                 An integer specifying how many Megabytes (MB) that the
-                ImageCache can take up at most. 
+                ImageCache can take up at most.
                 If SIZECAP is SIZECAP_UNBOUNDED, then there is no bound.
                 However, be aware that you may run out of memory if you
                 load too many images!
@@ -147,8 +149,9 @@ class ImageCache(object):
             ((obj IMG, int IDX), bool isHit)
         """
         if dataP not in self.binarydats_map:
-            print "(ImageCache) Binary datafile '{0}' was not registered. Try \
-first calling ImageCache.register_binarydat.".format(dataP)
+            warn("Binary datafile '{0}' was not registered. Try "\
+                 "first calling ImageCache.register_binarydat.",
+                 dataP)
             return None
         return self.cache_retrieve(idx, dataP=dataP)
 
@@ -165,7 +168,7 @@ first calling ImageCache.register_binarydat.".format(dataP)
         try:
             f = open(dataP, 'rb')
         except IOError as e:
-            print "(ImageCache) Couldn't open binary data file:", dataP
+            error("Couldn't open binary data file: {0}", dataP)
             return False
 
         self.binarydats_map[dataP] = (f, imgdims)
@@ -188,10 +191,10 @@ first calling ImageCache.register_binarydat.".format(dataP)
         else:
             imgID = self.imgpath2id.get(imgpath, None)
         if imgID != None:
-            print_dbg("== Cache Hit!")
+            debug("Cache Hit!")
             return (self.id2data[imgID], True)
         else:
-            print_dbg("== Cache Miss!")
+            debug("Cache Miss!")
             imgID = self._curid
             self._curid += 1
 
@@ -205,7 +208,7 @@ first calling ImageCache.register_binarydat.".format(dataP)
                 img = _load_binarydata(imgpath, fdata, imgdims)
             else:
                 img = self._imgload_fn(imgpath, img_mode=self.img_mode)
-            
+
             if dataP != None:
                 self.id2data[imgID] = (img, (imgpath, dataP))
             else:
@@ -217,10 +220,10 @@ first calling ImageCache.register_binarydat.".format(dataP)
                 return (img, (imgpath, dataP)), False
             else:
                 return ((img, imgpath), False)
-            
+
     def cache_evict(self):
-        """ If the Cache is full, remove images until it's not full. 
-        Returns the number of images removed. 
+        """ If the Cache is full, remove images until it's not full.
+        Returns the number of images removed.
         """
         if self.sizecap == SIZECAP_UNBOUNDED:
             return 0
@@ -228,7 +231,10 @@ first calling ImageCache.register_binarydat.".format(dataP)
         num_evicted = 0
         while cur_size > self.sizecap:
             id_evictee = self.ids.pop()
-            print_dbg("== CacheEvict ({0} MB / {1} MB): {2}".format(cur_size / 1e6, self.sizecap / 1e6, id_evictee))
+            debug("CacheEvict ({0} MB / {1} MB): {2}",
+                  cur_size / 1e6,
+                  self.sizecap / 1e6,
+                  id_evictee)
             _, imgpath = self.id2data.pop(id_evictee)
             self.imgpath2id.pop(imgpath)
             size_evictee = self.cache_imgSizes.pop(id_evictee)
@@ -249,15 +255,15 @@ first calling ImageCache.register_binarydat.".format(dataP)
         for imgID, size_bytes in self.cache_imgSizes.iteritems():
             self._size += size_bytes
         return self._size
-        
+
     def register_imgsize(self, img, imgID):
         imgsize_bytes = estimate_imgsize_bytes(img, self.img_format)
         self.cache_imgSizes[imgID] = imgsize_bytes
         self._size += imgsize_bytes
-        
+
 def estimate_imgsize_bytes(img, img_format):
     """ Given an image IMG with format IMG_FORMAT (PIL, scipy, OpenCV),
-    estimate how much space it consumes in-memory. 
+    estimate how much space it consumes in-memory.
     """
     # (over)-estimate size of each pixel value to be Float32.
     SIZE_PIX_BYTES = 32
@@ -287,12 +293,6 @@ def estimate_imgsize_bytes(img, img_format):
         size = (w * h * channels * pix_byte / 6)
     return size
 
-def print_dbg(*args):
-    if DEBUG:
-        for arg in args:
-            print arg,
-        print
-
 def test_unbounded(imgsdir, imgsdir2):
     """ A simple set of tests to sanity check cache behavior for UNBOUNDED
     cache sizes.
@@ -308,15 +308,15 @@ def test_unbounded(imgsdir, imgsdir2):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
             if isHit != False:
-                print "WHAT"
+                error("WHAT")
                 pdb.set_trace()
             img_cnt += 1
     dur_loadImages = time.time() - t
 
-    print "Done loading in images ({0:.6f}s).".format(dur_loadImages)
+    debug("Done loading in images ({0:.6f}s).", dur_loadImages)
 
     t = time.time()
     for dirpath, dirnames, filenames in os.walk(imgsdir):
@@ -324,10 +324,10 @@ def test_unbounded(imgsdir, imgsdir2):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
             if isHit != True:
-                print "WHAT"
+                error("WHAT")
                 pdb.set_trace()
     dur_readImages = time.time() - t
 
@@ -337,10 +337,10 @@ def test_unbounded(imgsdir, imgsdir2):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
             if isHit != False:
-                print "WHAT"
+                error("WHAT")
                 pdb.set_trace()
     dur_readImages2 = time.time() - t
 
@@ -350,30 +350,26 @@ def test_unbounded(imgsdir, imgsdir2):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
             if isHit != True:
-                print "WHAT"
+                error("WHAT")
                 pdb.set_trace()
     dur_readImages3 = time.time() - t
 
-    print "==== Done ===="
+    debug("==== Done ====")
 
-    print "Loading in images ({0:.6f}s).".format(dur_loadImages)
-    print "    Avg.Time: {0:.8f}s".format(dur_loadImages / float(img_cnt))
-    print "Reading in images ({0:.6f}s).".format(dur_readImages)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages / float(img_cnt))
-    print "Reading in images V2 [MISSES]({0:.6f}s).".format(dur_readImages2)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages2 / float(img_cnt))
-    print "Reading in images V2 [HITS]({0:.6f}s).".format(dur_readImages3)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages3 / float(img_cnt))
+    debug("Loading in images ({0:.6f}s).", dur_loadImages)
+    debug("    Avg.Time: {0:.8f}s", dur_loadImages / float(img_cnt))
+    debug("Reading in images ({0:.6f}s).", dur_readImages)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages / float(img_cnt))
+    debug("Reading in images V2 [MISSES]({0:.6f}s).", dur_readImages2)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages2 / float(img_cnt))
+    debug("Reading in images V2 [HITS]({0:.6f}s).", dur_readImages3)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages3 / float(img_cnt))
 
-    print "\nEstimated ImageCache size (bytes):", img_cache._size
-    print "    In MB: {0}".format(img_cache._size / 1e6)
-
-    print "==== Infinite Looping Now ===="
-    while True:
-        pass
+    debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
+    debug("    In MB: {0}", img_cache._size / 1e6)
 
 def test_bounded(imgsdir, imgsdir2, sizecap):
     """ A simple set of tests to sanity check cache behavior for bounded
@@ -382,7 +378,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
     img_cache = ImageCache(SIZECAP=sizecap,
                            img_format=IM_FORMAT_SCIPY,
                            img_mode=IM_MODE_UNCHANGED)
-    
+
     t = time.time()
     img_cnt = 0
     for dirpath, dirnames, filenames in os.walk(imgsdir):
@@ -390,12 +386,12 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
             img_cnt += 1
     dur_loadImages = time.time() - t
 
-    print "Done loading in images ({0:.6f}s).".format(dur_loadImages)
+    debug("Done loading in images ({0:.6f}s).", dur_loadImages)
 
     t = time.time()
     for dirpath, dirnames, filenames in os.walk(imgsdir):
@@ -403,7 +399,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
     dur_readImages = time.time() - t
 
@@ -413,7 +409,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
     dur_readImages2 = time.time() - t
 
@@ -423,27 +419,23 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
             imgpath = os.path.join(dirpath, imgname)
             (img, _imgpath), isHit = img_cache.load(imgpath)
             if imgpath != _imgpath:
-                print "imgpaths not equal!"
+                error("imgpaths not equal!")
                 pdb.set_trace()
     dur_readImages3 = time.time() - t
 
-    print "==== Done ===="
+    debug("==== Done ====")
 
-    print "Loading in images ({0:.6f}s).".format(dur_loadImages)
-    print "    Avg.Time: {0:.8f}s".format(dur_loadImages / float(img_cnt))
-    print "Reading in images ({0:.6f}s).".format(dur_readImages)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages / float(img_cnt))
-    print "Reading in images V2 [MISSES]({0:.6f}s).".format(dur_readImages2)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages2 / float(img_cnt))
-    print "Reading in images V2 [HITS]({0:.6f}s).".format(dur_readImages3)
-    print "    Avg.Time: {0:.8f}s".format(dur_readImages3 / float(img_cnt))
+    debug("Loading in images ({0:.6f}s).", dur_loadImages)
+    debug("    Avg.Time: {0:.8f}s", dur_loadImages / float(img_cnt))
+    debug("Reading in images ({0:.6f}s).", dur_readImages)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages / float(img_cnt))
+    debug("Reading in images V2 [MISSES]({0:.6f}s).", dur_readImages2)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages2 / float(img_cnt))
+    debug("Reading in images V2 [HITS]({0:.6f}s).", dur_readImages3)
+    debug("    Avg.Time: {0:.8f}s", dur_readImages3 / float(img_cnt))
 
-    print "\nEstimated ImageCache size (bytes):", img_cache._size
-    print "    In MB: {0}".format(img_cache._size / 1e6)
-
-    print "==== Infinite Looping Now ===="
-    while True:
-        pass
+    debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
+    debug("    In MB: {0}", img_cache._size / 1e6)
 
 def test_binarydata(imgdataP, imgdims, sizecap=None):
     """ Test the binary data loading routines. """
@@ -453,7 +445,7 @@ def test_binarydata(imgdataP, imgdims, sizecap=None):
     w, h = imgdims
     nbytes = os.path.getsize(imgdataP)
     numtargets = nbytes / (w * h)
-    
+
     img_cache = ImageCache(SIZECAP=sizecap,
                            img_format=IM_FORMAT_BINARYDATA,
                            img_mode=IM_MODE_GRAYSCALE)
@@ -463,27 +455,23 @@ def test_binarydata(imgdataP, imgdims, sizecap=None):
         img_cache.load_binarydat(i, imgdataP)
     dur_loadImages = time.time() - t
 
-    print "Done loading in images ({0:.6f}s).".format(dur_loadImages)
+    debug("Done loading in images ({0:.6f}s).", dur_loadImages)
 
     t = time.time()
     for i in xrange(numtargets):
         (img, (idx, dataP)), isHit = img_cache.load_binarydat(i, imgdataP)
         if idx != i:
-            print "WOAH, retrieved wrong index?"
+            error("retrieved wrong index")
             pdb.set_trace()
         if dataP != imgdataP:
-            print "WOAH, wrong dataP?"
+            error("wrong dataP?")
             pdb.set_trace()
     dur = time.time() - t
-    print "Loaded in images again. ({0:.6f}s)".format(dur)
+    debug("Loaded in images again. ({0:.6f}s)", dur)
 
-    print "\nEstimated ImageCache size (bytes):", img_cache._size
-    print "    In MB: {0}".format(img_cache._size / 1e6)
+    debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
+    debug("    In MB: {0}", img_cache._size / 1e6)
 
-    print "==== Infinite Looping Now ===="
-    while True:
-        pass
-    
 """
 ekim@byrd:~/opencount/opencount/grouping$ python image_cache.py --sizecap 1 ../ek_tests/_img ../ek_tests/_imgCv/
 ================
@@ -547,10 +535,10 @@ def main():
     imgsdir2 = args[-1]
 
     if not os.path.exists(imgsdir) and '--binary' not in args:
-        print "Fatal Error: Directory doesn't exist:", imgsdir
+        error("Fatal Error: Directory doesn't exist: {0}", imgsdir)
         return 1
     if not os.path.exists(imgsdir2) and '--binary' not in args:
-        print "Fatal Error: Directory dosn't exist:", imgsdir2
+        error("Fatal Error: Directory dosn't exist: {0}", imgsdir2)
         return 1
 
     if '--debug' in args:
@@ -562,7 +550,7 @@ def main():
         h = int(args[args.index('--binary')+3])
     except:
         dataP, w, h = None, None, None
-        
+
     try:
         sizecap = int(args[args.index('--sizecap')+1])
     except:
@@ -570,24 +558,18 @@ def main():
 
     t = time.time()
     if dataP != None:
-        print "================"
-        print "==== Trying ImageCache.sizecap={0}MB, BINARYDATA".format(sizecap)
-        print "================"
+        debug("Trying ImageCache.sizecap={0}MB, BINARYDATA", sizecap)
         test_binarydata(dataP, (w,h), sizecap=sizecap)
     elif sizecap != None:
-        print "================"
-        print "==== Trying ImageCache.sizecap={0}MB".format(sizecap)
-        print "================"
+        debug("Trying ImageCache.sizecap={0}MB", sizecap)
         test_bounded(imgsdir, imgsdir2, sizecap)
     else:
-        print "================"
-        print "==== Trying ImageCache UNBOUNDED"
-        print "================"
+        debug("Trying ImageCache UNBOUNDED")
         test_unbounded(imgsdir, imgsdir2)
 
     dur_total = time.time() - t
 
-    print "Total Time: {0:.4f}s".format(dur_total)
+    debug("Total Time: {0:.4f}s", dur_total)
 
 if __name__ == '__main__':
     main()

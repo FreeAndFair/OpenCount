@@ -3,6 +3,8 @@ import sys, os
 import scipy.misc
 import cluster_imgs
 
+from util import debug, warn, error
+
 def is_img_ext(p):
     return os.path.splitext(p.lower())[1] in ('.png', '.jpg', '.jpeg')
 
@@ -19,9 +21,9 @@ def main():
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         for imgname in [f for f in filenames if is_img_ext(f)]:
             if 'mail-14' in imgname:
-                print "Idx for mail-14:", len(imgpaths)
+                debug("Idx for mail-14: {0}", len(imgpaths))
             elif 'vbm-28' in imgname:
-                print "Idx for vbm-28:", len(imgpaths)
+                debug("Idx for vbm-28: {0}", len(imgpaths))
             imgpaths.append(os.path.join(dirpath, imgname))
             if election == 'marin':
                 bb_map[os.path.join(dirpath, imgname)] = (137, 173, 37, 201)

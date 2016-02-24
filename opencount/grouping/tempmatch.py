@@ -71,7 +71,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
         # 0.) Suppress previously-found matches, if any
         prevmats = prevmatches.get(imgpath, []) if prevmatches else []
         for (x,y) in prevmats:
-            print 'suppressing: {0} at {1}'.format(imgpath, (x, y))
+            debug('suppressing: {0} at {1}', imgpath, (x, y))
             _x1 = max(0, int(x - (w_A / 3)))
             _y1 = max(0, int(y - (h_A / 3)))
             _x2 = min(matchmat.cols, int(x + (w_A / 3)))
@@ -193,14 +193,12 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
         # 0.) Suppress previously-found matches, if any
         prevmats = prevmatches.get(imgpath, []) if prevmatches else []
         for (x1,y1,x2,y2) in prevmats:
-            #print 'suppressing: {0} at {1}'.format(imgpath, (x1, y1))
             _x1 = max(0, int(x1 - max(1, (wA * DELT))))
             _y1 = max(0, int(y1 - max(1, (hA * DELT))))
             _x2 = min(M_np.shape[1], int(x1 + max(1, (wA * DELT))))
             _y2 = min(M_np.shape[0], int(y1 + max(1, (hA * DELT))))
             M_np[_y1:_y2, _x1:_x2] = -1.0
         score = np.inf
-        #print 'best score:', np.max(M_np)
         num_mats = 0
         matches = []
         while score > T and num_mats < MAX_MATS:
@@ -225,7 +223,6 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             #     j-(wA/2):j+(wA/2)] = -1.0
             num_mats += 1
         if not matches and atleastone:
-            print 'DOO DOO DOO'
             M_idx = np.argmax(M_np)
             i = int(M_idx / M.cols)
             j = M_idx % M.cols

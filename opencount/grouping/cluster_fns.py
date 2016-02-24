@@ -2,6 +2,8 @@ import sys, pdb, random, traceback
 import numpy as np
 import matplotlib.pyplot as plt
 
+from util import debug, warn, error
+
 sys.path.append('..')
 import pixel_reg.shared as shared
 

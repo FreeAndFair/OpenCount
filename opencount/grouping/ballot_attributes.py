@@ -15,6 +15,9 @@ import specify_voting_targets.select_targets as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
 from grouping.verify_overlays_new import CheckImageEqualsFrame, CheckImageEquals
+
+from util import debug, warn, error
+
 """
 A widget that integrates the functionality of 'Define Attributes' and
 'Select Attributes' into a unified UI component. The workflow is:
@@ -511,7 +514,8 @@ Would you like to review the ballot annotations?",
                     n = int(GRP_MODE_ALL_BALLOTS_NUM * len(balids_candidates))
                     n = max(min(n, GRP_MODE_ALL_BALLOTS_NUM_MAX), GRP_MODE_ALL_BALLOTS_NUM_MIN)
                     n = min(n, len(balids_candidates))
-                    print "(Info) Sampling {0} ballots from this partition (out of {1})".format(n, len(ballotids))
+                    debug("Sampling {0} ballots from this partition (out of {1})",
+                          n, len(ballotids))
                     ballotids_chosen = random.sample(balids_candidates, n)
                     for balid in ballotids_chosen:
                         self.ballots_todo.append(balid)
@@ -597,7 +601,8 @@ Would you like to review the ballot annotations?",
         good_matches = verifyresults.get(CheckImageEquals.TAG_YES, ())
         attrtype = '_'.join(sorted(attrbox.attrtypes))
         attrval = '_'.join(sorted(attrbox.attrvals))
-        print "...Number of 'good' matches for '{0}': {1}->{2}".format(len(good_matches), attrtype, attrval)
+        debug("Number of 'good' matches for '{0}': {1}->{2}",
+              len(good_matches), attrtype, attrval)
 
         def update_bal2patches(ballotid, patchP, attrtype, attrval, OP="add"):
             for ballotid, tups in self.bal2patches.iteritems():
@@ -677,9 +682,10 @@ Would you like to review the ballot annotations?",
         """
         imgpaths_sorted = sorted(self.bal2imgs[balid], key=lambda imP: self.img2page[imP])
         imgpath = imgpaths_sorted[side]
-        print "Setting img2flip for image '{0}' FROM '{1}' TO '{2}'".format(imgpath,
-                                                                            self.img2flip[imgpath],
-                                                                            not self.img2flip[imgpath])
+        debug("Setting img2flip for image '{0}' FROM '{1}' TO '{2}'",
+              imgpath,
+              self.img2flip[imgpath],
+              not self.img2flip[imgpath])
         self.img2flip[imgpath] = not self.img2flip[imgpath]
         pickle.dump(self.img2flip, open(os.path.join(self.proj.projdir_path, self.proj.image_to_flip), 'wb'))
         if balid == self.cur_ballotid and side == self.cur_side:
@@ -794,7 +800,7 @@ will the Custom Attribute use?",
         elif choice == SPREADSHEET:
             attrtypes = self.GetParent().get_attrtypes()
             if len(attrtypes) == 0:
-                print "No attrtypes created yet, can't do this."
+                debug("No attrtypes created yet, can't do this.")
                 d = wx.MessageDialog(self, message="You must first create \
     Ballot Attributes, before creating Custom Ballot Attributes.")
                 d.ShowModal()
@@ -826,7 +832,7 @@ spreadsheet path.")
                                                 is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
         elif choice == FILENAME:
-            print "Handling Filename-based Custom Attribute."
+            debug("Handling Filename-based Custom Attribute.")
             dlg = FilenameAttrDialog(self)
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
@@ -854,16 +860,18 @@ an Attribute Name.")
             d = wx.MessageDialog(self, message="No Custom Attributes yet.")
             d.ShowModal()
             return
-        print "Custom Attributes are:"
+        debug("Custom Attributes are:")
         for cattr in custom_attrs:
             attrname = cattr.attrname
             if isinstance(cattr, cust_attrs.Spreadsheet_Attr):
-                print "  Attrname: {0} SpreadSheet: {1} Attr_In: {2}".format(attrname,
-                                                                             cattr.sspath,
-                                                                             cattr.attrin)
+                debug("  Attrname: {0} SpreadSheet: {1} Attr_In: {2}",
+                      attrname,
+                      cattr.sspath,
+                      cattr.attrin)
             elif isinstance(cattr, cust_attrs.Filename_Attr):
-                print "  Attrname: {0} FilenameRegex: {1}".format(attrname,
-                                                                  cattr.filename_regex)
+                debug("  Attrname: {0} FilenameRegex: {1}",
+                      attrname,
+                      cattr.filename_regex)
 
     def onButton_markflip(self, evt):
         status = wx.MessageDialog(self, style=wx.YES_NO,
@@ -954,7 +962,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             return
 
         if self.mode_m == self.M_CREATE:
-            print "...Creating Attr Box..."
+            debug("...Creating Attr Box...")
             self.clear_selected()
             self.startBox(x, y, AttrBox)
         elif self.mode_m == self.M_IDLE:
@@ -998,7 +1006,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
         elif self.mode_m == self.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
             boxes = select_targets.get_boxes_within(self.boxes, box)
-            print "...Selecting {0} boxes.".format(len(boxes))
+            debug("...Selecting {0} boxes.", len(boxes))
             self.select_boxes(*boxes)
         self.Refresh()
 
@@ -1575,12 +1583,14 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
     attrtype_exemplars = {} # maps {str attrtype: {attrval: [(imgpath_i, (y1,y2,x1,x2)), ...]}}
     for attrtype, attrvalpatches in type2valpatches.iteritems():
         if is_part_consistent(attrtype):
-            print "(Info) Attribute '{0}' is consistent within partitions, \
-no need to compute multiple exemplars for this.".format(attrtype)
+            debug("Attribute '{0}' is consistent within partitions, "\
+                  "no need to compute multiple exemplars for this.",
+                  attrtype)
             continue
-        print "...attr '{0}': Finding multiple exemplars...".format(attrtype)
+        debug("attr '{0}': Finding multiple exemplars...", attrtype)
         exemplars = group_attrs.compute_exemplars_fullimg(attrvalpatches)
-        print "...attr '{0}': {1} exemplars were found.".format(attrtype, sum(map(len, exemplars.values())))
+        debug("attr '{0}': {1} exemplars were found.",
+              attrtype, sum(map(len, exemplars.values())))
         attrtype_exemplars[attrtype] = exemplars
         if queue_mygauge != None:
             queue_mygauge.put(True)
