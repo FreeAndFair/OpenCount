@@ -1,4 +1,9 @@
-import sys, os, threading, multiprocessing, math, traceback
+import sys
+import os
+import threading
+import multiprocessing
+import math
+import traceback
 sys.path.append('../')
 import wx
 
@@ -20,6 +25,7 @@ from specify_voting_targets import util_gui as util_gui
 # Global vars job_ids for the MyGauge instances
 BLANKBALLOT_JOB_ID = util.GaugeID('BlankBallotStraightenerID')
 VOTEDBALLOT_JOB_ID = util.GaugeID('VotedBallotStraightenerID')
+
 
 def straighten_images_process(imgpaths, imgsdir, outdir, queue, size):
     """
@@ -54,12 +60,14 @@ def straighten_images_process(imgpaths, imgsdir, outdir, queue, size):
         queue.put("died")
         exit(1)
     return 0
-    
+
+
 def get_images_gen(imgsdir):
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
             yield imgname
     raise StopIteration
+
 
 def divy_images(imgsdir, num):
     count = 0
@@ -75,11 +83,12 @@ def divy_images(imgsdir, num):
                 result = []
                 count = 0
             result.append(pathjoin(dirpath, imgname))
-            count +=1
+            count += 1
     if result:
         yield result
     raise StopIteration
-                
+
+
 def spawn_jobs(imgsdir, outdir, num_imgs, queue, size=None):
     n_procs = float(multiprocessing.cpu_count())
     print 'cpu count:', n_procs
@@ -89,9 +98,11 @@ def spawn_jobs(imgsdir, outdir, num_imgs, queue, size=None):
 
     for i, imgpaths in enumerate(divy_images(imgsdir, imgs_per_proc)):
         print 'Process {0} got {1} imgs'.format(i, len(imgpaths))
-        foo = pool.apply_async(straighten_images_process, args=(imgpaths, imgsdir, outdir, queue, size))
+        foo = pool.apply_async(straighten_images_process, args=(
+            imgpaths, imgsdir, outdir, queue, size))
     pool.close()
     pool.join()
+
 
 def start_straightening(imgsdir, outdir, num_imgs, queue, size=None):
     """
@@ -100,19 +111,23 @@ def start_straightening(imgsdir, outdir, num_imgs, queue, size=None):
     """
     print "Spawning master process to start straightening images in", imgsdir
     #logger = multiprocessing.log_to_stderr()
-    #logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.INFO)
 
-    p = multiprocessing.Process(target=spawn_jobs, args=(imgsdir, outdir, num_imgs, queue, size))
+    p = multiprocessing.Process(target=spawn_jobs, args=(
+        imgsdir, outdir, num_imgs, queue, size))
     p.start()
 
+
 class StraightenThread(threading.Thread):
+
     def __init__(self, imgsdir, project, num_tasks, outdir=None, job_id=None, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.imgsdir = imgsdir
         self.project = project
         self.num_tasks = num_tasks
         if not outdir:
-            self.outdir = os.path.join(project.projdir_path, 'straightened_imgs')
+            self.outdir = os.path.join(
+                project.projdir_path, 'straightened_imgs')
         else:
             self.outdir = outdir
         self.job_id = job_id
@@ -144,7 +159,8 @@ in a previous session), then remove all images in {1}".format(self.imgsdir, self
             self.job_id.next_job(self.num_tasks)
         manager = multiprocessing.Manager()
         queue = manager.Queue()
-        start_straightening(self.imgsdir, self.outdir, self.num_tasks, queue, size=self.project.imgsize)
+        start_straightening(self.imgsdir, self.outdir,
+                            self.num_tasks, queue, size=self.project.imgsize)
         count = 0
         while True:
             if count >= self.num_tasks:
@@ -161,6 +177,7 @@ died. You should probably exit."
         if wx.App.IsMainLoopRunning():
             self.job_id.done()
 
+
 def is_there_image(dir):
     """
     Return True if there exists at least one image in this directory
@@ -171,6 +188,7 @@ def is_there_image(dir):
             return True
     return False
 
+
 def do_main():
     args = sys.argv
     imgsdir = args[1]
@@ -178,6 +196,6 @@ def do_main():
         outdir = 'straighten_ballots_outdir'
     else:
         outdir = args[2]
-    
+
 if __name__ == '__main__':
     do_main()

@@ -1,4 +1,7 @@
-import sys, pdb, random, traceback
+import sys
+import pdb
+import random
+import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +13,7 @@ import pixel_reg.shared as shared
 """
 A collection of general-purpose clustering algorithms.
 """
+
 
 def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean',
            VERBOSE=True):
@@ -39,12 +43,13 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
         for i in xrange(data.shape[0]):
             bestidx, mindist = None, None
             for idx, mean in enumerate(means):
-                dist = distfn(data[i,:], mean)
+                dist = distfn(data[i, :], mean)
                 if bestidx == None or dist < mindist:
                     bestidx = idx
                     mindist = dist
             assigns[i] = bestidx
         return assigns
+
     def update_means(data, assigns, means, distfn, centfn):
         """ For the clustering specified by ASSGNS, compute new means
         by mutating MEANS.
@@ -54,11 +59,11 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             means[i] = centfn(rows)
         return means
     if distfn_method == 'L2':
-        distfn = lambda a,b: np.linalg.norm(a-b)
+        distfn = lambda a, b: np.linalg.norm(a - b)
     elif distfn_method == 'vardiff':
         distfn = vardiff
     else:
-        distfn = lambda a,b: np.linalg.norm(a-b)
+        distfn = lambda a, b: np.linalg.norm(a - b)
     if centroidfn_method == 'mean':
         centroidfn = np.mean
     elif centroidfn_method == 'median':
@@ -94,6 +99,7 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             iters += 1
     return assigns
 
+
 def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
               assigns=None,
               MAX_ITERS=200, VERBOSE=True):
@@ -115,7 +121,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         for i in xrange(data.shape[0]):
             bestidx, mindist = None, None
             for idx, mean in enumerate(means):
-                I = data[i,:,:]
+                I = data[i, :, :]
                 try:
                     dist = distfn(I, mean)
                 except:
@@ -134,6 +140,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                     mindist = dist
             assigns[i] = bestidx
         return assigns
+
     def update_means(data, assigns, means):
         """ For the clustering specified by ASSGNS, update MEANS. """
         for i in xrange(len(means)):
@@ -149,6 +156,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                 pdb.set_trace()
             means[i] = mean_i
         return means
+
     def init_means(data):
         initial_idxs = []
         _len = range(data.shape[0])
@@ -200,11 +208,12 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         debug("Degenerate clustering detected - splitting evenly.")
         _chunk = int(len(assigns) / K)
         out = np.zeros(data.shape[0])
-        for i in xrange(K-1):
-            out[i*_chunk:(i+1)*_chunk] = i
-        out[(K-1)*_chunk:] = (K-1)
+        for i in xrange(K - 1):
+            out[i * _chunk:(i + 1) * _chunk] = i
+        out[(K - 1) * _chunk:] = (K - 1)
         return out
     return assigns
+
 
 def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                 MAX_ITERS=200, VERBOSE=True):
@@ -217,9 +226,11 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
         out = np.zeros((data.shape[0], data.shape[0]))
         for i in xrange(data.shape[0]):
             for j in xrange(data.shape[0]):
-                if i == j: continue
-                out[i,j] = distfn(data[i,:,:], data[j,:,:])
+                if i == j:
+                    continue
+                out[i, j] = distfn(data[i, :, :], data[j, :, :])
         return out
+
     def assignment(data, assigns, mediods, distfn, distmat):
         """ Assigns each data point to the nearest mediod, by mutating
         the input ASSIGNS.
@@ -243,6 +254,7 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                     bestidx = idx
             assigns[row] = bestidx
         return assigns
+
     def update_mediods(data, assigns, mediods, distmat):
         """ Re-computes the optimal mediod for each cluster. Mutates the
         input MEDIODS.
@@ -255,11 +267,13 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
             for elem_idx1 in elem_idxs:
                 cost = 0
                 for elem_idx2 in elem_idxs:
-                    if elem_idx1 == elem_idx2: continue
+                    if elem_idx1 == elem_idx2:
+                        continue
                     cost += distmat[elem_idx1, elem_idx2]
                 if mincost == None or cost < mincost:
                     debug("swapped mediod: cost {0} -> {1}", mincost, cost)
-                    mincost = cost; minidx = elem_idx1
+                    mincost = cost
+                    minidx = elem_idx1
             # 2.) Update the mediod of M.
             if minidx == None:
                 error("Uhoh, problem.")
@@ -315,9 +329,10 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
         assigns[assigns == val] = k
     return assigns
 
+
 def _get_distfn(distfn_method):
     if distfn_method == 'L2':
-        distfn = lambda a,b: np.linalg.norm(a-b, 2)
+        distfn = lambda a, b: np.linalg.norm(a - b, 2)
     elif distfn_method == 'L1':
         distfn = _L1
     elif distfn_method == 'vardiff':
@@ -334,14 +349,16 @@ def _get_distfn(distfn_method):
 
 """ The following are distance functions, between two images A, B """
 
+
 def _L1(A, B, debug=False):
     diff = np.abs(A - B)
     # size: Exclude NaN's
     size = len(diff[~np.isnan(diff)])
-    err = np.sum(diff[np.nonzero(diff>0)])
+    err = np.sum(diff[np.nonzero(diff > 0)])
     if debug and err == 0:
         pdb.set_trace()
     return err / size
+
 
 def vardiff(A, B, debug=False):
     """ Computes the difference between A and B, but with an attempt to
@@ -350,27 +367,30 @@ def vardiff(A, B, debug=False):
     """
     A_nonan = A[~np.isnan(A)]
     B_nonan = B[~np.isnan(B)]
+
     def estimateBg(I):
         hist = np.histogram(I, bins=10)
         return hist[1][np.argmax(hist[0])]
-    A_bg = estimateBg(A_nonan);
-    B_bg = estimateBg(B_nonan);
+    A_bg = estimateBg(A_nonan)
+    B_bg = estimateBg(B_nonan)
 
-    Athr = (A_bg - A_nonan.min())/2
-    Bthr = (B_bg - B_nonan.min())/2
+    Athr = (A_bg - A_nonan.min()) / 2
+    Bthr = (B_bg - B_nonan.min()) / 2
     thr = min(Athr, Bthr)
-    diff=np.abs(A - B);
+    diff = np.abs(A - B)
 
     # sum values of diffs above  threshold
-    err=np.sum(diff[np.nonzero(diff>thr)])    
+    err = np.sum(diff[np.nonzero(diff > thr)])
     dist = err / float(A_nonan.size)
     if debug and dist == 0:
         pdb.set_trace()
     return dist
 
+
 def vardiff_align(A, B):
     err, diff, Ireg = shared.lkSmallLarge(A, B, 0, B.shape[0], 0, B.shape[1])
     return err / diff.size
+
 
 def imgdistortiondiff(A, B, M=3):
     """ Returns the diff between A and B, but for each pixel P in A, 
@@ -382,36 +402,42 @@ def imgdistortiondiff(A, B, M=3):
     for i in xrange(A.shape[0]):
         for j in xrange(A.shape[1]):
             p = A[i, j]
-            if np.isnan(p): continue
+            if np.isnan(p):
+                continue
             bb = (max(0, i - M),
-                  min(A.shape[0]-1, i + M),
+                  min(A.shape[0] - 1, i + M),
                   max(0, j - M),
-                  min(A.shape[1]-1, j + M))
+                  min(A.shape[1] - 1, j + M))
             region = B[bb[0]:bb[1], bb[2]:bb[3]]
             dist = np.nanmin(np.abs(p - region))
-            if np.isnan(dist): continue
+            if np.isnan(dist):
+                continue
             diff += dist
     return diff
-                
+
+
 def imgdistortion_vardiff(A, B, M=3):
     """ Just like imgdistortiondiff, but also tries to estimate the 
     background, just like vardiff.
     """
     A_nonan = A[~np.isnan(A)]
     B_nonan = B[~np.isnan(B)]
+
     def estimateBg(I):
         hist = np.histogram(I, bins=10)
         return hist[1][np.argmax(hist[0])]
-    A_bg = estimateBg(A_nonan);
-    B_bg = estimateBg(B_nonan);
+    A_bg = estimateBg(A_nonan)
+    B_bg = estimateBg(B_nonan)
 
-    Athr = (A_bg - A_nonan.min())/2
-    Bthr = (B_bg - B_nonan.min())/2
+    Athr = (A_bg - A_nonan.min()) / 2
+    Bthr = (B_bg - B_nonan.min()) / 2
     thr = min(Athr, Bthr)
-    A = A.copy(); B = B.copy()
+    A = A.copy()
+    B = B.copy()
     A[A < thr] = 0
     B[B < thr] = 0
     return imgdistortiondiff(A, B)
+
 
 def _get_clusterfn(clusterfn_method):
     if clusterfn_method == 'mean':
@@ -430,11 +456,15 @@ def _get_clusterfn(clusterfn_method):
 For the following, I is one data pt, C is a cluster of data pts. Used
 in k-mediods to compute the distance between a point and a cluster.
 """
+
+
 def _meandist(I, C, distfn, debug=False):
     dists = []
     for I2 in C:
         dists.append(distfn(I, I2, debug))
     return sum(dists) / len(dists)
+
+
 def _mediandist(I, C, distfn, debug=False):
     dists = []
     for I2 in C:
@@ -442,6 +472,8 @@ def _mediandist(I, C, distfn, debug=False):
     if len(dists) <= 2:
         return dists[0]
     return sorted(dists)[len(dists) / 2]
+
+
 def _mindist(I, C, distfn, debug=False):
     mindist = None
     for I2 in C:
@@ -449,6 +481,8 @@ def _mindist(I, C, distfn, debug=False):
         if mindist == None or dist < mindist:
             mindist = dist
     return mindist
+
+
 def _maxdist(I, C, distfn, debug=False):
     maxdist = None
     for I2 in C:
@@ -457,12 +491,14 @@ def _maxdist(I, C, distfn, debug=False):
             maxdist = dist
     return maxdist
 
+
 def mean_nan(A):
     """ Computes the mean of A, ignoring NaN's. A is an NxHxW matrix,
     where N is the number of elements in the cluster. """
     dat = np.ma.masked_array(A, np.isnan(A))
     mean = np.mean(dat, axis=0)
     return mean.filled(np.nan)
+
 
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
@@ -477,7 +513,7 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
         rows of the original DATA matrix.
     """
     if distfn == 'L2':
-        distfn = lambda a,b: np.linalg.norm(a-b)
+        distfn = lambda a, b: np.linalg.norm(a - b)
     elif distfn == 'vardiff':
         distfn = vardiff
     if clusterdist_method == 'single':
@@ -497,7 +533,7 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
         c1_min, c2_min, mindist = None, None, None
         for i, c1 in enumerate(clusters):
             for j, c2 in enumerate(clusters):
-                if i == j: 
+                if i == j:
                     continue
                 dist = clusterdist(c1, c2, data, memo, distfn)
                 if mindist == None or dist < mindist:
@@ -505,7 +541,8 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
                     c2_min = c2
                     mindist = dist
         # 1.) Merge two-closest clusters.
-        debug("...Merging clusters {0}, {1}. Dist: {2}", c1_min, c2_min, mindist)
+        debug("...Merging clusters {0}, {1}. Dist: {2}",
+              c1_min, c2_min, mindist)
         parent = HAG_Node((c1_min, c2_min), dist=mindist)
         c1_min.parent = parent
         c2_min.parent = parent
@@ -513,6 +550,7 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
         clusters.append(parent)
         curiter += 1
     return clusters[0]
+
 
 def single_linkage(c1, c2, data, memo, distfn):
     """ Minimum pair-wise distance between c1, c2. """
@@ -523,15 +561,16 @@ def single_linkage(c1, c2, data, memo, distfn):
         for j in c2_idxs:
             if i == j:
                 continue
-            dist = memo.get((i,j), None)
+            dist = memo.get((i, j), None)
             if dist == None:
-                dist = memo.get((j,i), None)
+                dist = memo.get((j, i), None)
             if dist == None:
                 dist = distfn(data[i], data[j])
                 memo[(i, j)] = dist
             if mindist == None or dist < mindist:
                 mindist = dist
     return mindist
+
 
 def complete_linkage(c1, c2, data, memo, distfn):
     """ Maximum pair-wise distance between c1, c2. """
@@ -542,15 +581,16 @@ def complete_linkage(c1, c2, data, memo, distfn):
         for j in c2_idxs:
             if i == j:
                 continue
-            dist = memo.get((i,j), None)
+            dist = memo.get((i, j), None)
             if dist == None:
-                dist = memo.get((j,i), None)
+                dist = memo.get((j, i), None)
             if dist == None:
                 dist = distfn(data[i], data[j])
                 memo[(i, j)] = dist
             if maxdist == None or dist > maxdist:
                 maxdist = dist
     return maxdist
+
 
 def hag_cluster_flatten(data, C=0.8):
     """ Performs Hierarchichal-Agglomerative Clustering on DATA, and 
@@ -586,49 +626,67 @@ def hag_cluster_flatten(data, C=0.8):
         for row in cluster:
             assigns[row] = clusterID
     return assigns
-    
+
+
 class Node(object):
+
     def __init__(self, row=None, children=None, parent=None):
         raise NotImplementedError
 
+
 class HAG_Node(Node):
+
     def __init__(self, children=None, parent=None, dist=None):
         self.children = children
         self.parent = parent
-        self.dist=dist
+        self.dist = dist
+
     def isleaf(self):
         return False
+
     def get_idxs(self):
         idxs = []
         for c in self.children:
             idxs.extend(c.get_idxs())
         return idxs
-        
+
     def size(self):
         return 1 + sum([child.size() for child in self.children])
+
     def __eq__(self, o):
         return (o and isinstance(o, HAG_Node) and self.children == o.children)
+
     def __repr__(self):
         return "HAG_Node({0} elements)".format(self.size())
+
     def __str__(self):
         return "HAG_Node({0} elements)".format(self.size())
 
+
 class HAG_Leaf(Node):
+
     def __init__(self, row, parent=None):
         self.row = row
         self.parent = parent
+
     def isleaf(self):
         return True
+
     def get_idxs(self):
         return (self.row,)
+
     def size(self):
         return 1
+
     def __eq__(self, o):
         return (o and isinstance(o, HAG_Leaf) and self.row == o.row)
+
     def __repr__(self):
         return "HAG_Leaf({0})".format(repr(self.row))
+
     def __str__(self):
         return "HAG_Leaf"
+
 
 def test_kmeans():
     data1 = np.array([[1, 0],
@@ -650,6 +708,7 @@ def test_kmeans():
     plt.ylabel('The Y Axis')
     plt.show()
 
+
 def test_hac():
     import scipy.cluster.hierarchy as sch
     data = np.array([[1, 0],
@@ -670,7 +729,7 @@ def test_hac():
     for i, clusterID in enumerate(clusterIDs):
         cluster_i = data[np.where(T == clusterID)]
         plt.plot(cluster_i[:, 0], cluster_i[:, 1], colors[i])
-        
+
     plt.ylabel('The Y Axis')
     plt.show()
 
@@ -684,5 +743,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    

@@ -1,5 +1,10 @@
-import traceback, threading, multiprocessing, pdb, os
-import cv, numpy as np
+import traceback
+import threading
+import multiprocessing
+import pdb
+import os
+import cv
+import numpy as np
 
 from Queue import Empty
 import wx
@@ -15,7 +20,8 @@ SMOOTH_IMG_BRD = 4
 SMOOTH_A_BRD = 5
 SMOOTH_BOTH_BRD = 6
 
-def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3, 
+
+def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3,
               xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None,
               patch_outpaths=None):
     """ Runs template matching on IMGPATHS, searching for best match
@@ -63,14 +69,15 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             cv.Flip(I, I, flipMode=-1)
             Iorig = I
         if bb != None:
-            new_roi = tuple(map(int, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])))
+            new_roi = tuple(
+                map(int, (bb[0], bb[1], bb[2] - bb[0], bb[3] - bb[1])))
             cv.SetImageROI(I, new_roi)
         w_I, h_I = cv.GetSize(I)
-        matchmat = cv.CreateMat(h_I-h_A+1, w_I-w_A+1, cv.CV_32F)
+        matchmat = cv.CreateMat(h_I - h_A + 1, w_I - w_A + 1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, matchmat, cv.CV_TM_CCOEFF_NORMED)
         # 0.) Suppress previously-found matches, if any
         prevmats = prevmatches.get(imgpath, []) if prevmatches else []
-        for (x,y) in prevmats:
+        for (x, y) in prevmats:
             debug('suppressing: {0} at {1}', imgpath, (x, y))
             _x1 = max(0, int(x - (w_A / 3)))
             _y1 = max(0, int(y - (h_A / 3)))
@@ -87,8 +94,10 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
         if patch_outpaths:
             outpath = patch_outpaths.get(imgpath, None)
             if outpath:
-                try: os.makedirs(os.path.split(outpath)[0])
-                except: pass
+                try:
+                    os.makedirs(os.path.split(outpath)[0])
+                except:
+                    pass
                 cv.SetImageROI(Iorig, (int(x), int(y),
                                        int(w_A), int(h_A)))
                 cv.SaveImage(outpath, Iorig)
@@ -99,11 +108,12 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
 
     return results
 
+
 def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth,
                              xwinA, ywinA, xwinI, ywinI, w, h,
                              prevmatches,
                              jobid, queue_mygauge, patch_outpaths)):
-    A_cv = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
+    A_cv = cv.CreateImageHeader((w, h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A_cv, A_str)
     try:
         result = bestmatch(A_cv, imgpaths, bb=bb, img2flip=img2flip, do_smooth=do_smooth, xwinA=xwinA,
@@ -114,6 +124,7 @@ def _do_bestmatch(imgpaths, (A_str, bb, img2flip, do_smooth,
     except:
         traceback.print_exc()
         return {}
+
 
 def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwinA=3, ywinA=3,
                   xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None,
@@ -141,6 +152,7 @@ def bestmatch_par(A, imgpaths, bb=None, img2flip=None, NP=None, do_smooth=0, xwi
                                        patch_outpaths),
                                 combfn='dict', N=NP)
     return result
+
 
 def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
                     do_smooth=0, xwinA=13, ywinA=13,
@@ -170,8 +182,8 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
     else:
         A_im = A
     wA, hA = cv.GetSize(A_im)
-    results = {} # {str imgpath: [(x1,y1,x2,y2,score),...]}
-    for i,imgpath in enumerate(imgpaths):
+    results = {}  # {str imgpath: [(x1,y1,x2,y2,score),...]}
+    for i, imgpath in enumerate(imgpaths):
         if isinstance(imgpath, str) or isinstance(imgpath, unicode):
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         else:
@@ -184,15 +196,16 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
         if bb != None:
-            new_roi = tuple(map(int, (bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])))
+            new_roi = tuple(
+                map(int, (bb[0], bb[1], bb[2] - bb[0], bb[3] - bb[1])))
             cv.SetImageROI(I, new_roi)
         wI, hI = cv.GetSize(I)
-        M = cv.CreateMat(hI-hA+1, wI-wA+1, cv.CV_32F)
+        M = cv.CreateMat(hI - hA + 1, wI - wA + 1, cv.CV_32F)
         cv.MatchTemplate(I, A_im, M, cv.CV_TM_CCOEFF_NORMED)
         M_np = np.array(M)
         # 0.) Suppress previously-found matches, if any
         prevmats = prevmatches.get(imgpath, []) if prevmatches else []
-        for (x1,y1,x2,y2) in prevmats:
+        for (x1, y1, x2, y2) in prevmats:
             _x1 = max(0, int(x1 - max(1, (wA * DELT))))
             _y1 = max(0, int(y1 - max(1, (hA * DELT))))
             _x2 = min(M_np.shape[1], int(x1 + max(1, (wA * DELT))))
@@ -208,18 +221,18 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             if bb != None:
                 i += bb[1]
                 j += bb[0]
-                
-            score = M_np[i,j]
+
+            score = M_np[i, j]
             if score < T:
                 break
-            matches.append((j, i, j+wA, i+hA, score))
+            matches.append((j, i, j + wA, i + hA, score))
             # Suppression
             _x1 = max(0, int(j - max(1, (wA * DELT))))
             _y1 = max(0, int(i - max(1, (hA * DELT))))
             _x2 = min(M_np.shape[1], int(j + max(1, (wA * DELT))))
             _y2 = min(M_np.shape[0], int(i + max(1, (hA * DELT))))
             M_np[_y1:_y2, _x1:_x2] = -1.0
-            #M_np[i-(hA/2):i+(hA/2),
+            # M_np[i-(hA/2):i+(hA/2),
             #     j-(wA/2):j+(wA/2)] = -1.0
             num_mats += 1
         if not matches and atleastone:
@@ -229,7 +242,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             if bb != None:
                 i += bb[1]
                 j += bb[0]
-            score = M_np[i,j]
+            score = M_np[i, j]
             matches.append((j, i, j + wA, i + hA, score))
         results[imgpath] = matches
         if jobid and wx.App.IsMainLoopRunning():
@@ -241,15 +254,16 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             queue_mygauge.put(True)
     return results
 
+
 def _do_get_tempmatches(imgpaths, (A_str, img2flip, bb, T, do_smooth, xwinA, ywinA,
-                                   xwinI, ywinI, w, h, MAX_MATS, prevmatches, 
+                                   xwinI, ywinI, w, h, MAX_MATS, prevmatches,
                                    DELT,
                                    atleastone, jobid, queue_mygauge)):
     result = {}
-    A = cv.CreateImageHeader((w,h), cv.IPL_DEPTH_8U, 1)
+    A = cv.CreateImageHeader((w, h), cv.IPL_DEPTH_8U, 1)
     cv.SetData(A, A_str)
     try:
-        results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, bb=bb, do_smooth=do_smooth, xwinA=xwinA, 
+        results = get_tempmatches(A, imgpaths, img2flip=img2flip, T=T, bb=bb, do_smooth=do_smooth, xwinA=xwinA,
                                   ywinA=ywinA, xwinI=xwinI, ywinI=ywinI, MAX_MATS=MAX_MATS,
                                   prevmatches=prevmatches,
                                   DELT=DELT,
@@ -259,9 +273,10 @@ def _do_get_tempmatches(imgpaths, (A_str, img2flip, bb, T, do_smooth, xwinA, ywi
         return {}
     return results
 
-def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8, 
+
+def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
                         bb=None,
-                        do_smooth=0, 
+                        do_smooth=0,
                         xwinA=13, ywinA=13, xwinI=13, ywinI=13,
                         MAX_MATS=50, prevmatches=None,
                         DELT=0.5,
@@ -275,7 +290,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
         tuple BB: (x1,y1,x2,y2)
             Search on each img in IMGPATHS inside BB.
         int NP: Number of processes, or None for auto.
-        
+
     Output:
         dict MATCHES, of the form {str imgpath: [(x1, y1, x2, y2 float resp), ...]}
     """
@@ -309,7 +324,9 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
 
     return result
 
+
 class ThreadTicker(threading.Thread):
+
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.queue_mygauge = queue_mygauge
@@ -329,6 +346,7 @@ class ThreadTicker(threading.Thread):
                 pass
         return True
 
+
 def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to I, with window size [XWIN,YWIN].
     If BORDERTYPE is 'const', then treat pixels that lie outside of I as
@@ -338,14 +356,16 @@ def smooth(I, xwin, ywin, bordertype=None, val=255.0):
     """
     w, h = cv.GetSize(I)
     if bordertype == 'const':
-        Ibig = cv.CreateImage((w+2*xwin, h+2*ywin), I.depth, I.channels)
+        Ibig = cv.CreateImage(
+            (w + 2 * xwin, h + 2 * ywin), I.depth, I.channels)
         cv.CopyMakeBorder(I, Ibig, (xwin, ywin), 0, value=val)
         cv.SetImageROI(Ibig, (xwin, ywin, w, h))
     else:
         Ibig = I
-    Iout = cv.CreateImage((w,h), I.depth, I.channels)
+    Iout = cv.CreateImage((w, h), I.depth, I.channels)
     cv.Smooth(Ibig, Iout, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     return Iout
+
 
 def smooth_mat(Imat, xwin, ywin, bordertype=None, val=255.0):
     """ Apply a gaussian blur to IMAT, with window size [XWIN,YWIN].

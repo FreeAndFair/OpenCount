@@ -1,5 +1,7 @@
-import sys, pickle
-import scipy, scipy.misc
+import sys
+import pickle
+import scipy
+import scipy.misc
 sys.path.append('..')
 import imagesAlign
 
@@ -14,6 +16,7 @@ I1, Iref1, and type were inputs from my OC-recall races test set
 that caused a crash.
 """
 
+
 def main():
     d = pickle.load(open(errdict, 'rb'))
     I1 = d['I1']
@@ -25,6 +28,6 @@ def main():
 
     output = imagesAlign.imagesAlign(I1, Iref1, type=type)
     #H, err = imagesAlign(I1, Iref1, type=type)
-    
+
 if __name__ == '__main__':
     main()

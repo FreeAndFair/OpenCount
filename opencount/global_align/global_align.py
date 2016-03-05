@@ -1,16 +1,24 @@
-import sys, os, pdb, argparse
-import numpy as np, cv2, cv
+import sys
+import os
+import pdb
+import argparse
+import numpy as np
+import cv2
+import cv
 import time
 
 from os.path import join as pathjoin
 
-import scipy, scipy.misc, scipy.linalg, numpy as np
+import scipy
+import scipy.misc
+import scipy.linalg
+import numpy as np
 
 sys.path.append('..')
 import pixel_reg.imagesAlign as imagesAlign
 import pixel_reg.shared as sh
 
-try: 
+try:
     import matplotlib.pyplot as plt
 except:
     print "Couldn't import matplotlib. Can't plot."
@@ -37,6 +45,7 @@ to OUTDIR.
 
 ALIGN_NORMAL = 'normal'
 ALIGN_CVRIGID = 'cvrigid'
+
 
 def align_image(I, Iref, crop=True, verbose=False,
                 CROPX=0.02, CROPY=0.02, ERR_REL_THR=1.001,
@@ -81,24 +90,28 @@ def align_image(I, Iref, crop=True, verbose=False,
     else:
         Icrop, Iref_crop = I, Iref
 
-    H, err = imagesAlign.imagesAlign(Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False, minArea=MINAREA)
+    H, err = imagesAlign.imagesAlign(
+        Icrop, Iref_crop, trfm_type='rigid', rszFac=RSZFAC, applyWarp=False, minArea=MINAREA)
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)
     #Ireg = np.nan_to_num(Ireg)
     return H, Ireg, err
 
+
 def _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR):
     """ Helper function for align_image. Handles trying multiple crop
     parameters until an err_rel is found that is <= ERR_REL_THR.
     """
     best_H, best_Ireg, best_err = None, None, None
-    err_orig = np.mean(np.abs(I - Iref).flatten()) # L1 error, normalized by area
+    # L1 error, normalized by area
+    err_orig = np.mean(np.abs(I - Iref).flatten())
     for i, cropx in enumerate(CROPX):
         cropy = CROPY[i]
         I_crop = cropout_stuff(I, cropy, cropy, cropx, cropx)
         Iref_crop = cropout_stuff(Iref, cropy, cropy, cropx, cropx)
-        H, err = imagesAlign.imagesAlign(I_crop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
+        H, err = imagesAlign.imagesAlign(
+            I_crop, Iref_crop, trfm_type='rigid', rszFac=0.15, applyWarp=False)
         Ireg = sh.imtransform(I, H)
         err_galign = np.mean(np.abs(Ireg - Iref).flatten())
         err_rel = err_galign / err_orig if err_orig != 0.0 else 0.0
@@ -108,28 +121,35 @@ def _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR):
             best_H, best_Ireg, best_err = H, Ireg, err_galign
     return best_H, best_Ireg, best_err
 
+
 def cropout_stuff(I, top, bot, left, right):
     """ Crops out some percentage from each side of I. """
     h, w = I.shape
-    x1 = int(round(left*w))
-    y1 = int(round(top*h))
-    x2 = int(round(w - (right*w)))
-    y2 = int(round(h - (bot*h)))
+    x1 = int(round(left * w))
+    y1 = int(round(top * h))
+    x2 = int(round(w - (right * w)))
+    y2 = int(round(h - (bot * h)))
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
+
 
 def correctH(I, H0):
     """ Given an image I and its transformation matrix H0 which is wrt
     the image origin, output a new transformation matrix H that is in
     the image coordinate system of I.
     """
-    T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
-    T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
-    H=np.dot(np.dot(T0,H0),T1)
+    T0 = np.eye(3)
+    T0[0, 2] = I.shape[1] / 2.0
+    T0[1, 2] = I.shape[0] / 2.0
+    T1 = np.eye(3)
+    T1[0, 2] = -I.shape[1] / 2.0
+    T1[1, 2] = -I.shape[0] / 2.0
+    H = np.dot(np.dot(T0, H0), T1)
     return H
 
-def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3), 
-                 crop_I=(0.05, 0.05, 0.05, 0.05), 
+
+def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
+                 crop_I=(0.05, 0.05, 0.05, 0.05),
                  crop_Iref=None, do_nan_to_num=False):
     """ Alignment strategy: First, crop out 5% from each side of I.
     Then, try a range of scales, and choose the alignment that 
@@ -141,13 +161,15 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     else:
         Icrop = I
     if crop_Iref != None:
-        Iref_crop = cropout_stuff(Iref, crop_Iref[0], crop_Iref[1], crop_Iref[2], crop_Iref[3])
+        Iref_crop = cropout_stuff(Iref, crop_Iref[0], crop_Iref[
+                                  1], crop_Iref[2], crop_Iref[3])
     else:
         Iref_crop = Iref
     H_best, Ireg_best, err_best = None, None, None
     scale_best = None
     for scale in scales:
-        H, Ireg, err = imagesAlign.imagesAlign(Icrop, Iref_crop, fillval=1, trfm_type='rigid', rszFac=scale)
+        H, Ireg, err = imagesAlign.imagesAlign(
+            Icrop, Iref_crop, fillval=1, trfm_type='rigid', rszFac=scale)
         if err_best == None or err < err_best:
             H_best = H
             Ireg_best = Ireg
@@ -158,6 +180,7 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     if do_nan_to_num:
         Ireg = np.nan_to_num(Ireg)
     return H_best, Ireg, err_best
+
 
 def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
              crop=None, rmBlkBorder=True, doSmooth=False, smooth_sigma=12):
@@ -187,14 +210,19 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
     """
     if rmBlkBorder:
         I_topblk, I_botblk, I_leftblk, I_rightblk = compute_border(I_in)
-        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = compute_border(Iref_in)
-        i1, i2 = max(I_topblk, Iref_topblk), max(I_in.shape[0] - I_botblk, Iref_in.shape[0] - Iref_botblk)
-        j1, j2 = max(I_leftblk, Iref_leftblk), max(I_in.shape[1] - I_rightblk, Iref_in.shape[1] - Iref_rightblk)
+        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = compute_border(
+            Iref_in)
+        i1, i2 = max(I_topblk, Iref_topblk), max(
+            I_in.shape[0] - I_botblk, Iref_in.shape[0] - Iref_botblk)
+        j1, j2 = max(I_leftblk, Iref_leftblk), max(
+            I_in.shape[1] - I_rightblk, Iref_in.shape[1] - Iref_rightblk)
         I = I_in[i1:i2, j1:j2]
         Iref = Iref_in[i1:i2, j1:j2]
     else:
-        I_topblk, I_botblk, I_leftblk, I_rightblk = 0, I_in.shape[0], 0, I_in.shape[1]
-        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = 0, Iref_in.shape[0], 0, Iref_in.shape[1]
+        I_topblk, I_botblk, I_leftblk, I_rightblk = 0, I_in.shape[
+            0], 0, I_in.shape[1]
+        Iref_topblk, Iref_botblk, Iref_leftblk, Iref_rightblk = 0, Iref_in.shape[
+            0], 0, Iref_in.shape[1]
         I = I_in
         Iref = Iref_in
     if crop:
@@ -210,38 +238,41 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
     if doSmooth:
         #I_rsz = scipy.ndimage.filters.gaussian_filter(I_rsz, smooth_sigma, mode='nearest')
         #Iref_rsz = scipy.ndimage.filters.gaussian_filter(Iref_rsz, smooth_sigma, mode='nearest')
-        I_rsz = cv2.GaussianBlur(I_rsz, (0,0), smooth_sigma)
-        Iref_rsz = cv2.GaussianBlur(Iref_rsz, (0,0), smooth_sigma)
+        I_rsz = cv2.GaussianBlur(I_rsz, (0, 0), smooth_sigma)
+        Iref_rsz = cv2.GaussianBlur(Iref_rsz, (0, 0), smooth_sigma)
 
     H = cv2.estimateRigidTransform(I_rsz, Iref_rsz, fullAffine)
     try:
         H_ = np.eye(3, dtype=H.dtype)
-        H_[:2,:] = H
+        H_[:2, :] = H
         Hinv = scipy.linalg.inv(H_)
     except (np.linalg.linalg.LinAlgError, ValueError) as e:
         # In rare cases, H is singular (due to OpenCV bug?), thus outputting
         # bogus results.
         # Try aligning Iref to I, then invert the resultant H to get the
         # actual I->Iref transform.
-        #print "SINGULAR MATRIX! Trying to align Ireg to I. ({0})".format(e.message)
+        # print "SINGULAR MATRIX! Trying to align Ireg to I.
+        # ({0})".format(e.message)
         H_ = cv2.estimateRigidTransform(Iref_rsz, I_rsz, fullAffine)
         if np.any(np.isnan(H_)) or np.any(np.isinf(H_)):
-            H = np.eye(3, dtype=H_.dtype)[:2,:]
+            H = np.eye(3, dtype=H_.dtype)[:2, :]
         else:
             H_sq = np.eye(3, dtype=H_.dtype)
-            H_sq[:2,:] = H_
+            H_sq[:2, :] = H_
             try:
-                H = scipy.linalg.inv(H_sq)[:2,:]
+                H = scipy.linalg.inv(H_sq)[:2, :]
             except np.linalg.linalg.LinAlgError as e:
-                #print "SINGULAR MATRIX AGAIN! Uhoh. Outputting Identity mat."
-                H = np.eye(3, dtype=H.dtype)[:2,:]
+                # print "SINGULAR MATRIX AGAIN! Uhoh. Outputting Identity mat."
+                H = np.eye(3, dtype=H.dtype)[:2, :]
 
     Ireg = cv2.warpAffine(I_in, H, (I_in.shape[1], I_in.shape[0]))
     if not computeErr:
         err = None
     else:
-        err = (np.sum(np.abs(Ireg - Iref_in)) / float(Ireg.shape[0] * Ireg.shape[1])) / 255.0
+        err = (np.sum(np.abs(Ireg - Iref_in)) /
+               float(Ireg.shape[0] * Ireg.shape[1])) / 255.0
     return H, Ireg, err
+
 
 def compute_border(A):
     """ Determines if the image contains rows/cols that are all black
@@ -256,19 +287,20 @@ def compute_border(A):
         thesum = np.sum(A[i1])
         if thesum != 0:
             break
-    for i2 in xrange(h-1, -1, -1):
+    for i2 in xrange(h - 1, -1, -1):
         thesum = np.sum(A[i2])
         if thesum != 0:
             break
     for j1 in xrange(w):
-        thesum = np.sum(A[:,j1])
+        thesum = np.sum(A[:, j1])
         if thesum != 0:
             break
-    for j2 in xrange(w-1, -1, -1):
-        thesum = np.sum(A[:,j2])
+    for j2 in xrange(w - 1, -1, -1):
+        thesum = np.sum(A[:, j2])
         if thesum != 0:
             break
     return i1, h - i2, j1, w - j2
+
 
 def calc_rszFac(imgsize, maxdim, mindim):
     """ Outputs an appropriate scaling factor C s.t. the resultant
@@ -282,6 +314,7 @@ def calc_rszFac(imgsize, maxdim, mindim):
     if mindim != None and min(C * imgsize[0], C * imgsize[1]) < mindim:
         C = float(mindim) / min(imgsize)
     return C
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -298,15 +331,16 @@ to do.")
                         default=ALIGN_NORMAL,
                         help="Alignment method to use.")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--save_overlays", action="store_true", 
+    parser.add_argument("--save_overlays", action="store_true",
                         help="Save Ireg overlayed with Iref to OUTDIR, not just \
 Ireg.")
-    
+
     parser.add_argument("--roi", nargs=4, type=int, metavar=("x1", "y1", "x2", "y2"),
                         help="Align only a subregion of both images .")
 
     return parser.parse_args()
-    
+
+
 def main():
     args = parse_args()
 
@@ -359,7 +393,8 @@ def main():
             if args.roi:
                 x1, y1, x2, y2 = args.roi
                 I = I[y1:y2, x1:x2]
-            H, Ireg, err = align_image(I, Iref, verbose=VERBOSE, CROPX=0.07, CROPY=0.07, MINAREA=np.power(2, 16))
+            H, Ireg, err = align_image(
+                I, Iref, verbose=VERBOSE, CROPX=0.07, CROPY=0.07, MINAREA=np.power(2, 16))
             err_orig = np.mean(np.abs(I - Iref).flatten())
             err_galign = np.mean(np.abs(Ireg - Iref).flatten())
             err_rel = err_galign / err_orig
@@ -369,7 +404,7 @@ def main():
                 x1, y1, x2, y2 = args.roi
                 I = I[y1:y2, x1:x2]
             H, Ireg, err_galign = align_cv(I, Iref, computeErr=True, fullAffine=False,
-                                    rmBlkBorder=True, doSmooth=True)
+                                           rmBlkBorder=True, doSmooth=True)
             err_orig = np.mean(np.abs(I - Iref))
             err_rel = err_galign / err_orig
         else:
@@ -415,15 +450,16 @@ If >1.0, then alignment introduced more error.")
     p0.set_ylabel("Occurrences")
 
     hist, bins = np.histogram(errs_rel)
-    width = 0.7 * (bins[1]-bins[0])
-    center = (bins[:-1]+bins[1:]) / 2.0
+    width = 0.7 * (bins[1] - bins[0])
+    center = (bins[:-1] + bins[1:]) / 2.0
 
     p0.bar(center, hist, align='center', width=width)
 
     fig.show()
 
     raw_input("Press (enter) to continue.")
-    
+
+
 def fast_imread(imgpath, flatten=True, dtype='uint8'):
     if flatten:
         Icv = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)

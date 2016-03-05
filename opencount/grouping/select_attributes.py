@@ -1,5 +1,11 @@
-import os, sys, time, pdb, threading, random
-import cv, Image
+import os
+import sys
+import time
+import pdb
+import threading
+import random
+import cv
+import Image
 import wx
 from ffwx import *
 
@@ -12,7 +18,9 @@ from os.path import join as pathjoin
 
 sys.path.append('..')
 
-import tempmatch, util, common
+import tempmatch
+import util
+import common
 import specify_voting_targets.util_widgets as util_widgets
 import specify_voting_targets.util_gui as util_gui
 import verify_overlays_new
@@ -22,13 +30,16 @@ import grouping.partask as partask
 # Global CTR used to ensure unique filenames for outpatches.
 CTR = 0
 
+
 class SelectAttributesMasterPanel(wx.Panel):
     """ Panel meant to be directly integrated with OpenCount. """
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 
         self.project = None
-        # BOXES := {str ballotid: [((x1, y1, x2, y2), str attrtype, str attrval, str patchpath, subpatchP), ...]}
+        # BOXES := {str ballotid: [((x1, y1, x2, y2), str attrtype, str
+        # attrval, str patchpath, subpatchP), ...]}
         self.boxes = None
 
         # self.MAPPING := {str imgpath: {str attrtype: str patchpath}}
@@ -36,7 +47,8 @@ class SelectAttributesMasterPanel(wx.Panel):
         # self.INV_MAPPING := {str patchpath: (imgpath, attrtype)}
         self.inv_mapping = None
 
-        # maps {str attrtype: [(attrval, i, str patchpath, str blankpath (x1,y1,x2,y2)), ...]}
+        # maps {str attrtype: [(attrval, i, str patchpath, str blankpath
+        # (x1,y1,x2,y2)), ...]}
         self.usersel_exs = {}
 
         self.attridx = None
@@ -78,7 +90,8 @@ class SelectAttributesMasterPanel(wx.Panel):
             self.boxes = {}
             self.usersel_exs = {}
             b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-            img2page = pickle.load(open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
+            img2page = pickle.load(
+                open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
             partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                          proj.partition_exmpls), 'rb'))
             # Randomly choose self.NUM_EXMPLS ballots from the election
@@ -86,7 +99,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                                                       proj.partitions_invmap), 'rb'))
             candidate_balids = bal2partition.keys()
             num_ballots = len(candidate_balids)
-            
+
             chosen_ballotids = set()
             if num_ballots <= self.NUM_EXMPLS:
                 chosen_ballotids = set(candidate_balids)
@@ -99,16 +112,20 @@ class SelectAttributesMasterPanel(wx.Panel):
                     if balid not in chosen_ballotids:
                         chosen_ballotids.add(balid)
                         _cnt += 1
-            blanks = [] # list of [[path_page0, path_page1, ...], ...]
+            blanks = []  # list of [[path_page0, path_page1, ...], ...]
             for ballotid in chosen_ballotids:
                 imgpaths = b2imgs[ballotid]
-                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                imgpaths_ordered = sorted(
+                    imgpaths, key=lambda imP: img2page[imP])
                 blanks.append(imgpaths_ordered)
-            self.mapping, self.inv_mapping = do_extract_attr_patches(proj, blanks, self.img2flip)
-            self.attrtypes = list(common.get_attrtypes(proj, with_digits=False))
+            self.mapping, self.inv_mapping = do_extract_attr_patches(
+                proj, blanks, self.img2flip)
+            self.attrtypes = list(
+                common.get_attrtypes(proj, with_digits=False))
             self.attridx = 0
         self.do_labelattribute(self.attridx)
         self.Fit()
+
     def stop(self):
         if not self.project:
             return
@@ -157,8 +174,9 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.save_boxes()
         debug("Exporting Select Attributes Results")
         img2b = pickle.load(open(self.project.image_to_ballot, 'rb'))
-        partition_attrmap = {} # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
-                               #                          attrval, page, is_digitbased, is_tabulationonly], ...]
+        # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
+        partition_attrmap = {}
+        # attrval, page, is_digitbased, is_tabulationonly], ...]
         partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
                                                    self.project.partitions_map), 'rb'))
         partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
@@ -169,11 +187,13 @@ class SelectAttributesMasterPanel(wx.Panel):
         for imgpath, info in self.boxes.iteritems():
             ballotid = img2b[imgpath]
             partitionID = partitions_invmap[ballotid]
-            attrs_list = [] # [[imP,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly],...]
+            attrs_list = []  # [[imP,x,y,w,h,attrtype,attrval,page,isdigitbased,istabonly],...]
             for ((x1, y1, x2, y2), attrtype, attrval, patchpath, subpatchP) in info:
                 attrside = common.get_attr_prop(self.project, attrtype, 'side')
-                isdigitbased = common.get_attr_prop(self.project, attrtype, "is_digitbased")
-                istabonly = common.get_attr_prop(self.project, attrtype, "is_tabulationonly")
+                isdigitbased = common.get_attr_prop(
+                    self.project, attrtype, "is_digitbased")
+                istabonly = common.get_attr_prop(
+                    self.project, attrtype, "is_tabulationonly")
                 row = {"imgpath": imgpath, "id": uid,
                        "x": x1, "y": y1,
                        "width": int(round(x2 - x1)),
@@ -182,7 +202,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                        "side": attrside,
                        "is_digitbased": isdigitbased,
                        "is_tabulationonly": istabonly}
-                attrs_list.append([imgpath, x1, y1, x2-x1,y2-y1, attrtype, attrval,
+                attrs_list.append([imgpath, x1, y1, x2 - x1, y2 - y1, attrtype, attrval,
                                    attrside, isdigitbased, istabonly])
                 uid += 1
             partition_attrmap.setdefault(partitionID, []).extend(attrs_list)
@@ -202,14 +222,17 @@ class SelectAttributesMasterPanel(wx.Panel):
         if not common.exists_imgattrs(self.project):
             return
         # 0.) Create+populate the BLANKPATCHES dict
-        blankpatches = {} # maps {attrtype: {attrval: [(subpatchpath_i, bb_i), ...]}}
-        subpatch_map = {} # maps {str subpatchP: (str patchP, (x1,y1,x2,y2))}
+        # maps {attrtype: {attrval: [(subpatchpath_i, bb_i), ...]}}
+        blankpatches = {}
+        subpatch_map = {}  # maps {str subpatchP: (str patchP, (x1,y1,x2,y2))}
         for ballotid, info in self.boxes.iteritems():
             for (bb, attrtype, attrval, patchpath, subpatchP) in info:
-                blankpatches.setdefault(attrtype, {}).setdefault(attrval, []).append((subpatchP, None))
+                blankpatches.setdefault(attrtype, {}).setdefault(
+                    attrval, []).append((subpatchP, None))
                 subpatch_map[subpatchP] = (patchpath, bb)
         # 1.) For each attrval of each attrtype, run the clustering
-        attrtype_exemplars = {} # maps {attrtype: {attrval: [(patchpath_i, bb_i), ...]}}
+        # maps {attrtype: {attrval: [(patchpath_i, bb_i), ...]}}
+        attrtype_exemplars = {}
         for attrtype, attrvalmap in blankpatches.iteritems():
             debug("running on attrtype: {0}", attrtype)
             exemplars = group_attrs.compute_exemplars_fullimg(attrvalmap)
@@ -217,7 +240,9 @@ class SelectAttributesMasterPanel(wx.Panel):
             debug("For Attribute {0}, {1} exemplars were found", attrtype, _n)
             attrtype_exemplars[attrtype] = exemplars
         # 2.) Export results.
-        outfile_map = {} # maps {attrtype: {attrval: [(subpatchpath_i, blankpath_i, bb_i), ...]}}
+        # maps {attrtype: {attrval: [(subpatchpath_i, blankpath_i, bb_i),
+        # ...]}}
+        outfile_map = {}
         for attrtype, _dict in attrtype_exemplars.iteritems():
             rootdir = pathjoin(outdir, attrtype)
             try:
@@ -230,28 +255,31 @@ class SelectAttributesMasterPanel(wx.Panel):
                     blankpath, _ = self.inv_mapping[patchpath]
                     I = cv.LoadImage(subpatchP, cv.CV_LOAD_IMAGE_UNCHANGED)
                     if bb_none != None:
-                        cv.SetImageROI(I, (bb_none[2], bb_none[0], bb_none[3]-bb_none[2], bb_none[1]-bb_none[0]))
+                        cv.SetImageROI(I, (bb_none[2], bb_none[0], bb_none[
+                                       3] - bb_none[2], bb_none[1] - bb_none[0]))
                     outname = "{0}_{1}.png".format(attrval, i)
                     fulloutpath = pathjoin(rootdir, outname)
                     cv.SaveImage(fulloutpath, I)
-                    x1,y1,x2,y2 = bb
-                    bbout = (x1,y1,x2,y2)
-                    outfile_map.setdefault(attrtype, {}).setdefault(attrval, []).append((subpatchP, blankpath, bbout))
+                    x1, y1, x2, y2 = bb
+                    bbout = (x1, y1, x2, y2)
+                    outfile_map.setdefault(attrtype, {}).setdefault(
+                        attrval, []).append((subpatchP, blankpath, bbout))
         # 3.) Also add in the user-selected patches in 'Label Attributes'
         # as additional exemplars.
         for attrtype, tups in self.usersel_exs.iteritems():
             for (attrval, i, subpatchpath, blankpath, bb) in tups:
-                outfile_map[attrtype][attrval].append((subpatchpath, blankpath, bb))
+                outfile_map[attrtype][attrval].append(
+                    (subpatchpath, blankpath, bb))
         pickle.dump(outfile_map, open(pathjoin(self.project.projdir_path,
                                                self.project.multexemplars_map), 'wb'))
         debug("Done saving multexemplar patches")
-    
+
     def do_labelattribute(self, attridx):
         """ Sets up UI to allow user to label attribute at ATTRIDX.
         """
         self.attridx = attridx
         curattrtype = self.attrtypes[attridx]
-        
+
         boxes = {}
         patchpaths = []
         # 1.) Populate the PATCHPATHS list
@@ -260,8 +288,8 @@ class SelectAttributesMasterPanel(wx.Panel):
                 patchpaths.append(patchpath)
         # 2.) Populate the BOXES dict with previously-created boxes, if any
         for ballotid, info in self.boxes.iteritems():
-            for ((x1,y1,x2,y2), attrtype, attrval, patchpath, subpatchP) in info:
-                if attrtype != curattrtype: 
+            for ((x1, y1, x2, y2), attrtype, attrval, patchpath, subpatchP) in info:
+                if attrtype != curattrtype:
                     continue
                 # Note: These coords are wrt entire image, whereas self.SELECTATTRS
                 # expects coords to be wrt patch. Do a correction.
@@ -269,10 +297,13 @@ class SelectAttributesMasterPanel(wx.Panel):
                 y = common.get_attr_prop(self.project, attrtype, 'y1')
                 x1_off, y1_off = x1 - x, y1 - y
                 x2_off, y2_off = x2 - x, y2 - y
-                boxes.setdefault(patchpath, []).append(((x1_off,y1_off,x2_off,y2_off), attrval, subpatchP))
+                boxes.setdefault(patchpath, []).append(
+                    ((x1_off, y1_off, x2_off, y2_off), attrval, subpatchP))
         outdir0 = os.path.join(self.project.projdir_path, 'selectattr_outdir0')
-        self.selectattrs.start(patchpaths, self.img2flip, curattrtype, boxes=boxes, outdir0=outdir0)
-        self.selectattrs.mosaicpanel.txt_attrtype.SetLabel("{0} ({1} / {2}).".format(curattrtype, attridx+1, len(self.attrtypes)))
+        self.selectattrs.start(patchpaths, self.img2flip,
+                               curattrtype, boxes=boxes, outdir0=outdir0)
+        self.selectattrs.mosaicpanel.txt_attrtype.SetLabel(
+            "{0} ({1} / {2}).".format(curattrtype, attridx + 1, len(self.attrtypes)))
         self.Layout()
         return self.attridx
 
@@ -286,16 +317,18 @@ class SelectAttributesMasterPanel(wx.Panel):
             imgpath, attrtype = self.inv_mapping[patchpath]
             x = common.get_attr_prop(self.project, attrtype, 'x1')
             y = common.get_attr_prop(self.project, attrtype, 'y1')
-            # Replace all entries in self.BOXES for ATTRTYPE with 
+            # Replace all entries in self.BOXES for ATTRTYPE with
             # entries in self.SELECTATTRS.BOXES
             self.boxes.setdefault(imgpath, [])
-            self.boxes[imgpath] = [tup for tup in self.boxes[imgpath] if tup[1] != attrtype]
+            self.boxes[imgpath] = [tup for tup in self.boxes[
+                imgpath] if tup[1] != attrtype]
             for ((x1, y1, x2, y2), label, subpatchP) in boxes:
                 # Note: coords are wrt PATCH, not entire ballot image. Do
                 # a correction.
                 x1_off, y1_off = x1 + x, y1 + y
                 x2_off, y2_off = x2 + x, y2 + y
-                self.boxes[imgpath].append(((x1_off, y1_off, x2_off, y2_off), attrtype, label, patchpath, subpatchP))
+                self.boxes[imgpath].append(
+                    ((x1_off, y1_off, x2_off, y2_off), attrtype, label, patchpath, subpatchP))
 
     def next_attribute(self):
         newidx = self.attridx + 1
@@ -303,18 +336,23 @@ class SelectAttributesMasterPanel(wx.Panel):
             return False
         self.save_boxes()
         return self.do_labelattribute(newidx)
+
     def prev_attribute(self):
         newidx = self.attridx - 1
         if newidx < 0 or newidx >= len(self.attrtypes):
             return False
         self.save_boxes()
         return self.do_labelattribute(newidx)
+
     def validate_outputs(self):
         return True
+
     def checkCanMoveOn(self):
         return True
 
+
 class SelectAttributesPanel(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -326,19 +364,19 @@ class SelectAttributesPanel(wx.Panel):
         #       ballot image.
         self.boxes = {}
 
-        # OUTDIR0: Stores the selected regions that the user made, on 
-        # each attribute patch. 
+        # OUTDIR0: Stores the selected regions that the user made, on
+        # each attribute patch.
         self.outdir0 = 'select_attr_outdir0'
 
-        #self.mosaicpanel = util_widgets.MosaicPanel(self, imgmosaicpanel=AttrMosaicPanel,
-        #                                            CellClass=PatchPanel, CellBitmapClass=PatchBitmap)
+        # self.mosaicpanel = util_widgets.MosaicPanel(self, imgmosaicpanel=AttrMosaicPanel,
+        # CellClass=PatchPanel, CellBitmapClass=PatchBitmap)
         self.mosaicpanel = MosaicPanel_sub(self)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.mosaicpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(sizer)
         self.Fit()
-        
+
     def start(self, patchpaths, img2flip, attr, boxes=None, outdir0=None):
         self.patchpaths = patchpaths
         self.img2flip = img2flip
@@ -349,11 +387,14 @@ class SelectAttributesPanel(wx.Panel):
         self.mosaicpanel.set_images(patchpaths)
         self.Fit()
 
+
 class MosaicPanel_sub(util_widgets.MosaicPanel):
+
     def __init__(self, parent, *args, **kwargs):
         util_widgets.MosaicPanel.__init__(self, parent, imgmosaicpanel=AttrMosaicPanel,
                                           CellClass=PatchPanel, CellBitmapClass=PatchBitmap,
                                           *args, **kwargs)
+
     def init_ui(self):
         util_widgets.MosaicPanel.init_ui(self)
         self.btn_sizer.Add((50, 0))
@@ -370,7 +411,8 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
         self.attrtype = FFStatLabel(self, 'Current Attribute', '(0/0)')
         # txt0 = wx.StaticText(self, label="Current Attribute: ")
         # self.txt_attrtype = wx.StaticText(self, label="Foo (0/0).")
-        btn_opts = FFButton(self, label="Options...", on_click=self.onButton_opts)
+        btn_opts = FFButton(self, label="Options...",
+                            on_click=self.onButton_opts)
         btn_hide = FFButton(
             self, label="Hide Labeled Patches", on_click=self.onButton_hide
         )
@@ -378,9 +420,9 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
             self, label="Show Labeled Patches", on_click=self.onButton_show
         )
         self.btn_sizer.AddMany([(self.btn_nextattr,), (self.btn_prevattr,),
-                                ((30,0),),
+                                ((30, 0),),
                                 (txt0,), (self.txt_attrtype,),
-                                ((50,0),),
+                                ((50, 0),),
                                 (btn_opts,),
                                 (btn_hide,), (btn_show,)])
         self.Layout()
@@ -399,13 +441,17 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
 
     def onButton_opts(self, evt):
         class OptsDialog(wx.Dialog):
+
             def __init__(self, parent, cur_thresh, *args, **kwargs):
-                wx.Dialog.__init__(self, parent, title="Select Attributes Options", *args, **kwargs)
+                wx.Dialog.__init__(
+                    self, parent, title="Select Attributes Options", *args, **kwargs)
 
                 self.thresh_out = cur_thresh
 
-                txt0 = wx.StaticText(self, label="Template Matching Sensitivity: ")
-                self.txtin_tmthresh = wx.TextCtrl(self, value=str(self.thresh_out))
+                txt0 = wx.StaticText(
+                    self, label="Template Matching Sensitivity: ")
+                self.txtin_tmthresh = wx.TextCtrl(
+                    self, value=str(self.thresh_out))
                 sizer0 = wx.BoxSizer(wx.HORIZONTAL)
                 sizer0.AddMany([(txt0,), (self.txtin_tmthresh,)])
 
@@ -417,39 +463,43 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
                 )
                 btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
                 btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
-                
+
                 sizer = wx.BoxSizer(wx.VERTICAL)
                 sizer.Add(sizer0)
                 sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
                 self.SetSizer(sizer)
                 self.Layout()
+
             def onButton_ok(self, evt):
                 try:
                     self.thresh_out = float(self.txtin_tmthresh.GetValue())
                 except:
                     error("Invalid input: {0}", self.txtin_tmthresh.GetValue())
                 self.EndModal(wx.ID_OK)
+
             def onButton_cancel(self, evt):
                 self.EndModal(wx.ID_CANCEL)
-                
+
         dlg = OptsDialog(self, self.imagemosaic.TM_THRESHOLD)
         status = dlg.ShowModal()
         if status == wx.ID_CANCEL:
             return
         self.imagemosaic.TM_THRESHOLD = dlg.thresh_out
 
+
 class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
     TEMPMATCH_JOB_ID = util.GaugeID("SelectAttrsTempMatchJobId")
 
     def __init__(self, parent, *args, **kwargs):
-        util_widgets.ImageMosaicPanel.__init__(self, parent, cellheight=100, *args, **kwargs)
+        util_widgets.ImageMosaicPanel.__init__(
+            self, parent, cellheight=100, *args, **kwargs)
 
         # Threshold value to use for template matching
         self.TM_THRESHOLD = 0.85
-        
+
         self._verifyframe = None
-        
+
     def get_boxes(self, imgpath):
         '''
         boxes = self.GetParent().GetParent().boxes.get(imgpath, [])
@@ -471,10 +521,10 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         if status == wx.ID_CANCEL:
             return
         attrval = dlg.attrval
-        
+
         # Save PATCH to temp file for VerifyPanel to use later.
         attrtype = self.GetParent().GetParent().attr
-        outrootdir = pathjoin(self.GetParent().GetParent().outdir0, 
+        outrootdir = pathjoin(self.GetParent().GetParent().outdir0,
                               'user_selected',
                               attrtype)
         try:
@@ -485,18 +535,22 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         outfilepath = pathjoin(outrootdir, "{0}_{1}.png".format(attrval, i))
         cv.SaveImage(outfilepath, patch)
         cv.SaveImage("_selectattr_patch.png", patch)
-        x = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'x1')
-        y = common.get_attr_prop(self.GetParent().GetParent().GetParent().project, attrtype, 'y1')
-        bb_off = bb[0]+x, bb[1]+y, bb[2]+x, bb[3]+y
-        blankpath, _ = self.GetParent().GetParent().GetParent().inv_mapping[patchpath]
-        self.GetParent().GetParent().GetParent().usersel_exs.setdefault(attrtype, []).append((attrval, i, outfilepath, blankpath, bb_off))
-        
+        x = common.get_attr_prop(
+            self.GetParent().GetParent().GetParent().project, attrtype, 'x1')
+        y = common.get_attr_prop(
+            self.GetParent().GetParent().GetParent().project, attrtype, 'y1')
+        bb_off = bb[0] + x, bb[1] + y, bb[2] + x, bb[3] + y
+        blankpath, _ = self.GetParent().GetParent(
+        ).GetParent().inv_mapping[patchpath]
+        self.GetParent().GetParent().GetParent().usersel_exs.setdefault(
+            attrtype, []).append((attrval, i, outfilepath, blankpath, bb_off))
+
         # 2.) Only run template matching on un-labeled imgpaths
         unlabeled_imgpaths = []
         for imgpath in self.imgpaths:
             if imgpath not in self.GetParent().GetParent().boxes:
                 unlabeled_imgpaths.append(imgpath)
-                
+
         t = TM_Thread(patch, unlabeled_imgpaths, attrval, self.TEMPMATCH_JOB_ID,
                       callback=self.on_tempmatchdone)
         debug("starting TM Thread")
@@ -515,9 +569,9 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         debug("TempMatching done!")
         # 1.) Extract+Save imgs, so that ViewOverlays can access them.
         outpaths = []
-        patch2img = {} # maps {str patchpath: str imgpath}
+        patch2img = {}  # maps {str patchpath: str imgpath}
         #scores = []
-        #for _, (_, _, score) in results.iteritems():
+        # for _, (_, _, score) in results.iteritems():
         #    scores.append(score)
         #hist, edges = np.histogram(scores)
         global CTR
@@ -525,14 +579,16 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
             if score < self.TM_THRESHOLD:
                 continue
             I = cv.LoadImage(regionpath, cv.CV_LOAD_IMAGE_UNCHANGED)
-            cv.SetImageROI(I,(x, y, w, h))
+            cv.SetImageROI(I, (x, y, w, h))
             imgname = os.path.split(regionpath)[1]
             imgname_noext = os.path.splitext(imgname)[0]
-            outname = "{0}_{1}_{2}.png".format(imgname_noext, self.GetParent().GetParent().attr, CTR)
+            outname = "{0}_{1}_{2}.png".format(
+                imgname_noext, self.GetParent().GetParent().attr, CTR)
             # Use a global incrementing CTR to avoid problems if two different
-            # ballots have the same imagename. 
+            # ballots have the same imagename.
             CTR += 1
-            outrootdir = os.path.join(self.GetParent().GetParent().outdir0, self.GetParent().GetParent().attr)
+            outrootdir = os.path.join(self.GetParent().GetParent(
+            ).outdir0, self.GetParent().GetParent().attr)
             try:
                 os.makedirs(outrootdir)
             except:
@@ -561,15 +617,19 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         self._verifyframe.Close()
         self._verifyframe = None
         # Add all TAG_YES groups
-        subpatchpaths = verify_results[verify_overlays_new.CheckImageEquals.TAG_YES]
+        subpatchpaths = verify_results[
+            verify_overlays_new.CheckImageEquals.TAG_YES]
         for subpatchpath in subpatchpaths:
             imgpath = patch2img[subpatchpath]
             (x, y, score) = results[imgpath]
-            self.GetParent().GetParent().boxes.setdefault(imgpath, []).append(((x, y, x+w, y+h), attrval, subpatchpath))
+            self.GetParent().GetParent().boxes.setdefault(imgpath, []).append(
+                ((x, y, x + w, y + h), attrval, subpatchpath))
 
         self.Refresh()
 
+
 class TM_Thread(threading.Thread):
+
     def __init__(self, patch, regionpaths, attrval, jobid, callback=None, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.patch = patch
@@ -577,32 +637,40 @@ class TM_Thread(threading.Thread):
         self.callback = callback
         self.attrval = attrval
         self.jobid = jobid
+
     def run(self):
-        debug("calling template matching")
-        t = time.time()
-        results = tempmatch.bestmatch_par(self.patch, self.regionpaths, do_smooth=tempmatch.SMOOTH_BOTH,
-                                          xwinA=3, ywinA=3, xwinI=3, ywinI=3, NP=12, jobid=self.jobid)
-        dur = time.time() - t
-        debug("finished template matching ({0} s)", dur)
+        with util.time_operation("calling template matching"):
+            results = tempmatch.bestmatch_par(self.patch,
+                                              self.regionpaths,
+                                              do_smooth=tempmatch.SMOOTH_BOTH,
+                                              xwinA=3,
+                                              ywinA=3,
+                                              xwinI=3,
+                                              ywinI=3,
+                                              NP=12,
+                                              jobid=self.jobid)
         if self.callback:
             w, h = cv.GetSize(self.patch)
             wx.CallAfter(self.callback, results, w, h, self.attrval)
 
+
 class AttrValueDialog(wx.Dialog):
+
     def __init__(self, parent, patch, *args, **kwargs):
         """
         Input:
             IplImage PATCH:
         """
-        wx.Dialog.__init__(self, parent, title="What Attribute Value is this?", *args, **kwargs)
+        wx.Dialog.__init__(
+            self, parent, title="What Attribute Value is this?", *args, **kwargs)
         self.patch = patch
 
         self.attrval = None
-        
+
         patchpil = Image.fromstring("L", cv.GetSize(patch), patch.tostring())
         patchpil = patchpil.convert("RGB")
         wxbmp = util.pil2wxb(patchpil)
-        
+
         self.sbitmap = wx.StaticBitmap(self, bitmap=wxbmp)
 
         txt0 = wx.StaticText(self, label="What is the Attribute Value? ")
@@ -626,20 +694,26 @@ class AttrValueDialog(wx.Dialog):
         self.SetSizer(self.sizer)
         self.Fit()
         self.attrval_in.SetFocus()
+
     def onPressEnter(self, evt):
         self.onButton_ok(None)
+
     def onButton_ok(self, evt):
         self.attrval = self.attrval_in.GetValue()
         self.EndModal(wx.ID_OK)
 
+
 class PatchPanel(util_widgets.CellPanel):
+
     def __init__(self, *args, **kwargs):
         util_widgets.CellPanel.__init__(self, *args, **kwargs)
-        
+
     def onLeftDown(self, evt):
         pass
 
+
 class PatchBitmap(util_widgets.CellBitmap):
+
     def __init__(self, *args, **kwargs):
         util_widgets.CellBitmap.__init__(self, *args, **kwargs)
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
@@ -658,9 +732,9 @@ class PatchBitmap(util_widgets.CellBitmap):
         if not self.GetParent().GetParent().GetParent().GetParent().boxes.get(self.GetParent().imgpath, []):
             # Can only have one box at a time
             self.newbox = [None, None, None, None]
-            self.newbox[:2] = self.c2img(x,y)
-            self.newbox[2] = self.newbox[0]+1
-            self.newbox[3] = self.newbox[1]+1
+            self.newbox[:2] = self.c2img(x, y)
+            self.newbox[2] = self.newbox[0] + 1
+            self.newbox[3] = self.newbox[1] + 1
         self.Refresh()
 
     def onLeftUp(self, evt):
@@ -668,16 +742,18 @@ class PatchBitmap(util_widgets.CellBitmap):
             return
         x, y = evt.GetPositionTuple()
         w_bmp, h_bmp = self.bitmap.GetSize()
-        x = min(x, w_bmp-1)
-        y = min(y, h_bmp-1)
+        x = min(x, w_bmp - 1)
+        y = min(y, h_bmp - 1)
         if self.newbox:
-            self.newbox[2:] = self.c2img(x,y)
+            self.newbox[2:] = self.c2img(x, y)
             box = normbox(self.newbox)
             self.newbox = None
-            I = cv.LoadImage(self.GetParent().imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-            x1,y1,x2,y2 = box
-            cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
-            self.GetParent().GetParent().start_tempmatch(I, (x1,y1,x2,y2), self.GetParent().imgpath)
+            I = cv.LoadImage(self.GetParent().imgpath,
+                             cv.CV_LOAD_IMAGE_GRAYSCALE)
+            x1, y1, x2, y2 = box
+            cv.SetImageROI(I, (x1, y1, x2 - x1, y2 - y1))
+            self.GetParent().GetParent().start_tempmatch(
+                I, (x1, y1, x2, y2), self.GetParent().imgpath)
         self.Refresh()
 
     def onMotion(self, evt):
@@ -685,14 +761,15 @@ class PatchBitmap(util_widgets.CellBitmap):
             return
         x, y = evt.GetPositionTuple()
         w_bmp, h_bmp = self.bitmap.GetSize()
-        x = min(x, w_bmp-1)
-        y = min(y, h_bmp-1)
+        x = min(x, w_bmp - 1)
+        y = min(y, h_bmp - 1)
         if self.newbox:
-            self.newbox[2:] = self.c2img(x,y)
+            self.newbox[2:] = self.c2img(x, y)
             self.Refresh()
 
     def c2img(self, x, y):
         return map(lambda n: int(round(n)), (x * self.scale, y * self.scale))
+
     def img2c(self, x, y):
         return map(lambda n: int(round(n)), (x / self.scale, y / self.scale))
 
@@ -700,9 +777,10 @@ class PatchBitmap(util_widgets.CellBitmap):
         dc = util_widgets.CellBitmap.onPaint(self, evt)
         if self.GetParent().is_dummy:
             return
-        boxes = self.GetParent().GetParent().GetParent().GetParent().boxes.get(self.GetParent().imgpath, [])
+        boxes = self.GetParent().GetParent().GetParent(
+        ).GetParent().boxes.get(self.GetParent().imgpath, [])
         if boxes:
-            txtfont = wx.Font(14, wx.FONTFAMILY_DEFAULT, 
+            txtfont = wx.Font(14, wx.FONTFAMILY_DEFAULT,
                               wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
             dc.SetTextForeground("Blue")
             dc.SetFont(txtfont)
@@ -713,7 +791,7 @@ class PatchBitmap(util_widgets.CellBitmap):
                 dc.SetPen(wx.Pen("Green", 4))
                 dc.DrawRectangle(x1, y1, w, h)
                 w_txt, h_txt = dc.GetTextExtent(label)
-                x_txt, y_txt = x1, y1-h_txt
+                x_txt, y_txt = x1, y1 - h_txt
                 if y_txt < 0:
                     y_txt = y1 + h
                 dc.DrawText(label, x_txt, y_txt)
@@ -722,7 +800,8 @@ class PatchBitmap(util_widgets.CellBitmap):
             x1, y1 = self.img2c(x1, y1)
             x2, y2 = self.img2c(x2, y2)
             dc.SetPen(wx.Pen("Red", 2))
-            dc.DrawRectangle(x1, y1, x2-x1, y2-y1)
+            dc.DrawRectangle(x1, y1, x2 - x1, y2 - y1)
+
 
 def do_extract_attr_patches(proj, blanks, img2flip):
     """Extract all attribute patches from all blank ballots into
@@ -737,9 +816,11 @@ def do_extract_attr_patches(proj, blanks, img2flip):
     """
     mapping, invmapping, blank2attrpatch, invb2ap = partask.do_partask(extract_attr_patches,
                                                                        blanks,
-                                                                       _args=(proj, img2flip),
+                                                                       _args=(
+                                                                           proj, img2flip),
                                                                        combfn=_extract_combfn,
-                                                                       init=({}, {}, {}, {}),
+                                                                       init=(
+                                                                           {}, {}, {}, {}),
                                                                        N=1)
     blank2attrpatchP = pathjoin(proj.projdir_path,
                                 proj.blank2attrpatch)
@@ -748,7 +829,8 @@ def do_extract_attr_patches(proj, blanks, img2flip):
                                    proj.invblank2attrpatch)
     pickle.dump(invb2ap, open(invblank2attrpatchP, 'wb'))
     return mapping, invmapping
-    
+
+
 def _extract_combfn(result, subresult):
     """ Aux. function used for the partask.do_partask interface.
     Input:
@@ -762,13 +844,16 @@ def _extract_combfn(result, subresult):
     mapping_sub, invmapping_sub, blank2attrpatch_sub, invblank2attrpatch_sub = subresult
     new_mapping = dict(mapping.items() + mapping_sub.items())
     new_invmapping = dict(invmapping.items() + invmapping_sub.items())
-    new_blank2attrpatch = dict(blank2attrpatch) # maps {str imgpath: {str attrtype: str patchpath}}
+    # maps {str imgpath: {str attrtype: str patchpath}}
+    new_blank2attrpatch = dict(blank2attrpatch)
     for imgpath, subdict in blank2attrpatch_sub.iteritems():
         for attrtype, patchpath in subdict.iteritems():
             new_blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchpath
     # invblank2attrpatch maps {patchpath: (imgpath, attrtype)}
-    new_invblank2attrpatch = dict(invblank2attrpatch.items() + invblank2attrpatch_sub.items())
+    new_invblank2attrpatch = dict(
+        invblank2attrpatch.items() + invblank2attrpatch_sub.items())
     return (new_mapping, new_invmapping, new_blank2attrpatch, new_invblank2attrpatch)
+
 
 def extract_attr_patches(blanks, (proj, img2flip)):
     """
@@ -784,16 +869,16 @@ def extract_attr_patches(blanks, (proj, img2flip)):
                           proj.extract_attrs_templates)
     # list of marshall'd attrboxes (i.e. dicts)
     ballot_attributes = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    mapping = {} # maps {imgpath: {str attrtypestr: str patchPath}}
-    inv_mapping = {} # maps {str patchPath: (imgpath, attrtypestr)}
-    blank2attrpatch = {} # maps {str imgpath: {str attrtype: str patchpath}}
-    invblank2attrpatch = {} # maps {str patchpath: (imgpath, attrtype)}
+    mapping = {}  # maps {imgpath: {str attrtypestr: str patchPath}}
+    inv_mapping = {}  # maps {str patchPath: (imgpath, attrtypestr)}
+    blank2attrpatch = {}  # maps {str imgpath: {str attrtype: str patchpath}}
+    invblank2attrpatch = {}  # maps {str patchpath: (imgpath, attrtype)}
     for blankpaths in blanks:
         for blankside, imgpath in enumerate(blankpaths):
             for attr in ballot_attributes:
                 if attr['is_digitbased']:
                     continue
-                imgname =  os.path.split(imgpath)[1]
+                imgname = os.path.split(imgpath)[1]
                 attrside = attr['side']
                 x1 = attr['x1']
                 y1 = attr['y1']
@@ -808,7 +893,7 @@ def extract_attr_patches(blanks, (proj, img2flip)):
                     tmp = proj.voteddir
                     if not tmp.endswith('/'):
                         tmp += '/'
-                    partdir = os.path.split(imgpath[len(tmp):])[0] # foo/
+                    partdir = os.path.split(imgpath[len(tmp):])[0]  # foo/
                     patchrootDir = pathjoin(outdir,
                                             partdir,
                                             os.path.splitext(imgname)[0])
@@ -816,35 +901,40 @@ def extract_attr_patches(blanks, (proj, img2flip)):
                     util_gui.create_dirs(patchrootDir)
                     patchoutP = pathjoin(patchrootDir, "{0}_{1}.png".format(os.path.splitext(imgname)[0],
                                                                             attrtype))
-                    blank2attrpatch.setdefault(imgpath, {})[attrtype] = patchoutP
+                    blank2attrpatch.setdefault(imgpath, {})[
+                        attrtype] = patchoutP
                     invblank2attrpatch[patchoutP] = (imgpath, attrtype)
                     if not os.path.exists(patchoutP):
-                    #if True:
+                        # if True:
                         # TODO: Only extract+save the imge patches
                         # when you /have/ to.
                         # shared.standardImread: ~0.40s
                         # scipy.misc.imread: ~0.192s
                         # PIL: ~0.168s
                         # OpenCV: ~0.06s
-                        if abs(y1-y2) == 0 or abs(x1-x2) == 0:
+                        if abs(y1 - y2) == 0 or abs(x1 - x2) == 0:
                             error("About to crash. Why is this happening?")
-                            error("    (y1,y2,x1,x2): {0}", (y1,y2,x1,x2))
+                            error("    (y1,y2,x1,x2): {0}", (y1, y2, x1, x2))
                             pdb.set_trace()
                         img = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
                         if img2flip[imgpath]:
                             cv.Flip(img, img, flipMode=-1)
-                        cv.SetImageROI(img, (int(x1), int(y1), int(x2-x1), int(y2-y1)))
+                        cv.SetImageROI(
+                            img, (int(x1), int(y1), int(x2 - x1), int(y2 - y1)))
                         cv.SaveImage(patchoutP, img)
-                        
+
                     mapping.setdefault(imgpath, {})[attrtype] = patchoutP
                     inv_mapping[patchoutP] = (imgpath, attrtype)
     return mapping, inv_mapping, blank2attrpatch, invblank2attrpatch
 
-def normbox((x1,y1,x2,y2)):
-    return (min(x1,x2), min(y1,y2), max(x1, x2), max(y1,y2))
+
+def normbox((x1, y1, x2, y2)):
+    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+
 
 def main():
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, patchpaths, *args, **kwargs):
             wx.Frame.__init__(self, parent, title="Select Attributes Test Frame",
                               size=(800, 800), *args, **kwargs)

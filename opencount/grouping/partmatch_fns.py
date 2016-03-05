@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 
 try:
     import cPickle as pickle
@@ -25,6 +26,7 @@ Output:
 
 """
 
+
 def get_rejected_hashes(project):
     """ Returns the rejected_hashes for the entire data set.
     Returns:
@@ -35,11 +37,13 @@ def get_rejected_hashes(project):
     if not os.path.exists(rej_path):
         return None
     return pickle.load(open(rej_path, 'rb'))
-    
+
+
 def save_rejected_hashes(project, rejected_hashes):
     """ Saves the newer-version of rejected_hashes. """
     rej_path = os.path.join(project.projdir_path, project.rejected_hashes)
     pickle.dump(rejected_hashes, open(rej_path, 'wb'))
+
 
 def get_accepted_hashes(proj):
     """ Returns the accepted_hashes for the entire data set.
@@ -51,6 +55,7 @@ def get_accepted_hashes(proj):
     if not os.path.exists(filepath):
         return None
     return pickle.load(open(filepath, 'rb'))
+
 
 def save_accepted_hashes(proj, accepted_hashes):
     """ Saves the newer-version of accepted_hashes. """

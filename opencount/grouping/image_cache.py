@@ -1,6 +1,12 @@
-import sys, os, time, pdb, traceback
+import sys
+import os
+import time
+import pdb
+import traceback
 from collections import deque
-import cv, scipy.misc, numpy as np
+import cv
+import scipy.misc
+import numpy as np
 from PIL import Image
 
 from util import debug, warn, error
@@ -31,6 +37,7 @@ IM_MODE_UNCHANGED = 5
 
 DEBUG = False
 
+
 def _load_pil(imgpath, img_mode=IM_MODE_UNCHANGED):
     img = Image.open(imgpath)
 
@@ -43,6 +50,7 @@ def _load_pil(imgpath, img_mode=IM_MODE_UNCHANGED):
 
     return img
 
+
 def _load_scipy(imgpath, img_mode=IM_MODE_UNCHANGED):
     if img_mode == IM_MODE_GRAYSCALE:
         return scipy.misc.imread(imgpath, flatten=True)
@@ -50,13 +58,14 @@ def _load_scipy(imgpath, img_mode=IM_MODE_UNCHANGED):
         img = scipy.misc.imread(imgpath)
         if len(img.shape) != 3:
             newimg = np.zeros((img.shape[0], img.shape[1], 3), dtype=img.dtype)
-            newimg[:,:,0] = img
-            newimg[:,:,1] = img
-            newimg[:,:,2] = img
+            newimg[:, :, 0] = img
+            newimg[:, :, 1] = img
+            newimg[:, :, 2] = img
             return newimg
         return img
     else:
         return scipy.misc.imread(imgpath)
+
 
 def _load_opencv(imgpath, img_mode=IM_MODE_UNCHANGED):
     if img_mode == IM_MODE_GRAYSCALE:
@@ -65,6 +74,7 @@ def _load_opencv(imgpath, img_mode=IM_MODE_UNCHANGED):
         return cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
     else:
         return cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
+
 
 def _load_binarydata(idx, fimgdata, imgdims, img_mode=IM_MODE_GRAYSCALE):
     """ Loads in image data from an input binary file.
@@ -86,6 +96,7 @@ _imgload_fns = {IM_FORMAT_PIL: _load_pil,
                 IM_FORMAT_SCIPY: _load_scipy,
                 IM_FORMAT_OPENCV: _load_opencv,
                 IM_FORMAT_BINARYDATA: _load_binarydata}
+
 
 class ImageCache(object):
 
@@ -116,15 +127,15 @@ class ImageCache(object):
         self.img_format = img_format
         self.img_mode = img_mode
 
-        self.imgpath2id = {} # maps {str imgpath: int id}
-        self.ids = deque() # [int id_0, ...]
+        self.imgpath2id = {}  # maps {str imgpath: int id}
+        self.ids = deque()  # [int id_0, ...]
 
         # dict BINARYDATS_MAP: {str dataP: (file DATAFILE, tuple IMGDIMS)
         self.binarydats_map = {}
 
         self._curid = 0
 
-        self.cache_imgSizes = {} # maps {int id: int size}
+        self.cache_imgSizes = {}  # maps {int id: int size}
         self._size = 0
 
         self._imgload_fn = _imgload_fns[self.img_format]
@@ -149,7 +160,7 @@ class ImageCache(object):
             ((obj IMG, int IDX), bool isHit)
         """
         if dataP not in self.binarydats_map:
-            warn("Binary datafile '{0}' was not registered. Try "\
+            warn("Binary datafile '{0}' was not registered. Try "
                  "first calling ImageCache.register_binarydat.",
                  dataP)
             return None
@@ -261,6 +272,7 @@ class ImageCache(object):
         self.cache_imgSizes[imgID] = imgsize_bytes
         self._size += imgsize_bytes
 
+
 def estimate_imgsize_bytes(img, img_format):
     """ Given an image IMG with format IMG_FORMAT (PIL, scipy, OpenCV),
     estimate how much space it consumes in-memory.
@@ -293,6 +305,7 @@ def estimate_imgsize_bytes(img, img_format):
         size = (w * h * channels * pix_byte / 6)
     return size
 
+
 def test_unbounded(imgsdir, imgsdir2):
     """ A simple set of tests to sanity check cache behavior for UNBOUNDED
     cache sizes.
@@ -301,75 +314,70 @@ def test_unbounded(imgsdir, imgsdir2):
                            img_format=IM_FORMAT_SCIPY,
                            img_mode=IM_MODE_GRAYSCALE)
 
-    t = time.time()
-    img_cnt = 0
-    for dirpath, dirnames, filenames in os.walk(imgsdir):
-        for imgname in [f for f in filenames if f.lower().endswith('.png')]:
-            imgpath = os.path.join(dirpath, imgname)
-            (img, _imgpath), isHit = img_cache.load(imgpath)
-            if imgpath != _imgpath:
-                error("imgpaths not equal!")
-                pdb.set_trace()
-            if isHit != False:
-                error("WHAT")
-                pdb.set_trace()
-            img_cnt += 1
-    dur_loadImages = time.time() - t
+    with util.time_operation('loading images'):
+        img_cnt = 0
+        for dirpath, dirnames, filenames in os.walk(imgsdir):
+            for imgname in [f for f in filenames if f.lower().endswith('.png')]:
+                imgpath = os.path.join(dirpath, imgname)
+                (img, _imgpath), isHit = img_cache.load(imgpath)
+                if imgpath != _imgpath:
+                    error("imgpaths not equal!")
+                    pdb.set_trace()
+                if isHit != False:
+                    error("WHAT")
+                    pdb.set_trace()
+                img_cnt += 1
 
-    debug("Done loading in images ({0:.6f}s).", dur_loadImages)
+    with util.time_operation('reading images'):
+        for dirpath, dirnames, filenames in os.walk(imgsdir):
+            for imgname in [f for f in filenames if f.lower().endswith('.png')]:
+                imgpath = os.path.join(dirpath, imgname)
+                (img, _imgpath), isHit = img_cache.load(imgpath)
+                if imgpath != _imgpath:
+                    error("imgpaths not equal!")
+                    pdb.set_trace()
+                if isHit != True:
+                    error("WHAT")
+                    pdb.set_trace()
 
-    t = time.time()
-    for dirpath, dirnames, filenames in os.walk(imgsdir):
-        for imgname in [f for f in filenames if f.lower().endswith('.png')]:
-            imgpath = os.path.join(dirpath, imgname)
-            (img, _imgpath), isHit = img_cache.load(imgpath)
-            if imgpath != _imgpath:
-                error("imgpaths not equal!")
-                pdb.set_trace()
-            if isHit != True:
-                error("WHAT")
-                pdb.set_trace()
-    dur_readImages = time.time() - t
+    with util.time_operation('read images 2'):
+        for dirpath, dirnames, filenames in os.walk(imgsdir2):
+            for imgname in [f for f in filenames if f.lower().endswith(".png")]:
+                imgpath = os.path.join(dirpath, imgname)
+                (img, _imgpath), isHit = img_cache.load(imgpath)
+                if imgpath != _imgpath:
+                    error("imgpaths not equal!")
+                    pdb.set_trace()
+                if isHit != False:
+                    error("WHAT")
+                    pdb.set_trace()
 
-    t = time.time()
-    for dirpath, dirnames, filenames in os.walk(imgsdir2):
-        for imgname in [f for f in filenames if f.lower().endswith(".png")]:
-            imgpath = os.path.join(dirpath, imgname)
-            (img, _imgpath), isHit = img_cache.load(imgpath)
-            if imgpath != _imgpath:
-                error("imgpaths not equal!")
-                pdb.set_trace()
-            if isHit != False:
-                error("WHAT")
-                pdb.set_trace()
-    dur_readImages2 = time.time() - t
-
-    t = time.time()
-    for dirpath, dirnames, filenames in os.walk(imgsdir2):
-        for imgname in [f for f in filenames if f.lower().endswith(".png")]:
-            imgpath = os.path.join(dirpath, imgname)
-            (img, _imgpath), isHit = img_cache.load(imgpath)
-            if imgpath != _imgpath:
-                error("imgpaths not equal!")
-                pdb.set_trace()
-            if isHit != True:
-                error("WHAT")
-                pdb.set_trace()
-    dur_readImages3 = time.time() - t
+    with util.time_operation('read images 3'):
+        for dirpath, dirnames, filenames in os.walk(imgsdir2):
+            for imgname in [f for f in filenames if f.lower().endswith(".png")]:
+                imgpath = os.path.join(dirpath, imgname)
+                (img, _imgpath), isHit = img_cache.load(imgpath)
+                if imgpath != _imgpath:
+                    error("imgpaths not equal!")
+                    pdb.set_trace()
+                if isHit != True:
+                    error("WHAT")
+                    pdb.set_trace()
 
     debug("==== Done ====")
 
-    debug("Loading in images ({0:.6f}s).", dur_loadImages)
-    debug("    Avg.Time: {0:.8f}s", dur_loadImages / float(img_cnt))
-    debug("Reading in images ({0:.6f}s).", dur_readImages)
-    debug("    Avg.Time: {0:.8f}s", dur_readImages / float(img_cnt))
-    debug("Reading in images V2 [MISSES]({0:.6f}s).", dur_readImages2)
-    debug("    Avg.Time: {0:.8f}s", dur_readImages2 / float(img_cnt))
-    debug("Reading in images V2 [HITS]({0:.6f}s).", dur_readImages3)
-    debug("    Avg.Time: {0:.8f}s", dur_readImages3 / float(img_cnt))
+    # debug("Loading in images ({0:.6f}s).", dur_loadImages)
+    # debug("    Avg.Time: {0:.8f}s", dur_loadImages / float(img_cnt))
+    # debug("Reading in images ({0:.6f}s).", dur_readImages)
+    # debug("    Avg.Time: {0:.8f}s", dur_readImages / float(img_cnt))
+    # debug("Reading in images V2 [MISSES]({0:.6f}s).", dur_readImages2)
+    # debug("    Avg.Time: {0:.8f}s", dur_readImages2 / float(img_cnt))
+    # debug("Reading in images V2 [HITS]({0:.6f}s).", dur_readImages3)
+    # debug("    Avg.Time: {0:.8f}s", dur_readImages3 / float(img_cnt))
 
-    debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
-    debug("    In MB: {0}", img_cache._size / 1e6)
+    # debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
+    # debug("    In MB: {0}", img_cache._size / 1e6)
+
 
 def test_bounded(imgsdir, imgsdir2, sizecap):
     """ A simple set of tests to sanity check cache behavior for bounded
@@ -436,6 +444,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
 
     debug("\nEstimated ImageCache size (bytes): {0}", img_cache._size)
     debug("    In MB: {0}", img_cache._size / 1e6)
+
 
 def test_binarydata(imgdataP, imgdims, sizecap=None):
     """ Test the binary data loading routines. """
@@ -529,6 +538,7 @@ Estimated ImageCache size (bytes): 651200000
 ==== Infinite Looping Now ====
 """
 
+
 def main():
     args = sys.argv[1:]
     imgsdir = args[-2]
@@ -545,21 +555,21 @@ def main():
         global DEBUG
         DEBUG = True
     try:
-        dataP = args[args.index('--binary')+1]
-        w = int(args[args.index('--binary')+2])
-        h = int(args[args.index('--binary')+3])
+        dataP = args[args.index('--binary') + 1]
+        w = int(args[args.index('--binary') + 2])
+        h = int(args[args.index('--binary') + 3])
     except:
         dataP, w, h = None, None, None
 
     try:
-        sizecap = int(args[args.index('--sizecap')+1])
+        sizecap = int(args[args.index('--sizecap') + 1])
     except:
         sizecap = None
 
     t = time.time()
     if dataP != None:
         debug("Trying ImageCache.sizecap={0}MB, BINARYDATA", sizecap)
-        test_binarydata(dataP, (w,h), sizecap=sizecap)
+        test_binarydata(dataP, (w, h), sizecap=sizecap)
     elif sizecap != None:
         debug("Trying ImageCache.sizecap={0}MB", sizecap)
         test_bounded(imgsdir, imgsdir2, sizecap)

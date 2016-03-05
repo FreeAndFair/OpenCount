@@ -1,10 +1,14 @@
-import os, sys, pdb
+import os
+import sys
+import pdb
 try:
     import cPickle as pickle
 except:
     import pickle
-import wx, wx.lib.scrolledpanel
+import wx
+import wx.lib.scrolledpanel
 sys.path.append('..')
+
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """
@@ -13,20 +17,21 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     """
 
     def __init__(self, parent, *args, **kwargs):
-        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        wx.lib.scrolledpanel.ScrolledPanel.__init__(
+            self, parent, *args, **kwargs)
         self.parent = parent
-        
+
         # self.imagelabels keeps track of the labels that the user has
         # given to each image.
         self.imagelabels = {}   # maps {imagepath: str label}
 
-        # self.imagecaptions keeps track of the caption that the UI 
+        # self.imagecaptions keeps track of the caption that the UI
         # should display to the user.
-        self.imagecaptions = {} # maps {imagepath: str caption}
+        self.imagecaptions = {}  # maps {imagepath: str caption}
 
         # self.captionlabels keeps track of all labels given to a
         # specific caption.
-        self.captionlabels = {} # maps {str caption: [str label_i, ...]}
+        self.captionlabels = {}  # maps {str caption: [str label_i, ...]}
 
         self.imagepaths = []  # ordered list of imagepaths
         self.cur_imgidx = 0  # which image we're currently at
@@ -45,10 +50,13 @@ class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.sizer2 = wx.BoxSizer(wx.HORIZONTAL)
         self.imgpatch = wx.StaticBitmap(self)
 
-        self.txt_inst = wx.StaticText(self, label="Please enter the label for this image.")
+        self.txt_inst = wx.StaticText(
+            self, label="Please enter the label for this image.")
         labeltxt = wx.StaticText(self, label='Label:')
-        self.inputctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER, size=(250,-1))
-        self.inputctrl.Bind(wx.EVT_TEXT_ENTER, self.onInputEnter, self.inputctrl)
+        self.inputctrl = wx.TextCtrl(
+            self, style=wx.TE_PROCESS_ENTER, size=(250, -1))
+        self.inputctrl.Bind(wx.EVT_TEXT_ENTER,
+                            self.onInputEnter, self.inputctrl)
         nextbtn = wx.Button(self, label="Next")
         prevbtn = wx.Button(self, label="Previous")
         nextbtn.Bind(wx.EVT_BUTTON, self.onButton_next)
@@ -83,7 +91,7 @@ values for this caption...")
         self.sizer2.Add(self.btn_sizer, proportion=0)
         self.sizer2.Add((40, 40))
         self.sizer2.Add(sizer_lstbox)
-        
+
         self.sizer.Add(sizer_img)
         self.sizer.Add(self.sizer2, proportion=1, flag=wx.EXPAND)
 
@@ -152,7 +160,7 @@ values for this caption...")
             self.Enable()
             return
         else:
-            if (self.cur_imgidx+1) >= len(self.imagepaths):
+            if (self.cur_imgidx + 1) >= len(self.imagepaths):
                 self.onButton_done(None)
                 return
             self.display_img(self.cur_imgidx + 1)
@@ -166,11 +174,11 @@ values for this caption...")
             self.Disable()
             dlg.ShowModal()
             self.Enable()
-        if (self.cur_imgidx+1) >= len(self.imagepaths):
+        if (self.cur_imgidx + 1) >= len(self.imagepaths):
             return
         else:
             self.display_img(self.cur_imgidx + 1)
-            
+
     def onButton_prev(self, evt):
         curimgpath = self.imagepaths[self.cur_imgidx]
         cur_val = self.inputctrl.GetValue()
@@ -262,7 +270,7 @@ Implies that imgpath is present in imageslist more than once."
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx)
 
-        #self.SetClientSize(self.parent.GetClientSize())
+        # self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
         self.SendSizeEvent()
 
@@ -278,7 +286,7 @@ Implies that imgpath is present in imageslist more than once."
         imagelabels = state['imagelabels']
         imagepaths = state['imagepaths']
 
-        ## TODO: Legacy-handling code follows.
+        # TODO: Legacy-handling code follows.
         if 'imagecaptions' not in state:
             state['imagecaptions'] = {}
         if 'captionlabels' not in state:
@@ -291,10 +299,10 @@ Implies that imgpath is present in imageslist more than once."
         self.captionlabels = state['captionlabels']
         self.cur_imgidx = 0
         self.display_img(self.cur_imgidx, no_overwrite=True)
-        #self.SetClientSize(self.parent.GetClientSize())
+        # self.SetClientSize(self.parent.GetClientSize())
         self.SetupScrolling()
         self.SendSizeEvent()
-        #self.Fit()
+        # self.Fit()
 
         return True
 
@@ -337,7 +345,7 @@ Implies that imgpath is present in imageslist more than once."
         imgpath = self.imagepaths[self.cur_imgidx]
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
         w_win, h_win = self.GetClientSize()
-        w_new = min(wximg.GetWidth(), int(round(0.6*w_win)))
+        w_new = min(wximg.GetWidth(), int(round(0.6 * w_win)))
         c = wximg.GetWidth() / float(w_new)
         h_new = wximg.GetHeight() / c
         wximg_scaled = wximg.Scale(w_new, h_new, quality=wx.IMAGE_QUALITY_HIGH)
@@ -348,14 +356,14 @@ Implies that imgpath is present in imageslist more than once."
             self.sizer.SetOrientation(wx.HORIZONTAL)
         else:
             self.sizer.SetOrientation(wx.VERTICAL)
-        self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx+1,
+        self.progress_txt.SetLabel("Currently viewing: Patch {0}/{1}".format(self.cur_imgidx + 1,
                                                                              len(self.imagepaths)))
         self.inputctrl.SetValue(self.imagelabels[imgpath])
         self.update_caption_txt(self.cur_imgidx)
         self.update_listbox(self.cur_imgidx)
-        #self.Fit()
+        # self.Fit()
         self.SetupScrolling()
-        
+
     def export_labels(self):
         """ Exports all labels to an output csvfile. """
         f = open(self.outpath, 'w')

@@ -1,7 +1,9 @@
 from heapq import heapify, heappop, heappush
 from itertools import islice, cycle
 from tempfile import gettempdir
-import os, traceback, pdb
+import os
+import traceback
+import pdb
 
 """ An external merge-sort implementation. Useful when you need to sort
 a file that is too large to fit in memory.
@@ -10,9 +12,10 @@ Modified from:
     http://www.cs.sunysb.edu/~algorith/implement/psort/implement.shtml
 """
 
-def merge(chunks,key=None):
+
+def merge(chunks, key=None):
     if key is None:
-        key = lambda x : x
+        key = lambda x: x
 
     values = []
 
@@ -28,7 +31,7 @@ def merge(chunks,key=None):
             except:
                 pass
         else:
-            heappush(values,((key(value),index,value,iterator,chunk)))
+            heappush(values, ((key(value), index, value, iterator, chunk)))
 
     while values:
         k, index, value, iterator, chunk = heappop(values)
@@ -43,23 +46,25 @@ def merge(chunks,key=None):
             except:
                 pass
         else:
-            heappush(values,(key(value),index,value,iterator,chunk))
+            heappush(values, (key(value), index, value, iterator, chunk))
 
-def batch_sort(input,output,key=None,buffer_size=32000,tempdirs=[]):
+
+def batch_sort(input, output, key=None, buffer_size=32000, tempdirs=[]):
     if not tempdirs:
         tempdirs.append(gettempdir())
-    
-    input_file = file(input,'rb',64*1024)
+
+    input_file = file(input, 'rb', 64 * 1024)
     try:
         input_iterator = iter(input_file)
-        
+
         chunks = []
         try:
             for tempdir in cycle(tempdirs):
-                current_chunk = list(islice(input_iterator,buffer_size))
+                current_chunk = list(islice(input_iterator, buffer_size))
                 if current_chunk:
                     current_chunk.sort(key=key)
-                    output_chunk = file(os.path.join(tempdir,'%06i'%len(chunks)),'w+b',64*1024)
+                    output_chunk = file(os.path.join(
+                        tempdir, '%06i' % len(chunks)), 'w+b', 64 * 1024)
                     output_chunk.writelines(current_chunk)
                     output_chunk.flush()
                     output_chunk.seek(0)
@@ -82,10 +87,10 @@ def batch_sort(input,output,key=None,buffer_size=32000,tempdirs=[]):
             return
     finally:
         input_file.close()
-    
-    output_file = file(output,'wb',64*1024)
+
+    output_file = file(output, 'wb', 64 * 1024)
     try:
-        output_file.writelines(merge(chunks,key))
+        output_file.writelines(merge(chunks, key))
     finally:
         for chunk in chunks:
             try:
@@ -95,12 +100,13 @@ def batch_sort(input,output,key=None,buffer_size=32000,tempdirs=[]):
                 pass
         output_file.close()
 
-def merge_mod(chunks,cidx2offset,imgSize,key=None,DELETE_CHUNKS=True):
+
+def merge_mod(chunks, cidx2offset, imgSize, key=None, DELETE_CHUNKS=True):
     if key is None:
-        key = lambda x : x
+        key = lambda x: x
 
     values = []
-    cidx2curtidx = {} # maps {int chunkindex: int targetidx}
+    cidx2curtidx = {}  # maps {int chunkindex: int targetidx}
 
     for index, chunk in enumerate(chunks):
         cidx2curtidx[index] = cidx2offset[index]
@@ -116,7 +122,8 @@ def merge_mod(chunks,cidx2offset,imgSize,key=None,DELETE_CHUNKS=True):
             except:
                 pass
         else:
-            heappush(values,((key(cidx2curtidx[index]),index,value,iterator,chunk)))
+            heappush(
+                values, ((key(cidx2curtidx[index]), index, value, iterator, chunk)))
     while values:
         k, index, value, iterator, chunk = heappop(values)
         yield value
@@ -132,7 +139,9 @@ def merge_mod(chunks,cidx2offset,imgSize,key=None,DELETE_CHUNKS=True):
             except:
                 pass
         else:
-            heappush(values,(key(cidx2curtidx[index], value),index,value,iterator,chunk))
+            heappush(
+                values, (key(cidx2curtidx[index], value), index, value, iterator, chunk))
+
 
 def iter_targets(fname, targetsize):
     """ Reads a binary file FNAME and outputs bytes in a target-by-target
@@ -145,6 +154,8 @@ def iter_targets(fname, targetsize):
                 yield chunk
             else:
                 break
+
+
 def iter_targets_file(f, targetsize):
     """ Reads a binary file F and outputs bytes in a target-by-target
     fashion.
@@ -157,23 +168,23 @@ def iter_targets_file(f, targetsize):
             break
 
 
-def batch_sort_mod(input,output,imgSize,key=None,
-                   buffer_size=32000,tempdirs=[],
+def batch_sort_mod(input, output, imgSize, key=None,
+                   buffer_size=32000, tempdirs=[],
                    fn_ignore=None,
                    DELETE_TEMPFILES=True):
     if not tempdirs:
         tempdirs.append(gettempdir())
-    
+
     try:
         input_iterator = iter_targets(input, imgSize)
         offset_tidx = 0
         chunks = []
-        cidx2offset = {} # maps {int chunkidx: int tidx_offset}
-        cidx = 0 # chunk index
+        cidx2offset = {}  # maps {int chunkidx: int tidx_offset}
+        cidx = 0  # chunk index
         total_targets_written = 0
         try:
             for tempdir in cycle(tempdirs):
-                current_chunk = list(islice(input_iterator,buffer_size))
+                current_chunk = list(islice(input_iterator, buffer_size))
                 if current_chunk:
                     '''
                     tidx_low, tidx_high, names = get_names(cur_tidx)
@@ -186,13 +197,18 @@ def batch_sort_mod(input,output,imgSize,key=None,
                     '''
                     # SORT_ORDER: [int sortval/None, ...]. None if the target was quarantined
                     # and should be ignored
-                    sort_order = [key(i + offset_tidx) for i in xrange(len(current_chunk))]
+                    sort_order = [key(i + offset_tidx)
+                                  for i in xrange(len(current_chunk))]
                     # First, filter out the quarantined targets
-                    sorted_chunk = [(i, tdata) for (i, tdata) in enumerate(current_chunk) if sort_order[i] != None]
-                    # Second, sort the targets by the sort criterion (avg intensity)
-                    sorted_chunk = sorted(sorted_chunk, key=lambda (i, tdata): sort_order[i])
+                    sorted_chunk = [(i, tdata) for (i, tdata) in enumerate(
+                        current_chunk) if sort_order[i] != None]
+                    # Second, sort the targets by the sort criterion (avg
+                    # intensity)
+                    sorted_chunk = sorted(
+                        sorted_chunk, key=lambda (i, tdata): sort_order[i])
                     #sorted_chunk = sorted(enumerate(current_chunk), key=lambda (tidx, target): key(offset_tidx + tidx))
-                    output_chunk = file(os.path.join(tempdir,'%06i'%len(chunks)),'w+b',64*1024)
+                    output_chunk = file(os.path.join(
+                        tempdir, '%06i' % len(chunks)), 'w+b', 64 * 1024)
                     for (i, target) in sorted_chunk:
                         output_chunk.write(target)
                     output_chunk.flush()
@@ -222,8 +238,8 @@ def batch_sort_mod(input,output,imgSize,key=None,
             return
     finally:
         pass
-    
-    output_file = file(output,'wb',64*1024)
+
+    output_file = file(output, 'wb', 64 * 1024)
     try:
         for thing in merge_mod(chunks, cidx2offset, imgSize, key, DELETE_CHUNKS=DELETE_TEMPFILES):
             output_file.write(thing)
@@ -243,21 +259,21 @@ if __name__ == '__main__':
     import optparse
     parser = optparse.OptionParser()
     parser.add_option(
-        '-b','--buffer',
+        '-b', '--buffer',
         dest='buffer_size',
-        type='int',default=32000,
+        type='int', default=32000,
         help='''Size of the line buffer. The file to sort is
             divided into chunks of that many lines. Default : 32,000 lines.'''
     )
     parser.add_option(
-        '-k','--key',
+        '-k', '--key',
         dest='key',
         help='''Python expression used to compute the key for each
             line, "lambda line:" is prepended.\n
             Example : -k "line[5:10]". By default, the whole line is the key.'''
     )
     parser.add_option(
-        '-t','--tempdir',
+        '-t', '--tempdir',
         dest='tempdirs',
         action='append',
         default=[],
@@ -268,19 +284,20 @@ if __name__ == '__main__':
             Use multiple -t options to do that.'''
     )
     parser.add_option(
-        '-p','--psyco',
+        '-p', '--psyco',
         dest='psyco',
         action='store_true',
         default=False,
         help='''Use Psyco.'''
     )
-    options,args = parser.parse_args()
-    
+    options, args = parser.parse_args()
+
     if options.key:
-        options.key = eval('lambda line : (%s)'%options.key)
-    
+        options.key = eval('lambda line : (%s)' % options.key)
+
     if options.psyco:
         import psyco
         psyco.full()
-    
-    batch_sort(args[0],args[1],options.key,options.buffer_size,options.tempdirs) 
+
+    batch_sort(args[0], args[1], options.key,
+               options.buffer_size, options.tempdirs)

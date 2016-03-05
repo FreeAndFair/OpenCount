@@ -12,11 +12,12 @@ def components(graph):
         stack = [n]
         while stack != []:
             vertex = stack.pop()
-            if vertex in seen: continue
+            if vertex in seen:
+                continue
             seen[vertex] = True
             stack += graph[vertex]
         return seen.keys()
-        
+
     sofar = {}
     comp = []
     for node in graph:

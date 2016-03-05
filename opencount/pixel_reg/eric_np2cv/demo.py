@@ -19,6 +19,7 @@ cv_imgGOOD is created from the same np array, but scaled by 255.0, so
 
 Ipath = 'party.png'
 
+
 def main():
     I_np = shared.standardImread(Ipath, flatten=True)
     I_np = shared.prepOpenCV(I_np)
@@ -33,4 +34,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

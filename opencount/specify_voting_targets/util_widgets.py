@@ -1,4 +1,7 @@
-import threading, sys, os, math
+import threading
+import sys
+import os
+import math
 sys.path.append('..')
 import grouping.common as common
 import wx
@@ -15,26 +18,28 @@ A module to store widgets that might be useful in several
 places.
 """
 
+
 class ProgressGauge(wx.Frame):
     """
     A dialog that pops up to display a progress gauge when some
     long-running process is running.
     """
+
     def __init__(self, parent, numjobs, msg="Please wait...", *args, **kwargs):
-        wx.Frame.__init__(self, parent, size=(400, 300), 
-                          style=wx.DEFAULT_FRAME_STYLE | wx.FRAME_FLOAT_ON_PARENT, 
+        wx.Frame.__init__(self, parent, size=(400, 300),
+                          style=wx.DEFAULT_FRAME_STYLE | wx.FRAME_FLOAT_ON_PARENT,
                           *args, **kwargs)
         self.parent = parent
         panel = wx.Panel(self)
-        
-        self.val = 0        
+
+        self.val = 0
         self.numjobs = numjobs
-        
+
         txt1 = wx.StaticText(panel, label=msg)
         self.gauge = wx.Gauge(panel, range=numjobs, size=(200, 25))
         self.btn_abort = wx.Button(panel, label="Abort")
         self.btn_abort.Bind(wx.EVT_BUTTON, self.onbutton_abort)
-        
+
         panel.sizer = wx.BoxSizer(wx.VERTICAL)
         panel.sizer.Add(txt1)
         panel.sizer.Add(self.gauge)
@@ -42,35 +47,40 @@ class ProgressGauge(wx.Frame):
         panel.SetSizer(panel.sizer)
         panel.Fit()
         self.Fit()
-        
+
         pub.subscribe(self._pubsub_done, "signals.ProgressGauge.done")
         pub.subscribe(self._pubsub_tick, "signals.ProgressGauge.tick")
-        
+
     def _pubsub_done(self, msg):
         self.Destroy()
+
     def _pubsub_tick(self, msg):
         self.val += 1
         self.gauge.SetValue(self.val)
-    
+
     def onbutton_abort(self, evt):
         print "Abort not implemented yet. Maybe never."
-        #self.Destroy()
+        # self.Destroy()
+
 
 class MosaicPanel(wx.Panel):
     """ A widget that contains both an ImageMosaicPanel, and a simple
     button toolbar that allows pageup/pagedown.
-    """            
-    def __init__(self, parent, imgmosaicpanel=None, 
+    """
+
+    def __init__(self, parent, imgmosaicpanel=None,
                  CellClass=None, CellBitmapClass=None,
                  _init_args=None,
                  *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         if imgmosaicpanel == None:
-            self.imagemosaic = ImageMosaicPanel(self, CellClass=CellClass, CellBitmapClass=CellBitmapClass)
+            self.imagemosaic = ImageMosaicPanel(
+                self, CellClass=CellClass, CellBitmapClass=CellBitmapClass)
         else:
             _init_args = () if _init_args == None else _init_args
-            self.imagemosaic = imgmosaicpanel(self, CellClass=CellClass, CellBitmapClass=CellBitmapClass, *_init_args)
+            self.imagemosaic = imgmosaicpanel(
+                self, CellClass=CellClass, CellBitmapClass=CellBitmapClass, *_init_args)
 
         self.init_ui()
 
@@ -96,27 +106,30 @@ class MosaicPanel(wx.Panel):
         btn_sizer.Add((20, 20))
         btn_sizer.Add(btn_jumppage)
         self.btn_sizer = btn_sizer
-        
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.imagemosaic, proportion=1, flag=wx.EXPAND)
         sizer.Add((20, 20))
         sizer.Add(btn_sizer)
         self.sizer = sizer
-        
+
         self.SetSizer(sizer)
         self.Fit()
-        
 
     def onButton_pageup(self, evt):
         self.imagemosaic.do_page_up()
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))        
-        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page+1, total_pages))
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
+        self.page_txt.SetLabel(
+            "Page: {0} / {1}".format(self.imagemosaic.cur_page + 1, total_pages))
         self.maybe_btn_toggle()
 
     def onButton_pagedown(self, evt):
         self.imagemosaic.do_page_down()
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
-        self.page_txt.SetLabel("Page: {0} / {1}".format(self.imagemosaic.cur_page+1, total_pages))
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
+        self.page_txt.SetLabel(
+            "Page: {0} / {1}".format(self.imagemosaic.cur_page + 1, total_pages))
         self.maybe_btn_toggle()
 
     def onButton_jumppage(self, evt):
@@ -133,8 +146,9 @@ class MosaicPanel(wx.Panel):
 valid integer. You put: {0}".format(dlg.results[lbl]), style=wx.OK)
             d.ShowModal()
             return
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
-        if pagenum < 0 or pagenum > (total_pages-1):
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
+        if pagenum < 0 or pagenum > (total_pages - 1):
             d = wx.MessageDialog(self, message="The Page Number {0} is \
 invalid.".format(pagenum), style=wx.OK)
             d.ShowModal()
@@ -142,7 +156,8 @@ invalid.".format(pagenum), style=wx.OK)
         elif pagenum == self.imagemosaic.cur_page:
             return
         self.imagemosaic.jump_to_page(pagenum)
-        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum+1, total_pages))
+        self.page_txt.SetLabel(
+            "Page: {0} / {1}".format(pagenum + 1, total_pages))
         self.maybe_btn_toggle()
 
     def maybe_btn_toggle(self):
@@ -150,12 +165,13 @@ invalid.".format(pagenum), style=wx.OK)
         or enable certain buttons.
         """
         pagenum = self.imagemosaic.cur_page
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
         if pagenum == 0:
             self.btn_pageup.Disable()
         else:
             self.btn_pageup.Enable()
-        if pagenum == total_pages-1:
+        if pagenum == total_pages - 1:
             self.btn_pagedown.Disable()
         else:
             self.btn_pagedown.Enable()
@@ -164,7 +180,8 @@ invalid.".format(pagenum), style=wx.OK)
         self.imagemosaic.set_images(imgpaths)
         min_w = self.imagemosaic.cell_width * self.imagemosaic.num_cols
         min_h = self.imagemosaic.cell_height * (self.imagemosaic.num_rows)
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
         self.page_txt.SetLabel("Page: 1 / {0}".format(total_pages))
         self.maybe_btn_toggle()
         self.Layout()
@@ -173,9 +190,11 @@ invalid.".format(pagenum), style=wx.OK)
         self.imagemosaic.set_transfn(fn)
 
     def display_page(self, pagenum):
-        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) / float((self.imagemosaic.num_rows*self.imagemosaic.num_cols))))
+        total_pages = int(math.ceil(len(self.imagemosaic.imgpaths) /
+                                    float((self.imagemosaic.num_rows * self.imagemosaic.num_cols))))
         self.imagemosaic.jump_to_page(pagenum)
-        self.page_txt.SetLabel("Page: {0} / {1}".format(pagenum+1, total_pages))
+        self.page_txt.SetLabel(
+            "Page: {0} / {1}".format(pagenum + 1, total_pages))
         self.maybe_btn_toggle()
 
     def select_image(self, imgpath):
@@ -199,10 +218,12 @@ invalid.".format(pagenum), style=wx.OK)
         #    http://wxpython-users.1045709.n5.nabble.com/ScrolledPanel-mouse-click-resets-scrollbars-td2335368.html
         pass
 
+
 class ImageMosaicPanel(ScrolledPanel):
     """ A widget that (efficiently) displays images in a grid, organized
     in pages. Assumes that the images are the same size.
     """
+
     def __init__(self, parent, CellClass=None, CellBitmapClass=None,
                  rows=12, cols=2, cellheight=400, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
@@ -221,7 +242,8 @@ class ImageMosaicPanel(ScrolledPanel):
 
         # A 2-D array containing all CellPanels. self.cells[i][j]
         # is the CellPanel at row i, col j.
-        self.cells = [[None for _ in range(self.num_cols)] for _ in range(self.num_rows)]
+        self.cells = [[None for _ in range(self.num_cols)]
+                      for _ in range(self.num_rows)]
         self.gridsizer = wx.GridSizer(self.num_rows, self.num_cols)
 
         # A fn: (x1,y1,x2,y2)->(x1,y1,x2,y2)'
@@ -230,7 +252,8 @@ class ImageMosaicPanel(ScrolledPanel):
         # Pre-populate the gridsizer with StaticBitmaps
         for i in range(self.num_rows):
             for j in range(self.num_cols):
-                cellpanel = self.CellClass(self, i, j, CellBitmapClass=CellBitmapClass)
+                cellpanel = self.CellClass(
+                    self, i, j, CellBitmapClass=CellBitmapClass)
                 self.cells[i][j] = cellpanel
                 self.gridsizer.Add(cellpanel)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -272,7 +295,8 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def do_page_down(self):
         """ Handles necessary logic of turning to the next page. """
-        total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
+        total_pages = int(math.ceil(len(self.imgpaths) /
+                                    float((self.num_rows * self.num_cols))))
         if self.cur_page >= (total_pages - 1):
             self.cur_page = (total_pages - 1)
         else:
@@ -281,7 +305,8 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def jump_to_page(self, pagenum):
         """ Jumps to the given page number. """
-        total_pages = int(math.ceil(len(self.imgpaths) / float((self.num_rows*self.num_cols))))
+        total_pages = int(math.ceil(len(self.imgpaths) /
+                                    float((self.num_rows * self.num_cols))))
         if pagenum < 0 or pagenum > total_pages:
             print "Can't jump to invalid page number:", pagenum
             return
@@ -313,7 +338,7 @@ class ImageMosaicPanel(ScrolledPanel):
         start_idx = (self.num_rows * self.num_cols) * pagenum
         assert start_idx <= len(self.imgpaths)
         i, j = 0, 0
-        for idx in range(start_idx, start_idx + (self.num_rows*self.num_cols)):
+        for idx in range(start_idx, start_idx + (self.num_rows * self.num_cols)):
             if idx >= len(self.imgpaths):
                 # No more images to display, just display empty panels.
                 cellpanel = self.cells[i][j]
@@ -321,7 +346,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 if self.cell_width == None:
                     # Means only empty pages. Default cell_width to, say, 100.
                     self.cell_width = 100
-                    
+
                 dummybitmap = wx.EmptyBitmapRGBA(self.cell_width, self.cell_height,
                                                  red=0, green=0, blue=0)
                 cellpanel.set_bitmap(dummybitmap, 1.0)
@@ -329,13 +354,14 @@ class ImageMosaicPanel(ScrolledPanel):
                 cellpanel.imgpath = None
             else:
                 imgpath = self.imgpaths[idx]
-                img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
+                img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG)  # assume PNG
                 if img.GetHeight() != self.cell_height:
                     c = img.GetHeight() / float(self.cell_height)
                     new_w = int(round(img.GetWidth() / c))
                     if self.cell_width == None:
                         self.cell_width = new_w
-                    img.Rescale(new_w, self.cell_height, quality=wx.IMAGE_QUALITY_HIGH)
+                    img.Rescale(new_w, self.cell_height,
+                                quality=wx.IMAGE_QUALITY_HIGH)
                 else:
                     c = 1.0
                     self.cell_width = img.GetWidth()
@@ -358,8 +384,9 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def select_img(self, imgpath):
         """ Selects the cell given by imgpath. """
-        #print "imgpath: {0}".format(imgpath)
-        #print "pagenum: {0} row: {1} col: {2}".format(*self.get_img_info(imgpath))
+        # print "imgpath: {0}".format(imgpath)
+        # print "pagenum: {0} row: {1} col:
+        # {2}".format(*self.get_img_info(imgpath))
         pub.sendMessage("broadcast.mosaicpanel.mosaic_img_selected", imgpath)
         self.unselect_all()
         self.get_cellpanel(imgpath).select()
@@ -391,12 +418,14 @@ class ImageMosaicPanel(ScrolledPanel):
         col = int(idx % self.num_cols)
         return pagenum, row, col
 
+
 class CellPanel(wx.Panel):
     """ A Panel that contains both a StaticText label (displaying
     the imagepath of the blank ballot) and a CellBitmap (which
     displays the actual blank ballot image).
     """
-    def __init__(self, parent, i, j, imgpath=None, bitmap=None, 
+
+    def __init__(self, parent, i, j, imgpath=None, bitmap=None,
                  is_dummy=False, CellBitmapClass=None, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -413,7 +442,7 @@ class CellPanel(wx.Panel):
         self.is_selected = False
 
         self.cellbitmap = self.CellBitmapClass(self, i, j, imgpath, bitmap)
-        
+
         self.txtlabel = wx.StaticText(self, label="Label here.")
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -425,13 +454,14 @@ class CellPanel(wx.Panel):
         self.Fit()
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
+
     def onLeftDown(self, evt):
         if not self.is_dummy:
             self.parent.select_img(self.imgpath)
-        
+
     def set_txtlabel(self, label):
         self.txtlabel.SetLabel(label)
-        
+
     def set_bitmap(self, bitmap, scale):
         self.cellbitmap.set_bitmap(bitmap, scale)
         self.scale = scale
@@ -440,9 +470,11 @@ class CellPanel(wx.Panel):
     def select(self):
         self.is_selected = True
         self.cellbitmap.Refresh()
+
     def unselect(self):
         self.is_selected = False
         self.cellbitmap.Refresh()
+
 
 class CellBitmap(wx.Panel):
     """ A panel that displays an image, in addition to displaying a
@@ -461,7 +493,7 @@ class CellBitmap(wx.Panel):
         self.pil_img = pil_img
         self.i, self.j = i, j
 
-        #self.SetMinSize(bitmap.GetSize())
+        # self.SetMinSize(bitmap.GetSize())
 
         self.Bind(wx.EVT_LEFT_DOWN, self.onLeftDown)
         self.Bind(wx.EVT_PAINT, self.onPaint)
@@ -500,10 +532,11 @@ class CellBitmap(wx.Panel):
         if self.parent.is_selected:
             # Draw Border
             dc.SetPen(wx.Pen("Yellow", 8))
-            dc.DrawRectangle(0,0,self.bitmap.GetWidth()-1,self.bitmap.GetHeight()-15)
+            dc.DrawRectangle(0, 0, self.bitmap.GetWidth() -
+                             1, self.bitmap.GetHeight() - 15)
         evt.Skip()
         return dc
-        
+
     def _draw_boxes(self, dc, boxes):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         for box in boxes:
@@ -513,9 +546,11 @@ class CellBitmap(wx.Panel):
             if self.parent.parent.transfn != None:
                 # Oh man, what a hack.
                 x1, y1, x2, y2 = self.parent.parent.transfn(x1, y1, x2, y2)
-            x1, y1, x2, y2 = map(lambda n: int(round(n / float(self.scale))), (x1,y1,x2,y2))
-            w, h = int(abs(x1-x2)), int(abs(y1-y2))
+            x1, y1, x2, y2 = map(lambda n: int(
+                round(n / float(self.scale))), (x1, y1, x2, y2))
+            w, h = int(abs(x1 - x2)), int(abs(y1 - y2))
             dc.DrawRectangle(x1, y1, w, h)
+
 
 def make_canonical(box):
     """ Takes two arbitrary (x,y) points and re-arranges them
@@ -537,11 +572,12 @@ def make_canonical(box):
         # LowerRight, UpperLeft
         return (xb, yb, xa, ya)
 
-    
+
 class _TestMosaicFrame(wx.Frame):
     """
     Frame to demo the MosaicPanel.
     """
+
     def __init__(self, parent, imgpaths, *args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -554,14 +590,15 @@ class _TestMosaicFrame(wx.Frame):
         sizer.Add(self.mosaicpanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(sizer)
 
-    
 
 class _MainFrame(wx.Frame):
     """
     Frame to demo the ProgressGauge
     """
+
     def __init__(self, parent, *args, **kwargs):
-        wx.Frame.__init__(self, parent, wx.ID_ANY, "title", size=(400, 400), *args, **kwargs)
+        wx.Frame.__init__(self, parent, wx.ID_ANY, "title",
+                          size=(400, 400), *args, **kwargs)
 
         btn = wx.Button(self, label="Click to start progress bar demo")
         btn.Bind(wx.EVT_BUTTON, self.onbutton)
@@ -572,28 +609,34 @@ class _MainFrame(wx.Frame):
         progressgauge.Show()
         workthread = _WorkThread(num_tasks)
         workthread.start()
+
+
 class _WorkThread(threading.Thread):
+
     def __init__(self, num_tasks, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.num_tasks = num_tasks
+
     def run(self):
         for i in range(self.num_tasks):
             # Do 'work', sending a tick message after every step
-            #time.sleep(1.0)
+            # time.sleep(1.0)
             sum(range(5000000))
             print 'a'
-            #pub.sendMessage("signals.ProgressGauge.tick")
+            # pub.sendMessage("signals.ProgressGauge.tick")
             wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.tick")
 
         # Notify ProgressGauge that the work is done
-        #pub.sendMessage("signals.ProgressGauge.done")        
+        # pub.sendMessage("signals.ProgressGauge.done")
         wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.done")
+
 
 def demo_progressgauge():
     app = wx.App(False)
     frame = _MainFrame(None)
     frame.Show()
     app.MainLoop()
+
 
 def demo_mosaicpanel(imgsdir):
     imgpaths = []

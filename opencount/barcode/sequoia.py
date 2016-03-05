@@ -1,4 +1,6 @@
-import sys, os, time
+import sys
+import os
+import time
 from os.path import join as pathjoin
 
 import cv
@@ -50,6 +52,7 @@ RIGHT = "R"
 MARK_ON = "ON"
 MARK_OFF = "OFF"
 
+
 def decode(imgpath, Izero, Ione, _imgpath=None):
     """ Assumes that IZERO, IONE are already smoothed.
     Input:
@@ -72,14 +75,16 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     if decodings == None:
         print "...sequoia.decode detected badness for {0}...".format(imgpath)
         return None, None, None, None
-    #print 'For imgpath {0}: {1}'.format(imgpath, decodings)
+    # print 'For imgpath {0}: {1}'.format(imgpath, decodings)
     return decodings, mark_locs
+
 
 def is_empty_image(I):
     """ Try to infer if this image is just an empty white image. """
     w, h = cv.GetSize(I)
-    ratio = cv.Sum(I)[0] / float(w*h)
+    ratio = cv.Sum(I)[0] / float(w * h)
     return ratio >= 230.0
+
 
 def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     """ Determines which side the image I is. Also determines the flip
@@ -93,12 +98,15 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
         int side, bool isflip.
     """
     def check_a_or_b(patch, A, B, T=0.9):
-        x1_A, y1_A, sc_A = tempmatch.bestmatch(A, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        x1_B, y1_B, sc_B = tempmatch.bestmatch(B, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x1_A, y1_A, sc_A = tempmatch.bestmatch(
+            A, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x1_B, y1_B, sc_B = tempmatch.bestmatch(
+            B, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
         # Highly annoying: symB is not invariant to rotation, but symA is.
         cv.Flip(B, B, flipMode=-1)
-        x1_B1, y1_B1, sc_B1 = tempmatch.bestmatch(B, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        #print 'scA: {0}    scB: {1}    scB1: {2}'.format(sc_A, sc_B, sc_B1)
+        x1_B1, y1_B1, sc_B1 = tempmatch.bestmatch(
+            B, [patch], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        # print 'scA: {0}    scB: {1}    scB1: {2}'.format(sc_A, sc_B, sc_B1)
         best_scB = max(sc_B, sc_B1)
         if (sc_A >= best_scB) and sc_A >= T:
             return 0
@@ -106,7 +114,7 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
             return 1
         else:
             return None
-    # FRONT: SYM is in UpperRight and LowerLeft corners. 
+    # FRONT: SYM is in UpperRight and LowerLeft corners.
     #    Not Flipped: SYMA in UpperRight, SYMB in LowerLeft
     #    Flipped:     SYMB in UpperRight, SYMA in LowerLeft
     # BACK: SYM is in UpperLeft and LowerRight corners
@@ -114,7 +122,7 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     #    Flipped:     SYMD in UpperLeft, SYMC in LowerRight
     w_img, h_img = cv.GetSize(I)
     w_fact, h_fact = 0.16, 0.2
-    w_patch, h_patch = int(round(w_img*w_fact)), int(round(h_img*h_fact))
+    w_patch, h_patch = int(round(w_img * w_fact)), int(round(h_img * h_fact))
     cv.SetImageROI(I, (0, 0, w_patch, h_patch))
     # 1.) Check for easy BACK case
     ul = check_a_or_b(I, IsymC, IsymD)
@@ -139,7 +147,7 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     # 5.) Check for FRONT of single-sided ballot
     w_fact, h_fact = 0.20, 0.15
     w_patch, h_patch = int(round(w_fact * w_img)), int(round(h_fact * h_img))
-    x, y = int(round(0.3*w_img)), int(round(0.15*h_img))
+    x, y = int(round(0.3 * w_img)), int(round(0.15 * h_img))
     # 5.a.) Try grabbing the 'dense' instructions text, if present
     cv.SetImageROI(I, (x, y, w_patch, h_patch))
     flag0 = is_empty_image(I)
@@ -148,16 +156,19 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     if not flag0 or not flag1:
         # Try to search for the column of black-rects to infer flipped
         cv.SetImageROI(I, (0, 10, w_patch, h_patch))
-        x, y, scTop = tempmatch.bestmatch(IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x, y, scTop = tempmatch.bestmatch(
+            IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
         if scTop >= 0.89:
             return 0, False
         cv.SetImageROI(I, (0, h_img - h_patch, w_patch, h_patch))
-        x, y, scBot = tempmatch.bestmatch(IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x, y, scBot = tempmatch.bestmatch(
+            IsymE, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
         if scBot >= 0.89:
             return 0, True
     # At this point, this is /probably/ an empty page, or something
     # funky is going on.
     return None, None
+
 
 def is_backside(decodings, mark_locs, I, Izero):
     """ Applies Sequoia-specific knowledge. A backside ballot side has
@@ -170,7 +181,7 @@ def is_backside(decodings, mark_locs, I, Izero):
     Note: This doesn't detect empty backsides. Assumes that the decoder
     is 'good enough' such that it will not spuriously return "" or "0"
     for an real front-side barcode. 
-    
+
     Output: 
         bool isBack, bool isFlip
     """
@@ -179,7 +190,7 @@ def is_backside(decodings, mark_locs, I, Izero):
         return True, False
     elif decodings[0] == "0" and decodings[1] == "0":
         return True, True
-    # Try to handle if ballot is partially-cutoff. 
+    # Try to handle if ballot is partially-cutoff.
     _roi = cv.GetImageROI(I)
     cv.ResetImageROI(I)
     w_img, h_img = cv.GetSize(I)
@@ -188,7 +199,8 @@ def is_backside(decodings, mark_locs, I, Izero):
     if decodings[0] == "":
         # LHS is possibly cut-off
         cv.SetImageROI(I, (w_img - w_patch, h_img - h_patch, w_patch, h_patch))
-        x1, y1, score = tempmatch.bestmatch(Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x1, y1, score = tempmatch.bestmatch(
+            Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
         cv.SetImageROI(I, _roi)
         if score >= 0.9:
             return True, True if decodings[1] == "" else False
@@ -199,13 +211,15 @@ def is_backside(decodings, mark_locs, I, Izero):
     elif decodings[1] == "" and decodings[0] == "0":
         # RHS is possibly cut-off
         cv.SetImageROI(I, (0, h_img - h_patch, w_patch, h_patch))
-        x1, y1, score = tempmatch.bestmatch(Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
+        x1, y1, score = tempmatch.bestmatch(
+            Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
         cv.SetImageROI(I, _roi)
         if score >= 0.9:
             return True, False
         else:
             return True, True
     return False, None
+
 
 def processImg(img, template_zero, template_one, imgpath):
     """ The pipeline for processing one image:
@@ -227,21 +241,26 @@ def processImg(img, template_zero, template_one, imgpath):
     x_off, y_off = 0, 10
     cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
     patchLeft = tempmatch.smooth(img, 3, 3, bordertype='const', val=255.0)
-    decodings_left, zero_locs_left, one_locs_left = decode_patch(patchLeft, template_zero, template_one, imgpath)
+    decodings_left, zero_locs_left, one_locs_left = decode_patch(
+        patchLeft, template_zero, template_one, imgpath)
     cv.ResetImageROI(img)
-    marks_out_left = create_marks_dict(zero_locs_left, one_locs_left, x_off, y_off, imgpath, LEFT)
+    marks_out_left = create_marks_dict(
+        zero_locs_left, one_locs_left, x_off, y_off, imgpath, LEFT)
     x_off = int(round(w_img - w_patch))
     cv.SetImageROI(img, (x_off, y_off, w_patch, h_patch))
     patchRight = tempmatch.smooth(img, 3, 3, bordertype='const', val=255.0)
-    decodings_rht, zero_locs_rht, one_locs_rht = decode_patch(patchRight, template_zero, template_one, imgpath)
+    decodings_rht, zero_locs_rht, one_locs_rht = decode_patch(
+        patchRight, template_zero, template_one, imgpath)
     cv.ResetImageROI(img)
-    marks_out_rht = create_marks_dict(zero_locs_rht, one_locs_rht, x_off, y_off, imgpath, RIGHT)
+    marks_out_rht = create_marks_dict(
+        zero_locs_rht, one_locs_rht, x_off, y_off, imgpath, RIGHT)
 
     marks_out = marks_out_left
     for markval, tups in marks_out_rht.iteritems():
         marks_out.setdefault(markval, []).extend(tups)
 
     return (decodings_left, decodings_rht), marks_out
+
 
 def decode_patch(I, Izero, Ione, imgpath, T=0.87):
     """ Given a rough region around a barcode, return the decoding.
@@ -256,13 +275,14 @@ def decode_patch(I, Izero, Ione, imgpath, T=0.87):
     """
     # LEFT_ZERO_BEST_LOCS: {int imgidx: [(x1,y1,x2,y2,score), ...]}
     # Note: Both IMG and the templates have already been smoothed.
-    zero_best_locs = tempmatch.get_tempmatches(Izero, [I], 
+    zero_best_locs = tempmatch.get_tempmatches(Izero, [I],
                                                do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
-    one_best_locs = tempmatch.get_tempmatches(Ione, [I], 
+    one_best_locs = tempmatch.get_tempmatches(Ione, [I],
                                               do_smooth=tempmatch.SMOOTH_NONE, T=T)[0]
     locs0, locs1 = postprocess_locs(zero_best_locs, one_best_locs)
 
     return transformToBits(locs0, locs1, I), locs0, locs1
+
 
 def create_marks_dict(zero_bbs, one_bbs, x_off, y_off, imgpath, side):
     """
@@ -273,13 +293,14 @@ def create_marks_dict(zero_bbs, one_bbs, x_off, y_off, imgpath, side):
         dict MARKS_OUT. {MARK_ON/MARK_OFF: [(imgpath, (x1,y1,x2,y2), LEFT/RIGHT), ...]}
     """
     marks_out = {}
-    for (x1,y1,x2,y2,score) in zero_bbs:
+    for (x1, y1, x2, y2, score) in zero_bbs:
         bb_correct = (x1 + x_off, y1 + y_off, x2 + x_off, y2 + y_off)
         marks_out.setdefault(MARK_OFF, []).append((imgpath, bb_correct, side))
-    for (x1,y1,x2,y2,score) in one_bbs:
+    for (x1, y1, x2, y2, score) in one_bbs:
         bb_correct = (x1 + x_off, y1 + y_off, x2 + x_off, y2 + y_off)
         marks_out.setdefault(MARK_ON, []).append((imgpath, bb_correct, side))
     return marks_out
+
 
 def postprocess_locs(zero_locs, one_locs):
     """Post processing the locations:
@@ -292,20 +313,24 @@ def postprocess_locs(zero_locs, one_locs):
     one_locs = sorted(one_locs, key=lambda tup: tup[1])
     return zero_locs, one_locs
 
+
 def transformToBits(zero_locs, one_locs, img):
     """Assumes best_locs are the correct locations. 
     Also, the BEST_LOCS are sorted by height.
     """
     # ZERO_LOCS, ONE_LOCS: [(x1,y1,x2,y2,score), ...]
 
-    zero_bits = [('0', y1) for (x1,y1,x2,y2,score) in zero_locs]
-    one_bits = [('1', y1) for (x1,y1,x2,y2,score) in one_locs]
+    zero_bits = [('0', y1) for (x1, y1, x2, y2, score) in zero_locs]
+    one_bits = [('1', y1) for (x1, y1, x2, y2, score) in one_locs]
     # sort by y1
-    bits = [val for (val, y1) in sorted(zero_bits+one_bits, key=lambda t: t[1])]
+    bits = [val for (val, y1) in sorted(
+        zero_bits + one_bits, key=lambda t: t[1])]
     return ''.join(bits)
+
 
 def isimgext(f):
     return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.jpeg', '.jpg', '.bmp')
+
 
 def rescale_img(I, w0, h0, w1, h1):
     """ Rescales I from image with dimensions (w0,h0) to one with dimensions
@@ -317,6 +342,7 @@ def rescale_img(I, w0, h0, w1, h1):
     outImg = cv.CreateImage((new_w, new_h), I.depth, I.channels)
     cv.Resize(I, outImg, cv.CV_INTER_CUBIC)
     return outImg
+
 
 def main():
     args = sys.argv[1:]
@@ -352,14 +378,22 @@ def main():
     exmpl_imgsize = cv.GetSize(cv.LoadImage(imgpaths[0]))
     if exmpl_imgsize != (ORIG_IMG_W, ORIG_IMG_H):
         print "...rescaling images..."
-        Izero = rescale_img(Izero, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        Ione = rescale_img(Ione, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        Isidesym = rescale_img(Isidesym, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        IsymA = rescale_img(IsymA, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        IsymB = rescale_img(IsymB, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        IsymC = rescale_img(IsymC, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        IsymD = rescale_img(IsymD, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
-        IsymE = rescale_img(IsymE, ORIG_IMG_W, ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
+        Izero = rescale_img(Izero, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
+        Ione = rescale_img(Ione, ORIG_IMG_W, ORIG_IMG_H,
+                           exmpl_imgsize[0], exmpl_imgsize[1])
+        Isidesym = rescale_img(Isidesym, ORIG_IMG_W,
+                               ORIG_IMG_H, exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymA = rescale_img(IsymA, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymB = rescale_img(IsymB, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymC = rescale_img(IsymC, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymD = rescale_img(IsymD, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
+        IsymE = rescale_img(IsymE, ORIG_IMG_W, ORIG_IMG_H,
+                            exmpl_imgsize[0], exmpl_imgsize[1])
 
     Izero = tempmatch.smooth(Izero, 3, 3, bordertype='const', val=255.0)
     Ione = tempmatch.smooth(Ione, 3, 3, bordertype='const', val=255.0)
@@ -404,13 +438,16 @@ def main():
                 color = cv.CV_RGB(0, 0, 255)
             else:
                 color = cv.CV_RGB(255, 0, 0)
-            for (imgpath, (x1,y1,x2,y2), userdata) in tups:
+            for (imgpath, (x1, y1, x2, y2), userdata) in tups:
                 cv.Rectangle(Icolor, (x1, y1), (x2, y2), color, thickness=2)
         imgname = os.path.split(imgpath)[1]
         outrootdir = os.path.join(outdir, imgname)
-        try: os.makedirs(outrootdir)
-        except: pass
-        outpath = os.path.join(outrootdir, "{0}_bbs.png".format(os.path.splitext(imgname)[0]))
+        try:
+            os.makedirs(outrootdir)
+        except:
+            pass
+        outpath = os.path.join(outrootdir, "{0}_bbs.png".format(
+            os.path.splitext(imgname)[0]))
         cv.SaveImage(outpath, Icolor)
 
     dur = time.time() - t

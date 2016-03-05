@@ -1,7 +1,11 @@
-import os, sys, multiprocessing, thread
+import os
+import sys
+import multiprocessing
+import thread
 import cv
 sys.path.append('..')
 import grouping.partask as partask
+
 
 def extract(imgpatches, do_threshold=None, manager=None, queue_mygauge=None):
     """
@@ -24,6 +28,7 @@ def extract(imgpatches, do_threshold=None, manager=None, queue_mygauge=None):
                               init=({}, {}),
                               N=None)
 
+
 def _extract_patches(imgpatches, (do_threshold, queue_mygauge)):
     img2patch = {}
     patch2stuff = {}
@@ -34,17 +39,20 @@ def _extract_patches(imgpatches, (do_threshold, queue_mygauge)):
             cv.Flip(I, I, flipMode=-1)
         if do_threshold != None:
             cv.Threshold(I, I, do_threshold, 255.0, cv.CV_THRESH_BINARY)
-        for ((x1,y1,x2,y2), isflip, outpath, tag) in tups:
-            try: os.makedirs(os.path.split(outpath)[0])
-            except: pass
-            cv.SetImageROI(I, tuple(map(int, (x1,y1,x2-x1,y2-y1))))
+        for ((x1, y1, x2, y2), isflip, outpath, tag) in tups:
+            try:
+                os.makedirs(os.path.split(outpath)[0])
+            except:
+                pass
+            cv.SetImageROI(I, tuple(map(int, (x1, y1, x2 - x1, y2 - y1))))
             cv.SaveImage(outpath, I)
             img2patch[(imgpath, tag)] = outpath
-            patch2stuff[outpath] = (imgpath, (x1,y1,x2,y2), tag)
+            patch2stuff[outpath] = (imgpath, (x1, y1, x2, y2), tag)
         if queue_mygauge != None:
             # Updates the MyGauge widget
             queue_mygauge.put(True)
     return img2patch, patch2stuff
+
 
 def _combfn(a, b):
     img2patchA, patch2stuffA = a

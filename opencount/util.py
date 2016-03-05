@@ -31,6 +31,7 @@ else:
     SIGIL_DICT = dict(warn='?', error='!', debug='@')
     CODA = ''
 
+
 def debug(msg, *args, **kwargs):
     dbg_level = kwargs.pop('debug_level', 'info')
     sigil = SIGIL_DICT.get(dbg_level, '@')
@@ -41,17 +42,21 @@ def debug(msg, *args, **kwargs):
         coda=CODA)
     sys.stderr.write(stamped)
 
+
 def warn(str, *args, **kwargs):
     debug(str, *args, level='warn', **kwargs)
 
+
 def error(str, *args, **kwargs):
     debug(str, *args, level='error', **kwargs)
+
 
 class MyGauge(wx.Dialog):
     """
     A dialog that pops up to display a progress gauge when some
     long-running process is running.
     """
+
     def __init__(self, parent, numtasks, funs=None,
                  msg="Please wait...", ondone=None, ispanel=None,
                  destroyondone=True, thread=None, size=(400, 300),
@@ -85,7 +90,7 @@ class MyGauge(wx.Dialog):
         if funs != None:
             self.funs = funs
         else:
-            self.funs = [None]*numtasks
+            self.funs = [None] * numtasks
 
         self.parent = parent
         panel = wx.Panel(self)
@@ -173,7 +178,7 @@ class MyGauge(wx.Dialog):
         else:
             self.dead = True
             self.txt1.SetLabel("Computation finished.")
-            t = time.time()-self.inittime
+            t = time.time() - self.inittime
             self.txt3.SetLabel("Time taken: " + str(self.totime(t)))
             self.txt4.SetLabel("")
 
@@ -182,38 +187,42 @@ class MyGauge(wx.Dialog):
 
         it = int(it)
 
-        kw = [(60, 's'), (60, 'm'), (24, 'h'), (365, 'd'), (1<<30, 'y')]
-        for t,word in kw:
+        kw = [(60, 's'), (60, 'm'), (24, 'h'), (365, 'd'), (1 << 30, 'y')]
+        for t, word in kw:
             if it > 0:
-                v = it%t
-                r.append(str(v)+word)
+                v = it % t
+                r.append(str(v) + word)
                 it /= t
-        if len(r) == 0: return "0s"
+        if len(r) == 0:
+            return "0s"
         return ", ".join(r[::-1])
 
     def update(self):
-        if self.dead: return
+        if self.dead:
+            return
 
         self.updater.Restart()
-        t = time.time()-self.startTime
+        t = time.time() - self.startTime
 
-        text = "On task %d of %d"%(self.ontask, self.numtasks)
+        text = "On task %d of %d" % (self.ontask, self.numtasks)
         self.txt2.SetLabel(text)
         self.txt3.SetLabel("Elapsed Time: " + self.totime(t))
         if self.val == 0:
             self.txt4.SetLabel("Expected Completion: unknown seconds")
         else:
             if self.finishedon != -1:
-                guess = int((float(self.upto+1)/self.val)*(self.finishedon-self.startTime)-t)
+                guess = int((float(self.upto + 1) / self.val) *
+                            (self.finishedon - self.startTime) - t)
             else:
-                guess = int((float(self.upto+1)/self.val)*(time.time()-self.startTime)-t)
-            guess = max(guess,0)
+                guess = int((float(self.upto + 1) / self.val) *
+                            (time.time() - self.startTime) - t)
+            guess = max(guess, 0)
             self.txt4.SetLabel("Completion In: " + self.totime(guess))
-        if self.ontask-1 >= len(self.funs):
+        if self.ontask - 1 >= len(self.funs):
             print "Tried to access array out of bounds in MyGaguge"
             print "Likely that there were more tasks than functions given."
             return
-        fnc = self.funs[self.ontask-1]
+        fnc = self.funs[self.ontask - 1]
         if fnc != None:
             self.val = fnc()
             self.gauge.SetValue(self.val)
@@ -242,7 +251,7 @@ class MyGauge(wx.Dialog):
             self.thethread.abort()
             self.dead = True
             self.txt1.SetLabel("Computation aborted.")
-            t = time.time()-self.inittime
+            t = time.time() - self.inittime
             self.txt3.SetLabel("Time taken: " + str(self.totime(t)))
             self.txt4.SetLabel("")
 
@@ -273,12 +282,14 @@ class MyGauge(wx.Dialog):
     def all_done():
         raise Exception('REPLACE ME')
 
+
 class GaugeID(object):
     new_id = 0
     """
     A class to facilitate JOB_IDS for MyGauge. This also
     provides abstractions for manipulating timers themselves.
     """
+
     def __init__(self, job_id=None):
         self.job_id = self.__class__.new_id
         self.__class__.new_id += 1
@@ -307,34 +318,37 @@ class GaugeID(object):
                      "signals.MyGauge.done",
                      msg=(self,))
 
+
 class Gauges:
     '''
     An object for holding all the possible GaugeIds for
     all the gauges used throughout the application.
     '''
-    infer_contests              = GaugeID()
-    label_digit_match           = GaugeID()
-    digit_match                 = GaugeID()
+    infer_contests = GaugeID()
+    label_digit_match = GaugeID()
+    digit_match = GaugeID()
     partitioning_export_results = GaugeID()
-    partitioning                = GaugeID()
-    extract_barcode_marks       = GaugeID()
-    template_match_targets      = GaugeID()
-    global_align                = GaugeID()
-    blank_straighten_ballots    = GaugeID()
-    voted_straighten_ballots    = GaugeID()
-    grouping_imagebased         = GaugeID()
-    grouping_digitbased         = GaugeID()
-    find_attr_matches           = GaugeID()
-    compute_mult_exemplars      = GaugeID()
-    generate_mix_max_overlays   = GaugeID()
-    select_attrs                = GaugeID()
+    partitioning = GaugeID()
+    extract_barcode_marks = GaugeID()
+    template_match_targets = GaugeID()
+    global_align = GaugeID()
+    blank_straighten_ballots = GaugeID()
+    voted_straighten_ballots = GaugeID()
+    grouping_imagebased = GaugeID()
+    grouping_digitbased = GaugeID()
+    find_attr_matches = GaugeID()
+    compute_mult_exemplars = GaugeID()
+    generate_mix_max_overlays = GaugeID()
+    select_attrs = GaugeID()
+
 
 class MyTimer(object):
+
     def __init__(self, filepath):
         self.filepath = filepath
-        self.start_times = {} # {str task: int starttime}
-        self.tasks_ordered = [] # [str task0, ..., str taskN]
-        self.total_times = {} # {str task: int dur}
+        self.start_times = {}  # {str task: int starttime}
+        self.tasks_ordered = []  # [str task0, ..., str taskN]
+        self.total_times = {}  # {str task: int dur}
 
     def prelude(self, f):
         """
@@ -342,10 +356,10 @@ class MyTimer(object):
         to the logfile for this session.
         """
         import datetime
-        print >>f, "="*16
+        print >>f, "=" * 16
         print >>f, "Beginning new log session, on:"
         print >>f, datetime.datetime.now()
-        print >>f, "="*16
+        print >>f, "=" * 16
 
     def start_task(self, task):
         self.start_times[task] = time.time()
@@ -383,11 +397,13 @@ class MyTimer(object):
         f.flush()
         f.close()
 
+
 class WarningDialog(wx.Dialog):
     """
     A custom dialog to display a warning message to the user, in
     addition to displaying custom button labels.
     """
+
     def __init__(self, parent, warn_msg, btn_labels, status_vals, *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -412,34 +428,10 @@ class WarningDialog(wx.Dialog):
         btn = evt.GetEventObject()
         self.EndModal(btn._mystatusval)
 
+
 def is_image_ext(filename):
     IMG_EXTS = ('.bmp', '.png', '.jpg', '.jpeg', '.tif', '.tiff')
     return os.path.splitext(filename)[1].lower() in IMG_EXTS
-
-def contains_image(dir):
-    """
-    Returns True if the directory given by 'path' contains at least
-    one (valid) image.
-    """
-    for dirpath, dirnames, filenames in os.walk(dir):
-        for imgname in [f for f in filenames if is_image_ext(f)]:
-            imgpath = os.path.join(dirpath, imgname)
-            try:
-                Image.open(imgpath)
-                return True
-            except:
-                pass
-    return False
-
-def contains_file(dir):
-    """
-    Returns True if the given directory contains at least one
-    file.
-    """
-    for dirpath, dirnames, filenames in os.walk(dir):
-        if filenames:
-            return True
-    return False
 
 
 def get_filename(filepath, NO_EXT=False):
@@ -456,6 +448,7 @@ def get_filename(filepath, NO_EXT=False):
     """
     filename = os.path.split(filepath)[1]
     return os.path.splitext(filename)[0] if NO_EXT else filename
+
 
 def create_dirs(*dirs):
     """
@@ -475,81 +468,79 @@ def create_dirs(*dirs):
 
 # Tested with wxPython 2.3.4.2 and PIL 1.1.3.
 
-def wxb2pil( myBitmap ) :
-    return WxImageToPilImage( WxBitmapToWxImage( myBitmap ) )
-
-def wxb2wxi( myBitmap ) :
-    return wx.ImageFromBitmap( myBitmap )
-
-#-----
-
-def pil2wxb( myPilImage ) :
-    return WxImageToWxBitmap( PilImageToWxImage( myPilImage ) )
-
-def pil2wxi( myPilImage ):
-    myWxImage = wx.EmptyImage( myPilImage.size[0], myPilImage.size[1] )
-    myWxImage.SetData( myPilImage.convert( 'RGB' ).tostring() )
-    return myWxImage
+def pil2wxb(myPilImage):
+    return WxImageToWxBitmap(PilImageToWxImage(myPilImage))
 
 # Or, if you want to copy any alpha channel, too (available since wxPython 2.5)
 # The source PIL image doesn't need to have alpha to use this routine.
 # But, a PIL image with alpha is necessary to get a wx.Image with alpha.
 
-def PilImageToWxImage( myPilImage, copyAlpha=True ) :
 
-    hasAlpha = myPilImage.mode[ -1 ] == 'A'
-    if copyAlpha and hasAlpha :  # Make sure there is an alpha layer copy.
+def PilImageToWxImage(myPilImage, copyAlpha=True):
 
-        myWxImage = wx.EmptyImage( *myPilImage.size )
+    hasAlpha = myPilImage.mode[-1] == 'A'
+    if copyAlpha and hasAlpha:  # Make sure there is an alpha layer copy.
+
+        myWxImage = wx.EmptyImage(*myPilImage.size)
         myPilImageCopyRGBA = myPilImage.copy()
-        myPilImageCopyRGB = myPilImageCopyRGBA.convert( 'RGB' )    # RGBA --> RGB
-        myPilImageRgbData =myPilImageCopyRGB.tostring()
-        myWxImage.SetData( myPilImageRgbData )
-        myWxImage.SetAlphaData( myPilImageCopyRGBA.tostring()[3::4] )  # Create layer and insert alpha values.
+        myPilImageCopyRGB = myPilImageCopyRGBA.convert('RGB')    # RGBA --> RGB
+        myPilImageRgbData = myPilImageCopyRGB.tostring()
+        myWxImage.SetData(myPilImageRgbData)
+        # Create layer and insert alpha values.
+        myWxImage.SetAlphaData(myPilImageCopyRGBA.tostring()[3::4])
 
-    else :    # The resulting image will not have alpha.
+    else:    # The resulting image will not have alpha.
 
-        myWxImage = wx.EmptyImage( *myPilImage.size )
+        myWxImage = wx.EmptyImage(*myPilImage.size)
         myPilImageCopy = myPilImage.copy()
-        myPilImageCopyRGB = myPilImageCopy.convert( 'RGB' )    # Discard any alpha from the PIL image.
-        myPilImageRgbData =myPilImageCopyRGB.tostring()
-        myWxImage.SetData( myPilImageRgbData )
+        # Discard any alpha from the PIL image.
+        myPilImageCopyRGB = myPilImageCopy.convert('RGB')
+        myPilImageRgbData = myPilImageCopyRGB.tostring()
+        myWxImage.SetData(myPilImageRgbData)
 
     return myWxImage
 
 #-----
 
-def imageToPil( myWxImage ):
-    myPilImage = Image.new( 'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()) )
-    myPilImage.fromstring( myWxImage.GetData() )
+
+def imageToPil(myWxImage):
+    myPilImage = Image.new(
+        'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()))
+    myPilImage.fromstring(myWxImage.GetData())
     return myPilImage
 
-def WxImageToWxBitmap( myWxImage ) :
+
+def WxImageToWxBitmap(myWxImage):
     return myWxImage.ConvertToBitmap()
 
 ####################################################################
 ## Additional methods to quickly convert between wx* and numpy/cv ##
 ####################################################################
 
+
 def wxImage2np(Iwx, is_rgb=True):
     """ Converts wxImage to numpy array """
     w, h = Iwx.GetSize()
     Inp_flat = np.frombuffer(Iwx.GetDataBuffer(), dtype='uint8')
     if is_rgb:
-        Inp = Inp_flat.reshape(h,w,3)
+        Inp = Inp_flat.reshape(h, w, 3)
     else:
-        Inp = Inp_flat.reshape(h,w)
+        Inp = Inp_flat.reshape(h, w)
     return Inp
+
+
 def wxBitmap2np(wxBmp, is_rgb=True):
     """ Converts wxBitmap to numpy array """
     # TODO: I believe all wxBitmaps are implicitly RGB, so, the
     #       IS_RGB argument may be unnecessary (it currently isn't even
     #       handled right now...)
     w, h = wxBmp.GetSize()
-    npimg = np.zeros(h*w*3, dtype='uint8')
+    npimg = np.zeros(h * w * 3, dtype='uint8')
     wxBmp.CopyToBuffer(npimg, format=wx.BitmapBufferFormat_RGB)
-    npimg = npimg.reshape(h,w,3)
+    npimg = npimg.reshape(h, w, 3)
     return npimg
+
+
 def np2wxImage(nparray):
     """ Converts a numpy array to a wxImage. Note that wxImages are
     always RGB (3-channeled) - if a single-channel (grayscale) nparray
@@ -557,16 +548,19 @@ def np2wxImage(nparray):
     image.
     """
     if len(nparray.shape) == 2:
-        Inp = np.zeros((nparray.shape[0], nparray.shape[1], 3), dtype=nparray.dtype)
-        Inp[:,:,0] = nparray
-        Inp[:,:,1] = nparray
-        Inp[:,:,2] = nparray
+        Inp = np.zeros((nparray.shape[0], nparray.shape[
+                       1], 3), dtype=nparray.dtype)
+        Inp[:, :, 0] = nparray
+        Inp[:, :, 1] = nparray
+        Inp[:, :, 2] = nparray
     else:
         Inp = nparray
     h, w, channels = Inp.shape
     image = wx.EmptyImage(w, h)
     image.SetData(Inp.tostring())
     return image
+
+
 def np2wxBitmap(nparray):
     """ Converts a numpy array to a wxBitmap. Single-channel (grayscale)
     nparray images will be 'treated' as a three-channel image (see the
@@ -575,37 +569,9 @@ def np2wxBitmap(nparray):
     wximg = np2wxImage(nparray)
     return wximg.ConvertToBitmap()
 
-def cvImg2np(Icv):
-    """ Converts from the OpenCV ImageIpl class to a numpy array.
-    Assumes that Icv has datatype either IPL_DEPTH_32F or IPL_DEPTH_8U. """
-    if Icv.depth == cv.IPL_DEPTH_32F:
-        dtype = 'float32'
-    else:
-        dtype = 'uint8'
-    nparray = np.fromstring(Icv.tostring(), dtype=dtype)
-
-    w, h = cv.GetSize(Icv)
-    if Icv.channels == 3:
-        nparray = nparray.reshape((h,w,3))
-    else:
-        nparray = nparray.reshape((h,w))
-    return nparray
-
-def np2cvImg(Inp):
-    """ Converts from an nparray to a OpenCV ImageIpl. Assumes that Inp
-    has dtype either 'float32' or 'uint8'. """
-    num_channels = 3 if len(Inp.shape) == 3 else 1
-    h, w = Inp.shape[0], Inp.shape[1]
-    if Inp.dtype == 'float32':
-        depth = cv.IPL_DEPTH_32F
-    else:
-        depth = cv.IPL_DEPTH_8U
-    Icv = cv.CreateImageHeader((Inp.shape[1], Inp.shape[0]), depth, num_channels)
-    cv.SetData(Icv, Inp.tostring(), Inp.dtype.itemsize * num_channels * w)
-    return Icv
-
 
 class MainFrame(wx.Frame):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, size=(800, 800),
                           title='Image Manipulate', *args, **kwargs)
@@ -636,11 +602,14 @@ class MainFrame(wx.Frame):
 
     def onButton_zoomin(self, evt):
         self.img_manipulate.zoomin(0.5)
+
     def onButton_zoomout(self, evt):
         self.img_manipulate.zoomout(0.5)
+
     def onButton_resize(self, evt):
-        self.img_manipulate.set_size((200,200))
+        self.img_manipulate.set_size((200, 200))
         self.Layout()
+
     def onButton_focus(self, evt):
         contests = ((6, 154, 54, 366), (6, 566, 54, 67),
                     (143, 328, 53, 54), (143, 578, 53, 55))
@@ -684,12 +653,12 @@ class ImageManipulate(wx.Panel):
         # Instance vars
         self.parent = parent
         self.img = None
-        self.center = (size[0]/2, size[1]/2)
+        self.center = (size[0] / 2, size[1] / 2)
         self.scale = 1.0
         self.state = ImageManipulate.STATE_IDLE
 
         # set dummy image at first
-        dummy_img = np.ones((300,300))
+        dummy_img = np.ones((300, 300))
         dummy_img *= 200
         self.img = dummy_img
 
@@ -697,7 +666,7 @@ class ImageManipulate(wx.Panel):
         # i.e. if region=((30,50),(200,200)), this tell us that the
         # pixels in the bounding box [30,50,200,200] are currently
         # visible.
-        self.region = ((0,0), size)
+        self.region = ((0, 0), size)
 
         self._buffer = wx.EmptyBitmap(size[0], size[1])
         self._dirty = True
@@ -715,7 +684,6 @@ class ImageManipulate(wx.Panel):
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Bind(wx.EVT_SIZE, self.onSize)
 
-
     def set_image(self, img, scale=1.0, center=None):
         """
         Display 'img' with a certain scale factor. If 'center' is given,
@@ -729,7 +697,7 @@ class ImageManipulate(wx.Panel):
                           the center of the img.
         """
         if img == None:
-            img = np.ones((300,300))
+            img = np.ones((300, 300))
             img *= 200
         if type(img) != type(np.array(1)):
             img = np.array(img)
@@ -737,8 +705,8 @@ class ImageManipulate(wx.Panel):
         self.img = img
         self._dirty = True
         if not center:
-            center = (int(round(self.img.shape[1]/2.0)),
-                      int(round(self.img.shape[0]/2.0)))
+            center = (int(round(self.img.shape[1] / 2.0)),
+                      int(round(self.img.shape[0] / 2.0)))
         self.center = center
         self.Refresh()
 
@@ -775,36 +743,38 @@ class ImageManipulate(wx.Panel):
         self.Refresh()
 
     def zoomin(self, amt=0.5):
-        self.set_scale(self.scale*2)
+        self.set_scale(self.scale * 2)
+
     def zoomout(self, amt=0.5):
-        self.set_scale(self.scale/2)
+        self.set_scale(self.scale / 2)
 
     def move_image(self, xamt, yamt):
         """
         Shift the currently displayed image by xamt, yamt. This won't
         let you move outside the bounds of the image.
         """
-        width,height = self.GetClientSize()
-        x,y = self.center
+        width, height = self.GetClientSize()
+        x, y = self.center
         x -= xamt
         y -= yamt
+
         def compute():
-            w, h = width/2/self.scale, height/2/self.scale
-            return x-w, y-h, x+w, y+h
+            w, h = width / 2 / self.scale, height / 2 / self.scale
+            return x - w, y - h, x + w, y + h
         ul_x, ul_y, dr_x, dr_y = compute()
         if ul_x < 0:
             x += -ul_x
             ul_x, ul_y, dr_x, dr_y = compute()
         if dr_x > self.img.shape[1]:
-            x -= dr_x-self.img.shape[1]
+            x -= dr_x - self.img.shape[1]
             ul_x, ul_y, dr_x, dr_y = compute()
         if ul_y < 0:
             y += -ul_y
             ul_x, ul_y, dr_x, dr_y = compute()
         if dr_y > self.img.shape[0]:
-            y -= dr_y-self.img.shape[0]
+            y -= dr_y - self.img.shape[0]
             ul_x, ul_y, dr_x, dr_y = compute()
-        self.set_center((x,y))
+        self.set_center((x, y))
 
     def _update_buffer(self):
         """
@@ -813,28 +783,30 @@ class ImageManipulate(wx.Panel):
         self._dirty = False
 
         view = self.GetClientSize()
-        view = (view[0]/self.scale, view[1]/self.scale)
+        view = (view[0] / self.scale, view[1] / self.scale)
         imgview, region = crop_img(self.img, view, self.center)
         imgview = fastResize(imgview, self.scale)
 
         h = imgview.shape[0]
         w = imgview.shape[1]
         if w != self._buffer.GetWidth() or h != self._buffer.GetHeight():
-            self._buffer = wx.EmptyBitmap(w,h)
+            self._buffer = wx.EmptyBitmap(w, h)
         dc = wx.MemoryDC(self._buffer)
         dc.SetBackground(wx.Brush("White"))
         dc.Clear()
         dc.DrawBitmap(util_gui.NumpyToWxBitmap(imgview), 0, 0)
         dc.SelectObject(wx.NullBitmap)
 
-    ## Event Handlers
+    # Event Handlers
     def onLeftDown(self, evt):
-        #self.GetFocus()
+        # self.GetFocus()
         pass
+
     def onLeftUp(self, evt):
         pass
+
     def onMotion(self, evt):
-        x,y = evt.GetPosition()
+        x, y = evt.GetPosition()
         if self.state == ImageManipulate.STATE_IDLE:
             if evt.LeftIsDown():
                 xdelta = x - self._oldx
@@ -859,41 +831,44 @@ class ImageManipulate(wx.Panel):
         self._dirty = True
         self.Refresh()
 
-def crop_img(img, size, center=(0,0)):
+
+def crop_img(img, size, center=(0, 0)):
     """
     Given a numpy array, return a size=(w,h) crop, centered at the
     given 'center'.
     """
-    w,h = size
+    w, h = size
     h_img = img.shape[0]
     w_img = img.shape[1]
     xc, yc = center
-    ul_x = int(round(xc - (w/2.0)))
-    ul_y = int(round(yc - (h/2.0)))
-    lr_x = int(round(xc + (w/2.0)))
-    lr_y = int(round(yc + (h/2.0)))
+    ul_x = int(round(xc - (w / 2.0)))
+    ul_y = int(round(yc - (h / 2.0)))
+    lr_x = int(round(xc + (w / 2.0)))
+    lr_y = int(round(yc + (h / 2.0)))
     if ul_x < 0:
         lr_x += abs(ul_x)
-    elif lr_x > w_img-1:
-        ul_x -= (lr_x - (w_img-1))
+    elif lr_x > w_img - 1:
+        ul_x -= (lr_x - (w_img - 1))
     if ul_y < 0:
         lr_y += abs(ul_y)
-    elif lr_y > h_img-1:
-        ul_y -= (lr_y - (h_img-1))
+    elif lr_y > h_img - 1:
+        ul_y -= (lr_y - (h_img - 1))
     ul_x = max(0, ul_x)
     ul_y = max(0, ul_y)
-    lr_x = min(w_img-1, lr_x)
-    lr_y = min(h_img-1, lr_y)
+    lr_x = min(w_img - 1, lr_x)
+    lr_y = min(h_img - 1, lr_y)
 
     return img[ul_y:lr_y, ul_x:lr_x], (ul_x, ul_y, lr_x, lr_y)
 
-def fastResize(I,rszFac):
-    Icv=cv.fromarray(np.copy(I))
-    I1cv=cv.CreateMat(int(math.floor(I.shape[0]*rszFac)),
-                      int(math.floor(I.shape[1]*rszFac)),Icv.type)
-    cv.Resize(Icv,I1cv)
-    Iout=np.asarray(I1cv)
+
+def fastResize(I, rszFac):
+    Icv = cv.fromarray(np.copy(I))
+    I1cv = cv.CreateMat(int(math.floor(I.shape[0] * rszFac)),
+                        int(math.floor(I.shape[1] * rszFac)), Icv.type)
+    cv.Resize(Icv, I1cv)
+    Iout = np.asarray(I1cv)
     return Iout
+
 
 def focus_on_contest(imgman, contest_bbox):
     """
@@ -905,13 +880,13 @@ def focus_on_contest(imgman, contest_bbox):
         tuple contest_bbox: A tuple of the form (x, y, width, height)
     """
     x, y, w, h = contest_bbox
-    xc, yc = (int(round(x+(w/2.0))),
-              int(round(y+(h/2.0))))
-    imgman.set_center((xc,yc))
+    xc, yc = (int(round(x + (w / 2.0))),
+              int(round(y + (h / 2.0))))
+    imgman.set_center((xc, yc))
     # Now, resize the imgman
     w_parent, h_parent = imgman.parent.GetClientSize()
-    new_h = min(h_parent-20, int(round(imgman.scale*h)))
-    imgman.set_size((int(round(imgman.scale*w)),
+    new_h = min(h_parent - 20, int(round(imgman.scale * h)))
+    imgman.set_size((int(round(imgman.scale * w)),
                      new_h))
     imgman.parent.Layout()
 
@@ -921,6 +896,7 @@ file.
 Counter class is pulled from:
     http://code.activestate.com/recipes/576611/
 """
+
 
 class Counter(dict):
     '''Dict subclass for counting hashable objects.  Sometimes called a bag
@@ -1003,7 +979,8 @@ class Counter(dict):
                     for elem, count in iterable.iteritems():
                         self[elem] = self_get(elem, 0) + count
                 else:
-                    dict.update(self, iterable) # fast path when counter is empty
+                    # fast path when counter is empty
+                    dict.update(self, iterable)
             else:
                 self_get = self.get
                 for elem in iterable:
@@ -1104,9 +1081,11 @@ class Counter(dict):
                 result[elem] = newcount
         return result
 
+
 def encodepath(p):
     import hashlib
     return hashlib.sha224(p).hexdigest()
+
 
 def is_multipage(project):
     """
@@ -1114,64 +1093,33 @@ def is_multipage(project):
     is multipage or not.
     """
     #ballot_to_images_path = project.ballot_to_images
-    #try:
+    # try:
     #    return len(pickle.load(open(ballot_to_images_path)).items()[0][1]) != 1
-    #except:
+    # except:
     #    return False
     return project.is_multipage
 
-def to_straightened_path(imgpath, rootdir, straightdir):
-    """
-    Given an absolute path to an image, return the corresponding
-    path to the straightened version of the image.
-    Input:
-        str imgpath: absolute path to raw image
-        str rootdir: the raw (absolute) root directory (e.g. project.raw_samplesdir)
-        str straightdir: the (absolute) path to the root straightened
-                         directory (e.g. project.samplesdir)
-    """
-    # Get rid of trailing slashes
-    imgpath = imgpath.rstrip('/')
-    rootdir = rootdir.rstrip('/')
-    straightdir = straightdir.rstrip('/')
-    def common_prefix(str1, str2):
-        """
-        Return the number of chars that str1, str2 have in common,
-        starting from left-to-right
-        """
-        for i in range(len(str1)):
-            if i >= len(str2) or str1[i] != str2[i]:
-                return i
-        return i
-    i = common_prefix(imgpath, rootdir)
-    leaf_imgpath = imgpath[i:].lstrip('/')
-    return os.path.join(straightdir, leaf_imgpath)
 
-def replace_exts(files, ext):
+def sort_nicely(l):
+    """ Sort the given list in the way that humans expect. Does an inplace sort.
+    From:
+        http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
     """
-    Replace all extensions in files with ext. 'ext' should include the
-    '.' (dot).
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    l.sort(key=alphanum_key)
+
+
+def sorted_nicely(l):
+    """ Sort the given list in the way that humans expect. Returns a new
+    list.
+    From:
+        http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
     """
-    return [os.path.splitext(f)[0]+ext for f in files]
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 
-def sort_nicely( l ):
-  """ Sort the given list in the way that humans expect. Does an inplace sort.
-  From:
-      http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
-  """
-  convert = lambda text: int(text) if text.isdigit() else text
-  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
-  l.sort( key=alphanum_key )
-
-def sorted_nicely( l ):
-  """ Sort the given list in the way that humans expect. Returns a new
-  list.
-  From:
-      http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
-  """
-  convert = lambda text: int(text) if text.isdigit() else text
-  alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
-  return sorted(l, key=alphanum_key)
 
 def pdb_on_crash(f):
     """
@@ -1184,6 +1132,7 @@ def pdb_on_crash(f):
             import pdb as err_pdb
             err_pdb.post_mortem()
     return res
+
 
 def get_memory_stats():
     """ Returns statistics on system memory, in bytes. Requires the
@@ -1199,6 +1148,7 @@ def get_memory_stats():
     except ImportError:
         raise Exception("Module psutil not detected.")
 
+
 def as_thread(func):
     '''
     This decorator allows us to wrap up a single lexically scoped
@@ -1207,10 +1157,12 @@ def as_thread(func):
     general , but it makes a lot of code shorter right now.
     '''
     class WrappedFunction(threading.Thread):
+
         def run(self):
             return func()
     WrappedFunction.__name__ = func.__name__
     return WrappedFunction()
+
 
 def as_process(func):
     '''
@@ -1220,13 +1172,16 @@ def as_process(func):
     general , but it makes a lot of code shorter right now.
     '''
     queue = multiprocessing.Queue()
+
     class WrappedFunction(multiprocessing.Process):
+
         def run(self):
             queue.put(func())
     WrappedFunction.__name__ = func.__name__
     w = WrappedFunction()
     w.start()
     return queue.get
+
 
 @contextlib.contextmanager
 def time_operation(op):
@@ -1239,6 +1194,7 @@ def time_operation(op):
     yield
     dur = time.time() - t
     debug('done {0} in {1}s', op, dur)
+
 
 def main():
     app = wx.App(False)

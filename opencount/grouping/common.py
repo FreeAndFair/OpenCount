@@ -1,10 +1,13 @@
-import sys, os, pdb, time, traceback
+import sys
+import os
+import pdb
+import time
+import traceback
 from os.path import join as pathjoin
 
 try:
     import cPickle as pickle
 except ImportError as e:
-    print "Can't import cPickle. Falling back to pickle."
     import pickle
 
 import wx
@@ -25,19 +28,20 @@ import cust_attrs
 import cluster_imgs
 import partask
 
-DUMMY_ROW_ID = -42 # Also defined in label_attributes.py
+DUMMY_ROW_ID = -42  # Also defined in label_attributes.py
 
 # Special ID's used for Attributes
 TABULATION_ONLY_ID = 1
 DIGIT_BASED_ID = 2
+
 
 class AttributeBox(BoundingBox):
     """
     Represents a bounding box around a ballot attribute.
     """
 
-    def __init__(self, x1, y1, x2, y2, label='', color=None, 
-                 id=None, is_contest=False, contest_id=None, 
+    def __init__(self, x1, y1, x2, y2, label='', color=None,
+                 id=None, is_contest=False, contest_id=None,
                  target_id=None,
                  line_width=None, children=None,
                  is_new=False, is_selected=False,
@@ -70,7 +74,7 @@ class AttributeBox(BoundingBox):
 
     def add_attrtypes(self, attrtypes, attrvals=None):
         if not attrvals:
-            attrvals = (None,)*len(attrtypes)
+            attrvals = (None,) * len(attrtypes)
         assert len(attrtypes) == len(attrvals)
         for i, attrtype in enumerate(attrtypes):
             self.set_attrtype(attrtype, attrvals[i])
@@ -95,12 +99,12 @@ self.attrs: {1}".format(oldname, self.attrs)
 
     def copy(self):
         """ Return a copy of myself """
-        return AttributeBox(self.x1, self.y1, 
-                           self.x2, self.y2, label=self.label,
-                           color=self.color, id=self.id, is_contest=self.is_contest,
-                           contest_id=self.contest_id, is_new=self.is_new,
-                           is_selected=self.is_selected,
-                           target_id=self.target_id,
+        return AttributeBox(self.x1, self.y1,
+                            self.x2, self.y2, label=self.label,
+                            color=self.color, id=self.id, is_contest=self.is_contest,
+                            contest_id=self.contest_id, is_new=self.is_new,
+                            is_selected=self.is_selected,
+                            target_id=self.target_id,
                             attrs=self.attrs,
                             side=self.side, is_digitbased=self.is_digitbased,
                             is_tabulationonly=self.is_tabulationonly)
@@ -118,7 +122,7 @@ self.attrs: {1}".format(oldname, self.attrs)
 
     @staticmethod
     def unmarshall(data):
-        box = AttributeBox(0,0,0,0)
+        box = AttributeBox(0, 0, 0, 0)
         for (propname, propval) in data.iteritems():
             setattr(box, propname, propval)
         return box
@@ -126,15 +130,19 @@ self.attrs: {1}".format(oldname, self.attrs)
     def __eq__(self, a):
         return (a and self.x1 == a.x1 and self.y1 == a.y1 and self.x2 == a.x2
                 and self.y2 == a.y2 and self.is_contest == a.is_contest
-                and self.label == a.label and self.attrs == a.attrs 
+                and self.label == a.label and self.attrs == a.attrs
                 and self.side == a.side and self.is_digitbased == a.is_digitbased
                 and self.is_tabulationonly == a.is_tabulationonly)
+
     def __repr__(self):
         return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6},is_tabonly{7})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased, self.is_tabulationonly)
+
     def __str___(self):
         return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6},is_tabonly{7})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased, self.is_tabulationonly)
 
+
 class IWorldState(WorldState):
+
     def __init__(self, box_locations=None):
         WorldState.__init__(self, box_locations=box_locations)
 
@@ -158,8 +166,8 @@ class IWorldState(WorldState):
         for b in self.get_boxes_all_list():
             if b.has_attrtype(attrtype):
                 return b
-        print "== Error: In IWorldState.get_attrbox, no AttributeBox \
-with type {0} was found."
+        error('In IWorldState.get_attrbox, no AttributeBox '
+              'with type {0} was found.', attrtype)
         return None
 
     def get_attrboxes(self):
@@ -192,17 +200,19 @@ with type {0} was found."
     def mutate(self, iworld):
         WorldState.mutate(self, iworld)
 
+
 def dump_attrboxes(attrboxes, filepath):
     listdata = [b.marshall() for b in attrboxes]
     f = open(filepath, 'wb')
     pickle.dump(listdata, f)
     f.close()
+
+
 def load_attrboxes(filepath):
     f = open(filepath, 'rb')
     listdata = pickle.load(f)
     f.close()
     return [AttributeBox.unmarshall(b) for b in listdata]
-
 
 
 def marshall_iworldstate(world):
@@ -216,6 +226,7 @@ def marshall_iworldstate(world):
             b_data = b.marshall()
             boxlocs.setdefault(temppath, []).append(b_data)
     return boxlocs
+
 
 def unmarshall_iworldstate(data):
     """
@@ -233,15 +244,18 @@ def unmarshall_iworldstate(data):
     iworld.box_locations = new_boxlocations
     return iworld
 
+
 def load_iworldstate(filepath):
     f = open(filepath, 'rb')
     data = pickle.load(filepath)
     return unmarshall_iworldstate(data)
 
+
 def dump_iworldstate(iworld, filepath):
     f = open(filepath, 'wb')
     pickle.dump(marshall_iworldstate(iworld), f)
     f.close()
+
 
 def resize_img_norescale(img, size):
     """ Resizes img to be a given size without rescaling - it only
@@ -252,13 +266,14 @@ def resize_img_norescale(img, size):
     Output:
         A numpy array with shape (h,w)
     """
-    w,h = size
-    shape = (h,w)
+    w, h = size
+    shape = (h, w)
     out = np.zeros(shape)
     i = min(img.shape[0], out.shape[0])
     j = min(img.shape[1], out.shape[1])
-    out[0:i,0:j] = img[0:i, 0:j]
+    out[0:i, 0:j] = img[0:i, 0:j]
     return out
+
 
 def get_attrtypes(project, with_digits=True):
     """
@@ -276,6 +291,7 @@ def get_attrtypes(project, with_digits=True):
             result.add(attrs_str)
     return result
 
+
 def get_attrtypes_all(project):
     """
     Returns all attrtypes, including CustomAttributes.
@@ -287,17 +303,19 @@ def get_attrtypes_all(project):
             attrtypes.append(cattr.attrname)
     return set(attrtypes)
 
+
 def exists_imgattrs(proj):
     """ Returns True if there exists at least one image based attribute
     (i.e. a non-custom+non-digit based attr).
     """
-    # attrs does NOT include CustomAttributes (these are stored in 
+    # attrs does NOT include CustomAttributes (these are stored in
     # custom_attrs.p), so no need to check for them.
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     for attr in attrs:
         if not attr['is_digitbased']:
             return True
     return False
+
 
 def exists_digitattrs(proj):
     """ Returns True if there exists at least one digit-based attr. """
@@ -307,10 +325,12 @@ def exists_digitattrs(proj):
             return True
     return False
 
+
 def exists_customattrs(proj):
     """ Returns True if there exists at least one Custom attr. """
     customattrsP = pathjoin(proj.projdir_path, proj.custom_attrs)
     return os.path.exists(customattrsP)
+
 
 def is_tabulationonly(project, attrtype):
     """ Returns True if the attrtype is for tabulationonly. """
@@ -328,6 +348,7 @@ def is_tabulationonly(project, attrtype):
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
+
 def is_digitbased(project, attrtype):
     """ Returns True if the attrtype is digit-based. """
     attrtypes_dicts = pickle.load(open(project.ballot_attributesfile, 'rb'))
@@ -344,6 +365,7 @@ def is_digitbased(project, attrtype):
     # Means we can't find attrtype anywhere.
     assert False, "Can't find attrtype: {0}".format(attrtype)
 
+
 def is_quarantined(project, path):
     """ Returns True if the image path was quarantined by the user. """
     if not os.path.exists(project.quarantined):
@@ -357,6 +379,7 @@ def is_quarantined(project, path):
     f.close()
     return False
 
+
 def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
     """ Given a grouplabel, return both the attrtype of the grouplabel
     and the attrval. Assumes the newer grouplabel_record interface.
@@ -364,7 +387,7 @@ def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
     # Assumes that non-digitbased grouplabels look like:
     #     frozenset([('party', 'democratic'), ('imageorder', 1), ('flip', 0)])
     if type(gl_idx) != int:
-        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        error("Uhoh, expected int index, got {0} instead.", type(gl_idx))
         traceback.print_exc()
         pdb.set_trace()
 
@@ -378,6 +401,7 @@ def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
             attrval = v
             break
     return attrtype, attrval
+
 
 def get_attr_side(project, attrtype):
     """ Returns which side of the ballot this attrtype was defined
@@ -393,9 +417,10 @@ def get_attr_side(project, attrtype):
         if cattr.attrname == attrtype:
             # The side is irrelevant.
             return 0
-    print "Uhoh, couldn't find attribute:", attrtype
+    error("couldn't find attribute: {0}", attrtype)
     pdb.set_trace()
     return None
+
 
 def get_attr_prop(project, attrtype, prop):
     """ Returns the property of the given attrtype. """
@@ -404,9 +429,10 @@ def get_attr_prop(project, attrtype, prop):
         attrstr = get_attrtype_str(attrdict['attrs'])
         if attrstr == attrtype:
             return attrdict[prop]
-    print "Uhoh, couldn't find attribute:", attrtype
+    error("couldn't find attribute: {0}", attrtype)
     pdb.set_trace()
     return None
+
 
 def get_numdigits(project, attr):
     """Return the number of digits that this digit-based attribute
@@ -423,14 +449,16 @@ def get_numdigits(project, attr):
         return None
     return int(numdigits_map[attr])
 
+
 def get_digitbased_attrs(project):
     allattrs = get_attrtypes(project)
     return [attr for attr in allattrs if is_digitbased(project, attr)]
 
+
 def is_digit_grouplabel(gl_idx, project, gl_record=None):
     """ Return True if this grouplabel is digit-based. """
     if type(gl_idx) != int:
-        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        error("Uhoh, expected int index, got {0} instead.", type(gl_idx))
         traceback.print_exc()
         pdb.set_trace()
 
@@ -444,6 +472,7 @@ def is_digit_grouplabel(gl_idx, project, gl_record=None):
             break
     return is_digitbased(project, attrtype)
 
+
 def get_attrtype_str(attrtypes):
     """Returns a 'canonical' string-representation of the attributes
     of a ballot attribute.
@@ -455,7 +484,8 @@ def get_attrtype_str(attrtypes):
         lst attrtypes: List of strings
     """
     return '_'.join(sorted(attrtypes))
-    
+
+
 def remove_common_pathpart(rootdir, path):
     """ Given two paths, a root and a path, return just the part of
     path that starts at root:
@@ -467,9 +497,10 @@ def remove_common_pathpart(rootdir, path):
     if not rootdir.endswith('/'):
         rootdir += '/'
     if not path_abs.startswith(rootdir_abs):
-        print "Wait, wat? Perhaps invalid arguments to remove_common_pathpart"
+        error("invalid arguments to remove_common_pathpart(?)")
         pdb.set_trace()
     return path_abs[:len(rootdir_abs)]
+
 
 def num_common_prefix(*args):
     """
@@ -486,21 +517,27 @@ def num_common_prefix(*args):
         result += 1
     return result
 
+
 def is_img_ext(f):
     return os.path.splitext(f.lower())[1].lower() in ('.bmp', '.jpg',
                                                       '.jpeg', '.png',
                                                       '.tif', '.tiff')
+
+
 def get_imagepaths(dir):
     """ Given a directory, return all imagepaths. """
     results = []
     for dirpath, dirnames, filenames in os.path.walk(dir):
-        results.append([pathjoin(dirpath, imname) 
+        results.append([pathjoin(dirpath, imname)
                         for imname in filter(is_img_ext, filenames)])
     return results
+
 
 def save_grouplabel_record(proj, grouplabel_record):
     outP = pathjoin(proj.projdir_path, proj.grouplabels_record)
     pickle.dump(grouplabel_record, open(outP, 'wb'))
+
+
 def load_grouplabel_record(proj):
     """ Returns None if the grouplabel_record hasn't been created
     yet.
@@ -512,11 +549,13 @@ def load_grouplabel_record(proj):
 
 """ GroupLabel Data Type """
 
+
 def make_grouplabel(*args):
     """ Given k-v tuples, returns a grouplabel.
     >>> make_grouplabel(('precinct', '380400'), ('side', 0))
     """
     return frozenset(args)
+
 
 def get_propval(gl_idx, property, proj, gl_record=None):
     """ Returns the value of a property in a grouplabel, or None
@@ -529,7 +568,7 @@ def get_propval(gl_idx, property, proj, gl_record=None):
     True
     """
     if type(gl_idx) != int:
-        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        error("expected int index, got {0} instead.", type(gl_idx))
         traceback.print_exc()
         pdb.set_trace()
     if gl_record == None:
@@ -539,10 +578,11 @@ def get_propval(gl_idx, property, proj, gl_record=None):
             return v
     return None
 
+
 def str_grouplabel(gl_idx, proj, gl_record=None):
     """ Returns a string-representation of the grouplabel. """
     if type(gl_idx) != int:
-        print "Uhoh, expected int index, got {0} instead.".format(type(gl_idx))
+        error("expected int index, got {0} instead.", type(gl_idx))
         traceback.print_exc()
         pdb.set_trace()
 
@@ -555,28 +595,30 @@ def str_grouplabel(gl_idx, proj, gl_record=None):
         out += '{0}->{1}, '.format(k, v)
     return out
 
+
 def get_median_img(imgpaths):
     """ Given a list of images, return the image with the median average
     intensity.
     """
-    scorelist = [] # [(score_i, imgpath_i), ...]
+    scorelist = []  # [(score_i, imgpath_i), ...]
     for imgpath in imgpaths:
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
         scorelist.append((score, imgpath))
     if not scorelist:
-        print "No imgpaths passed in."
+        error("No imgpaths passed in.")
         return None
     elif len(scorelist) <= 2:
         return scorelist[0][1]
-    return scorelist[int(len(scorelist)/2)][1]
+    return scorelist[int(len(scorelist) / 2)][1]
+
 
 def get_avglightest_img(imgpaths):
     """ Given a list of image paths, return the image with the lightest
     average intensity.
     """
     bestpath, bestscore, idx = None, None, None
-    for i,imgpath in enumerate(imgpaths):
+    for i, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
         if bestpath == None or score > bestscore:
@@ -585,12 +627,13 @@ def get_avglightest_img(imgpaths):
             idx = i
     return bestpath, bestscore, idx
 
+
 def get_avgdarkest_img(imgpaths):
     """ Given a list of image paths, return the image with the lightest
     average intensity.
     """
     bestpath, bestscore, idx = None, None, None
-    for i,imgpath in enumerate(imgpaths):
+    for i, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
         if bestpath == None or score < bestscore:
@@ -599,12 +642,14 @@ def get_avgdarkest_img(imgpaths):
             idx = i
     return bestpath, bestscore, idx
 
+
 class GroupClass(object):
     """
     A class that represents a potential group of images.
     """
     # A dict mapping {str label: int count}
     ctrs = {}
+
     def __init__(self, elements, no_overlays=False, user_data=None):
         """
         TODO: Is it really 'sampleid'? Or what?
@@ -625,18 +670,18 @@ class GroupClass(object):
         # Converting to Tuples didn't seem to help - if anything, it hurt?
         #self.elements = tuple(elements) if type(elements) != tuple else elements
         self.elements = elements
-        #for i in range(len(elements)):  # Why did I do this again?
+        # for i in range(len(elements)):  # Why did I do this again?
         #    if not issubclass(type(elements[i][1]), list):
         #        self.elements[i] = list((elements[i][0], list(elements[i][1]), elements[i][2]))
-        self.no_overlays=no_overlays
+        self.no_overlays = no_overlays
         # self.is_misclassify: Used to mark a GroupClass that the user
         # said was 'Misclassified'
         self.is_misclassify = False
-        # orderedAttrVals is a list of grouplabels, whose order is 
+        # orderedAttrVals is a list of grouplabels, whose order is
         # predetermined by some score-metric. Should not change after it
         # is first set.
         self.orderedAttrVals = ()
-        
+
         # The index of the grouplabel (w.r.t self.orderedAttrVals) that
         # this group ostensibly represents. Is 'finalized' when the user
         # clicks 'Ok' within the VerifyOverlay UI.
@@ -647,7 +692,7 @@ class GroupClass(object):
         self.user_data = user_data
 
         self.processElements()
-        
+
         s = str(self.getcurrentgrouplabel())
         if s not in GroupClass.ctrs:
             GroupClass.ctrs[s] = 1
@@ -671,7 +716,7 @@ class GroupClass(object):
         """ Given a bunch of GroupClass objects G, return a new GroupClass
         object that 'merges' all of the elements in G.
         """
-        new_elements = [] # a list, ((sampleid_i, rlist_i, patchpath_i), ...)
+        new_elements = []  # a list, ((sampleid_i, rlist_i, patchpath_i), ...)
         # TODO: Merge user_data's, though, it's not being used at the moment.
         label = None
         g_type = None
@@ -679,14 +724,14 @@ class GroupClass(object):
             if g_type == None:
                 g_type = type(group)
             elif type(group) != g_type:
-                print "Can't merge groups with different types."
+                error("Can't merge groups with different types.")
                 pdb.set_trace()
                 return None
-            
+
             if label == None:
                 label = group.label
             elif group.label != label:
-                print "Can't merge groups with different labels."
+                error("Can't merge groups with different labels.")
                 pdb.set_trace()
                 return None
             new_elements.extend(group.elements)
@@ -699,18 +744,16 @@ class GroupClass(object):
         """ Returns overlayMin, overlayMax """
         if self.no_overlays:
             return None, None
-        print "Generating min/max overlays..."
-        _t = time.time()
-        overlayMin, overlayMax = do_generate_overlays(self)
-        print "...Finished Generating min/max overlays. ({0} s)".format(time.time() - _t)
-        return overlayMin, overlayMax
+        with util.time("Generating min/max overlays"):
+            return do_generate_overlays(self)
 
     def __eq__(self, o):
         return (o and issubclass(type(o), GroupClass) and
                 self.elements == o.elements)
-        
+
     def __str__(self):
         return "GroupClass({0} elems)".format(len(self.elements))
+
     def __repr__(self):
         return "GroupClass({0} elems)".format(len(self.elements))
 
@@ -722,39 +765,11 @@ class GroupClass(object):
         Go through the elements, and compile an ordered list of
         gropulabels for self.orderedAttrVals.
         """
-        def sanitycheck_rankedlists(elements):
-            """Make sure that the first grouplabel for each rankedlist
-            are all the same grouplabel.
-            TODO: I think this check isn't valid. This check is valid
-                  for elements from GroupClasses computed from Kai's
-                  grouping code, but, if it's incorrect, and the user
-                  manually changes the labelling, then it's entirely
-                  feasible for the user to create a GroupClass where
-                  the first grouplabel of each rankedlist is not the
-                  same.
-            """
-            '''
-            grouplabel = None
-            for (elementid, rankedlist, patchpath) in elements:
-                if grouplabel == None:
-                    if rankedlist:
-                        grouplabel = rankedlist[0]
-                        continue
-                    else:
-                        print 'wat, no rankedlist?!'
-                        pdb.set_trace()
-                elif rankedlist[0] != grouplabel:
-                    print "Error, first element of all rankedlists are \
-not equal."
-                    pdb.set_trace()
-            return True
-            '''
-            return True
-        sanitycheck_rankedlists(self.elements)
         # weightedAttrVals is a dict mapping {[attrval, flipped]: float weight}
         weightedAttrVals = {}
         # self.elements is a list of the form [(imgpath_i, rankedlist_i, patchpath_i), ...]
-        # where each rankedlist_i is tuples of the form: (attrval_i, flipped_i, imageorder_i)
+        # where each rankedlist_i is tuples of the form: (attrval_i, flipped_i,
+        # imageorder_i)
         for element in self.elements:
             # element := (imgpath, rankedlist, patchpath)
             """
@@ -767,12 +782,13 @@ not equal."
                     weightedAttrVals[group] = vote
                 else:
                     weightedAttrVals[group] = weightedAttrVals[group] + vote
-                
+
                 vote = vote / 2.0
         self.orderedAttrVals = tuple([group
-                                      for (group, weight) in sorted(weightedAttrVals.items(), 
-                                                                    key=lambda t: t[1],
-                                                                    reverse=True)])
+                                      for (group, weight)
+                                      in sorted(weightedAttrVals.items(),
+                                                key=lambda t: t[1],
+                                                reverse=True)])
 
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
@@ -784,29 +800,33 @@ not equal."
                                    user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 return (DigitGroupClass((self.elements[0],),
-                                   user_data=self.user_data),
+                                        user_data=self.user_data),
                         DigitGroupClass((self.elements[1],),
-                                   user_data=self.user_data))
+                                        user_data=self.user_data))
             else:
-                print "Wat?"
+                error("Inexplicable error")
                 pdb.set_trace()
 
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
-        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        patchpath_map = {}  # maps {patchpath: (sampleid, rlist)}
         for (sampleid, rlist, patchpath) in self.elements:
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
         _t = time.time()
-        print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_downsize=True, do_align=True)
-        print "...Completed running k-means ({0} s).".format(time.time() - _t)
+        with util.time_operation("running k-means."):
+            clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths,
+                                                        k=K,
+                                                        do_downsize=True,
+                                                        do_align=True)
         # 3.) Create GroupClasses
         groups = []
         for clusterid, patchpaths in clusters.iteritems():
-            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            debug("For clusterid {0}, there are {1} elements.",
+                  clusterid,
+                  len(patchpaths))
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
@@ -815,8 +835,8 @@ not equal."
                                          user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 groups.append(DigitGroupClass(elements,
-                                         user_data=self.user_data))
-                
+                                              user_data=self.user_data))
+
         assert len(groups) == K
         return groups
 
@@ -836,28 +856,29 @@ not equal."
                                              user_data=self.user_data))
                 elif type(self) == DigitGroupClass:
                     groups.append(DigitGroupClass((element,),
-                                             user_data=self.user_data))
+                                                  user_data=self.user_data))
                 else:
-                    print "Wat?"
+                    error("Unknown element type: {0}", type(self))
                     pdb.set_trace()
 
             return groups
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
-        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        patchpath_map = {}  # maps {patchpath: (sampleid, rlist)}
         for (sampleid, rlist, patchpath) in self.elements:
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
-        _t = time.time()
-        print "...running PCA+k-means."
-        clusters = cluster_imgs.cluster_imgs_pca_kmeans(patchpaths, k=K, do_align=True)
-        print "...Completed running PCA+k-means ({0} s).".format(time.time() - _t)
+        with util.time_operation("running PCA+k-means."):
+            clusters = cluster_imgs.cluster_imgs_pca_kmeans(
+                patchpaths, k=K, do_align=True)
         # 3.) Create GroupClasses
         groups = []
         for clusterid, patchpaths in clusters.iteritems():
-            print "For clusterid {0}, there are {1} elements.".format(clusterid, len(patchpaths))
+            debug("For clusterid {0}, there are {1} elements.",
+                  clusterid,
+                  len(patchpaths))
             elements = []
             for patchpath in patchpaths:
                 elements.append(patchpath_map[patchpath] + (patchpath,))
@@ -868,9 +889,9 @@ not equal."
                 groups.append(DigitGroupClass(elements,
                                               user_data=self.user_data))
             else:
-                print "Wat?"
+                error("Unknown type: {0}", type(self))
                 pdb.set_trace()
-                
+
         assert len(groups) == K
         return groups
 
@@ -892,47 +913,49 @@ not equal."
                 groups.append(GroupClass(group1, user_data=self.user_data))
                 groups.append(GroupClass(group2, user_data=self.user_data))
             elif type(self) == DigitGroupClass:
-                groups.append(DigitGroupClass(group1, user_data=self.user_data))
-                groups.append(DigitGroupClass(group2, user_data=self.user_data))
+                groups.append(DigitGroupClass(
+                    group1, user_data=self.user_data))
+                groups.append(DigitGroupClass(
+                    group2, user_data=self.user_data))
             else:
-                print "Wat?"
+                error("Unknown group class: {0}", type(self))
                 pdb.set_trace()
             return groups
-            
+
         if n == len(all_rankedlists[0]):
-            print "rankedlists were same for all voted ballots -- \
-doing a naive split instead."
+            debug('rankedlists were same for all voted ballots -- '
+                  'doing a naive split instead.')
             return naive_split(self.elements)
 
         if n == 0:
-            print "== Wait, n shouldn't be 0 here (in GroupClass.split). \
-Changing to n=1, since that makes some sense."
-            print "Enter in 'c' for 'continue' to continue execution."
-            pdb.set_trace()
+            warn('group class splitting shouldn\'t result in a count '
+                 'of zero; setting it to one.')
             n = 1
 
         # group by index 'n' into each ballots attrslist (i.e. ranked list)
         for (samplepath, rankedlist, patchpath) in self.elements:
             if len(rankedlist) <= 1:
-                print "==== Can't split anymore."
+                debug("Can't split anymore.")
                 return [self]
             new_group = rankedlist[n]
-            new_elements.setdefault(new_group, []).append((samplepath, rankedlist, patchpath))
+            new_elements.setdefault(new_group, []).append(
+                (samplepath, rankedlist, patchpath))
 
         if len(new_elements) == 1:
             # no new groups were made -- just do a naive split
-            print "After a 'smart' split, no new groups were made. So, \
-just doing a naive split."
+            debug('After a "smart" split, no new groups were made. So, '
+                  'just doing a naive split.')
             return naive_split(self.elements)
 
-        print 'number of new groups after split:', len(new_elements)
+        debug('number of new groups after split: {0}', len(new_elements))
         for grouplabel, elements in new_elements.iteritems():
             if type(self) == GroupClass:
                 groups.append(GroupClass(elements, user_data=self.user_data))
             elif type(self) == DigitGroupClass:
-                groups.append(DigitGroupClass(elements, user_data=self.user_data))
+                groups.append(DigitGroupClass(
+                    elements, user_data=self.user_data))
             else:
-                print "Wat?"
+                error('Unsupported group class: {0}', type(self))
                 pdb.set_trace()
         return groups
 
@@ -946,9 +969,9 @@ just doing a naive split."
                                    user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 return (DigitGroupClass((self.elements[0],),
-                                   user_data=self.user_data),
+                                        user_data=self.user_data),
                         DigitGroupClass((self.elements[1],),
-                                   user_data=self.user_data))
+                                        user_data=self.user_data))
             else:
                 print "Wat?"
                 pdb.set_trace()
@@ -956,14 +979,14 @@ just doing a naive split."
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
-        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        patchpath_map = {}  # maps {patchpath: (sampleid, rlist)}
         for (sampleid, rlist, patchpath) in self.elements:
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means2"
-        clusters = cluster_imgs.kmeans_2D(patchpaths, k=K, 
+        clusters = cluster_imgs.kmeans_2D(patchpaths, k=K,
                                           distfn_method='vardiff',
                                           do_align=True)
         print "...Completed running k-means2 ({0} s).".format(time.time() - _t)
@@ -984,7 +1007,7 @@ just doing a naive split."
                                          user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 groups.append(DigitGroupClass(elements,
-                                         user_data=self.user_data))
+                                              user_data=self.user_data))
         if len(found_patchpaths) != len(patchpaths):
             print "Uhoh, only found {0} patchpaths, but should have found {1}".format(len(found_patchpaths),
                                                                                       len(patchpaths))
@@ -1002,9 +1025,9 @@ just doing a naive split."
                                    user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 return (DigitGroupClass((self.elements[0],),
-                                   user_data=self.user_data),
+                                        user_data=self.user_data),
                         DigitGroupClass((self.elements[1],),
-                                   user_data=self.user_data))
+                                        user_data=self.user_data))
             else:
                 print "Wat?"
                 pdb.set_trace()
@@ -1012,14 +1035,14 @@ just doing a naive split."
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
-        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        patchpath_map = {}  # maps {patchpath: (sampleid, rlist)}
         for (sampleid, rlist, patchpath) in self.elements:
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-mediods."
-        clusters = cluster_imgs.kmediods_2D(patchpaths, k=K, 
+        clusters = cluster_imgs.kmediods_2D(patchpaths, k=K,
                                             distfn_method='vardiff',
                                             do_align=True)
         print "...Completed running k-mediods ({0} s).".format(time.time() - _t)
@@ -1035,11 +1058,11 @@ just doing a naive split."
                                          user_data=self.user_data))
             elif type(self) == DigitGroupClass:
                 groups.append(DigitGroupClass(elements,
-                                         user_data=self.user_data))
-                
+                                              user_data=self.user_data))
+
         assert len(groups) == K
         return groups
-        
+
     def split(self, mode='kmeans'):
         if mode == 'rankedlist':
             return self.split_rankedlist()
@@ -1055,10 +1078,12 @@ just doing a naive split."
             print "Unrecognized mode: {0}. Defaulting to kmeans.".format(mode)
             return self.split_kmeans(K=2)
 
+
 class DigitGroupClass(GroupClass):
     """
     A class that represents a potential group of digits.
     """
+
     def __init__(self, elements, no_overlays=False, user_data=None,
                  *args, **kwargs):
         GroupClass.__init__(self, elements, no_overlays=no_overlays,
@@ -1111,14 +1136,15 @@ class DigitGroupClass(GroupClass):
         # 1.) Gather images
         patchpaths = []
         # patchpath_map used to re-construct 'elements' later on.
-        patchpath_map = {} # maps {patchpath: (sampleid, rlist)} 
+        patchpath_map = {}  # maps {patchpath: (sampleid, rlist)}
         for (sampleid, rlist, patchpath) in self.elements:
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
         _t = time.time()
         print "...running k-means."
-        clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths, k=K, do_align=True)
+        clusters = cluster_imgs.cluster_imgs_kmeans(
+            patchpaths, k=K, do_align=True)
         print "...Completed running k-means ({0} s).".format(time.time() - _t)
         # 3.) Create DigitGroupClasses
         groups = []
@@ -1131,7 +1157,7 @@ class DigitGroupClass(GroupClass):
                                           user_data=self.user_data))
         assert len(groups) == K
         return groups
-        
+
 
 def do_generate_overlays(group):
     """ Given a GroupClass, generate the Min/Max overlays. """
@@ -1144,6 +1170,7 @@ def do_generate_overlays(group):
                                   combfn=_my_combfn_overlays,
                                   init=(None, None))
 
+
 def _generate_overlays(elements):
     overlayMin, overlayMax = None, None
     for element in elements:
@@ -1154,20 +1181,22 @@ def _generate_overlays(elements):
         else:
             if overlayMin.shape != img.shape:
                 h, w = overlayMin.shape
-                img = resize_img_norescale(img, (w,h))
+                img = resize_img_norescale(img, (w, h))
             overlayMin = np.fmin(overlayMin, img)
         if (overlayMax == None):
             overlayMax = img
         else:
             if overlayMax.shape != img.shape:
                 h, w = overlayMax.shape
-                img = resize_img_norescale(img, (w,h))
+                img = resize_img_norescale(img, (w, h))
             overlayMax = np.fmax(overlayMax, img)
 
-    rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-    overlayMax = sh.fastResize(overlayMax, rszFac) #/ 255.0
-    overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
+    rszFac = sh.resizeOrNot(overlayMax.shape, sh.MAX_PRECINCT_PATCH_DISPLAY)
+    overlayMax = sh.fastResize(overlayMax, rszFac)  # / 255.0
+    overlayMin = sh.fastResize(overlayMin, rszFac)  # / 255.0
     return overlayMin, overlayMax
+
+
 def _my_combfn_overlays(result, subresult):
     """ result, subresult are (np img_min, np img_max). Overlay the
     min's and max's together.
@@ -1179,23 +1208,25 @@ def _my_combfn_overlays(result, subresult):
     else:
         if imgmin.shape != imgmin_sub.shape:
             h, w = imgmin.shape
-            imgmin_sub = resize_img_norescale(imgmin_sub, (w,h))
+            imgmin_sub = resize_img_norescale(imgmin_sub, (w, h))
         imgmin = np.fmin(imgmin, imgmin_sub)
     if imgmax == None:
         imgmax = imgmax_sub
     else:
         if imgmax.shape != imgmax_sub.shape:
             h, w = imgmax.shape
-            imgmax_sub = resize_img_norescale(imgmax_sub, (w,h))
+            imgmax_sub = resize_img_norescale(imgmax_sub, (w, h))
         imgmax = np.fmax(imgmax, imgmax_sub)
     return imgmin, imgmax
+
 
 class TextInputDialog(wx.Dialog):
     """
     A dialog to accept N user inputs.
     """
-    def __init__(self, parent, caption="Please enter your input(s).", 
-                 labels=('Input 1:',), 
+
+    def __init__(self, parent, caption="Please enter your input(s).",
+                 labels=('Input 1:',),
                  vals=('',),
                  *args, **kwargs):
         """
@@ -1203,7 +1234,8 @@ class TextInputDialog(wx.Dialog):
               number of inputs desired.
         vals: An optional list of values to pre-populate the inputs.
         """
-        wx.Dialog.__init__(self, parent, title='Input required', *args, **kwargs)
+        wx.Dialog.__init__(
+            self, parent, title='Input required', *args, **kwargs)
         self.parent = parent
 
         # self.results maps {str label: str value}
@@ -1252,27 +1284,31 @@ class TextInputDialog(wx.Dialog):
         for txt, input_ctrl in self.input_pairs:
             self.results[txt.GetLabel()] = input_ctrl.GetValue()
         self.EndModal(wx.ID_OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
 
 class SingleChoiceDialog(wx.Dialog):
     """
     A Dialog to allow the user to select one of N choices.
     """
+
     def __init__(self, parent, message="Please make a choice.", choices=[], *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
-        
+
         # self.result will be the user-selected choice
         self.result = None
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         txt1 = wx.StaticText(self, label=message)
         sizer.Add(txt1)
-        radio_btns = [] # List of [(str choice_i, obj RadioButton_i), ...]
+        radio_btns = []  # List of [(str choice_i, obj RadioButton_i), ...]
         self.radio_btns = radio_btns
         for i, choice in enumerate(choices):
             if i == 0:
-                radiobtn = wx.RadioButton(self, label=choice, style=wx.RB_GROUP)
+                radiobtn = wx.RadioButton(
+                    self, label=choice, style=wx.RB_GROUP)
             else:
                 radiobtn = wx.RadioButton(self, label=choice)
             radio_btns.append((choice, radiobtn))
@@ -1292,8 +1328,10 @@ class SingleChoiceDialog(wx.Dialog):
             if radiobtn.GetValue() == True:
                 self.result = choice
         self.EndModal(wx.ID_OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
 
 def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
                 rejected_hashes=None, accepted_hashes=None,
@@ -1331,16 +1369,19 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
             path_flip, ocrstr_flip, meta_flip = results_flip[idx]
             assert path_noflip == path_flip
             assert len(meta_noflip) == len(meta_flip)
-            avg_score_noflip = sum([tup[6] for tup in meta_noflip]) / float(len(meta_noflip))
-            avg_score_flip = sum([tup[6] for tup in meta_flip]) / float(len(meta_flip))
+            avg_score_noflip = sum(
+                [tup[6] for tup in meta_noflip]) / float(len(meta_noflip))
+            avg_score_flip = sum([tup[6]
+                                  for tup in meta_flip]) / float(len(meta_flip))
             if avg_score_noflip > avg_score_flip:
-                results.append((path_noflip, ocrstr_noflip, meta_noflip, False))
+                results.append(
+                    (path_noflip, ocrstr_noflip, meta_noflip, False))
             else:
                 results.append((path_flip, ocrstr_flip, meta_flip, True))
         assert len(results) == len(results_noflip)
         assert len(results) == len(results_flip)
         return results
-    
+
     if not bb:
         imgsize = misc.imread(imgpath, flatten=True).shape
         bb = (0, imgsize[0], 0, imgsize[1])
@@ -1360,6 +1401,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     results_best = get_best_flip(results_noflip, results_flip)
     return results_best
 
+
 def munge_pm_results(results):
     """ Converts results format from part_match.digitParse to the output
     format of shared.digitParse.
@@ -1377,7 +1419,7 @@ def munge_pm_results(results):
             print "Uhoh, not all were equal length."
             pdb.set_trace()
         assert len(imgpatches) == len(patchcoords) == len(scores)
-        for i, (y1,y2,x1,x2) in enumerate(patchcoords):
+        for i, (y1, y2, x1, x2) in enumerate(patchcoords):
             try:
                 digit = ocrstr[i]
             except Exception as e:
@@ -1387,9 +1429,10 @@ during LabelDigitAttrs?"
                 pdb.set_trace()
             digitimg = imgpatches[i]
             score = scores[i]
-            meta.append((y1,y2,x1,x2,digit,digitimg,score))
+            meta.append((y1, y2, x1, x2, digit, digitimg, score))
         out.append((imgpath, ocrstr, meta))
     return out
+
 
 def par_extract_patches(tasks):
     """ Parallelizes the following task:
@@ -1400,7 +1443,8 @@ def par_extract_patches(tasks):
     """
     # TODO: I should probably be nuked.
     partask.do_partask(imgmap)
-                       
+
+
 def is_blankballot_contests_eq(*blankpaths):
     """ Returns True if the input blank ballots contain the same contests,
     False otherwise.
@@ -1420,19 +1464,22 @@ def is_blankballot_contests_eq(*blankpaths):
 
 if __name__ == '__main__':
     class MyFrame(wx.Frame):
+
         def __init__(self, parent, *args, **kwargs):
             wx.Frame.__init__(self, parent, *args, **kwargs)
             btn = wx.Button(self, label="Click me")
             btn.Bind(wx.EVT_BUTTON, self.onButton)
-            
+
         def onButton(self, evt):
-            dlg = TextInputDialog(self, labels=("Input 1:", "Input 2:", "Input 3:"))
+            dlg = TextInputDialog(self, labels=(
+                "Input 1:", "Input 2:", "Input 3:"))
             dlg.ShowModal()
             print dlg.results
     app = wx.App(False)
     frame = MyFrame(None)
     frame.Show()
     app.MainLoop()
+
 
 def log_misclassify_ballots(proj, elements):
     """ Logs misclassified ballots to a logfile. """

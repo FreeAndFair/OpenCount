@@ -1,4 +1,11 @@
-import os, sys, threading, multiprocessing, shutil, pdb, time, random
+import os
+import sys
+import threading
+import multiprocessing
+import shutil
+import pdb
+import time
+import random
 try:
     import cPickle as pickle
 except:
@@ -6,11 +13,16 @@ except:
 from Queue import Empty
 from os.path import join as pathjoin
 
-import wx, cv
+import wx
+import cv
 from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
-import util, tempmatch, group_attrs, common, config
+import util
+import tempmatch
+import group_attrs
+import common
+import config
 import specify_voting_targets.select_targets as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
@@ -84,27 +96,31 @@ ATTRMODE_CUSTOM = "CUSTATTR"
 
 OVERLAY_EXEMPLAR_IMGNAME = '_exemplar_patch.png'
 
+
 class BallotAttributesPanel(OpenCountPanel):
+
     def __init__(self, *args, **kwargs):
         OpenCountPanel.__init__(self, *args, **kwargs)
-        
+
         self.init_ui()
-        
+
     def init_ui(self):
         self.attr_panel = DefineAttributesPanel(self)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.attr_panel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
         self.Layout()
-        
+
     def start(self, proj, stateP, *args, **kwargs):
         self.proj = proj
         self.attr_panel.start(proj, stateP)
         self.proj.addCloseEvent(self.attr_panel.save_session)
+
     def stop(self):
         self.proj.removeCloseEvent(self.attr_panel.save_session)
         self.attr_panel.save_session()
         self.export_results()
+
     def export_results(self):
         pass
 
@@ -122,7 +138,9 @@ class BallotAttributesPanel(OpenCountPanel):
 you are on the last ballot, please click the 'Next' button one more time."
             return [(False, True, msg, ID_IS_DONE, None)]
 
+
 class DefineAttributesPanel(ScrolledPanel):
+
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
 
@@ -137,7 +155,7 @@ class DefineAttributesPanel(ScrolledPanel):
         self.img2flip = None
         self.part2bal = None
         self.bal2part = None
-        
+
         # dict BOXES_MAP: {int ballotID: [AttrBox_i, ...]}
         self.boxes_map = None
 
@@ -152,7 +170,8 @@ class DefineAttributesPanel(ScrolledPanel):
 
         # dict PATCH2BAL: {str patchpath: (int ballotid, attrtype, attrval)}
         self.patch2bal = None
-        # dict BAL2PATCHES: {int ballotid: ((patchpath, attrtype, attrval), ...)}
+        # dict BAL2PATCHES: {int ballotid: ((patchpath, attrtype, attrval),
+        # ...)}
         self.bal2patches = None
 
         # CUR_SIDE: Which side we're displaying
@@ -164,7 +183,7 @@ class DefineAttributesPanel(ScrolledPanel):
         self.tm_threshold = 0.9
 
         # bool HAS_ANYBOX_CHANGED: If a user reviews ballot attribute
-        # annotations, and he/she hasn't changed anything, then we 
+        # annotations, and he/she hasn't changed anything, then we
         # shouldn't re-run multiple attribute exemplar computation.
         # This is the only usecase for this so far.
         self.HAS_ANYBOX_CHANGED = False
@@ -172,7 +191,7 @@ class DefineAttributesPanel(ScrolledPanel):
         self.stateP = None
 
         self.init_ui()
-    
+
     def init_ui(self):
         self.toolbar = ToolBar(self)
         self.boxdraw = DrawAttrBoxPanel(self)
@@ -199,7 +218,7 @@ class DefineAttributesPanel(ScrolledPanel):
                                                    proj.partitions_map), 'rb'))
         self.bal2part = pickle.load(open(pathjoin(proj.projdir_path,
                                                   proj.partitions_invmap), 'rb'))
-        
+
         if not self.restore_session():
             self.ballots_todo = []
             self.ballots_completed = []
@@ -207,7 +226,7 @@ class DefineAttributesPanel(ScrolledPanel):
                                                          proj.partition_exmpls), 'rb'))
             for partitionID, ballotids in partition_exmpls.iteritems():
                 self.ballots_todo.append(ballotids[0])
-                
+
             self.boxes_map = {}
             self.cust_attrs = []
             self.digit_attrs = []
@@ -218,7 +237,8 @@ class DefineAttributesPanel(ScrolledPanel):
             if not self.ballots_todo:
                 status = util.WarningDialog(self, "All ballots have already been annotated.\n\n\
 Would you like to review the ballot annotations?",
-                                            ("Yes, Review All Ballot Annotations", "No, Take Me To The Next Step"),
+                                            ("Yes, Review All Ballot Annotations",
+                                             "No, Take Me To The Next Step"),
                                             (wx.ID_YES, wx.ID_NO)).ShowModal()
                 if status == wx.ID_NO:
                     self.Disable()
@@ -248,25 +268,26 @@ Would you like to review the ballot annotations?",
             where ATTRMODE in ('DIGITBASED', 'IMGBASED', 'CUSTATTR')
             and PROPS has keys: 'attrtype', 'x1','y1','x2','y2', 'is_tabulationonly',
                                 'side', 'grp_per_partition', 'num_digits'
-        
+
         ==== 'Label Attributes' stuff:
-        
+
         dict proj.partition_attrmap: {int partitionid: ([imgpath,x1,y1,w,h,attrtype,attrval,side,isdigitbased,istabonly], ...)}
         dict proj.multexemplars_map: {str attrtype: {str attrval: [(subpatchpath, votedpath, (x1,y1,x2,y2)), ...]}}
             subpatchP := This should point to the exemplar patch itself
             blankpathP := Points to the (entire) voted image that subpatchP came from
             (x1,y1,x2,y2) := BB that, from blankpathP, created subpatchP
-        
+
         imgs proj.attrexemplars_dir:
             Save each exemplar imgpatch for each (attrtype,attrval) to disk.
         """
-        ballot_attrs = [] # [dict attrbox_marsh, ...]
-        attrprops = {} # {str ATTRMODE: dict PROPS}
+        ballot_attrs = []  # [dict attrbox_marsh, ...]
+        attrprops = {}  # {str ATTRMODE: dict PROPS}
         attrprops[ATTRMODE_IMG] = {}
         attrprops[ATTRMODE_DIGIT] = {}
         attrprops[ATTRMODE_CUSTOM] = {}
 
-        ballot_attrs = [attrboxes[0].marshall() for attrboxes in self.attrtypes_map.values()]
+        ballot_attrs = [attrboxes[0].marshall()
+                        for attrboxes in self.attrtypes_map.values()]
         for attrtype, attrboxes in self.attrtypes_map.iteritems():
             attrbox_exmpl = attrboxes[0]
             props = {'attrtype': attrtype,
@@ -282,27 +303,30 @@ Would you like to review the ballot annotations?",
                 attrprops.setdefault(ATTRMODE_IMG, {})[attrtype] = props
         for cattr in self.cust_attrs:
             attrtype = cattr.attrname
-            attrprops.setdefault(ATTRMODE_CUSTOM, {})[attrtype] = cattr.marshall()
-        
+            attrprops.setdefault(ATTRMODE_CUSTOM, {})[
+                attrtype] = cattr.marshall()
+
         pickle.dump(ballot_attrs, open(self.proj.ballot_attributesfile, 'wb'))
         pickle.dump(attrprops, open(pathjoin(self.proj.projdir_path,
                                              self.proj.attrprops), 'wb'))
 
-        partition_attrmap = {} # {int partID: ([imP,x1,y1,w,h,attrtype,attrval,side,isdigitbased,istabonly],...)}
-        
+        # {int partID: ([imP,x1,y1,w,h,attrtype,attrval,side,isdigitbased,istabonly],...)}
+        partition_attrmap = {}
+
         for ballotid, attrboxes in self.boxes_map.iteritems():
             partitionid = self.bal2part[ballotid]
-            imgpaths = sorted(self.bal2imgs[ballotid], key=lambda imP: self.img2page[imP])
+            imgpaths = sorted(
+                self.bal2imgs[ballotid], key=lambda imP: self.img2page[imP])
             attrs_list = []
             for box in attrboxes:
                 attrtype = '_'.join(sorted(box.attrtypes))
                 attrval = '_'.join(sorted(box.attrvals))
                 imP = imgpaths[box.side]
-                stuff = (imP, box.x1, box.y1, int(round(box.x2-box.x1)), int(round(box.y2-box.y1)),
+                stuff = (imP, box.x1, box.y1, int(round(box.x2 - box.x1)), int(round(box.y2 - box.y1)),
                          attrtype, attrval, box.side, box.is_digitbased, box.is_tabulationonly)
                 attrs_list.append(stuff)
             partition_attrmap.setdefault(partitionid, []).extend(attrs_list)
-            
+
         pickle.dump(partition_attrmap, open(pathjoin(self.proj.projdir_path,
                                                      self.proj.partition_attrmap), 'wb'))
 
@@ -313,19 +337,21 @@ Would you like to review the ballot annotations?",
             tlisten = ThreadListener(queue, JOBID_COMPUTE_MULT_EXEMPLARS)
             tlisten.start()
             if config.TIMER:
-                config.TIMER.start_task("BallotAttributes_ComputeMultExemplars_CPU")
+                config.TIMER.start_task(
+                    "BallotAttributes_ComputeMultExemplars_CPU")
             t = ThreadComputeMultExemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
                                            self.patch2bal, self.bal2patches, attrprops,
                                            queue, JOBID_COMPUTE_MULT_EXEMPLARS,
                                            self.on_compute_mult_exemplars_done, tlisten)
             t.start()
-            num_tasks = len(self.attrtypes_map) # Num. attrs
+            num_tasks = len(self.attrtypes_map)  # Num. attrs
             gauge = util.MyGauge(self, 1, thread=t, msg="Computing Multiple Exemplars...",
                                  job_id=JOBID_COMPUTE_MULT_EXEMPLARS)
             gauge.Show()
             JOBID_COMPUTE_MULT_EXEMPLARS.next_job(num_tasks)
         else:
             self.on_compute_mult_exemplars_done(None)
+
     def on_compute_mult_exemplars_done(self, multexemplars_map):
         if config.TIMER:
             config.TIMER.stop_task("BallotAttributes_ComputeMultExemplars_CPU")
@@ -358,6 +384,7 @@ Would you like to review the ballot annotations?",
         except:
             return False
         return True
+
     def save_session(self):
         # 0.) Add new changes from self.BOXDRAW to self.BOXES_MAP, if any
         self.boxes_map[self.cur_ballotid] = self.boxdraw.boxes
@@ -383,8 +410,9 @@ Would you like to review the ballot annotations?",
         if cur_side < 0 or cur_ballotid not in self.ballots_todo:
             return None
 
-        imgpaths = sorted(self.bal2imgs[cur_ballotid], key=lambda imP: self.img2page[imP])
-        
+        imgpaths = sorted(
+            self.bal2imgs[cur_ballotid], key=lambda imP: self.img2page[imP])
+
         if cur_side >= len(imgpaths):
             return None
 
@@ -392,7 +420,8 @@ Would you like to review the ballot annotations?",
         self.cur_ballotid = cur_ballotid
 
         imgpath = imgpaths[cur_side]
-        boxes = [b for b in self.boxes_map.get(cur_ballotid, []) if b.side == self.cur_side]
+        boxes = [b for b in self.boxes_map.get(
+            cur_ballotid, []) if b.side == self.cur_side]
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
         if self.img2flip[imgpath]:
             wximg = wximg.Rotate90().Rotate90()
@@ -417,13 +446,13 @@ Would you like to review the ballot annotations?",
         self.update_ui_text()
         self.Refresh()
         self.boxdraw.Refresh()
-    
+
     def get_attrtypes(self):
         """ Returns a list of all attrtypes currently created so far,
         excluding custom attributes.
         """
         return list(self.attrtypes_map.keys())
-    
+
     def add_custom_attr(self, cattr_box):
         """ Adds the customattribute CATTR_BOX to my data structs.
         Input:
@@ -462,7 +491,8 @@ Would you like to review the ballot annotations?",
             for prop in properties:
                 if getattr(box_prev, prop) != getattr(box_new, prop):
                     wx.MessageDialog(self, message="Changing property! {0} from {1} to {2}".format(prop,
-                                                                                                   getattr(box_prev, prop),
+                                                                                                   getattr(
+                                                                                                       box_prev, prop),
                                                                                                    getattr(box_new, prop))).ShowModal()
                     setattr(box_to_change, prop, getattr(box_to_match, prop))
 
@@ -502,17 +532,19 @@ Would you like to review the ballot annotations?",
             return
         if is_new_attrtype:
             self.ballots_todo.extend(list(self.ballots_completed))
-            self.ballots_completed[:] = [] # clears the list
+            self.ballots_completed[:] = []  # clears the list
             if not attrbox.grp_per_partition:
                 # Attr varies within each partition. Sample N ballots
                 # to label from each partition.
                 set_ballots_todo = set(self.ballots_todo)
                 for partitionid, ballotids in self.part2bals.iteritems():
-                    balids_candidates = [balid for balid in ballotids if balid not in set_ballots_todo]
+                    balids_candidates = [
+                        balid for balid in ballotids if balid not in set_ballots_todo]
                     if not balids_candidates:
                         continue
                     n = int(GRP_MODE_ALL_BALLOTS_NUM * len(balids_candidates))
-                    n = max(min(n, GRP_MODE_ALL_BALLOTS_NUM_MAX), GRP_MODE_ALL_BALLOTS_NUM_MIN)
+                    n = max(min(n, GRP_MODE_ALL_BALLOTS_NUM_MAX),
+                            GRP_MODE_ALL_BALLOTS_NUM_MIN)
                     n = min(n, len(balids_candidates))
                     debug("Sampling {0} ballots from this partition (out of {1})",
                           n, len(ballotids))
@@ -521,9 +553,10 @@ Would you like to review the ballot annotations?",
                         self.ballots_todo.append(balid)
                         # Add in digit-based attrs!
                         for digitbox in self.digit_attrs:
-                            self.boxes_map.setdefault(balid, []).append(digitbox.copy())
-                    
-        attrpatch_outdir = pathjoin(self.proj.projdir_path, 
+                            self.boxes_map.setdefault(
+                                balid, []).append(digitbox.copy())
+
+        attrpatch_outdir = pathjoin(self.proj.projdir_path,
                                     self.proj.extract_attrs_templates)
         # exemplar_imgpath: is actually saved in find_attr_matches()
         exemplar_imgpath = pathjoin(self.proj.projdir_path,
@@ -562,7 +595,8 @@ Would you like to review the ballot annotations?",
         """
         if config.TIMER:
             config.TIMER.stop_task("BallotAttributes_FindAttrMatches_CPU")
-        # Filter matches for only high-quality matches (w.r.t. self.tm_threshold)
+        # Filter matches for only high-quality matches (w.r.t.
+        # self.tm_threshold)
         patchpaths_filtered = []
         patchpaths_bad = []
         for ballotid, (bb, score, patchpath) in matches.iteritems():
@@ -577,10 +611,12 @@ Would you like to review the ballot annotations?",
 
         if config.TIMER:
             config.TIMER.start_task("BallotAttributes_VerifyMatches_H")
-        callback = lambda verifyresults: self.on_verifymatches_done(verifyresults, matches, patchpath2bal, attrbox)
+        callback = lambda verifyresults: self.on_verifymatches_done(
+            verifyresults, matches, patchpath2bal, attrbox)
         exemplar_imgpath = pathjoin(self.proj.projdir_path,
                                     OVERLAY_EXEMPLAR_IMGNAME)
-        f = CheckImageEqualsFrame(self, patchpaths_filtered, exemplar_imgpath, callback)
+        f = CheckImageEqualsFrame(
+            self, patchpaths_filtered, exemplar_imgpath, callback)
         self.f = f
         f.Show()
         f.Maximize()
@@ -608,14 +644,15 @@ Would you like to review the ballot annotations?",
             for ballotid, tups in self.bal2patches.iteritems():
                 for i, (patchpath, atype, aval) in enumerate(tups)[::-1]:
                     if atype == attrtype:
-                        tups.pop(i) # Pop from reverse iter to avoid bugs
+                        tups.pop(i)  # Pop from reverse iter to avoid bugs
                 if OP == "add":
                     tups.append((patchP, attrtype, attrval))
 
         for patchpath in good_matches:
             ballotid = patchpath2bal[patchpath]
             self.patch2bal[patchpath] = (ballotid, attrtype, attrval)
-            update_bal2patches(ballotid, patchpath, attrtype, attrval, OP="add")
+            update_bal2patches(ballotid, patchpath,
+                               attrtype, attrval, OP="add")
             if attrbox not in self.boxes_map.get(ballotid, []):
                 # This 'if' ensures we don't double-add attrbox to the
                 # ballot that we drew the box on.
@@ -631,11 +668,13 @@ Would you like to review the ballot annotations?",
         bad_matches = verifyresults.get(CheckImageEquals.TAG_NO, [])
         for patchpath in bad_matches:
             os.remove(patchpath)
-            try: balid, atype, aval = self.patch2bal.pop(patchpath)
-            except KeyError: balid, atype, aval = None, None, None
+            try:
+                balid, atype, aval = self.patch2bal.pop(patchpath)
+            except KeyError:
+                balid, atype, aval = None, None, None
             if balid != None:
                 update_bal2patches(balid, patchpath, atype, aval, OP="remove")
-            
+
         self.update_ui_text()
 
     def mark_ballot_done(self, ballotid):
@@ -651,6 +690,7 @@ Would you like to review the ballot annotations?",
     def am_i_done(self):
         """ Returns True if the user is done labeling all tasks. """
         return self.ballots_todo != None and len(self.ballots_todo) == 0
+
     def is_ballot_done(self, ballotid):
         """ The user is finished annotating this ballot if the number of
         attributes present is equal to the total number of non-digitbased
@@ -660,12 +700,14 @@ Would you like to review the ballot annotations?",
         for attrtype, attrboxes in self.attrtypes_map.iteritems():
             if attrboxes and not attrboxes[0].is_digitbased:
                 num_nondigitattrs += 1
-        my_boxes = [b for b in self.boxes_map.get(ballotid, []) if not b.is_digitbased]
+        my_boxes = [b for b in self.boxes_map.get(
+            ballotid, []) if not b.is_digitbased]
         return len(my_boxes) == num_nondigitattrs
 
     def update_ui_text(self):
-        self.footer.stxt_num_bals.SetLabel("{0}.".format(len(self.ballots_todo)))
-        self.footer.stxt_cur_page.SetLabel("{0}".format(self.cur_side+1))
+        self.footer.stxt_num_bals.SetLabel(
+            "{0}.".format(len(self.ballots_todo)))
+        self.footer.stxt_cur_page.SetLabel("{0}".format(self.cur_side + 1))
         imgpaths = self.bal2imgs[self.cur_ballotid]
         self.footer.stxt_total_pages.SetLabel("{0}.".format(len(imgpaths)))
         self.Layout()
@@ -680,21 +722,25 @@ Would you like to review the ballot annotations?",
             int BALID: 
             int SIDE:
         """
-        imgpaths_sorted = sorted(self.bal2imgs[balid], key=lambda imP: self.img2page[imP])
+        imgpaths_sorted = sorted(
+            self.bal2imgs[balid], key=lambda imP: self.img2page[imP])
         imgpath = imgpaths_sorted[side]
         debug("Setting img2flip for image '{0}' FROM '{1}' TO '{2}'",
               imgpath,
               self.img2flip[imgpath],
               not self.img2flip[imgpath])
         self.img2flip[imgpath] = not self.img2flip[imgpath]
-        pickle.dump(self.img2flip, open(os.path.join(self.proj.projdir_path, self.proj.image_to_flip), 'wb'))
+        pickle.dump(self.img2flip, open(os.path.join(
+            self.proj.projdir_path, self.proj.image_to_flip), 'wb'))
         if balid == self.cur_ballotid and side == self.cur_side:
             self.display_image(side, balid)
 
     def next_side(self):
         self.display_image(self.cur_side + 1, self.cur_ballotid)
+
     def prev_side(self):
         self.display_image(self.cur_side - 1, self.cur_ballotid)
+
     def next_img(self):
         self.boxes_map[self.cur_ballotid] = self.boxdraw.boxes
         if not self.is_ballot_done(self.cur_ballotid):
@@ -715,9 +761,11 @@ Please move to the next step.").ShowModal()
             return
         else:
             self.display_image(0, next_ballotid)
+
     def prev_img(self):
         # Not sure what to do here...
         pass
+
     def mark_all_ballots_done(self):
         """ Marks all ballots as done -- if any ballot still has attributes
         to label, then this halt at that ballot(s) and tell the user to label
@@ -741,10 +789,12 @@ Please move to the next step.").ShowModal()
                     self.stop()
                     return
 
+
 class ToolBar(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         self.init_ui()
 
     def init_ui(self):
@@ -758,16 +808,17 @@ class ToolBar(wx.Panel):
         btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
         btn_addcustomattr = wx.Button(self, label="Add Custom Attribute...")
         btn_addcustomattr.Bind(wx.EVT_BUTTON, self.onButton_addcustomattr)
-        btn_viewcustomattrs = wx.Button(self, label="View Custom Attributes...")
+        btn_viewcustomattrs = wx.Button(
+            self, label="View Custom Attributes...")
         btn_viewcustomattrs.Bind(wx.EVT_BUTTON, self.onButton_viewcustomattrs)
         btn_markflip = wx.Button(self, label="Mark As Flipped")
         btn_markflip.Bind(wx.EVT_BUTTON, self.onButton_markflip)
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_addattr,), (btn_modify,), (btn_addcustomattr,),
-                           (btn_viewcustomattrs,), 
-                           ((50,50),), 
+                           (btn_viewcustomattrs,),
+                           ((50, 50),),
                            (btn_zoomin,), (btn_zoomout,),
-                           ((50,50),),
+                           ((50, 50),),
                            (btn_markflip,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -775,21 +826,26 @@ class ToolBar(wx.Panel):
 
         self.SetSizer(self.sizer)
         self.Layout()
+
     def onButton_zoomin(self, evt):
         self.GetParent().boxdraw.zoomin()
+
     def onButton_zoomout(self, evt):
         self.GetParent().boxdraw.zoomout()
+
     def onButton_addattr(self, evt):
         boxdrawpanel = self.GetParent().boxdraw
         boxdrawpanel.set_mode_m(boxdrawpanel.M_CREATE)
+
     def onButton_modify(self, evt):
         boxdrawpanel = self.GetParent().boxdraw
         boxdrawpanel.set_mode_m(boxdrawpanel.M_IDLE)
+
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
         choice_dlg = common.SingleChoiceDialog(self, message="Which modality \
-will the Custom Attribute use?", 
+will the Custom Attribute use?",
                                                choices=[SPREADSHEET, FILENAME])
         status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
@@ -850,9 +906,10 @@ an Attribute Name.")
             attrname = dlg.attrname
             regex = dlg.regex
             is_tabulationonly = dlg.is_tabulationonly
-            cattr = cust_attrs.Filename_Attr(attrname, regex, is_tabulationonly)
+            cattr = cust_attrs.Filename_Attr(
+                attrname, regex, is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
-        
+
     def onButton_viewcustomattrs(self, evt):
         proj = self.GetParent().GetParent().proj
         custom_attrs = self.GetParent().cust_attrs
@@ -883,11 +940,14 @@ stages of the OpenCount pipeline.").ShowModal()
             return
         cur_ballot, cur_side = self.GetParent().cur_ballotid, self.GetParent().cur_side
         self.GetParent().mark_image_flipped(cur_ballot, cur_side)
+
+
 class MyFooter(wx.Panel):
+
     def __init__(self, *args, **kwargs):
         wx.Panel.__init__(self, *args, **kwargs)
         self.init_ui()
-        
+
     def init_ui(self):
         sizer_bals = wx.BoxSizer(wx.VERTICAL)
 
@@ -897,18 +957,19 @@ class MyFooter(wx.Panel):
         btn_prev_ballot = wx.Button(self, label="Previous Ballot")
         btn_prev_ballot.Bind(wx.EVT_BUTTON, self.onButton_prevBallot)
         sizer_bals_btns.AddMany([(btn_next_ballot,), (btn_prev_ballot,)])
-        
+
         sizer_num_bals = wx.BoxSizer(wx.HORIZONTAL)
-        stxt_num_bals_info = wx.StaticText(self, label="Number of Ballots remaining: ")
+        stxt_num_bals_info = wx.StaticText(
+            self, label="Number of Ballots remaining: ")
         self.stxt_num_bals = wx.StaticText(self, label="")
         sizer_num_bals.AddMany([(stxt_num_bals_info,),
                                 (self.stxt_num_bals,)])
-        
+
         sizer_bals.Add(sizer_bals_btns, flag=wx.ALIGN_CENTER)
         sizer_bals.Add(sizer_num_bals, flag=wx.ALIGN_CENTER)
 
         sizer_pages = wx.BoxSizer(wx.VERTICAL)
-        
+
         sizer_pages_btns = wx.BoxSizer(wx.HORIZONTAL)
         btn_next_page = wx.Button(self, label="Next Page")
         btn_next_page.Bind(wx.EVT_BUTTON, self.onButton_nextPage)
@@ -918,7 +979,7 @@ class MyFooter(wx.Panel):
 
         btn_mark_all_done = wx.Button(self, label="Mark All Ballots Done")
         btn_mark_all_done.Bind(wx.EVT_BUTTON, self.onButton_markAllBallotsDone)
-        
+
         sizer_pages_txt = wx.BoxSizer(wx.HORIZONTAL)
         stxt_num_pages_info = wx.StaticText(self, label="Page: ")
         self.stxt_cur_page = wx.StaticText(self, label="")
@@ -930,35 +991,42 @@ class MyFooter(wx.Panel):
                                  (self.stxt_total_pages,)])
         sizer_pages.Add(sizer_pages_btns, flag=wx.ALIGN_CENTER)
         sizer_pages.Add(sizer_pages_txt, flag=wx.ALIGN_CENTER)
-        
+
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.sizer.AddMany([(sizer_bals,), (sizer_pages,), ((25,0),), (btn_mark_all_done,)])
+        self.sizer.AddMany([(sizer_bals,), (sizer_pages,),
+                            ((25, 0),), (btn_mark_all_done,)])
 
         self.SetSizer(self.sizer)
         self.Layout()
 
     def onButton_nextBallot(self, evt):
         self.GetParent().next_img()
+
     def onButton_prevBallot(self, evt):
         self.GetParent().prev_img()
+
     def onButton_nextPage(self, evt):
         self.GetParent().next_side()
+
     def onButton_prevPage(self, evt):
         self.GetParent().prev_side()
+
     def onButton_markAllBallotsDone(self, evt):
         self.GetParent().mark_all_ballots_done()
 
+
 class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
+
     def __init__(self, parent, *args, **kwargs):
         select_targets.BoxDrawPanel.__init__(self, parent, *args, **kwargs)
 
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        x_img, y_img = self.c2img(x,y)
+        x_img, y_img = self.c2img(x, y)
         w_img, h_img = self.img.GetSize()
-        if x_img >= (w_img-1) or y_img >= (h_img-1):
+        if x_img >= (w_img - 1) or y_img >= (h_img - 1):
             return
 
         if self.mode_m == self.M_CREATE:
@@ -979,6 +1047,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             self.clear_selected()
             self.dirty_all_boxes()
         self.Refresh()
+
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         if self.mode_m == self.M_CREATE and self.isCreate:
@@ -1024,6 +1093,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
                 y_txt = client_y + h
             dc.DrawText(attrbox.label, x_txt, y_txt)
 
+
 class AttrBox(select_targets.Box):
     shading_clr = (0, 255, 0)
     shading_selected_clr = (255, 0, 0)
@@ -1051,26 +1121,32 @@ class AttrBox(select_targets.Box):
         self.is_tabulationonly = is_tabulationonly
         self.side = side
         self.grp_per_partition = grp_per_partition
+
     def __str__(self):
         return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
+
     def __repr__(self):
         return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
+
     def __eq__(self, o):
         return (isinstance(o, AttrBox) and self.x1 == o.x1 and self.x2 == o.x2
                 and self.y1 == o.y1 and self.y2 == o.y2 and self.label == o.label
                 and self.side == o.side and self.attrvals == o.attrvals
                 and self.attrtypes == o.attrtypes)
+
     def copy(self):
         return AttrBox(self.x1, self.y1, self.x2, self.y2, label=self.label,
-                       attrtypes=self.attrtypes, attrvals=self.attrvals, 
+                       attrtypes=self.attrtypes, attrvals=self.attrvals,
                        is_digitbased=self.is_digitbased,
                        num_digits=self.num_digits, is_tabulationonly=self.is_tabulationonly,
                        side=self.side, grp_per_partition=self.grp_per_partition)
+
     def get_draw_opts(self):
         if self.is_sel:
             return ("Yellow", 3)
         else:
             return ("Green", 3)
+
     def marshall(self):
         """ Return a dict-equivalent version of myself. """
         data = select_targets.Box.marshall(self)
@@ -1083,7 +1159,9 @@ class AttrBox(select_targets.Box):
         data['grp_per_partition'] = self.grp_per_partition
         return data
 
+
 class AddAttributeDialog(wx.Dialog):
+
     def __init__(self, parent, attrbox, attrtypes_map, *args, **kwargs):
         """
         Input:
@@ -1092,7 +1170,8 @@ class AddAttributeDialog(wx.Dialog):
             dict ATTRTYPES_MAP: {str attrtype: [AttrBox_i, ...]}
                 The previously-created attribute boxes.
         """
-        wx.Dialog.__init__(self, parent, style=wx.CAPTION | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX, *args, **kwargs)
+        wx.Dialog.__init__(self, parent, style=wx.CAPTION | wx.RESIZE_BORDER |
+                           wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX, *args, **kwargs)
 
         self.attrbox_cur = attrbox
         self.attrtypes_map = attrtypes_map
@@ -1116,21 +1195,22 @@ class AddAttributeDialog(wx.Dialog):
                 self.onButton_attrval_add(None)
         self.Refresh()
         self.Layout()
-    
+
     def init_ui(self):
         sizer_attrtype = wx.BoxSizer(wx.HORIZONTAL)
         txt_attrtype_name = wx.StaticText(self, label="Attribute Type: ")
         txt_attrtype_prev = wx.StaticText(self, label="Previously-entered: ")
         self.cbox_prev_attrtypes = wx.ComboBox(self, style=wx.CB_READONLY)
-        self.cbox_prev_attrtypes.Bind(wx.EVT_COMBOBOX, self.onCombo_prevAttrTypes)
+        self.cbox_prev_attrtypes.Bind(
+            wx.EVT_COMBOBOX, self.onCombo_prevAttrTypes)
         btn_attrtype_addnew = wx.Button(self, label="Add new Type...")
         btn_attrtype_addnew.Bind(wx.EVT_BUTTON, self.onButton_attrtype_add)
-        
+
         sizer_attrtype.AddMany([(txt_attrtype_name, 0, wx.ALL, 10),
                                 (txt_attrtype_prev,),
                                 (self.cbox_prev_attrtypes,),
                                 (btn_attrtype_addnew,)])
-        
+
         sizer_attrval = wx.BoxSizer(wx.HORIZONTAL)
         txt_attrval = wx.StaticText(self, label="Attribute Value: ")
         txt_attrval_prev = wx.StaticText(self, label="Previously-entered: ")
@@ -1145,9 +1225,11 @@ class AddAttributeDialog(wx.Dialog):
 
         sizer_digits = wx.BoxSizer(wx.VERTICAL)
         sizer_digits_isit = wx.BoxSizer(wx.HORIZONTAL)
-        txt_isdigitbased = wx.StaticText(self, label="Is this a digit-based attribute? ")
+        txt_isdigitbased = wx.StaticText(
+            self, label="Is this a digit-based attribute? ")
         self.chk_isdigitbased = wx.CheckBox(self)
-        self.chk_isdigitbased.Bind(wx.EVT_CHECKBOX, self.onCheckBox_isdigitbased)
+        self.chk_isdigitbased.Bind(
+            wx.EVT_CHECKBOX, self.onCheckBox_isdigitbased)
         sizer_digits_isit.AddMany([(txt_isdigitbased,),
                                    (self.chk_isdigitbased,)])
 
@@ -1166,7 +1248,7 @@ consistent within each partition (as defined by the barcodes)?")
         self.chk_is_consistent_part = wx.CheckBox(self)
         sizer_grp_mode.AddMany([(txt_isPartConsistent,),
                                 (self.chk_is_consistent_part,)])
-        
+
         sizer_tabulationOnly = wx.BoxSizer(wx.HORIZONTAL)
         txt_tabOnly = wx.StaticText(self, label="Is this attribute \
 for tabulation purposes only?")
@@ -1224,8 +1306,10 @@ for tabulation purposes only?")
 
     def onButton_attrtype_add(self, evt):
         class AttrtypeDialog(wx.Dialog):
+
             def __init__(self, parent, *args, **kwargs):
-                wx.Dialog.__init__(self, parent, title="New Attribute Type", *args, **kwargs)
+                wx.Dialog.__init__(
+                    self, parent, title="New Attribute Type", *args, **kwargs)
 
                 self.attrname = None
                 self.is_digit = None
@@ -1233,31 +1317,39 @@ for tabulation purposes only?")
                 sizer_attrname = wx.BoxSizer(wx.HORIZONTAL)
                 stxt_attrname = wx.StaticText(self, label="Please enter the \
 name of the new attribute type.")
-                self.txtctrl_attrname = wx.TextCtrl(self, size=(150,-1), style=wx.TE_PROCESS_ENTER)
+                self.txtctrl_attrname = wx.TextCtrl(
+                    self, size=(150, -1), style=wx.TE_PROCESS_ENTER)
                 self.txtctrl_attrname.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
-                sizer_attrname.AddMany([(stxt_attrname, 0, wx.ALL, 10), (self.txtctrl_attrname, 0, wx.ALL, 10)])
-                
-                self.chkbox_isdigit = wx.CheckBox(self, label="Is this a digit attribute?")
+                sizer_attrname.AddMany(
+                    [(stxt_attrname, 0, wx.ALL, 10), (self.txtctrl_attrname, 0, wx.ALL, 10)])
+
+                self.chkbox_isdigit = wx.CheckBox(
+                    self, label="Is this a digit attribute?")
 
                 sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
                 btn_ok = wx.Button(self, label="Ok")
                 btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
                 btn_cancel = wx.Button(self, label="Cancel")
-                btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
-                sizer_btns.AddMany([(btn_ok, 0, wx.ALL | wx.ALIGN_CENTER, 10), (btn_cancel, 0, wx.ALL | wx.ALIGN_CENTER, 10)])
-                
+                btn_cancel.Bind(
+                    wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
+                sizer_btns.AddMany([(btn_ok, 0, wx.ALL | wx.ALIGN_CENTER, 10),
+                                    (btn_cancel, 0, wx.ALL | wx.ALIGN_CENTER, 10)])
+
                 self.sizer = wx.BoxSizer(wx.VERTICAL)
-                self.sizer.AddMany([(sizer_attrname, 0, wx.ALL, 5), (self.chkbox_isdigit, 0, wx.ALL, 5)])
-                self.sizer.Add(sizer_btns, 0, flag=wx.ALL | wx.ALIGN_CENTER, border=5)
+                self.sizer.AddMany(
+                    [(sizer_attrname, 0, wx.ALL, 5), (self.chkbox_isdigit, 0, wx.ALL, 5)])
+                self.sizer.Add(sizer_btns, 0, flag=wx.ALL |
+                               wx.ALIGN_CENTER, border=5)
 
                 self.SetSizer(self.sizer)
                 self.Fit()
                 self.txtctrl_attrname.SetFocus()
+
             def onButton_ok(self, evt):
                 self.attrname = self.txtctrl_attrname.GetValue()
                 self.is_digit = self.chkbox_isdigit.GetValue()
                 self.EndModal(wx.ID_OK)
-                
+
         dlg = wx.TextEntryDialog(self, message="Please enter the name of \
 the new attribute type.", caption="New Attribute Type")
         dlg = AttrtypeDialog(self)
@@ -1311,12 +1403,15 @@ type and an attribute value!", style=wx.OK).ShowModal()
             wx.MessageDialog(self, message="Please enter the number of \
 digits that this attribute has.", style=wx.OK).ShowModal()
             return
-        
+
         self.EndModal(wx.OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.CANCEL)
 
+
 class SpreadSheetAttrDialog(wx.Dialog):
+
     def __init__(self, parent, attrtypes, *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
 
@@ -1330,7 +1425,7 @@ class SpreadSheetAttrDialog(wx.Dialog):
 
         sizer_attrname = wx.BoxSizer(wx.HORIZONTAL)
         txt_attrname = wx.StaticText(self, label="New attribute name: ")
-        self.attrname_inputctrl = wx.TextCtrl(self, size=(250,-1))
+        self.attrname_inputctrl = wx.TextCtrl(self, size=(250, -1))
         sizer_attrname.AddMany([(txt_attrname,), (self.attrname_inputctrl,)])
 
         txt = wx.StaticText(self, label="Spreadsheet File:")
@@ -1341,18 +1436,20 @@ class SpreadSheetAttrDialog(wx.Dialog):
 
         sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
         txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
-        self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
+        self.combobox = wx.ComboBox(
+            self, choices=attrtypes, style=wx.CB_READONLY)
         sizer_horiz.Add(txt2)
         sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
 
-        self.chkbox_tabonly = wx.CheckBox(self, label="Is this tabulation only?")
+        self.chkbox_tabonly = wx.CheckBox(
+            self, label="Is this tabulation only?")
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Create This Attribute")
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_create)
         btn_cancel = wx.Button(self, label="Cancel")
         btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
-        btn_sizer.AddMany([(btn_ok,), ((50,50),), (btn_cancel,)])
+        btn_sizer.AddMany([(btn_ok,), ((50, 50),), (btn_cancel,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizer_attrname)
@@ -1363,9 +1460,9 @@ class SpreadSheetAttrDialog(wx.Dialog):
         sizer_file.Add(btn_select)
         self.sizer.Add(sizer_file)
         self.sizer.Add(sizer_horiz)
-        self.sizer.Add((50,50))
+        self.sizer.Add((50, 50))
         self.sizer.Add(self.chkbox_tabonly)
-        self.sizer.Add((50,50))
+        self.sizer.Add((50, 50))
         self.sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
         self.SetSizer(self.sizer)
@@ -1379,6 +1476,7 @@ class SpreadSheetAttrDialog(wx.Dialog):
             return
         path = dlg.GetPath()
         self.file_inputctrl.SetValue(path)
+
     def onButton_create(self, evt):
         if not self.combobox.GetValue():
             wx.MessageDialog(self, message="Error: Please select an \
@@ -1393,8 +1491,10 @@ spreadsheet file path first.", style=wx.OK).ShowModal()
         self.path = self.file_inputctrl.GetValue()
         self.is_tabulationonly = self.chkbox_tabonly.GetValue()
         self.EndModal(wx.ID_OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
 
 class FilenameAttrDialog(wx.Dialog):
     """
@@ -1406,10 +1506,11 @@ class FilenameAttrDialog(wx.Dialog):
     The user-input regex would be:
         r'\d*_\d*_\d*_\d*_(\d*).png'
     """
+
     def __init__(self, parent, *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        
+
         # self.attrname is the name of the CustomAttribute
         self.attrname = None
         # self.regex is the user-inputted regex to use
@@ -1431,7 +1532,7 @@ regex that will match the attribute value.")
         sizer_input0.Add(txt0)
         sizer_input0.Add(attrname_input, proportion=1, flag=wx.EXPAND)
         sizer.Add(sizer_input0, flag=wx.EXPAND)
-        
+
         sizer.Add((20, 20))
 
         sizer_input = wx.BoxSizer(wx.HORIZONTAL)
@@ -1448,7 +1549,7 @@ regex that will match the attribute value.")
         self.is_tabulationonly_chkbox = wx.CheckBox(self, label="Is this \
 for Tabulation Only?")
         sizer.Add(self.is_tabulationonly_chkbox)
-        
+
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_ok = wx.Button(self, label="Ok")
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
@@ -1462,7 +1563,7 @@ for Tabulation Only?")
         self.Fit()
 
         self.attrname_input.SetFocus()
-        
+
     def onButton_ok(self, evt):
         self.attrname = self.attrname_input.GetValue()
         self.regex = self.re_input.GetValue()
@@ -1470,7 +1571,8 @@ for Tabulation Only?")
         self.EndModal(wx.ID_OK)
 
     def onButton_cancel(self, evt):
-        self.EndModal(wx.ID_CANCEL)        
+        self.EndModal(wx.ID_CANCEL)
+
 
 def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, voteddir,
                       bal2imgs, img2bal, img2flip, img2page,
@@ -1506,26 +1608,27 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
     if img2flip[imgpath_curBal]:
         cv.Flip(I, I, -1)
     w, h = cv.GetSize(I)
-    cv.SetImageROI(I, (attrbox.x1, attrbox.y1, attrbox.x2 - attrbox.x1, attrbox.y2 - attrbox.y1))
+    cv.SetImageROI(I, (attrbox.x1, attrbox.y1, attrbox.x2 -
+                       attrbox.x1, attrbox.y2 - attrbox.y1))
     w_attr, h_attr = cv.GetSize(I)
 
     attrtype = '_'.join(sorted(attrbox.attrtypes))
     attrval = '_'.join(sorted(attrbox.attrvals))
 
     cv.SaveImage(exemplar_outpath, I)
-    
+
     imgpaths_toSearch = []
     for ballotid in ballots_todo:
         imgpaths = sorted(bal2imgs[ballotid], key=lambda imP: img2page[imP])
         imgpaths_toSearch.append(imgpaths[attrbox.side])
 
-    bb_search = (max(0, int(round(attrbox.x1 - (EXPAND*w_attr)))),
-                 max(0, int(round(attrbox.y1 - (EXPAND*h_attr)))),
-                 min(w-1, int(round(attrbox.x2 + (EXPAND*w_attr)))),
-                 min(h-1, int(round(attrbox.y2 + (EXPAND*h_attr)))))
+    bb_search = (max(0, int(round(attrbox.x1 - (EXPAND * w_attr)))),
+                 max(0, int(round(attrbox.y1 - (EXPAND * h_attr)))),
+                 min(w - 1, int(round(attrbox.x2 + (EXPAND * w_attr)))),
+                 min(h - 1, int(round(attrbox.y2 + (EXPAND * h_attr)))))
 
-    patch_outpaths = {} # maps {str imgpath: str patch_outpath}
-    patchpath2bal = {} # maps {str patch_outpath: int ballotid}
+    patch_outpaths = {}  # maps {str imgpath: str patch_outpath}
+    patchpath2bal = {}  # maps {str patch_outpath: int ballotid}
     for imgpath in imgpaths_toSearch:
         rp = os.path.relpath(os.path.abspath(imgpath),
                              os.path.abspath(voteddir))
@@ -1541,13 +1644,16 @@ def find_attr_matches(ballots_todo, src_balid, attrbox, attrpatch_outdir, votedd
                                          jobid=jobid, queue_mygauge=queue_mygauge,
                                          patch_outpaths=patch_outpaths)
 
-    matches = {}  # maps {int ballotid: ((x1,y1,x2,y2), float score, str patchpath)}
-    for imgpath, (x1,y1,response) in tm_matches.iteritems():
+    # maps {int ballotid: ((x1,y1,x2,y2), float score, str patchpath)}
+    matches = {}
+    for imgpath, (x1, y1, response) in tm_matches.iteritems():
         ballotid = img2bal[imgpath]
         outpath = patch_outpaths[imgpath]
-        matches[ballotid] = ((x1,y1,x1+w_attr,y1+h_attr),response,outpath)
+        matches[ballotid] = (
+            (x1, y1, x1 + w_attr, y1 + h_attr), response, outpath)
 
     return matches, patchpath2bal, attrbox
+
 
 def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2patches, attrprops,
                            queue_mygauge=None):
@@ -1574,16 +1680,19 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
 
     if not common.exists_imgattrs(proj):
         return None
-    
-    type2valpatches = {} # maps {attrtype: {attrval: ((imgpath_i, (y1,y2,x1,x2)), ...)}}
+
+    # maps {attrtype: {attrval: ((imgpath_i, (y1,y2,x1,x2)), ...)}}
+    type2valpatches = {}
     for patchpath, (ballotid, attrtype, attrval) in patch2bal.iteritems():
         # We have already extracted each patch path during find_attr_matches,
         # so just use them directly. bb=None => Use entire img.
-        type2valpatches.setdefault(attrtype, {}).setdefault(attrval, []).append((patchpath, None))
-    attrtype_exemplars = {} # maps {str attrtype: {attrval: [(imgpath_i, (y1,y2,x1,x2)), ...]}}
+        type2valpatches.setdefault(attrtype, {}).setdefault(
+            attrval, []).append((patchpath, None))
+    # maps {str attrtype: {attrval: [(imgpath_i, (y1,y2,x1,x2)), ...]}}
+    attrtype_exemplars = {}
     for attrtype, attrvalpatches in type2valpatches.iteritems():
         if is_part_consistent(attrtype):
-            debug("Attribute '{0}' is consistent within partitions, "\
+            debug("Attribute '{0}' is consistent within partitions, "
                   "no need to compute multiple exemplars for this.",
                   attrtype)
             continue
@@ -1594,7 +1703,7 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
         attrtype_exemplars[attrtype] = exemplars
         if queue_mygauge != None:
             queue_mygauge.put(True)
-    
+
     def get_attr_box(attrtype, ballotid):
         for box in boxes_map[ballotid]:
             if '_'.join(sorted(box.attrtypes)) == attrtype:
@@ -1603,11 +1712,14 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
 
     # 2.) Save each exemplar to proj.attrexemplars_dir
     outdir = pathjoin(proj.projdir_path, proj.attrexemplars_dir)
-    multexemplars_map = {} # maps {attrtype: {attrval: [(subpatchpath_i, blankpath_i, bb_i), ...]}}
+    # maps {attrtype: {attrval: [(subpatchpath_i, blankpath_i, bb_i), ...]}}
+    multexemplars_map = {}
     for attrtype, _dict in attrtype_exemplars.iteritems():
         rootdir = pathjoin(outdir, attrtype)
-        try: os.makedirs(rootdir)
-        except: pass
+        try:
+            os.makedirs(rootdir)
+        except:
+            pass
         for attrval, info in _dict.iteritems():
             for i, (patchpath, bb) in enumerate(info):
                 # note: BB is (y1,y2,x1,x2)
@@ -1615,28 +1727,34 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
                 if bb == None:
                     # If BB is None, use the entire image
                     w, h = cv.GetSize(I)
-                    bb = (0, h-1, 0, w-1)
+                    bb = (0, h - 1, 0, w - 1)
 
-                cv.SetImageROI(I, (bb[2], bb[0], bb[3]-bb[2], bb[1]-bb[0]))
+                cv.SetImageROI(I, (bb[2], bb[0], bb[3] - bb[2], bb[1] - bb[0]))
                 outname = "{0}_{1}.png".format(attrval, i)
                 fulloutpath = pathjoin(rootdir, outname)
                 cv.SaveImage(fulloutpath, I)
                 (ballotid, atype, aval) = patch2bal[patchpath]
-                assert attrtype == atype, "ERROR: patch {0} had attrtype={1}, should be {2}".format(patchpath, atype, attrtype)
+                assert attrtype == atype, "ERROR: patch {0} had attrtype={1}, should be {2}".format(
+                    patchpath, atype, attrtype)
                 attrbox = get_attr_box(atype, ballotid)
-                assert attrbox != None, "ERROR: Couldn't find attrbox for atype={0}, ballotid={1}".format(atype, ballotid)
-                imgpaths = sorted(bal2imgs[ballotid], key=lambda imP: img2page[imP])
+                assert attrbox != None, "ERROR: Couldn't find attrbox for atype={0}, ballotid={1}".format(
+                    atype, ballotid)
+                imgpaths = sorted(bal2imgs[ballotid],
+                                  key=lambda imP: img2page[imP])
                 imgpath = imgpaths[attrbox.side]
                 bbout = attrbox.x1, attrbox.y1, attrbox.x2, attrbox.y2
-                multexemplars_map.setdefault(attrtype, {}).setdefault(attrval, []).append((fulloutpath, imgpath, bbout))
+                multexemplars_map.setdefault(attrtype, {}).setdefault(
+                    attrval, []).append((fulloutpath, imgpath, bbout))
     return multexemplars_map
 
+
 class ThreadFindAttrMatches(threading.Thread):
+
     def __init__(self, ballots_todo, src_balid, attrbox, attrpatch_outdir, voteddir,
                  bal2imgs, img2bal,
                  img2flip, img2page,
                  exemplar_imgpath,
-                 manager, queue_mygauge, 
+                 manager, queue_mygauge,
                  jobid, thread_listener, callback, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.ballots_todo = ballots_todo
@@ -1654,11 +1772,12 @@ class ThreadFindAttrMatches(threading.Thread):
         self.jobid = jobid
         self.thread_listener = thread_listener
         self.callback = callback
+
     def run(self):
         matches, patchpath2bal, attrbox = find_attr_matches(self.ballots_todo, self.src_balid,
                                                             self.attrbox,
                                                             self.attrpatch_outdir, self.voteddir,
-                                                            self.bal2imgs, self.img2bal, 
+                                                            self.bal2imgs, self.img2bal,
                                                             self.img2flip, self.img2page,
                                                             self.exemplar_imgpath,
                                                             self.queue_mygauge, self.jobid)
@@ -1666,7 +1785,9 @@ class ThreadFindAttrMatches(threading.Thread):
         self.jobid.done()
         wx.CallAfter(self.callback, matches, patchpath2bal, attrbox)
 
+
 class ThreadComputeMultExemplars(threading.Thread):
+
     def __init__(self, proj, boxes_map, bal2imgs, img2page, patch2bal,
                  bal2patches, attrprops, queue_mygauge, jobid, callback, tlisten, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
@@ -1674,6 +1795,7 @@ class ThreadComputeMultExemplars(threading.Thread):
         self.patch2bal, self.bal2patches, self.attrprops = patch2bal, bal2patches, attrprops
         self.queue_mygauge, self.jobid = queue_mygauge, jobid
         self.callback, self.tlisten = callback, tlisten
+
     def run(self):
         multexemplars_map = compute_mult_exemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
                                                    self.patch2bal, self.bal2patches, self.attrprops,
@@ -1682,7 +1804,9 @@ class ThreadComputeMultExemplars(threading.Thread):
         self.jobid.done()
         wx.CallAfter(self.callback, multexemplars_map)
 
+
 class ThreadListener(threading.Thread):
+
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.queue_mygauge = queue_mygauge
@@ -1691,8 +1815,10 @@ class ThreadListener(threading.Thread):
 
     def i_am_listening(self):
         return not self._stop.is_set()
+
     def stop_listening(self):
         self._stop.set()
+
     def run(self):
         while self.i_am_listening():
             try:
@@ -1700,6 +1826,7 @@ class ThreadListener(threading.Thread):
                 self.jobid.tick()
             except Empty:
                 pass
+
 
 def main():
     pass

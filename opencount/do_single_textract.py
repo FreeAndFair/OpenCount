@@ -1,4 +1,6 @@
-import sys, os, Queue
+import sys
+import os
+import Queue
 import cPickle as pickle
 import numpy as np
 
@@ -35,8 +37,11 @@ Or, as a super-simple shortcut, the following is equivalent:
 
 This will do target extraction on yolo_s2_074-020.png, and dump it to bad_out/.
 """
+
+
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.jpg', '.png', '.jpeg')
+
 
 def main():
     args = sys.argv[1:]
@@ -54,36 +59,47 @@ def main():
             for dirpath, dirnames, filenames in os.walk(votedpath):
                 for imgname in [f for f in filenames if isimgext(f)]:
                     imgpaths.append(os.path.join(dirpath, imgname))
-            
+
         outdir = args[2]
-    
+
     t_imgs = pathjoin(outdir, 'extracted')
     t_diff = pathjoin(outdir, 'extracted_diff')
     t_meta = pathjoin(outdir, 'extracted_metadata')
     b_meta = pathjoin(outdir, 'ballot_metadata')
-    try: os.makedirs(t_imgs)
-    except: pass
-    try: os.makedirs(t_diff)
-    except: pass
-    try: os.makedirs(t_meta)
-    except: pass
-    try: os.makedirs(b_meta)
-    except: pass
+    try:
+        os.makedirs(t_imgs)
+    except:
+        pass
+    try:
+        os.makedirs(t_diff)
+    except:
+        pass
+    try:
+        os.makedirs(t_meta)
+    except:
+        pass
+    try:
+        os.makedirs(b_meta)
+    except:
+        pass
 
     bal2group = pickle.load(open(pathjoin(projdir, 'ballot_to_group.p'), 'rb'))
-    group2bals = pickle.load(open(pathjoin(projdir, 'group_to_ballots.p'), 'rb'))
+    group2bals = pickle.load(
+        open(pathjoin(projdir, 'group_to_ballots.p'), 'rb'))
     b2imgs = pickle.load(open(pathjoin(projdir, 'ballot_to_images.p'), 'rb'))
     img2b = pickle.load(open(pathjoin(projdir, 'image_to_ballot.p'), 'rb'))
     img2page = pickle.load(open(pathjoin(projdir, 'image_to_page.p'), 'rb'))
     img2flip = pickle.load(open(pathjoin(projdir, 'image_to_flip.p'), 'rb'))
-    target_locs_map = pickle.load(open(pathjoin(projdir, 'target_locs_map.p'), 'rb'))
+    target_locs_map = pickle.load(
+        open(pathjoin(projdir, 'target_locs_map.p'), 'rb'))
     group_exmpls = pickle.load(open(pathjoin(projdir, 'group_exmpls.p'), 'rb'))
 
     proj = pickle.load(open(pathjoin(projdir, 'proj.p'), 'rb'))
     voteddir_root = proj.voteddir
-    
+
     # 0.) Set up job
     jobs = []
+
     def get_bbs(groupID, target_locs_map):
         bbs_sides = []
         boxes_sides = target_locs_map[groupID]
@@ -113,12 +129,13 @@ def main():
         exmpl_id = group_exmpls[groupID][0]
         blankpaths = b2imgs[exmpl_id]
         blankpaths_ordered = sorted(blankpaths, key=lambda imP: img2page[imP])
-        blankpaths_flips = [img2flip[blank_imP] for blank_imP in blankpaths_ordered]
+        blankpaths_flips = [img2flip[blank_imP]
+                            for blank_imP in blankpaths_ordered]
 
         imgpaths = b2imgs[ballotid]
         imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
         imgpaths_flips = [img2flip[imP] for imP in imgpaths_ordered]
-        job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips, 
+        job = [blankpaths_ordered, blankpaths_flips, bbs, imgpaths_ordered, imgpaths_flips,
                t_imgs, t_diff, t_meta, b_meta, voteddir_root, Queue.Queue(), Queue.Queue()]
         jobs.append(job)
 
@@ -132,6 +149,6 @@ def main():
     '''
     for job in jobs:
         doExtract.convertImagesWorkerMAP(job)
-    
+
 if __name__ == '__main__':
     main()

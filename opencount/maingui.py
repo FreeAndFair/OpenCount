@@ -1,7 +1,16 @@
-import os, sys, csv, datetime, argparse
+'''
+The main entry function for OpenCount, including the main panel which
+contains all the other panels.
+'''
+import argparse
+import csv
+import datetime
+import os
+import sys
+
 try:
     import cPickle as pickle
-except ImportError as e:
+except ImportError:
     import pickle
 
 import matplotlib
@@ -12,7 +21,7 @@ from os.path import join as pathjoin
 import wx
 
 sys.path.append('..')
-from projconfig_new.project_panel import ProjectPanel, Project
+from opencount.projconfig_new.project_panel import ProjectPanel, Project
 from projconfig_new.config_panel import ConfigPanel
 from partitions.partition_panel import PartitionMainPanel
 from specify_voting_targets.select_targets import SelectTargetsMainPanel
@@ -30,15 +39,16 @@ from ffwx import *
 from util import debug, warn, error
 
 import specify_voting_targets.util_gui as util_gui
-import config, util
-
-"""
-The main module for OpenCount.
-"""
+import config
+import util
 
 PROJROOTDIR = 'projects_new'
 
+
 class MainFrame(wx.Frame):
+    '''
+    The main frame, which contains the relevant project data.
+    '''
     PROJECT = 0
     CONFIG = 1
     PARTITION = 2
@@ -84,26 +94,31 @@ class MainFrame(wx.Frame):
         self.panel_seltargets = SelectTargetsMainPanel(self.notebook)
         self.panel_label_contests = LabelContest(self.notebook, self.GetSize())
         self.panel_target_extract = TargetExtractPanel(self.notebook)
-        self.panel_set_threshold = ThresholdPanel(self.notebook, self.GetSize())
+        self.panel_set_threshold = ThresholdPanel(
+            self.notebook, self.GetSize())
         self.panel_quarantine = QuarantinePanel(self.notebook)
         self.panel_process = ResultsPanel(self.notebook)
-        self.pages = [(self.panel_projects, "Projects", "Projects"),
-                      (self.panel_config, "Import Files", "Import"),
-                      (self.panel_partition, "Partition Ballots", "Partition"),
-                      (self.panel_ballot_attributes, "Ballot Attributes", "Attrs"),
-                      (self.panel_label_digitattrs, "Label Digit-Based Attributes", "Label Digit Attrs"),
-                      (self.panel_run_grouping, "Run Grouping", "Group"),
-                      (self.panel_correct_grouping, "Correct Grouping", "Correct Grouping"),
-                      (self.panel_seltargets, "Select Voting Targets", "Targets"),
-                      (self.panel_label_contests, "Label Contests", "Contests"),
-                      (self.panel_target_extract, "Extract Targets", "Extract"),
-                      (self.panel_set_threshold, "Set Threshold", "Threshold"),
-                      (self.panel_quarantine, "Process Quarantine", "Quarantine"),
-                      (self.panel_process, "Results", "Results")]
+        self.pages = [
+            (self.panel_projects, "Projects", "Projects"),
+            (self.panel_config, "Import Files", "Import"),
+            (self.panel_partition, "Partition Ballots", "Partition"),
+            (self.panel_ballot_attributes, "Ballot Attributes", "Attrs"),
+            (self.panel_label_digitattrs,
+             "Label Digit-Based Attributes",
+             "Label Digit Attrs"),
+            (self.panel_run_grouping, "Run Grouping", "Group"),
+            (self.panel_correct_grouping, "Correct Grouping", "Correct Grouping"),
+            (self.panel_seltargets, "Select Voting Targets", "Targets"),
+            (self.panel_label_contests, "Label Contests", "Contests"),
+            (self.panel_target_extract, "Extract Targets", "Extract"),
+            (self.panel_set_threshold, "Set Threshold", "Threshold"),
+            (self.panel_quarantine, "Process Quarantine", "Quarantine"),
+            (self.panel_process, "Results", "Results")]
         self.titles = {}
         for panel, fullname, shortname in self.pages:
             self.notebook.AddPage(panel, shortname)
             self.titles[panel] = (fullname, shortname)
+
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
@@ -115,20 +130,19 @@ class MainFrame(wx.Frame):
             status, msg = self.panel_projects.can_move_on()
             if status:
                 self.project = self.panel_projects.get_project()
-                self.SetTitle("OpenCount -- Project {0}".format(self.project.name))
+                self.SetTitle(
+                    "OpenCount -- Project {0}".format(self.project.name))
             else:
-                dlg = wx.MessageDialog(self, message=msg, style=wx.ID_OK)
-                dlg.ShowModal()
+                ff_modal(self, msg)
                 evt.Veto()
             return
 
         curpanel = self.notebook.GetPage(old)
         if hasattr(curpanel, 'can_move_on'):
             if not curpanel.can_move_on():
-                wx.MessageDialog(self, message="Error: You can not \
-proceed. Please address the prior warnings first.",
-                                 caption="OpenCount: Can't go on",
-                                 style=wx.OK).ShowModal()
+                ff_error(self,
+                         'You cannot proceed. Please address the '
+                         'prior warnings first.')
                 evt.Veto()
                 return
         else:
@@ -210,19 +224,23 @@ proceed. Please address the prior warnings first.",
                                   \tak you there now.')
                     dlg.ShowModal()
                     self.notebook.ChangeSelection(self.PARTITION)
-                    self.notebook.SendPageChangedEvent(self.SELTARGETS, self.PARTITION)
+                    self.notebook.SendPageChangedEvent(
+                        self.SELTARGETS, self.PARTITION)
                     return
-                    
+
                 debug("No Attributes Exists, so, using Partitioning as the Grouping.")
-                partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                           self.project.partitions_map), 'rb'))
-                partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                              self.project.partitions_invmap), 'rb'))
-                partition_exmpls = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                             self.project.partition_exmpls), 'rb'))
+                partitions_map = pickle.load(
+                    open(pathjoin(self.project.projdir_path,
+                                  self.project.partitions_map), 'rb'))
+                partitions_invmap = pickle.load(
+                    open(pathjoin(self.project.projdir_path,
+                                  self.project.partitions_invmap), 'rb'))
+                partition_exmpls = pickle.load(
+                    open(pathjoin(self.project.projdir_path,
+                                  self.project.partition_exmpls), 'rb'))
 
                 # The GRP_INFOMAP should just contain partitionid info.
-                grp_infomap = {} # maps {int groupID: {str prop: str val}}
+                grp_infomap = {}  # maps {int groupID: {str prop: str val}}
                 grp2bals = {}
                 bal2grp = {}
                 grpexmpls = {}
@@ -258,17 +276,21 @@ proceed. Please address the prior warnings first.",
                 dictwriter.writerows(rows)
                 csvfile.close()
 
-                pickle.dump(grp2bals, open(pathjoin(self.project.projdir_path,
-                                                    self.project.group_to_ballots), 'wb'),
+                pickle.dump(grp2bals,
+                            open(pathjoin(self.project.projdir_path,
+                                          self.project.group_to_ballots), 'wb'),
                             pickle.HIGHEST_PROTOCOL)
-                pickle.dump(bal2grp, open(pathjoin(self.project.projdir_path,
-                                                   self.project.ballot_to_group), 'wb'),
+                pickle.dump(bal2grp,
+                            open(pathjoin(self.project.projdir_path,
+                                          self.project.ballot_to_group), 'wb'),
                             pickle.HIGHEST_PROTOCOL)
-                pickle.dump(grpexmpls, open(pathjoin(self.project.projdir_path,
-                                                     self.project.group_exmpls), 'wb'),
+                pickle.dump(grpexmpls,
+                            open(pathjoin(self.project.projdir_path,
+                                          self.project.group_exmpls), 'wb'),
                             pickle.HIGHEST_PROTOCOL)
-                pickle.dump(grp_infomap, open(pathjoin(self.project.projdir_path,
-                                                       self.project.group_infomap), 'wb'),
+                pickle.dump(grp_infomap,
+                            open(pathjoin(self.project.projdir_path,
+                                          self.project.group_infomap), 'wb'),
                             pickle.HIGHEST_PROTOCOL)
 
         if new == MainFrame.PROJECT:
@@ -289,47 +311,51 @@ proceed. Please address the prior warnings first.",
             is_attrs_started = os.path.exists(pathjoin(self.project.projdir_path,
                                                        '_state_ballot_attributes.p'))
             if not is_attrs_started:
-                dlg = wx.MessageDialog(self, style=wx.YES_NO,
-                                       message="Do you wish to define any Ballot \
-Attributes? \n\n\
-If you intend to define ballot attributes (precinct number, tally group, etc.), then \
-click 'Yes'.\n\n\
-Otherwise, click 'No'.")
-                resp = dlg.ShowModal()
+                resp = ff_yesno(self,
+                                'Do you wish to define any Ballot Attributes? \n\n'
+                                'If you intend to define ballot attributes '
+                                '(precinct number, tally group, etc.), then '
+                                'click \'Yes\'.\n\nOtherwise, click \'No\'.')
                 if resp == wx.ID_NO:
-                    dlg = wx.MessageDialog(self, style=wx.OK,
-                                           message="You indicated that you \
-do not want to define any Ballot Attributes.\n\n\
-You will now be taken to the Ballot Annotation stage.")
-                    dlg.ShowModal()
+                    ff_modal(self,
+                             'You indicated that you do not want to define '
+                             'any ballot attributes.\n\n '
+                             'You will now be taken to the ballot annotation '
+                             'stage.')
                     self.notebook.ChangeSelection(self.SELTARGETS)
-                    self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES, self.SELTARGETS)
+                    self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES,
+                                                       self.SELTARGETS)
                     return
-                
+
             if config.TIMER:
                 config.TIMER.start_task("BallotAttributes_Total")
-            self.panel_ballot_attributes.start(self.project, pathjoin(self.project.projdir_path,
-                                                                      '_state_ballot_attributes.p'))
+            self.panel_ballot_attributes.start(self.project, pathjoin(
+                self.project.projdir_path,
+                '_state_ballot_attributes.p'))
         elif new == MainFrame.LABEL_DIGATTRS:
             if config.TIMER:
                 config.TIMER.start_task("LabelDigitAttrs_Total")
             # Skip if there are no digit-based attributes
             if not exists_digitbasedattr(self.project):
-                dlg = wx.MessageDialog(self, message="There are no Digit-Based \
-Attributes in this election -- skipping to the next page.", style=wx.OK)
-                dlg.ShowModal()
+                ff_modal(self,
+                         'There are no Digit-Based Attributes in this '
+                         'election -- skipping to the next page.')
                 self.notebook.ChangeSelection(self.RUN_GROUPING)
-                self.notebook.SendPageChangedEvent(self.LABEL_DIGATTRS, self.RUN_GROUPING)
+                self.notebook.SendPageChangedEvent(
+                    self.LABEL_DIGATTRS, self.RUN_GROUPING)
             else:
                 self.panel_label_digitattrs.start(self.project)
         elif new == MainFrame.RUN_GROUPING:
             if config.TIMER:
                 config.TIMER.start_task("RunGrouping_Total")
             if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
-                dlg = wx.MessageDialog(self, message="There are no attributes \
-to group in this election -- skipping to the next page.", style=wx.OK)
-                dlg.ShowModal()
-                dst_page = self.SELTARGETS if not exists_custattr(self.project) else self.CORRECT_GROUPING
+                ff_modal(self,
+                         'There are no attributes to group in this election '
+                         '-- skipping to the next page.')
+                if not exists_custattr(self.project):
+                    dst_page = self.SELTARGETS
+                else:
+                    dst_page = self.CORRECT_GROUPING
                 self.notebook.ChangeSelection(dst_page)
                 self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
             else:
@@ -338,15 +364,19 @@ to group in this election -- skipping to the next page.", style=wx.OK)
         elif new == MainFrame.CORRECT_GROUPING:
             if config.TIMER:
                 config.TIMER.start_task("CorrectGrouping_Total")
-            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project) and not exists_custattr(self.project):
-                dlg = wx.MessageDialog(self, message="There are no attributes \
-to verify grouping for in this election -- skipping to the next page.", style=wx.OK)
-                dlg.ShowModal()
+            if not exists_imgattr(self.project) and \
+               not exists_digitbasedattr(self.project) and \
+               not exists_custattr(self.project):
+                ff_modal(self,
+                         'There are no attributes to verify grouping for '
+                         'in this election -- skipping to the next page.')
                 self.notebook.ChangeSelection(self.SELTARGETS)
-                self.notebook.SendPageChangedEvent(self.CORRECT_GROUPING, self.SELTARGETS)
+                self.notebook.SendPageChangedEvent(
+                    self.CORRECT_GROUPING, self.SELTARGETS)
             else:
-                self.panel_correct_grouping.start(self.project, pathjoin(self.project.projdir_path,
-                                                                         '_state_correct_grouping.p'))
+                self.panel_correct_grouping.start(
+                    self.project,
+                    pathjoin(self.project.projdir_path, '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
             if config.TIMER:
                 config.TIMER.start_task("SelectTargets_Total")
@@ -402,6 +432,7 @@ to verify grouping for in this election -- skipping to the next page.", style=wx
             fn()
         evt.Skip()
 
+
 def exists_digitbasedattr(proj):
     if not exists_attrs(proj):
         return False
@@ -410,6 +441,8 @@ def exists_digitbasedattr(proj):
         if attr['is_digitbased']:
             return True
     return False
+
+
 def exists_imgattr(proj):
     if not exists_attrs(proj):
         return False
@@ -418,11 +451,15 @@ def exists_imgattr(proj):
         if not attr['is_digitbased']:
             return True
     return False
+
+
 def exists_custattr(proj):
     if not exists_attrs(proj):
         return False
-    attrprops = pickle.load(open(pathjoin(proj.projdir_path, proj.attrprops), 'rb'))
+    attrprops = pickle.load(
+        open(pathjoin(proj.projdir_path, proj.attrprops), 'rb'))
     return len(attrprops[ATTRMODE_CUSTOM]) != 0
+
 
 def exists_attrs(proj):
     """ Doesn't account for custom attrs. """
@@ -434,20 +471,22 @@ def exists_attrs(proj):
     else:
         return True
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--num", type=int, dest='n',
                         help="Only process the first N ballots.")
     parser.add_argument("--time", metavar="PREFIX",
-                        help="OpenCount will output timing statistics \
-to a logfile. If PREFIX is given as 'foo', then the output filename \
-is: \n\
-        foo_YEAR_MONTH_DAY_HOUR_MINUTE.log")
+                        help='OpenCount will output timing statistics '
+                        'to a logfile. If PREFIX is given as \'foo\', '
+                        'then the output filename is: \n'
+                        'foo_YEAR_MONTH_DAY_HOUR_MINUTE.log')
     parser.add_argument("--dev", action='store_true',
-                        help="Run OpenCount in Development mode. This \
-enables a few dev-specific buttons in the UI which are useful when \
-debugging projects.")
+                        help='Run OpenCount in Development mode. This '
+                        'enables a few dev-specific buttons in the UI '
+                        'which are useful when debugging projects.')
     return parser.parse_args()
+
 
 def main():
     args = parse_args()

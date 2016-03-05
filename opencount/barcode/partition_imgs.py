@@ -1,10 +1,17 @@
-import os, sys, traceback, time, shutil, cProfile
-import cPickle as pickle    
+import os
+import sys
+import traceback
+import time
+import shutil
+import cProfile
+import cPickle as pickle
 import cv
 
 from os.path import join as pathjoin
 
-import hart, diebold, sequoia
+import hart
+import diebold
+import sequoia
 
 sys.path.append('..')
 import grouping.partask as partask
@@ -24,6 +31,7 @@ except NameError:
 decode_fns = {'hart': hart.decode}
 info_fns = {'hart': hart.get_info}
 
+
 def partition_imgs(imgpaths, vendor="hart", queue=None):
     """ Partition the images in IMGPATHS, assuming that the images
     are from the VENDOR.
@@ -35,7 +43,7 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
             {(barcode_i, ...): [(imgpath_i, isflip_i, bbs_i, dict info), ...]}
         where INFO is a dict mapping info like 'page', etc. 
     """
-    grouping = {} 
+    grouping = {}
     try:
         vendor = vendor.lower()
     except:
@@ -48,10 +56,10 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
         return None
     kwargs = {}
     if vendor == 'hart':
-        topbot_pairs= [[cv.LoadImage(pathjoin(MYDIR, 'hart_topguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
-                        cv.LoadImage(pathjoin(MYDIR, 'hart_botguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)],
-                       [cv.LoadImage(pathjoin(MYDIR, 'hart_topguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
-                        cv.LoadImage(pathjoin(MYDIR, 'hart_botguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)]]
+        topbot_pairs = [[cv.LoadImage(pathjoin(MYDIR, 'hart_topguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
+                         cv.LoadImage(pathjoin(MYDIR, 'hart_botguard.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)],
+                        [cv.LoadImage(pathjoin(MYDIR, 'hart_topguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE),
+                         cv.LoadImage(pathjoin(MYDIR, 'hart_botguard_skinny.png'), cv.CV_LOAD_IMAGE_GRAYSCALE)]]
     for imgpath in imgpaths:
         try:
             barcodes, isflip, bbs = decode(imgpath, topbot_pairs)
@@ -59,22 +67,27 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
                 queue.put(True)
         except:
             print "Errored on:", imgpath
-            grouping.setdefault(("ERR0",), []).append((imgpath, None, None, None))
+            grouping.setdefault(("ERR0",), []).append(
+                (imgpath, None, None, None))
             continue
         try:
             info = get_info(barcodes)
-            grouping.setdefault(barcodes, []).append((imgpath, isflip, bbs, info))
+            grouping.setdefault(barcodes, []).append(
+                (imgpath, isflip, bbs, info))
         except:
-            grouping.setdefault(("ERR0",), []).append((imgpath, None, None, None))
+            grouping.setdefault(("ERR0",), []).append(
+                (imgpath, None, None, None))
 
     return grouping
 
+
 def partition_imgs_par(imgpaths, vendor="hart", queue=None):
-    grouping = partask.do_partask(_do_partition_imgs, 
+    grouping = partask.do_partask(_do_partition_imgs,
                                   imgpaths,
                                   _args=(vendor, queue),
-                                  combfn="dict", 
+                                  combfn="dict",
                                   N=None)
+
 
 def _do_partition_imgs(imgpaths, (vendor, queue)):
     try:
@@ -82,6 +95,7 @@ def _do_partition_imgs(imgpaths, (vendor, queue)):
     except Exception as e:
         traceback.print_exc()
         raise e
+
 
 def main():
     def isimgext(f):
@@ -134,10 +148,10 @@ def main():
                              'partition_imgs': partition_imgs})
         return
     if grouping == None:
-        grouping = partask.do_partask(_do_partition_imgs, 
+        grouping = partask.do_partask(_do_partition_imgs,
                                       imgpaths,
                                       _args=(vendor, None),
-                                      combfn="dict", 
+                                      combfn="dict",
                                       N=None)
         try:
             os.makedirs(outdir)
@@ -158,7 +172,7 @@ def main():
             errcount += 1 if ("ERR0" in barcodes or "ERR1" in barcodes) else 0
             continue
         elif "ERR0" in barcodes or "ERR1" in barcodes:
-            #continue
+            # continue
             errcount += len(group)
             pass
         if just_grouping:
@@ -182,14 +196,15 @@ def main():
             if isflip:
                 cv.Flip(img, img, flipMode=-1)
             for j, bb in enumerate(bbs):
-                outpath = os.path.join(rootdir, str(j), "{0}_{1}.png".format(i, j))
+                outpath = os.path.join(rootdir, str(
+                    j), "{0}_{1}.png".format(i, j))
                 try:
                     os.makedirs(os.path.split(outpath)[0])
                 except:
                     pass
                 x, y, w, h = bb
                 cv.SetImageROI(img, (x, y, w, h))
-                wbig, hbig = int(round(w*2.0)), int(round(h*2.0))
+                wbig, hbig = int(round(w * 2.0)), int(round(h * 2.0))
                 bcBig = cv.CreateImage((wbig, hbig), img.depth, img.channels)
                 cv.Resize(img, bcBig, interpolation=cv.CV_INTER_CUBIC)
                 cv.SaveImage(outpath, bcBig)
@@ -198,12 +213,15 @@ def main():
                     Imins[j] = cv.CloneImage(bcBig)
                     Imaxes[j] = cv.CloneImage(bcBig)
                     if do_align:
-                        Irefs[j] = make_overlays.iplimage2np(cv.CloneImage(bcBig)) / 255.0
+                        Irefs[j] = make_overlays.iplimage2np(
+                            cv.CloneImage(bcBig)) / 255.0
                 else:
                     bcBig_sized = make_overlays.matchsize(bcBig, Imins[j])
                     if do_align:
-                        tmp_np = make_overlays.iplimage2np(cv.CloneImage(bcBig_sized)) / 255.0
-                        H, Ireg, err = imagesAlign.imagesAlign(tmp_np, Irefs[j], fillval=0.2, rszFac=0.75)
+                        tmp_np = make_overlays.iplimage2np(
+                            cv.CloneImage(bcBig_sized)) / 255.0
+                        H, Ireg, err = imagesAlign.imagesAlign(
+                            tmp_np, Irefs[j], fillval=0.2, rszFac=0.75)
                         Ireg *= 255.0
                         Ireg = Ireg.astype('uint8')
                         bcBig_sized = make_overlays.np2iplimage(Ireg)
@@ -211,9 +229,11 @@ def main():
                     cv.Max(bcBig_sized, Imaxes[j], Imaxes[j])
         for idx, Imin in enumerate(Imins):
             Imax = Imaxes[idx]
-            cv.SaveImage(os.path.join(rootdir, "_{0}_minimg.png".format(idx)), Imin)
-            cv.SaveImage(os.path.join(rootdir, "_{0}_maximg.png".format(idx)), Imax)
-            
+            cv.SaveImage(os.path.join(
+                rootdir, "_{0}_minimg.png".format(idx)), Imin)
+            cv.SaveImage(os.path.join(
+                rootdir, "_{0}_maximg.png".format(idx)), Imax)
+
     dur = time.time() - t
     print "...Finished Copying groups to outdir {0} ({1} s).".format(outdir, dur)
     print "Number of error ballots:", errcount
@@ -221,4 +241,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

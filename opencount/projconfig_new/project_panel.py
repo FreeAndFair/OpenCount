@@ -1,4 +1,6 @@
-import os, re, shutil
+import os
+import re
+import shutil
 from os.path import join as pathjoin
 try:
     import cPickle as pickle
@@ -11,7 +13,9 @@ from util import debug, warn, error
 
 PROJ_FNAME = 'proj.p'
 
+
 class ProjectPanel(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 
@@ -26,7 +30,8 @@ class ProjectPanel(wx.Panel):
         box0 = wx.StaticBox(self, label="Select Election Project")
         ssizer0 = wx.StaticBoxSizer(box0, wx.VERTICAL)
 
-        txt0 = wx.StaticText(self, label="Select the election project you'd like to work on.")
+        txt0 = wx.StaticText(
+            self, label="Select the election project you'd like to work on.")
         box1 = wx.StaticBox(self, label="Election Projects")
         ssizer1 = wx.StaticBoxSizer(box1, wx.VERTICAL)
 
@@ -57,6 +62,7 @@ class ProjectPanel(wx.Panel):
         projects = sorted(load_projects(projdir), key=lambda proj: proj.name)
         for proj in projects:
             self.add_project(proj)
+
     def can_move_on(self):
         if not self.get_project():
             msg = "Please select a project before moving on."
@@ -74,24 +80,29 @@ class ProjectPanel(wx.Panel):
     def add_project(self, proj):
         self.projects.append(proj)
         self.listbox_projs.Append(proj.name)
+
     def remove_project(self, proj):
         self.projects.remove(proj)
         idx = self.listbox_projs.FindString(proj.name)
         self.listbox_projs.Delete(idx)
+
     def contains_project(self, projname):
         return projname in [proj.name for proj in self.projects]
+
     def create_new_project(self, name):
         proj = create_project(name, pathjoin(self.projdir, name))
         self.add_project(proj)
 
     def onButton_create(self, evt):
-        dlg = wx.TextEntryDialog(self, message="New Project Name:", caption="New Project", defaultValue="ProjectNameHere")
+        dlg = wx.TextEntryDialog(self, message="New Project Name:",
+                                 caption="New Project", defaultValue="ProjectNameHere")
         val = dlg.ShowModal()
         if val == wx.ID_OK:
             project_name = dlg.GetValue().strip()
             if self.contains_project(project_name):
-                dlg = wx.MessageDialog(self, 
-                                       message="{0} already exists as a project.".format(project_name),
+                dlg = wx.MessageDialog(self,
+                                       message="{0} already exists as a project.".format(
+                                           project_name),
                                        style=wx.OK)
                 dlg.ShowModal()
                 return
@@ -111,7 +122,8 @@ project name. Please only use letters, numbers, and punctuation.'.format(project
         Removes project from the ListBox, internal data structures,
         and from the projects/ directory.
         """
-        idx = self.listbox_projs.FindString(self.listbox_projs.GetStringSelection())
+        idx = self.listbox_projs.FindString(
+            self.listbox_projs.GetStringSelection())
         proj = self.projects[idx]
         projdir = proj.projdir_path
         dlg = wx.MessageDialog(self, message="Are you sure you want to delete \
@@ -123,12 +135,14 @@ project {0}, as well as all of its files within {1}?".format(proj.name, projdir)
         self.remove_project(proj)
         shutil.rmtree(projdir)
 
+
 def is_valid_projectname(name):
     """
     Only allow letters, numbers, and [_, (, )].
     """
     pattern = r'(\w|\d|[_\()])+'
     return ' ' not in name and (not re.match(pattern, name) == None)
+
 
 class Project(object):
     """
@@ -204,7 +218,7 @@ class Project(object):
                      'attr_internal': pathjoin(projdir_path, 'attr_internal.p'),
                      'grouping_results': pathjoin(projdir_path, 'grouping_results.csv'),
                      'ballot_attributesfile': pathjoin(projdir_path, 'ballot_attributes.p'),
-                     'imgsize': (0,0),
+                     'imgsize': (0, 0),
                      'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
@@ -247,7 +261,7 @@ class Project(object):
         Project.closehook = [x for x in Project.closehook if x != func]
 
     def createFields(self):
-        for k,v in self.vals.items():
+        for k, v in self.vals.items():
             setattr(self, k, v)
 
     def save(self):
@@ -256,6 +270,7 @@ class Project(object):
 
     def __repr__(self):
         return 'Project({0})'.format(self.name)
+
 
 def load_projects(projdir):
     """ Returns a list of all Project instances contained in PROJDIR.
@@ -266,10 +281,12 @@ def load_projects(projdir):
     """
     projects = []
     dummy_proj = Project()
-    #for dirpath, dirnames, filenames in os.walk(projdir):
+    # for dirpath, dirnames, filenames in os.walk(projdir):
     #    for f in filenames:
-    try: os.makedirs(projdir)
-    except: pass
+    try:
+        os.makedirs(projdir)
+    except:
+        pass
 
     for subfolder in os.listdir(projdir):
         if os.path.isdir(pathjoin(projdir, subfolder)):
@@ -290,16 +307,19 @@ def load_projects(projdir):
                         pass
     return projects
 
+
 def create_project(name, projrootdir):
     proj = Project(name, projrootdir)
     projoutpath = pathjoin(projrootdir, PROJ_FNAME)
-    try: os.makedirs(projrootdir)
-    except: pass
+    try:
+        os.makedirs(projrootdir)
+    except:
+        pass
     pickle.dump(proj, open(projoutpath, 'wb'))
     return proj
+
 
 def write_project(project):
     projoutpath = pathjoin(project.projdir_path, PROJ_FNAME)
     pickle.dump(project, open(projoutpath, 'wb'))
     return project
-

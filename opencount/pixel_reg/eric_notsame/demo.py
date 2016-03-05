@@ -1,5 +1,6 @@
 import sys
-import scipy, scipy.misc
+import scipy
+import scipy.misc
 
 sys.path.append('..')
 import shared
@@ -7,12 +8,13 @@ import shared
 imgA = 'mail-04_party.png'
 imgB = 'mail-78_party.png'
 
+
 def main():
     patch = shared.standardImread(imgA, flatten=True)
     h, w = patch.shape
     bb = [0, h, 0, w]
     matches = shared.find_patch_matchesV1(patch, bb, (imgB,), threshold=0.0)
-    filename,score1,score2,Ireg,y1,y2,x1,x2,rszFac = matches[0]
+    filename, score1, score2, Ireg, y1, y2, x1, x2, rszFac = matches[0]
 
     print "Score1 is: {0}".format(score1)
     print "    This is low, which is good."

@@ -1,4 +1,9 @@
-import sys, time, threading, shutil, os, pdb
+import sys
+import time
+import threading
+import shutil
+import os
+import pdb
 try:
     import cPickle as pickle
 except:
@@ -19,12 +24,14 @@ import config
 from util import debug, warn, error
 
 GRP_PER_BALLOT = 0
-GRP_PER_PARTITION = 1 
+GRP_PER_PARTITION = 1
+
 
 class RunGroupingMainPanel(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         self.proj = None
 
         # dict EXTRACT_RESULTS: maps {int ballotID: {attrtype: {'attrOrder': attrorder, 'err': err,
@@ -43,26 +50,32 @@ class RunGroupingMainPanel(wx.Panel):
     def init_ui(self):
         self.btn_rungrouping = wx.Button(self, label="Run Grouping.")
         self.btn_rungrouping.Bind(wx.EVT_BUTTON, self.onButton_rungrouping)
-        
-        self.btn_rerun_imggroup = wx.Button(self, label="Re-run Image-Based Grouping.")
-        self.btn_rerun_imggroup.Bind(wx.EVT_BUTTON, self.onButton_rerun_imggroup)
-        self.btn_rerun_digitgroup = wx.Button(self, label="Re-run Digit-Based Grouping.")
-        self.btn_rerun_digitgroup.Bind(wx.EVT_BUTTON, self.onButton_rerun_digitgroup)
+
+        self.btn_rerun_imggroup = wx.Button(
+            self, label="Re-run Image-Based Grouping.")
+        self.btn_rerun_imggroup.Bind(
+            wx.EVT_BUTTON, self.onButton_rerun_imggroup)
+        self.btn_rerun_digitgroup = wx.Button(
+            self, label="Re-run Digit-Based Grouping.")
+        self.btn_rerun_digitgroup.Bind(
+            wx.EVT_BUTTON, self.onButton_rerun_digitgroup)
         txt_rerunOr = wx.StaticText(self, label="- Or -")
         self.btn_rerun_grouping = wx.Button(self, label="Re-run All Grouping.")
-        self.btn_rerun_grouping.Bind(wx.EVT_BUTTON, self.onButton_rerun_grouping)
+        self.btn_rerun_grouping.Bind(
+            wx.EVT_BUTTON, self.onButton_rerun_grouping)
         rerun_btnsizer0 = wx.BoxSizer(wx.VERTICAL)
-        rerun_btnsizer0.AddMany([(self.btn_rerun_imggroup,0,wx.ALL,10), (self.btn_rerun_digitgroup,0,wx.ALL,10)])
+        rerun_btnsizer0.AddMany(
+            [(self.btn_rerun_imggroup, 0, wx.ALL, 10), (self.btn_rerun_digitgroup, 0, wx.ALL, 10)])
         rerun_btnsizer = wx.BoxSizer(wx.HORIZONTAL)
-        rerun_btnsizer.AddMany([(rerun_btnsizer0,0,wx.ALL,10), (txt_rerunOr, 0, wx.ALIGN_CENTER | wx.ALL, 10),
-                                (self.btn_rerun_grouping,0,wx.ALIGN_CENTER | wx.ALL, 10)])
+        rerun_btnsizer.AddMany([(rerun_btnsizer0, 0, wx.ALL, 10), (txt_rerunOr, 0, wx.ALIGN_CENTER | wx.ALL, 10),
+                                (self.btn_rerun_grouping, 0, wx.ALIGN_CENTER | wx.ALL, 10)])
         self.btn_rerun_imggroup.Disable()
         self.btn_rerun_digitgroup.Disable()
         self.btn_rerun_grouping.Disable()
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.AddMany([(self.btn_rungrouping,0,wx.ALL,10),
-                            (rerun_btnsizer,0,wx.ALL,10)])
+        self.sizer.AddMany([(self.btn_rungrouping, 0, wx.ALL, 10),
+                            (rerun_btnsizer, 0, wx.ALL, 10)])
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -95,7 +108,8 @@ class RunGroupingMainPanel(wx.Panel):
                 for attrtype, outdict in attrtypedicts.iteritems():
                     side = attrprops['IMGBASED'][attrtype]['side']
                     patchpath = outdict['patchpath']
-                    imgpatch2imgpath[patchpath] = imgpaths[0] # doesn't matter which one
+                    imgpatch2imgpath[patchpath] = imgpaths[
+                        0]  # doesn't matter which one
             pickle.dump(imgpatch2imgpath, open(pathjoin(self.proj.projdir_path,
                                                         self.proj.imgpatch2imgpath), 'wb'),
                         pickle.HIGHEST_PROTOCOL)
@@ -154,16 +168,19 @@ class RunGroupingMainPanel(wx.Panel):
                                                  self.proj.image_to_flip), 'rb'))
             imginfo_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.imginfo_map), 'rb'))
-            # dict ATTRPROPS: maps {str ATTRMODE: {ATTRTYPE: {str prop: propval}}}
+            # dict ATTRPROPS: maps {str ATTRMODE: {ATTRTYPE: {str prop:
+            # propval}}}
             attrprops = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                   self.proj.attrprops), 'rb'))
             # Grab the quarantined/discarded ballot ids
-            badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
-            patchDestDir_root = pathjoin(self.proj.projdir_path, 'grp_outpatches')
+            badballotids = get_quarantined_bals(
+                self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
+            patchDestDir_root = pathjoin(
+                self.proj.projdir_path, 'grp_outpatches')
             debug("Running Extract Attrvals")
             thread = Thread_RunGrpImgBased(b2imgs, partitions_map, partition_exmpls,
                                            multexemplars_map, img2page, img2flip,
-                                           badballotids, attrprops, patchDestDir_root, 
+                                           badballotids, attrprops, patchDestDir_root,
                                            self.proj,
                                            self.on_imggrouping_done)
             thread.start()
@@ -221,7 +238,8 @@ class RunGroupingMainPanel(wx.Panel):
             # Simple case -- each partition is already labeled
             self.on_digitgrouping_done((None, None))
         else:
-            thread = Thread_RunGrpDigitBased(self.proj, self.digitdist, self.on_digitgrouping_done)
+            thread = Thread_RunGrpDigitBased(
+                self.proj, self.digitdist, self.on_digitgrouping_done)
             thread.start()
 
             gauge = MyGauge(self, 1, thread=thread, job_id=part_match.JOBID_GROUPING_DIGITBASED,
@@ -229,14 +247,16 @@ class RunGroupingMainPanel(wx.Panel):
             gauge.Show()
 
             b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-            # dict ATTRPROPS: maps {str ATTRMODE: {ATTRTYPE: {str prop: propval}}}
+            # dict ATTRPROPS: maps {str ATTRMODE: {ATTRTYPE: {str prop:
+            # propval}}}
             attrprops = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                   self.proj.attrprops), 'rb'))
             partitions_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                        self.proj.partitions_map), 'rb'))
-            
+
             num_tasks = 0
-            badballotids = get_quarantined_bals(self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
+            badballotids = get_quarantined_bals(
+                self.proj) + get_discarded_bals(self.proj) + get_ioerr_bals(self.proj)
             num_badballots = len(badballotids)
             _num_ballots, _num_partitions = len(b2imgs), len(partitions_map)
             for attrtype, attrpropdict in attrprops["DIGITBASED"].iteritems():
@@ -270,14 +290,14 @@ class RunGroupingMainPanel(wx.Panel):
     def on_grouping_done(self):
         """ Both Image-based and Digit-based grouping is finished. """
         dur_total = time.time() - self._t_total
-        dur_total = 0.0001 if dur_total == 0.0 else dur_total # avoid div-by-0
+        dur_total = 0.0001 if dur_total == 0.0 else dur_total  # avoid div-by-0
         debug("Grouping Done ({0:.4f}s)", dur_total)
         debug("    Image-Based: {0:.2f}s ({1:.4f}%)",
               self._dur_imggrp,
-              100.0*(self._dur_imggrp / dur_total))
+              100.0 * (self._dur_imggrp / dur_total))
         debug("    Digit-Based: {0:.2f}s ({1:.4f}%)",
               self._dur_digitgrp,
-              100.0*(self._dur_digitgrp / dur_total))
+              100.0 * (self._dur_digitgrp / dur_total))
 
         wx.MessageDialog(self, message="Grouping is finished ({0:.2f} seconds elapsed).\n\n\
 You may proceed to the next task.".format(dur_total),
@@ -316,6 +336,7 @@ You may proceed to the next task.".format(dur_total),
             for filename in os.listdir(self.proj.projdir_path):
                 if filename.startswith('_state_verifyoverlays_'):
                     os.remove(pathjoin(self.proj.projdir_path, filename))
+
         def all_attrs_tabulationonly():
             """ Returns True if all attributes are tabulation-only. """
             # list ATTRS: [dict attrbox_marsh, ...]
@@ -347,21 +368,26 @@ the state files from the prior grouping will NOT be deleted."
         self._t_total = time.time()
         self.btn_rungrouping.Disable()
         self.run_imgbased_grouping()
-        
+
     def onButton_continueverify(self, evt):
         pass
+
     def onButton_rerun_imggroup(self, evt):
         pass
+
     def onButton_rerun_digitgroup(self, evt):
         pass
+
     def onButton_rerun_grouping(self, evt):
         self.onButton_rungrouping(None)
 
+
 class Thread_RunGrpImgBased(threading.Thread):
+
     def __init__(self, b2imgs, part2b, partition_exmpls, multexemplars_map,
                  img2page,
                  img2flip, badballotids, attrprops,
-                 patchDestDir_root, proj, 
+                 patchDestDir_root, proj,
                  callback, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.b2imgs, self.part2b, self.partition_exmpls = b2imgs, part2b, partition_exmpls
@@ -381,6 +407,7 @@ class Thread_RunGrpImgBased(threading.Thread):
                                               self.proj)
         wx.CallAfter(self.callback, group_results)
 
+
 def run_grouping_imgbased(b2imgs, part2b, partition_exmpls, multexemplars_map,
                           img2page,
                           img2flip, badballotids, attrprops,
@@ -394,26 +421,30 @@ def run_grouping_imgbased(b2imgs, part2b, partition_exmpls, multexemplars_map,
                       'exemplar_idx': int,
                       'patchpath': str path}
     """
-    # dict PATCHES: maps {str exmplpath: [[(y1,y2,x1,x2), attrtype,attrval, side, is_digit, is_tabulationonly, is_grp_partition], ...]}
+    # dict PATCHES: maps {str exmplpath: [[(y1,y2,x1,x2), attrtype,attrval,
+    # side, is_digit, is_tabulationonly, is_grp_partition], ...]}
     patches = {}
-    grpmode_map = {} # maps {attrtype: is_grp_per_partition}
+    grpmode_map = {}  # maps {attrtype: is_grp_per_partition}
     for attrtype, attrpropdict in attrprops['IMGBASED'].iteritems():
         side = attrpropdict['side']
         grp_per_partition = attrpropdict['grp_per_partition']
         grpmode_map[attrtype] = grp_per_partition
         if grp_per_partition:
-            continue # No need to run grouping on partition-consistent attrs
+            continue  # No need to run grouping on partition-consistent attrs
         for attrval, exmpls in multexemplars_map[attrtype].iteritems():
-            for (subpatchP, exmplpath, (x1,y1,x2,y2)) in exmpls:
-                patches.setdefault(exmplpath, []).append([(y1,y2,x1,x2), attrtype, attrval, side])
-    stopped = lambda : False
+            for (subpatchP, exmplpath, (x1, y1, x2, y2)) in exmpls:
+                patches.setdefault(exmplpath, []).append(
+                    [(y1, y2, x1, x2), attrtype, attrval, side])
+    stopped = lambda: False
     # dict RESULTS: {int ballotID: {str attrtype: dict outdict}}
-    results = doGrouping.groupImagesMAP(b2imgs, part2b, partition_exmpls, 
+    results = doGrouping.groupImagesMAP(b2imgs, part2b, partition_exmpls,
                                         img2page, img2flip, badballotids, patches, grpmode_map,
                                         patchDestDir_root, stopped, proj)
     return results
 
+
 class Thread_RunGrpDigitBased(threading.Thread):
+
     def __init__(self, proj, digitdist, callback, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
 
@@ -422,9 +453,11 @@ class Thread_RunGrpDigitBased(threading.Thread):
         self.callback = callback
 
     def run(self):
-        all_results, digitdist = run_grouping_digitbased(self.proj, self.digitdist)
+        all_results, digitdist = run_grouping_digitbased(
+            self.proj, self.digitdist)
 
         wx.CallAfter(self.callback, (all_results, digitdist))
+
 
 def run_grouping_digitbased(proj, digitdist):
     partitions_map = pickle.load(open(pathjoin(proj.projdir_path,
@@ -442,25 +475,30 @@ def run_grouping_digitbased(proj, digitdist):
                                          proj.image_to_flip), 'rb'))
     # TODO: Consider only calling compute_digit_exemplars if necessary (e.g.
     #       don't re-compute digit exemplars if nothing has changed)
-    # dict DIGITMULTEXEMPLARS_MAP: {str digit: [(regionpath, (x1,y1,x2,y2), exemplarpath), ...]}
-    digitmultexemplars_map = digit_group_new.compute_digit_exemplars(proj, LIMIT=100)
+    # dict DIGITMULTEXEMPLARS_MAP: {str digit: [(regionpath, (x1,y1,x2,y2),
+    # exemplarpath), ...]}
+    digitmultexemplars_map = digit_group_new.compute_digit_exemplars(
+        proj, LIMIT=100)
     pickle.dump(digitmultexemplars_map, open(pathjoin(proj.projdir_path,
                                                       proj.digitmultexemplars_map), 'wb'))
     for digit, tups in sorted(digitmultexemplars_map.iteritems(), key=lambda t: t[0]):
         debug("Digit {0} had: {1} exemplars", digit, len(tups))
 
     # Grab the quarantined/discarded ballot ids
-    badballotids = get_quarantined_bals(proj) + get_discarded_bals(proj) + get_ioerr_bals(proj)
-    all_results = {} # maps {str attrtype: dict results}
+    badballotids = get_quarantined_bals(
+        proj) + get_discarded_bals(proj) + get_ioerr_bals(proj)
+    all_results = {}  # maps {str attrtype: dict results}
     MODE = get_digitgroup_mode(proj)
     digitpatch_dir = pathjoin(proj.projdir_path, proj.digitpatch_dir)
     digpatch2imgpath_outP = pathjoin(proj.projdir_path, proj.digpatch2imgpath)
     try:
         shutil.rmtree(digitpatch_dir)
-    except: pass
+    except:
+        pass
     try:
         os.remove(digpatch2imgpath_outP)
-    except: pass
+    except:
+        pass
     debug("DigitGroup Mode: {0}",
           {GRP_PER_PARTITION: 'GRP_PER_PARTITION',
            GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
@@ -484,6 +522,7 @@ def run_grouping_digitbased(proj, digitdist):
 
     return all_results, digitdist
 
+
 def compute_median_dist(proj):
     """ Computes the median (horiz) distance between adjacent digits,
     based off of the digits from the blank ballots.
@@ -494,16 +533,17 @@ def compute_median_dist(proj):
     """
     # Bit hacky - peer into LabelDigit's internal state
     labeldigits_stateP = pathjoin(proj.projdir_path, '_state_labeldigits.p')
-    cellid2boxes = pickle.load(open(labeldigits_stateP, 'rb'))['state_grid']['cellid2boxes']
+    cellid2boxes = pickle.load(open(labeldigits_stateP, 'rb'))[
+        'state_grid']['cellid2boxes']
 
-    dists = [] # stores adjacent distances
+    dists = []  # stores adjacent distances
     for cellid, boxes in cellid2boxes.iteritems():
         x1_all = []
         for box in boxes:
             x1_all.append(box[0])
         x1_all = sorted(x1_all)
         for i, x1 in enumerate(x1_all[:-1]):
-            x1_i = x1_all[i+1]
+            x1_i = x1_all[i + 1]
             dists.append(int(round(abs(x1 - x1_i))))
     dists = sorted(dists)
     if len(dists) <= 2:
@@ -513,18 +553,22 @@ def compute_median_dist(proj):
     debug("median digit dist is: {0}", median_dist)
     return median_dist
 
+
 def exists_digattr(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     for attr in attrs:
         if attr['is_digitbased']:
             return True
     return False
+
+
 def exists_imgattr(proj):
     attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
     for attr in attrs:
         if not attr['is_digitbased']:
             return True
     return False
+
 
 def get_digitgroup_mode(proj):
     """ Determines the digitgroup mode, either DG_PER_BALLOT or DG_PER_PARTITION.
@@ -551,6 +595,7 @@ def get_digitgroup_mode(proj):
     error("uhoh, shouldn't get here.")
     raise Exception
 
+
 def get_quarantined_bals(proj):
     """ Returns a list of all ballotids quarantined prior to grouping
     (i.e. during Partitioning).
@@ -558,6 +603,8 @@ def get_quarantined_bals(proj):
     qbals = pickle.load(open(pathjoin(proj.projdir_path,
                                       proj.partition_quarantined), 'rb'))
     return list(set(qbals))
+
+
 def get_discarded_bals(proj):
     """ Returns a list of all ballotids discarded prior to grouping 
     (i.e. during Partitioning).
@@ -565,6 +612,8 @@ def get_discarded_bals(proj):
     discarded_bals = pickle.load(open(pathjoin(proj.projdir_path,
                                                proj.partition_discarded), 'rb'))
     return list(set(discarded_bals))
+
+
 def get_ioerr_bals(proj):
     """ Returns a list of all ballotids that had some image that was
     unable to be read by OpenCount (during Partitioning).

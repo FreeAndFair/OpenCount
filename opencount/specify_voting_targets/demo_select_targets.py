@@ -1,4 +1,6 @@
-import os, sys, pdb
+import os
+import sys
+import pdb
 
 import wx
 sys.path.append('..')
@@ -9,6 +11,7 @@ from select_targets import *
 A Demo widget that is a much more compact version of the current
 Select/Group Targets widget.
 """
+
 
 class SelectTargetsPanel(ScrolledPanel):
     """ A widget that allows you to find voting targets on N ballot
@@ -35,13 +38,13 @@ this partition.")
 
         btn_next = wx.Button(self, label="Next Ballot")
         btn_prev = wx.Button(self, label="Previous Ballot")
-        
+
         btn_next.Bind(wx.EVT_BUTTON, self.onButton_next)
         btn_prev.Bind(wx.EVT_BUTTON, self.onButton_prev)
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddMany([(btn_prev,), (btn_next,)])
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(txt, flag=wx.ALIGN_CENTER)
         self.sizer.Add(self.toolbar, flag=wx.EXPAND)
@@ -59,7 +62,7 @@ this partition.")
 
         self.display_image(0)
 
-        #self.SetupScrolling()
+        # self.SetupScrolling()
 
     def do_tempmatch(self, box, img):
         """ Runs template matching on all of my self.IMGPATHS, using 
@@ -75,10 +78,11 @@ this partition.")
         # using PATCH as the template.
 
         patch.save("_patch.png")
-        
+
         queue = Queue.Queue()
         # Template match on /all/ images across all partitions, same page
-        thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID, patch, img, self.imgpaths, self.on_tempmatch_done)
+        thread = TM_Thread(queue, self.TEMPLATE_MATCH_JOBID,
+                           patch, img, self.imgpaths, self.on_tempmatch_done)
         thread.start()
 
     def on_tempmatch_done(self, results, w, h):
@@ -93,17 +97,18 @@ this partition.")
             def is_within_box(pt, box):
                 return box.x1 < pt[0] < box.x2 and box.y1 < pt[1] < box.y2
             x1, y1, x2, y2 = rect1.x1, rect1.y1, rect1.x2, rect1.y2
-            w, h = abs(x2-x1), abs(y2-y1)
+            w, h = abs(x2 - x1), abs(y2 - y1)
             # Checks (in order): UL, UR, LR, LL corners
-            return (is_within_box((x1,y1), rect2) or
-                    is_within_box((x1+w,y1), rect2) or 
-                    is_within_box((x1+w,y1+h), rect2) or 
-                    is_within_box((x1,y1+h), rect2))
+            return (is_within_box((x1, y1), rect2) or
+                    is_within_box((x1 + w, y1), rect2) or
+                    is_within_box((x1 + w, y1 + h), rect2) or
+                    is_within_box((x1, y1 + h), rect2))
+
         def too_close(b1, b2):
-            w, h = abs(b1.x1-b1.x2), abs(b1.y1-b1.y2)
+            w, h = abs(b1.x1 - b1.x2), abs(b1.y1 - b1.y2)
             return ((abs(b1.x1 - b2.x1) <= w / 2.0 and
                      abs(b1.y1 - b2.y1) <= h / 2.0) or
-                    is_overlap(b1, b2) or 
+                    is_overlap(b1, b2) or
                     is_overlap(b2, b1))
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
@@ -112,7 +117,7 @@ this partition.")
             print 'For imgpath {0}: {1} matches.'.format(imgpath, len(matches))
             imgpath_idx = self.imgpaths.index(imgpath)
             for (x, y, score) in matches:
-                boxB = TargetBox(x, y, x+w, y+h)
+                boxB = TargetBox(x, y, x + w, y + h)
                 # 1.a.) See if any already-existing box is too close
                 do_add = True
                 for boxA in self.boxes[imgpath_idx]:
@@ -144,7 +149,7 @@ this partition.")
         '''
         self.cur_i = idx
         imgpath = self.imgpaths[self.cur_i]
-        
+
         # 1.) Display New Image
         print "...Displaying image:", imgpath
         wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
@@ -154,12 +159,12 @@ this partition.")
         wimg = wP
         himg = int(round(wximg.GetHeight() / _c))
         self.imagepanel.set_image(wximg, size=(wimg, himg))
-        
+
         # 2.) Read in previously-created boxes for IDX (if exists)
         boxes = self.boxes.get(self.cur_i, [])
         self.imagepanel.set_boxes(boxes)
 
-        #self.SetupScrolling()
+        # self.SetupScrolling()
         self.Refresh()
         return idx
 
@@ -172,7 +177,7 @@ this partition.")
         if next_idx >= len(self.imgpaths):
             return None
         return self.display_image(next_idx)
-        
+
     def display_prev(self):
         prev_idx = self.cur_i - 1
         if prev_idx < 0:
@@ -181,20 +186,25 @@ this partition.")
 
     def onButton_next(self, evt):
         self.display_next()
+
     def onButton_prev(self, evt):
         self.display_prev()
+
     def zoomin(self, amt=0.1):
         self.imagepanel.zoomin(amt=amt)
-        #self.SetupScrolling()
+        # self.SetupScrolling()
+
     def zoomout(self, amt=0.1):
         self.imagepanel.zoomout(amt=amt)
-        #self.SetupScrolling()
+        # self.SetupScrolling()
+
 
 class Toolbar(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        
+
         self._setup_ui()
         self._setup_evts()
         self.Layout()
@@ -212,15 +222,20 @@ class Toolbar(wx.Panel):
         self.SetSizer(self.sizer)
 
     def _setup_evts(self):
-        self.btn_addtarget.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_CREATE))
-        self.btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_IDLE))
+        self.btn_addtarget.Bind(
+            wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_CREATE))
+        self.btn_modify.Bind(
+            wx.EVT_BUTTON, lambda evt: self.setmode(BoxDrawPanel.M_IDLE))
         self.btn_zoomin.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomin())
         self.btn_zoomout.Bind(wx.EVT_BUTTON, lambda evt: self.parent.zoomout())
+
     def setmode(self, mode_m):
         self.parent.imagepanel.set_mode_m(mode_m)
 
+
 def main():
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, imgpaths, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(800, 900), *args, **kwargs)
             self.parent = parent

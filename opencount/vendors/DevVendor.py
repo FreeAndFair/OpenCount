@@ -1,5 +1,8 @@
-import sys, os, cPickle as pickle
+import sys
+import os
+import cPickle as pickle
 from Vendor import Vendor
+
 
 class DevVendor(Vendor):
     """ A simple Vendor that outputs groups according to directory structure, e.g.:
@@ -9,6 +12,7 @@ class DevVendor(Vendor):
         voteddir/styleB/*
     ...
     """
+
     def __init__(self, proj):
         self.proj = proj
 
@@ -26,8 +30,8 @@ class DevVendor(Vendor):
         img2decoding = {}
         img2flip = {}
         verifypatch_bbs = None
-        
-        parentdir2decode = {} # maps {str parentdirname: int outdecode}
+
+        parentdir2decode = {}  # maps {str parentdirname: int outdecode}
         cur_outdec = 0
         for balid, imgpaths in ballots.iteritems():
             parentdir = os.path.split(os.path.split(imgpaths[0])[0])[1]
@@ -37,7 +41,7 @@ class DevVendor(Vendor):
             for imgpath in imgpaths:
                 img2decoding[imgpath] = str(parentdir2decode[parentdir])
                 img2flip[imgpath] = False
-            
+
         return img2decoding, img2flip, verifypatch_bbs, [], []
 
     def partition_ballots(self, img2decoding, verified_results, manual_labeled):
@@ -55,10 +59,10 @@ class DevVendor(Vendor):
              dict IMG2DECODING,
              dict IMAGE_INFO)
         """
-        part2bals = {} # maps {int partitionid: [int balid_0, ...]}
-        imginfo = {} # maps {str imgpath: {str PROPNAME: str PROPVAL}}
+        part2bals = {}  # maps {int partitionid: [int balid_0, ...]}
+        imginfo = {}  # maps {str imgpath: {str PROPNAME: str PROPVAL}}
 
-        history = set() # set([int balid, ...])
+        history = set()  # set([int balid, ...])
         dec2partid = {}
         cur_partid = 0
 
@@ -83,5 +87,6 @@ class DevVendor(Vendor):
 
     def __repr__(self):
         return 'DevVendor()'
+
     def __str__(self):
         return 'DevVendor()'

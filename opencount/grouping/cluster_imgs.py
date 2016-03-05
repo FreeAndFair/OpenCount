@@ -1,9 +1,13 @@
-import sys, os, time, pdb
+import sys
+import os
+import time
+import pdb
 sys.path.append('..')
 from os.path import join as pathjoin
 import numpy as np
 import scipy.cluster.vq
-import pylab, cv
+import pylab
+import cv
 
 import cluster_fns
 import pixel_reg.imagesAlign as imagesAlign
@@ -12,6 +16,7 @@ import util
 """
 A script designed to cluster images.
 """
+
 
 def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     """ Using PCA and K-means, cluster the imgpaths into 'k' clusters,
@@ -67,7 +72,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     #     http://glowingpython.blogspot.it/2011/07/pca-and-image-compression-with-numpy.html
 
     # 1.) Call PCA on the data matrix, extract first N principle comps
-    M = (data - np.mean(data.T, axis=1)) # subtract mean, along cols
+    M = (data - np.mean(data.T, axis=1))  # subtract mean, along cols
     (latent, coeff) = np.linalg.eig(np.cov(M))
     p = np.size(coeff, axis=1)
 
@@ -80,7 +85,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     # followed by imgpaths[1], etc.
     idx = idx[:k]
     cluster_centers = data[idx, :]
-    clustering = {} # maps {int clusterID: [imgpath_i, ...]}
+    clustering = {}  # maps {int clusterID: [imgpath_i, ...]}
 
     # 2.) Nearest-Neighbors to cluster_centers
     for i, imgarray in enumerate(data):
@@ -92,6 +97,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
                 best_j = j
         clustering.setdefault(best_j, []).append(imgpaths[i])
     return clustering
+
 
 def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=0.3,
                         do_downsize=False, downsize_amt=0.5, do_align=True, imgCache=None,
@@ -121,7 +127,8 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
                            MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache,
                            bindataP=bindataP)
-    debug("(Kmeans) data.nbytes: {0}    ({1} MB)", data.nbytes, data.nbytes / 1e6)
+    debug("(Kmeans) data.nbytes: {0}    ({1} MB)",
+          data.nbytes, data.nbytes / 1e6)
     dur_imgs2mat = time.time() - t
     '''
     if bb_map == None:
@@ -164,20 +171,22 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     debug("Split K_Means finished ({0:.4f}s total)", dur_total)
     debug("    imgs2mat: {0:.5f}s ({1:.4f}%)",
           dur_imgs2mat,
-          100.0*(dur_imgs2mat / dur_total))
+          100.0 * (dur_imgs2mat / dur_total))
     debug("    kmeans  : {0:.5f}s ({1:.4f}%)",
           dur_kmeans,
-          100.0*(dur_kmeans / dur_total))
+          100.0 * (dur_kmeans / dur_total))
     return clusters
+
 
 def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', centroidfn_method='mean', do_align=True):
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     debug("Running k-means")
     t = time.time()
-    assigns = cluster_fns.kmeans(data, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
+    assigns = cluster_fns.kmeans(
+        data, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
     dur = time.time() - t
     debug("Finished k-means ({0} s).", dur)
-    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    clusters = {}  # maps {clusterID: [imgpath_i, ...]}
     for i in xrange(k):
         cluster = []
         for idx in np.where(assigns == i)[0]:
@@ -186,8 +195,10 @@ def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', cen
         clusters[i] = cluster
     return clusters
 
+
 def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn_method=None, centroidfn_method=None, do_align=True):
-    data, errs = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align, return_align_errs=True)
+    data, errs = imgpaths_to_mat(
+        imgpaths, bb_map=bb_map, do_align=do_align, return_align_errs=True)
     with time_operation('running k-means'):
         assigns = cluster_fns.kmeans(errs,
                                      K=k,
@@ -201,6 +212,7 @@ def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn_method=None,
         debug("    cluster {0}: {1} elements.", i, len(cluster))
         clusters[i] = cluster
     return clusters
+
 
 def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', centroidfn_method='simple'):
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
@@ -219,14 +231,16 @@ def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', c
         clusters[i] = cluster
     return clusters
 
+
 def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
               do_align=True, do_edgedetect=False):
-    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align, do_edgedetect=do_edgedetect)
+    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map,
+                             do_align=do_align, do_edgedetect=do_edgedetect)
     with util.time_operation('k-means'):
         assigns = cluster_fns.kmeans_2D(data,
                                         K=k,
                                         distfn_method=distfn_method)
-    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    clusters = {}  # maps {clusterID: [imgpath_i, ...]}
     for i in xrange(k):
         cluster = []
         for idx in np.where(assigns == i)[0]:
@@ -235,14 +249,16 @@ def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
         clusters[i] = cluster
     return clusters
 
+
 def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
                 do_align=True, do_edgedetect=False):
-    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map, do_align=do_align, do_edgedetect=do_edgedetect)
+    data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map,
+                             do_align=do_align, do_edgedetect=do_edgedetect)
     with util.time_operation('k-mediods'):
         assigns = cluster_fns.kmediods_2D(data,
                                           K=k,
                                           distfn_method=distfn_method)
-    clusters = {} # maps {clusterID: [imgpath_i, ...]}
+    clusters = {}  # maps {clusterID: [imgpath_i, ...]}
     for i in xrange(k):
         cluster = []
         for idx in np.where(assigns == i)[0]:
@@ -250,6 +266,7 @@ def kmediods_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
         debug("    cluster {0}: {1} elements.", i, len(cluster))
         clusters[i] = cluster
     return clusters
+
 
 def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
                     rszFac=None,
@@ -287,7 +304,7 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     # 0.) First, convert images into MxN array, where M is the number
     #     of images, and N is the number of pixels of each image.
     if rszFac != None:
-        w_out, h_out = int(round(rszFac*w_big)), int(round(rszFac*h_big))
+        w_out, h_out = int(round(rszFac * w_big)), int(round(rszFac * h_big))
     elif MIN_DIM != None and MAX_DIM != None:
         if h_big <= MIN_DIM or w_big <= MIN_DIM:
             rszFac = 1.0
@@ -301,10 +318,10 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
 
     debug("imgpaths_to_mat -- using rszFac={0}", rszFac)
 
-    data = np.zeros((len(imgpaths), h_out*w_out), dtype='float32')
+    data = np.zeros((len(imgpaths), h_out * w_out), dtype='float32')
     Iref = None
     if return_align_errs:
-        alignerrs = [None] * len(imgpaths) # [float err_i, ...]
+        alignerrs = [None] * len(imgpaths)  # [float err_i, ...]
         alignerrs = np.zeros((len(imgpaths), 1))
     else:
         alignerrs = None
@@ -315,7 +332,8 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
             patch = resize_mat(img, (h_out, w_out), rszFac=rszFac)
         else:
             # Must make sure that all patches are the same shape.
-            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_out, w_out), rszFac=rszFac)
+            patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]],
+                               (h_out, w_out), rszFac=rszFac)
         if do_align and Iref == None:
             Iref = patch
         elif do_align:
@@ -331,11 +349,12 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
             patch = np.nan_to_num(patch)
         # Reshape 'patch' to be a single row of pixels, instead of rows
         # of pixels.
-        patch = patch.reshape(1, patch.shape[0]*patch.shape[1])
-        data[row,:] = patch
+        patch = patch.reshape(1, patch.shape[0] * patch.shape[1])
+        data[row, :] = patch
     if return_align_errs:
         return data, alignerrs
     return data
+
 
 def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=False,
                       do_edgedetect=False, LOW_T=75, RATIO=3,
@@ -363,10 +382,11 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxHxW array, where M is the number
     #     of images, and (H,W) are image sizes.
-    data = np.zeros((len(imgpaths), h_big-(2*BORDER), w_big-(2*BORDER)))
+    data = np.zeros(
+        (len(imgpaths), h_big - (2 * BORDER), w_big - (2 * BORDER)))
     #data = np.zeros((len(imgpaths), h_big, w_big))
     Iref = None
-    alignerrs = [None] * len(imgpaths) # [float err_i, ...]
+    alignerrs = [None] * len(imgpaths)  # [float err_i, ...]
     alignerrs = np.zeros((len(imgpaths), 1))
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
@@ -388,7 +408,7 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
                 os.makedirs("alignedimgs")
             except:
                 pass
-            #scipy.misc.imsave(os.path.join("alignedimgs", "{0}_{1}.png".format(row, err)),
+            # scipy.misc.imsave(os.path.join("alignedimgs", "{0}_{1}.png".format(row, err)),
             #                  patch_img)
             scipy.misc.imsave(os.path.join("alignedimgs", "{0}.png".format(row)),
                               patch_img)
@@ -396,11 +416,13 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
             if return_align_errs:
                 alignerrs[row] = err
         # Crop out window
-        patch = patch[BORDER:patch.shape[0]-BORDER, BORDER:patch.shape[1]-BORDER]
-        data[row,:,:] = patch
+        patch = patch[BORDER:patch.shape[0] -
+                      BORDER, BORDER:patch.shape[1] - BORDER]
+        data[row, :, :] = patch
     if return_align_errs:
         return data, alignerrs
     return data
+
 
 def edgedetect(I_np, LOW_T=75, RATIO=3):
     I_cv = cv.fromarray(I_np)
@@ -408,25 +430,30 @@ def edgedetect(I_np, LOW_T=75, RATIO=3):
     cv.Convert(I_cv, I_cv8U)
     edges = cv.CreateMat(I_cv8U.rows, I_cv8U.cols, cv.CV_8U)
 
-    cv.Canny(I_cv8U, edges, LOW_T, LOW_T*RATIO)
+    cv.Canny(I_cv8U, edges, LOW_T, LOW_T * RATIO)
     edges_32f = cv.CreateMat(edges.rows, edges.cols, cv.CV_32F)
     cv.Convert(edges, edges_32f)
     edges_np = np.array(edges_32f)
     return edges_np
 
+
 def smooth(I):
     pass
+
 
 def get_largest_img_dims(imgpaths):
     """ Returns the largest dimensions of the images in imgpaths. """
     h, w = None, None
     for imgpath in imgpaths:
-        w_img, h_img = cv.GetSize(cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED))
+        w_img, h_img = cv.GetSize(cv.LoadImage(
+            imgpath, cv.CV_LOAD_IMAGE_UNCHANGED))
         if h == None or h_img > h:
             h = h_img
         if w == None or w_img > w:
             w = w_img
     return (h, w)
+
+
 def get_largest_bb(bbs):
     """ Returns the largest bb in bb_map.
     Input:
@@ -438,6 +465,7 @@ def get_largest_bb(bbs):
     for i in range(4):
         outbb.append(max(map(lambda _bb: _bb[i], bbs)))
     return outbb
+
 
 def resize_mat(mat, shape, rszFac=None):
     """ Takes in an NxM matrix 'mat', and either truncates or pads
@@ -466,8 +494,9 @@ def resize_mat(mat, shape, rszFac=None):
     out = np.zeros(shape, dtype=mat_rsz.dtype)
     i = min(mat_rsz.shape[0], out.shape[0])
     j = min(mat_rsz.shape[1], out.shape[1])
-    out[0:i,0:j] = mat_rsz[0:i, 0:j]
+    out[0:i, 0:j] = mat_rsz[0:i, 0:j]
     return out
+
 
 def _test_resize_mat():
     foo = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
@@ -479,6 +508,7 @@ def _test_resize_mat():
     out3 = resize_mat(foo, (3, 3))
     debug('out3 is: {0}', out3)
 
+
 def test_clusterimgs_kmeans():
     def get_bb(digitsdir):
         shapes = []
@@ -487,7 +517,7 @@ def test_clusterimgs_kmeans():
                 if f.lower().endswith('.png'):
                     imgpath = pathjoin(dirname, f)
                     shape = scipy.misc.imread(imgpath, flatten=True).shape
-                    shapes.append((0,shape[0],0,shape[1]))
+                    shapes.append((0, shape[0], 0, shape[1]))
         return get_largest_bb(shapes)
 
     rootdir = 'test_cluster_kmeans_imgs'
@@ -524,6 +554,7 @@ def get_imgpaths(dir):
             if filename.lower().endswith('.png'):
                 paths.append(pathjoin(dirpath, filename))
     return paths
+
 
 def main():
     test_clusterimgs_kmeans()

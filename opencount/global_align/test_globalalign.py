@@ -1,6 +1,9 @@
-import os, sys
+import os
+import sys
 
-import numpy as np, scipy, scipy.misc
+import numpy as np
+import scipy
+import scipy.misc
 
 sys.path.append('..')
 
@@ -39,7 +42,7 @@ oc_badglobalalign), you can do:
 # NOTE: Currently, the global alignment procedure is the 'global_align'
 #       below, which crops 20% of the image on every side before running
 #       Kai's imagesAlign function.
-#       This improved things for Orange County, but made things worse for 
+#       This improved things for Orange County, but made things worse for
 #       Yolo.
 #       One idea is to reduce the cropping (say, ~2-5% or so).
 #       Another idea is to try running alignment a few times on smaller
@@ -48,7 +51,8 @@ oc_badglobalalign), you can do:
 #       metric).
 #
 #       If you make your changes to 'global_align' when running your experiments,
-#       you won't have to change any of the other code. 
+#       you won't have to change any of the other code.
+
 
 def global_align(Iref, imgpaths):
     """ Using IREF as a reference, aligns every image in IMGPATHS to IREF.
@@ -63,7 +67,7 @@ def global_align(Iref, imgpaths):
         the discovered transformation matrix H, alignment error ERR, and
         the path to the ballot image IMGPATH.
     """
-    Iouts = [] # [(imgpath, H, Ireg, err), ...]
+    Iouts = []  # [(imgpath, H, Ireg, err), ...]
     for imgpath in imgpaths:
         I = shared.standardImread(imgpath, flatten=True)
         Icrop = cropout_stuff(I, 0.2, 0.2, 0.2, 0.2)
@@ -73,14 +77,16 @@ def global_align(Iref, imgpaths):
         Iouts.append((imgpath, H, Ireg, err))
     return Iouts
 
+
 def cropout_stuff(I, top, bot, left, right):
     h, w = I.shape
-    x1 = int(round(left*w))
-    y1 = int(round(top*h))
-    x2 = int(round(w - (right*w)))
-    y2 = int(round(h - (bot*h)))
+    x1 = int(round(left * w))
+    y1 = int(round(top * h))
+    x2 = int(round(w - (right * w)))
+    y2 = int(round(h - (bot * h)))
     Inew = I[y1:y2, x1:x2]
     return np.copy(Inew)
+
 
 def do_aligning(imgpaths, outdir, idx):
     Iref_imgP = imgpaths.pop(idx)
@@ -95,7 +101,8 @@ def do_aligning(imgpaths, outdir, idx):
 
     try:
         os.makedirs(ref_dir)
-    except: pass
+    except:
+        pass
 
     Iref_imgname = os.path.split(Iref_imgP)[1]
     scipy.misc.imsave(os.path.join(ref_dir, Iref_imgname), Iref)
@@ -107,7 +114,7 @@ def do_aligning(imgpaths, outdir, idx):
         Hc = correctH(Ireg_crop, H)
         print Hc
         rot_H = Hc[:2, :2]
-        trans_H = Hc[:2,2]
+        trans_H = Hc[:2, 2]
         """
         Note: imagesAlign's H is of the form:
             [a b X]
@@ -116,7 +123,7 @@ def do_aligning(imgpaths, outdir, idx):
         scipy's affine_transform's offset should be offset=(y,x), but where
             positive y is go UP, and positive x is to the LEFT.
         """
-        #Itrans = scipy.ndimage.interpolation.affine_transform(I, rot_H, 
+        # Itrans = scipy.ndimage.interpolation.affine_transform(I, rot_H,
         #                                                      offset=(-trans_H[1], -trans_H[0]),
         #                                                      output_shape=I.shape)
         #Icv = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -126,18 +133,24 @@ def do_aligning(imgpaths, outdir, idx):
         #Itrans = np.asarray(Icv)
         Itrans = imtransform(I, H)
         Itrans = np.nan_to_num(Itrans)
-        
+
         outP = os.path.join(outdir, "{0}_err{1:.4f}.png".format(imgname, err))
         Ioverlay = np.zeros(Itrans.shape)
-        Ioverlay[:,:] = Itrans
-        Ioverlay[:,:] += Iref_np
+        Ioverlay[:, :] = Itrans
+        Ioverlay[:, :] += Iref_np
         scipy.misc.imsave(outP, Ioverlay)
-    
+
+
 def correctH(I, H0):
-    T0=np.eye(3); T0[0,2]=I.shape[1]/2.0; T0[1,2]=I.shape[0]/2.0
-    T1=np.eye(3); T1[0,2]=-I.shape[1]/2.0; T1[1,2]=-I.shape[0]/2.0
-    H=np.dot(np.dot(T0,H0),T1)
+    T0 = np.eye(3)
+    T0[0, 2] = I.shape[1] / 2.0
+    T0[1, 2] = I.shape[0] / 2.0
+    T1 = np.eye(3)
+    T1[0, 2] = -I.shape[1] / 2.0
+    T1[1, 2] = -I.shape[0] / 2.0
+    H = np.dot(np.dot(T0, H0), T1)
     return H
+
 
 def main():
     args = sys.argv[1:]

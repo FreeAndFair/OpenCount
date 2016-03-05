@@ -1,4 +1,12 @@
-import os, sys, traceback, time, pdb, threading, multiprocessing, math, argparse
+import os
+import sys
+import traceback
+import time
+import pdb
+import threading
+import multiprocessing
+import math
+import argparse
 try:
     import cPickle as pickle
 except:
@@ -11,7 +19,10 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from ffwx import *
 
-import cv, numpy as np, scipy, scipy.misc
+import cv
+import numpy as np
+import scipy
+import scipy.misc
 from PIL import Image
 import make_overlays
 import cluster_imgs
@@ -32,8 +43,10 @@ MAX_CACHE_SIZE = 2000
 
 JOBID_GENERATE_MINMAX_OVERLAYS = util.GaugeID("GenerateMinMaxOverlays")
 
+
 class ViewOverlaysPanel(ScrolledPanel):
     """ Class that contains both a Header, a ViewOverlays, and a Footer. """
+
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
 
@@ -52,7 +65,8 @@ class ViewOverlaysPanel(ScrolledPanel):
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.header, border=5, flag=wx.ALL)
-        self.sizer.Add(self.overlaypanel, border=5, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.overlaypanel, border=5,
+                       proportion=1, flag=wx.EXPAND | wx.ALL)
         self.sizer.Add(self.footer, border=5, flag=wx.ALL)
 
         self.SetSizer(self.sizer)
@@ -66,10 +80,13 @@ class ViewOverlaysPanel(ScrolledPanel):
 
     def save_session(self, *args, **kwargs):
         self.overlaypanel.save_session(*args, **kwargs)
+
     def export_results(self, *args, **kwargs):
         self.overlaypanel.export_results(*args, **kwargs)
 
+
 class ViewOverlays(ScrolledPanel):
+
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
 
@@ -82,7 +99,7 @@ class ViewOverlays(ScrolledPanel):
 
         # dict BBS_MAP: maps {(tag, str imgpath): (x1,y1,x2,y2)}
         self.bbs_map = None
-        
+
         # IDX: Current idx into self.GROUPS that we are displaying
         self.idx = None
 
@@ -94,7 +111,7 @@ class ViewOverlays(ScrolledPanel):
         self.minimg_np_orig = None
         self.maximg_np_orig = None
 
-        self.imgCache = ImageCache(SIZECAP=MAX_CACHE_SIZE, 
+        self.imgCache = ImageCache(SIZECAP=MAX_CACHE_SIZE,
                                    img_format=IM_FORMAT_SCIPY,
                                    img_mode=IM_MODE_GRAYSCALE)
 
@@ -104,10 +121,12 @@ class ViewOverlays(ScrolledPanel):
         """ Layout the images in a single vertical column. """
         self.sizer_overlays.SetOrientation(wx.VERTICAL)
         self.sizer_overlays_voted.SetOrientation(wx.VERTICAL)
+
     def overlays_layout_horiz(self):
         """ Layout the images in a single horizontal row. """
         self.sizer_overlays.SetOrientation(wx.HORIZONTAL)
         self.sizer_overlays_voted.SetOrientation(wx.HORIZONTAL)
+
     def set_patch_layout(self, orient='horizontal'):
         """ Change the orientation of the images. Either arrange 
         'horizontal', or stack 'vertical'.
@@ -123,7 +142,8 @@ class ViewOverlays(ScrolledPanel):
     def init_ui(self):
         stxt_grplabel = wx.StaticText(self, label="Current Group Label: ")
         self.stxt_grplabel = stxt_grplabel
-        self.cbox_grplabel = wx.ComboBox(self, style=wx.CB_READONLY | wx.CB_SORT)
+        self.cbox_grplabel = wx.ComboBox(
+            self, style=wx.CB_READONLY | wx.CB_SORT)
         self.cbox_grplabel.Bind(wx.EVT_COMBOBOX, self.onComboBox_grplabel)
         txt_0 = wx.StaticText(self, label="Number of images in group: ")
         self.txtctrl_num_elements = wx.StaticText(self, label='0')
@@ -140,16 +160,19 @@ class ViewOverlays(ScrolledPanel):
                          self.GetTextExtent(txt_0.GetLabel())[0])
         _pad = 30
 
-        sizer_grplabel.AddMany([(stxt_grplabel,), 
-                                (_maxtxtlen - self.GetTextExtent(stxt_grplabel.GetLabel())[0] + _pad, 0),
+        sizer_grplabel.AddMany([(stxt_grplabel,),
+                                (_maxtxtlen - self.GetTextExtent(stxt_grplabel.GetLabel())
+                                 [0] + _pad, 0),
                                 (self.cbox_grplabel,)])
         sizer_numimgs = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_numimgs.AddMany([(txt_0,), 
-                               (_maxtxtlen - self.GetTextExtent(txt_0.GetLabel())[0] + _pad, 0),
+        sizer_numimgs.AddMany([(txt_0,),
+                               (_maxtxtlen - self.GetTextExtent(txt_0.GetLabel())
+                                [0] + _pad, 0),
                                (self.txtctrl_num_elements,)])
         sizer_groups = wx.BoxSizer(wx.VERTICAL)
         self.sizer_groups = sizer_groups
-        sizer_groups.AddMany([(sizer_grplabel,), (sizer_numimgs,), (self.listbox_groups,), (self.btn_showhidelistbox,)])
+        sizer_groups.AddMany([(sizer_grplabel,), (sizer_numimgs,),
+                              (self.listbox_groups,), (self.btn_showhidelistbox,)])
 
         st1 = wx.StaticText(self, -1, "min: ")
         st2 = wx.StaticText(self, -1, "max: ")
@@ -173,12 +196,14 @@ class ViewOverlays(ScrolledPanel):
         self.sizer_max.AddMany([(st2,), (self.maxOverlayImg,)])
 
         self.sizer_innerattrpatch = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_innerattrpatch.AddMany([(self.txt_exemplarTag,), (self.exemplarImg,)])
+        self.sizer_innerattrpatch.AddMany(
+            [(self.txt_exemplarTag,), (self.exemplarImg,)])
 
         self.sizer_attrpatch = wx.BoxSizer(wx.VERTICAL)
         self.sizer_attrpatch.AddMany([(st3,), (self.sizer_innerattrpatch,)])
 
-        self.sizer_overlays_voted.AddMany([(self.sizer_min,), ((50, 50),), (self.sizer_max,)])
+        self.sizer_overlays_voted.AddMany(
+            [(self.sizer_min,), ((50, 50),), (self.sizer_max,)])
         self.sizer_overlays.AddMany([(self.sizer_overlays_voted,), ((50, 50),),
                                      (self.sizer_attrpatch, 0, wx.ALIGN_CENTER)])
         self.set_patch_layout('horizontal')
@@ -201,17 +226,18 @@ class ViewOverlays(ScrolledPanel):
         except:
             tag = 'GroupTag'
         self.cbox_grplabel.SetStringSelection(tag)
-        
+
     def update_groupsize_txt(self):
         """ Updates the UI text about how large the current group is. """
         if self.idx == None:
             return
         group = self.get_current_group()
-        self.txtctrl_num_elements.SetLabel(str(len(group.imgpaths)))        
+        self.txtctrl_num_elements.SetLabel(str(len(group.imgpaths)))
 
     def update_header(self):
         """ Updates (if necessary) any UI components of the header. """
         pass
+
     def update_footer(self):
         """ Updates (if necessary) any UI components of the footer. """
         pass
@@ -233,16 +259,16 @@ class ViewOverlays(ScrolledPanel):
         self.idx = idx
         self.listbox_groups.SetSelection(self.idx)
         group = self.groups[idx]
-        
+
         self.update_ui_text()
 
         # OVERLAY_MIN, OVERLAY_MAX are IplImages
         if self.bbs_map:
             curtag = self.get_current_group().tag
             bbs_map_v2 = {}
-            for (tag, imgpath), (x1,y1,x2,y2) in self.bbs_map.iteritems():
+            for (tag, imgpath), (x1, y1, x2, y2) in self.bbs_map.iteritems():
                 if curtag == tag:
-                    bbs_map_v2[imgpath] = (x1,y1,x2,y2)
+                    bbs_map_v2[imgpath] = (x1, y1, x2, y2)
         else:
             bbs_map_v2 = {}
         if group.overlay_min == None or group.overlay_max == None:
@@ -250,7 +276,8 @@ class ViewOverlays(ScrolledPanel):
             manager = multiprocessing.Manager()
             queue_mygauge = manager.Queue()
             num_tasks = len(group.imgpaths)
-            thread_listener = ThreadListen(queue_mygauge, JOBID_GENERATE_MINMAX_OVERLAYS)
+            thread_listener = ThreadListen(
+                queue_mygauge, JOBID_GENERATE_MINMAX_OVERLAYS)
             thread_listener.start()
             thread = ThreadGenerateOverlays(group, manager, queue_mygauge, thread_listener,
                                             bbs_map_v2,
@@ -308,10 +335,10 @@ class ViewOverlays(ScrolledPanel):
         # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
         MIN_RSZ_FAC = 0.5
         MAX_RSZ_FAC = 10.0
-        c_horiz = w_space / (w_min+w_max)
+        c_horiz = w_space / (w_min + w_max)
         if (h_min * c_horiz) >= h_space:
             c_horiz = h_space / h_min
-        c_vert = h_space / (h_min+h_max)
+        c_vert = h_space / (h_min + h_max)
         if (w_min * c_vert) >= w_space:
             c_vert = w_space / w_min
 
@@ -332,18 +359,21 @@ class ViewOverlays(ScrolledPanel):
             self.set_patch_layout(orientation)
         if rszfac != None:
             self.rescale_images(rszfac)
-    
+
     def show_larger(self, amt=0.2, MIN_W=5, MIN_H=5):
         w_cur, h_cur = self.minOverlayImg.GetSize()
-        w_new, h_new = int(round(w_cur * (1.0 + amt))), int(round(h_cur * (1.0 + amt)))
+        w_new, h_new = int(round(w_cur * (1.0 + amt))
+                           ), int(round(h_cur * (1.0 + amt)))
         if w_new <= MIN_W or h_new <= MIN_H:
             return
         rszfac_new = float(w_new) / self.minimg_np_orig.shape[1]
         self.rescale_images(rszfac_new)
         self.Layout()
+
     def show_smaller(self, amt=0.2, MIN_W=5, MIN_H=5):
         w_cur, h_cur = self.minOverlayImg.GetSize()
-        w_new, h_new = int(round(w_cur * (1.0 - amt))), int(round(h_cur * (1.0 - amt)))
+        w_new, h_new = int(round(w_cur * (1.0 - amt))
+                           ), int(round(h_cur * (1.0 - amt)))
         if w_new <= MIN_W or h_new <= MIN_H:
             return
         rszfac_new = float(w_new) / self.minimg_np_orig.shape[1]
@@ -354,8 +384,10 @@ class ViewOverlays(ScrolledPanel):
         """ Rescales the images by RSZFAC. """
         if rszfac <= 0.01:
             return self.rszfac
-        min_resized = scipy.misc.imresize(self.minimg_np_orig, rszfac, interp='bicubic')
-        max_resized = scipy.misc.imresize(self.maximg_np_orig, rszfac, interp='bicubic')
+        min_resized = scipy.misc.imresize(
+            self.minimg_np_orig, rszfac, interp='bicubic')
+        max_resized = scipy.misc.imresize(
+            self.maximg_np_orig, rszfac, interp='bicubic')
 
         self.minOverlayImg.SetBitmap(util.np2wxBitmap(min_resized))
         self.maxOverlayImg.SetBitmap(util.np2wxBitmap(max_resized))
@@ -367,10 +399,11 @@ class ViewOverlays(ScrolledPanel):
 
     def get_current_group(self):
         return self.groups[self.idx]
-        
+
     def get_group_label(self, group):
         """ Given a group GROUP, returns a human-readable string for GROUP. """
-        label = "{0} -> {1} elements".format(str(group.tag), str(len(group.imgpaths)))
+        label = "{0} -> {1} elements".format(str(group.tag),
+                                             str(len(group.imgpaths)))
         return label
 
     def add_group(self, group):
@@ -383,7 +416,7 @@ class ViewOverlays(ScrolledPanel):
         self.listbox_groups.Insert(label, 0)
         if str(group.tag) not in self.cbox_grplabel.GetItems():
             self.cbox_grplabel.Append(str(group.tag))
-        
+
     def remove_group(self, group, do_show_next_group=True):
         """ Removes GROUP from my internal datastructures and UI components.
         If DO_SHOW_NEXT_GROUP is True, then this automatically selects the
@@ -415,7 +448,8 @@ class ViewOverlays(ScrolledPanel):
         # 2.) Now, update all entries
         newlabels = []
         for i, group in enumerate(self.groups):
-            label = "{0} -> {1} elements".format(group.tag, len(group.imgpaths))
+            label = "{0} -> {1} elements".format(group.tag,
+                                                 len(group.imgpaths))
             newlabels.append(label)
         self.listbox_groups.SetItems(newlabels)
 
@@ -455,10 +489,12 @@ class ViewOverlays(ScrolledPanel):
         except:
             traceback.print_exc()
             return False
+
     def create_state_dict(self):
-        state = {'groups': [g.marshall() for g in self.groups], 
+        state = {'groups': [g.marshall() for g in self.groups],
                  'bbs_map': self.bbs_map}
         return state
+
     def save_session(self):
         try:
             state = self.create_state_dict()
@@ -466,7 +502,7 @@ class ViewOverlays(ScrolledPanel):
             return state
         except:
             return False
-        
+
     def disable_ui(self):
         """ Disables the UI for this entire widget, including my
         Header and Footer.
@@ -474,6 +510,7 @@ class ViewOverlays(ScrolledPanel):
         self.Disable()
         self.GetParent().header.Disable()
         self.GetParent().footer.Disable()
+
     def enable_ui(self):
         """ Enables the UI for this entire widget, including my
         Header and Footer.
@@ -506,16 +543,20 @@ class ViewOverlays(ScrolledPanel):
         """
         evt.Skip()
 
+
 class SplitOverlaysPanel(ViewOverlaysPanel):
     """ Class that contains both a Header, a SplitOverlays, and a Button
     Toolbar Footer. """
+
     def set_classes(self):
         ViewOverlaysPanel.set_classes(self)
         self.headerCls = wx.Panel
         self.overlaypanelCls = SplitOverlays
         self.footerCls = SplitOverlaysFooter
 
+
 class SplitOverlaysFooter(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.init_ui()
@@ -529,16 +570,16 @@ class SplitOverlaysFooter(wx.Panel):
             label="Set Split Mode...",
             on_click=self.onButton_setsplitmode,
         )
-        btn_setsplitmode.Hide() # Not necessary for the user to fuss with
+        btn_setsplitmode.Hide()  # Not necessary for the user to fuss with
         sizer_split = ff_vbox(self.btn_split, btn_setsplitmode)
 
-        btn_larger = FFButton (
+        btn_larger = FFButton(
             self, label="Show Larger", on_click=self.onButton_showlarger
         )
         btn_smaller = FFButton(
             self, label="Show Smaller", on_click=self.onButton_showsmaller
         )
-        sizer_scaling = ff_vbox(btn_larger, (10,10), btn_smaller)
+        sizer_scaling = ff_vbox(btn_larger, (10, 10), btn_smaller)
 
         self.btn_sizer = ff_hbox(sizer_split, (35, 0), sizer_scaling)
 
@@ -549,14 +590,19 @@ class SplitOverlaysFooter(wx.Panel):
 
     def onButton_split(self, evt):
         self.GetParent().overlaypanel.do_split()
+
     def onButton_setsplitmode(self, evt):
         self.GetParent().overlaypanel.do_setsplitmode()
+
     def onButton_showlarger(self, evt):
         self.GetParent().overlaypanel.show_larger()
+
     def onButton_showsmaller(self, evt):
         self.GetParent().overlaypanel.show_smaller()
 
+
 class SplitOverlays(ViewOverlays):
+
     def __init__(self, parent, *args, **kwargs):
         ViewOverlays.__init__(self, parent, *args, **kwargs)
 
@@ -598,13 +644,14 @@ class SplitOverlays(ViewOverlays):
 
     def do_split(self, MAX_GROUP_SIZE=None):
         curgroup = self.get_current_group()
-        t = time.time()
-        self.disable_ui()
-        groups = curgroup.split(mode=self.splitmode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=self.imgCache)
-        self.enable_ui()
-        dur = time.time() - t
-        debug("...Split took {0:.4f}s ({1} total new groups added)",
-              dur, len(groups))
+        with util.time_operation('splitting groups'):
+            self.disable_ui()
+            groups = curgroup.split(mode=self.splitmode,
+                                    MAX_GROUP_SIZE=MAX_GROUP_SIZE,
+                                    imgCache=self.imgCache)
+            self.enable_ui()
+        debug("{1} total new groups added",
+              len(groups))
         for group in groups:
             self.add_group(group)
         self.remove_group(curgroup)
@@ -633,23 +680,28 @@ class SplitOverlays(ViewOverlays):
             splitmode = 'kmediods'
         self.splitmode = splitmode
 
+
 class VerifyOverlaysPanel(SplitOverlaysPanel):
     """ Class that contains both a Header, a VerifyOverlays, and a Button
     Toolbar Footer. """
+
     def set_classes(self):
         SplitOverlaysPanel.set_classes(self)
         self.overlaypanelCls = VerifyOverlays
         self.footerCls = VerifyOverlaysFooter
 
+
 class VerifyOverlaysFooter(SplitOverlaysFooter):
+
     def init_ui(self):
         SplitOverlaysFooter.init_ui(self)
         self.btn_matches = FFButton(
             self, label="Accept all as *", on_click=self.onButton_matches
         )
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")
-        self.btn_manual_relabel.Bind(wx.EVT_BUTTON, self.onButton_manual_relabel)
-        self.btn_manual_relabel.Hide() # This has been replaced
+        self.btn_manual_relabel.Bind(
+            wx.EVT_BUTTON, self.onButton_manual_relabel)
+        self.btn_manual_relabel.Hide()  # This has been replaced
 
         # This functionality lets the user view each possible exemplar
         # patch - for normal usage, this isn't necessary, so, we decided
@@ -666,16 +718,20 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         sizer_txtexmpls.AddMany([(txt0,), (self.txt_curexmplidx,), (txt1,),
                                  (self.txt_totalexmplidxs,)])
         self.sizer_exmpls = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_exmpls.AddMany([(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
-        self.sizer_exmpls.ShowItems(False) # Hide the next/prev exemplar widgets
+        self.sizer_exmpls.AddMany(
+            [(sizer_txtexmpls,), (btn_nextexmpl,), (btn_prevexmpl,)])
+        # Hide the next/prev exemplar widgets
+        self.sizer_exmpls.ShowItems(False)
 
         self.btn_sizer.Insert(0, self.btn_matches)
-        self.btn_sizer.Insert(1, (10,0))
-        self.btn_sizer.AddMany([(self.btn_manual_relabel,), (self.sizer_exmpls,)])
+        self.btn_sizer.Insert(1, (10, 0))
+        self.btn_sizer.AddMany(
+            [(self.btn_manual_relabel,), (self.sizer_exmpls,)])
 
         """ DEBUG """
         btn_print_imgs = wx.Button(self, label="(Debug) Print imgpaths")
-        self.btn_sizer.AddMany([((25,0),), (btn_print_imgs,)])
+        self.btn_sizer.AddMany([((25, 0),), (btn_print_imgs,)])
+
         def dbg_print_imgs(evt):
             debug("Printing imgpaths of current group ({0} imgs):",
                   len(self.GetParent().overlaypanel.get_current_group().imgpaths))
@@ -688,24 +744,31 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
         self.sizer_curlabel = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer_curlabel.AddMany([(txt_curlabel0,), (self.txt_curlabel,)])
         self.sizer.Add(self.sizer_curlabel, proportion=0, flag=wx.ALIGN_CENTER)
-        self.sizer_curlabel.ShowItems(False) # This is a redundant UI component
+        # This is a redundant UI component
+        self.sizer_curlabel.ShowItems(False)
 
         self.Layout()
 
     def onButton_matches(self, evt):
         self.GetParent().overlaypanel.do_matches()
+
     def onButton_manual_relabel(self, evt):
         self.GetParent().overlaypanel.do_manual_relabel()
+
     def onButton_nextexmpl(self, evt):
         self.GetParent().overlaypanel.do_nextexmpl()
+
     def onButton_prevexmpl(self, evt):
         self.GetParent().overlaypanel.do_prevexmpl()
 
+
 class VerifyOverlays(SplitOverlays):
+
     def __init__(self, parent, *args, **kwargs):
         SplitOverlays.__init__(self, parent, *args, **kwargs)
 
-        # dict self.EXEMPLAR_IMGPATHS: {str grouptag: [str exmpl_imgpath_i, ...]}
+        # dict self.EXEMPLAR_IMGPATHS: {str grouptag: [str exmpl_imgpath_i,
+        # ...]}
         self.exemplar_imgpaths = {}
         # self.RANKEDLIST_MAP: maps {str imgpath: (groupID_0, groupID_1, ...)}
         self.rankedlist_map = {}
@@ -713,7 +776,8 @@ class VerifyOverlays(SplitOverlays):
         # tag is the group that the user finalized on.
         self.finished_groups = {}
 
-        # self.EXMPLIDX_SEL: The exemplaridx that the user has currently selected
+        # self.EXMPLIDX_SEL: The exemplaridx that the user has currently
+        # selected
         self.exmplidx_sel = None
 
         # A numpy-version of the original-sized image (useful to keep
@@ -723,7 +787,7 @@ class VerifyOverlays(SplitOverlays):
         # self.ONDONE: A callback function to call when verifying is done.
         self.ondone = None
 
-    def start(self, imgpath_groups, group_exemplars, rlist_map, 
+    def start(self, imgpath_groups, group_exemplars, rlist_map,
               do_align=False, bbs_map=None, ondone=None, auto_ondone=False,
               stateP=None):
         """
@@ -778,11 +842,11 @@ class VerifyOverlays(SplitOverlays):
         off.
         """
         if self.ondone:
-            verify_results = {} # maps {tag: [imgpath_i, ...]}
+            verify_results = {}  # maps {tag: [imgpath_i, ...]}
             for tag, groups in self.finished_groups.iteritems():
                 for group in groups:
                     verify_results.setdefault(tag, []).extend(group.imgpaths)
-            #self.ondone(verify_results)
+            # self.ondone(verify_results)
             wx.CallAfter(self.ondone, verify_results)
 
     def restore_session(self):
@@ -800,14 +864,17 @@ class VerifyOverlays(SplitOverlays):
             fingroups_in = state['finished_groups']
             fingroups_new = {}
             for tag, groups_marsh in fingroups_in.iteritems():
-                fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
+                fingroups_new[tag] = [VerifyGroup.unmarshall(
+                    gdict) for gdict in groups_marsh]
             self.finished_groups = fingroups_new
-            self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
+            self.quarantined_groups = [VerifyGroup.unmarshall(
+                gdict) for gdict in state['quarantined_groups']]
             debug('Successfully loaded VerifyOverlays state')
             return state
         except Exception as e:
             error('Failed to load VerifyOverlays state')
             return False
+
     def create_state_dict(self):
         state = SplitOverlays.create_state_dict(self)
         state['exemplar_imgpaths'] = self.exemplar_imgpaths
@@ -816,7 +883,8 @@ class VerifyOverlays(SplitOverlays):
         for tag, groups in self.finished_groups.iteritems():
             fingroups_out[tag] = [g.marshall() for g in groups]
         state['finished_groups'] = fingroups_out
-        state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
+        state['quarantined_groups'] = [g.marshall()
+                                       for g in self.quarantined_groups]
         return state
 
     def update_exemplartag_txt(self):
@@ -830,7 +898,8 @@ class VerifyOverlays(SplitOverlays):
     def update_footer(self):
         """ Updates the 'Accept as *' button text. """
         selected_tag = self.cbox_grplabel.GetValue()
-        self.GetParent().footer.btn_matches.SetLabel("Accept All as: '{0}'".format(selected_tag))
+        self.GetParent().footer.btn_matches.SetLabel(
+            "Accept All as: '{0}'".format(selected_tag))
         self.GetParent().Layout()
 
     def select_group(self, idx):
@@ -869,10 +938,10 @@ class VerifyOverlays(SplitOverlays):
         # E.g If C_HORIZ = 0.5, then we downscale by 2.0 (rescale by 0.5)
         MIN_RSZ_FAC = 0.5
         MAX_RSZ_FAC = 10.0
-        c_horiz = w_space / (w_min+w_max+w_exm)
+        c_horiz = w_space / (w_min + w_max + w_exm)
         if (h_min * c_horiz) >= h_space:
             c_horiz = h_space / h_min
-        c_vert = h_space / (h_min+h_max+h_exm)
+        c_vert = h_space / (h_min + h_max + h_exm)
         if (w_min * c_vert) >= w_space:
             c_vert = w_space / w_min
 
@@ -882,13 +951,14 @@ class VerifyOverlays(SplitOverlays):
         _w3, _h3 = self.txt_exemplarTag.GetSize()
 
         if c_horiz > c_vert:
-            _added_amt = 50 + 50 # Padding added between images
+            _added_amt = 50 + 50  # Padding added between images
             _added_frac = _added_amt / float(w_space)
             c_out = c_horiz - _added_frac
             debug("Chose Horizontal, c_out={0:.5f}", c_out)
             return 'horizontal', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
         else:
-            _added_amt = max(_h0, _h1, _h2+_h3) + 50 + 50 # Padding added btwn imgs
+            _added_amt = max(_h0, _h1, _h2 + _h3) + 50 + \
+                50  # Padding added btwn imgs
             _added_frac = _added_amt / float(h_space)
             c_out = c_vert - _added_frac
             debug("Chose Vertical, c_out={0:.5f}", c_out)
@@ -900,7 +970,8 @@ class VerifyOverlays(SplitOverlays):
         rszfac_out = SplitOverlays.rescale_images(self, rszfac)
         if not self.exemplarImg.IsShown():
             return rszfac_out
-        exemplar_resized = scipy.misc.imresize(self.exemplarimg_np_orig, rszfac, interp='bicubic')
+        exemplar_resized = scipy.misc.imresize(
+            self.exemplarimg_np_orig, rszfac, interp='bicubic')
         self.exemplarImg.SetBitmap(util.np2wxBitmap(exemplar_resized))
         self.Layout()
         self.SetupScrolling()
@@ -920,7 +991,8 @@ class VerifyOverlays(SplitOverlays):
             error("Invalid exmpl_idx: {0}", exmpl_idx)
             return
         if type(exemplar_paths[exmpl_idx]) in (str, unicode):
-            exemplar_npimg = scipy.misc.imread(exemplar_paths[exmpl_idx], flatten=True)
+            exemplar_npimg = scipy.misc.imread(
+                exemplar_paths[exmpl_idx], flatten=True)
         else:
             exemplar_npimg = exemplar_paths[exmpl_idx]
         self.exemplarimg_np_orig = gray2rgb_np(exemplar_npimg)
@@ -928,7 +1000,7 @@ class VerifyOverlays(SplitOverlays):
         exemplarImg_bitmap = NumpyToWxBitmap(exemplar_npimg)
         self.exmplidx_sel = exmpl_idx
         self.exemplarImg.SetBitmap(exemplarImg_bitmap)
-        self.GetParent().footer.txt_curexmplidx.SetLabel(str(exmpl_idx+1))
+        self.GetParent().footer.txt_curexmplidx.SetLabel(str(exmpl_idx + 1))
         self.GetParent().footer.txt_totalexmplidxs.SetLabel(str(len(exemplar_paths)))
         self.GetParent().footer.txt_curlabel.SetLabel(str(grouptag))
         self.Layout()
@@ -968,12 +1040,14 @@ class VerifyOverlays(SplitOverlays):
             return
         sel_tag = dlg.tag
         self.select_exmpl_group(sel_tag, self.get_current_group().exmpl_idx)
+
     def do_nextexmpl(self):
         """ The user wants to see the next exemplar patch. """
         # Note: No longer in use.
         curtag = self.get_current_group().tag
         nextidx = self.exmplidx_sel + 1
         self.select_exmpl_group(curtag, nextidx)
+
     def do_prevexmpl(self):
         """ The user wants to see the previous exemplar patch. """
         # Note: No longer in use.
@@ -991,15 +1065,19 @@ class VerifyOverlays(SplitOverlays):
         self.update_ui_text()
         evt.Skip()
 
+
 class VerifyOrFlagOverlaysPanel(VerifyOverlaysPanel):
     """ Class that contains both a Header, a VerifyOrFlagOverlays, and a Button
     Toolbar Footer. """
+
     def set_classes(self):
         VerifyOverlaysPanel.set_classes(self)
         self.overlaypanelCls = VerifyOrFlagOverlays
         self.footerCls = VerifyOrFlagOverlaysFooter
 
+
 class VerifyOrFlagOverlaysFooter(VerifyOverlaysFooter):
+
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
         self.btn_quarantine = wx.Button(self, label="Quarantine This Group")
@@ -1007,13 +1085,16 @@ class VerifyOrFlagOverlaysFooter(VerifyOverlaysFooter):
         self.btn_sizer.Insert(3, (25, 0))
         self.btn_sizer.Insert(4, self.btn_quarantine)
         self.Layout()
+
     def onButton_quarantine(self, evt):
         self.GetParent().overlaypanel.do_quarantine()
+
 
 class VerifyOrFlagOverlays(VerifyOverlays):
     """ A widget that lets you either verify overlays, or flag a group
     to set aside (Quarantine). 
     """
+
     def __init__(self, parent, *args, **kwargs):
         VerifyOverlays.__init__(self, parent, *args, **kwargs)
 
@@ -1026,7 +1107,7 @@ class VerifyOrFlagOverlays(VerifyOverlays):
 
     def export_results(self):
         if self.ondone:
-            verify_results = {} # maps {tag: [imgpath_i, ...]}
+            verify_results = {}  # maps {tag: [imgpath_i, ...]}
             for tag, groups in self.finished_groups.iteritems():
                 for group in groups:
                     verify_results.setdefault(tag, []).extend(group.imgpaths)
@@ -1050,17 +1131,21 @@ class VerifyOrFlagOverlays(VerifyOverlays):
             fingroups_in = state['finished_groups']
             fingroups_new = {}
             for tag, groups_marsh in fingroups_in.iteritems():
-                fingroups_new[tag] = [VerifyGroup.unmarshall(gdict) for gdict in groups_marsh]
+                fingroups_new[tag] = [VerifyGroup.unmarshall(
+                    gdict) for gdict in groups_marsh]
             self.finished_groups = fingroups_new
-            self.quarantined_groups = [VerifyGroup.unmarshall(gdict) for gdict in state['quarantined_groups']]
+            self.quarantined_groups = [VerifyGroup.unmarshall(
+                gdict) for gdict in state['quarantined_groups']]
             debug('Successfully loaded VerifyOverlays state')
             return state
         except Exception as e:
             debug('Failed to load VerifyOverlays state')
             return False
+
     def create_state_dict(self):
         state = VerifyOverlays.create_state_dict(self)
-        state['quarantined_groups'] = [g.marshall() for g in self.quarantined_groups]
+        state['quarantined_groups'] = [g.marshall()
+                                       for g in self.quarantined_groups]
         return state
 
     def do_quarantine(self):
@@ -1069,23 +1154,27 @@ class VerifyOrFlagOverlays(VerifyOverlays):
         self.quarantined_groups.append(curgroup)
         self.remove_group(curgroup)
 
+
 class VerifyOverlaysMultCats(wx.Panel):
     """ A widget that lets the user verify the overlays of N different
     categories (i.e. 'party', 'language', 'precinct').
     """
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 
-        self.verify_results_cat = {} # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
-        
+        # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
+        self.verify_results_cat = {}
+
         self.init_ui()
 
     def init_ui(self):
         self.nb = wx.Notebook(self)
         self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onPageChange)
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.nb, proportion=1, border=10, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.nb, proportion=1, border=10,
+                       flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -1110,9 +1199,9 @@ class VerifyOverlaysMultCats(wx.Panel):
         self.do_align = do_align
         self.bbs_map_cats = bbs_map_cats if bbs_map_cats else {}
         self.ondone = ondone
-        self.cat2page = {} # maps {cat_tag: int pageidx}
-        self.page2cat = {} # maps {int pageidx: cat_tag}
-        self.started_pages = {} # maps {int pageidx: bool hasStarted}
+        self.cat2page = {}  # maps {cat_tag: int pageidx}
+        self.page2cat = {}  # maps {int pageidx: cat_tag}
+        self.started_pages = {}  # maps {int pageidx: bool hasStarted}
         pages = []
         for i, category in enumerate(categories):
             verifyoverlays = verifypanelClass(self.nb)
@@ -1131,7 +1220,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         for i in pages:
             verifypanel = self.nb.GetPage(i)
             verifypanel.save_session()
-            
+
     def onPageChange(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
@@ -1144,11 +1233,11 @@ class VerifyOverlaysMultCats(wx.Panel):
         verifyoverlays = self.nb.GetPage(new)
         # Do a CallAfter so that verifyoverlays knows its true client
         # size after size-related events are finished.
-        wx.CallAfter(verifyoverlays.start, imgpath_groups, exemplar_groups, None, 
-                             bbs_map=bbs_map, do_align=self.do_align, 
-                             ondone=self.on_cat_done, auto_ondone=True)
+        wx.CallAfter(verifyoverlays.start, imgpath_groups, exemplar_groups, None,
+                     bbs_map=bbs_map, do_align=self.do_align,
+                     ondone=self.on_cat_done, auto_ondone=True)
         self.started_pages[new] = True
-        
+
     def on_cat_done(self, verify_results):
         """ Called when a category is finished overlay verification.
         Input:
@@ -1162,24 +1251,28 @@ class VerifyOverlaysMultCats(wx.Panel):
             debug("We're done verifying all categories!")
             self.Disable()
             if self.ondone:
-                #self.ondone(self.verify_results_cat)
+                # self.ondone(self.verify_results_cat)
                 wx.CallAfter(self.ondone, self.verify_results_cat)
+
 
 class CheckImageEqualsPanel(VerifyOverlaysPanel):
     """ Class that contains both a Header, a CheckImageEquals, and a Button
     Toolbar Footer. """
+
     def set_classes(self):
         VerifyOverlaysPanel.set_classes(self)
         self.overlaypanelCls = CheckImageEquals
         self.footerCls = CheckImageEqualsFooter
 
+
 class CheckImageEqualsFooter(VerifyOverlaysFooter):
+
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
         self.btn_matches.SetLabel("Accept (all match)")
         btn_no = wx.Button(self, label="Reject (some don't match)")
         btn_no.Bind(wx.EVT_BUTTON, self.onButton_no)
-        
+
         self.btn_sizer.Insert(1, (10, 10))
         self.btn_sizer.Insert(2, btn_no)
         self.btn_sizer.Insert(3, (10, 10))
@@ -1193,6 +1286,7 @@ class CheckImageEqualsFooter(VerifyOverlaysFooter):
     def onButton_no(self, evt):
         self.GetParent().overlaypanel.do_no()
 
+
 class CheckImageEquals(VerifyOverlays):
     """ A widget that lets the user separate a set of images into two
     categories:
@@ -1201,11 +1295,12 @@ class CheckImageEquals(VerifyOverlays):
     """
     TAG_YES = "YES_TAG"
     TAG_NO = "NO_TAG"
+
     def __init__(self, parent, *args, **kwargs):
         VerifyOverlays.__init__(self, parent, *args, **kwargs)
 
         self.cat_imgpath = None
-        
+
     def start(self, imgpaths, cat_imgpath, do_align=False, bbs_map=None,
               ondone=None, stateP=None):
         """
@@ -1215,21 +1310,21 @@ class CheckImageEquals(VerifyOverlays):
             dict BBS_MAP: maps {str imgpath: (x1,y1,x2,y2}
             fn ONDONE: Function that accepts one argument:
                 dict {str tag: [obj group_i, ...]}
-                
+
         """
         self.stateP = stateP
         if not self.restore_session():
             # 0.) Munge IMGPATHS, BBS_MAP into VerifyOverlay-friendly versions
-            imgpath_groups = {} # maps {str tag: [imgpath_i, ...]}
-            bbs_map_v2 = {} # maps {(str tag, imgpath): (x1,y1,x2,y2)}
+            imgpath_groups = {}  # maps {str tag: [imgpath_i, ...]}
+            bbs_map_v2 = {}  # maps {(str tag, imgpath): (x1,y1,x2,y2)}
             for imgpath in imgpaths:
                 imgpath_groups.setdefault(self.TAG_YES, []).append(imgpath)
                 if bbs_map:
                     bbs_map_v2[(self.TAG_YES, imgpath)] = bbs_map[imgpath]
             imgpath_groups[self.TAG_NO] = []
             group_exemplars = {self.TAG_YES: [cat_imgpath]}
-            rlist_map = {} # Don't care
-            VerifyOverlays.start(self, imgpath_groups, group_exemplars, rlist_map, 
+            rlist_map = {}  # Don't care
+            VerifyOverlays.start(self, imgpath_groups, group_exemplars, rlist_map,
                                  do_align=do_align, bbs_map=bbs_map_v2, ondone=ondone)
         self.cat_imgpath = cat_imgpath
         try:
@@ -1278,7 +1373,9 @@ class CheckImageEquals(VerifyOverlays):
         self.export_results()
         self.Close()
 
+
 class CheckImageEqualsFrame(wx.Frame):
+
     def __init__(self, parent, imgpaths, exemplar_imgpath, ondone):
         """
         Input:
@@ -1289,22 +1386,27 @@ class CheckImageEqualsFrame(wx.Frame):
         wx.Frame.__init__(self, parent)
 
         verifypanel = CheckImageEqualsPanel(self)
-        verifypanel.start(imgpaths, exemplar_imgpath, ondone=ondone, do_align=False)
+        verifypanel.start(imgpaths, exemplar_imgpath,
+                          ondone=ondone, do_align=False)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(verifypanel, proportion=1, flag=wx.EXPAND)
         self.SetSizer(sizer)
         self.Layout()
 
+
 class SeparateImagesPanel(VerifyOverlaysPanel):
     """ Class that contains both a Header, a CheckImageEquals, and a Button
     Toolbar Footer. """
+
     def set_classes(self):
         VerifyOverlaysPanel.set_classes(self)
         self.overlaypanelCls = SeparateImages
         self.footerCls = SeparateImagesFooter
 
+
 class SeparateImagesFooter(VerifyOverlaysFooter):
+
     def init_ui(self):
         VerifyOverlaysFooter.init_ui(self)
         self.btn_matches.SetLabel("Accept (Full Match)")
@@ -1318,17 +1420,20 @@ class SeparateImagesFooter(VerifyOverlaysFooter):
         self.btn_sizer.Insert(3, (10, 0))
         self.btn_sizer.Insert(5, (20, 0))
         self.btn_sizer.Insert(6, self.btn_realign_imgs)
-        
+
         self.sizer_exmpls.ShowItems(False)
         self.sizer_curlabel.ShowItems(False)
         self.btn_manual_relabel.Hide()
         self.btn_realign_imgs.Hide()
 
         self.Layout()
+
     def onButton_explode(self, evt):
         self.GetParent().overlaypanel.do_explode()
+
     def onButton_realign(self, evt):
         self.GetParent().overlaypanel.do_realign()
+
 
 class SeparateImages(VerifyOverlays):
     """ A widget that lets a user separate a set of images into different
@@ -1358,8 +1463,8 @@ class SeparateImages(VerifyOverlays):
         if self.realign_callback:
             self.GetParent().footer.btn_realign_imgs.Show()
         if not self.restore_session():
-            exemplars = {} # No need for exemplars
-            VerifyOverlays.start(self, imggroups, exemplars, None, 
+            exemplars = {}  # No need for exemplars
+            VerifyOverlays.start(self, imggroups, exemplars, None,
                                  bbs_map=bbs_map, ondone=ondone, stateP=stateP,
                                  auto_ondone=auto_ondone)
             if self.cleanup_my_groups():
@@ -1405,7 +1510,7 @@ class SeparateImages(VerifyOverlays):
     def update_exemplartag_txt(self):
         if self.txt_exemplarTag.IsShown():
             self.txt_exemplarTag.Hide()
-            
+
     def update_footer(self):
         """ Don't update the Matches button text. """
         pass
@@ -1416,13 +1521,13 @@ class SeparateImages(VerifyOverlays):
 
     def export_results(self):
         if self.ondone:
-            verify_results = {} # maps {int id: [imgpath_i, ...]}
+            verify_results = {}  # maps {int id: [imgpath_i, ...]}
             idx = 0
             for (tag, groups) in self.finished_groups.iteritems():
                 for group in groups:
                     verify_results[idx] = group.imgpaths
                     idx += 1
-            #self.ondone(verify_results)
+            # self.ondone(verify_results)
             wx.CallAfter(self.ondone, verify_results)
 
     def do_explode(self):
@@ -1434,7 +1539,8 @@ class SeparateImages(VerifyOverlays):
         newgroups = []
         for imgpath in curgroup.imgpaths:
             newgroups.append(Group([imgpath]))
-        self.finished_groups.setdefault(self.TAG_UNIVERSAL, []).extend(newgroups)
+        self.finished_groups.setdefault(
+            self.TAG_UNIVERSAL, []).extend(newgroups)
         self.remove_group(curgroup)
 
     def do_realign(self):
@@ -1455,7 +1561,8 @@ class SeparateImages(VerifyOverlays):
             for i, new_imgpath in enumerate(result):
                 curgroup.imgpaths[i] = new_imgpath
         # Now, re-compute the overlays for this group
-        overlay_min, overlay_max = curgroup.get_overlays(force=True, imgCache=self.imgCache)
+        overlay_min, overlay_max = curgroup.get_overlays(
+            force=True, imgCache=self.imgCache)
 
         #minimg_np = iplimage2np(overlay_min)
         #maximg_np = iplimage2np(overlay_max)
@@ -1466,11 +1573,13 @@ class SeparateImages(VerifyOverlays):
 
         self.minOverlayImg.SetBitmap(min_bitmap)
         self.maxOverlayImg.SetBitmap(max_bitmap)
-        
+
         self.Layout()
         self.Refresh()
 
+
 class SeparateImagesFrame(wx.Frame):
+
     def __init__(self, parent, imgpath_groups, callback,
                  realign_callback=None, *args, **kwargs):
         """
@@ -1487,15 +1596,16 @@ class SeparateImagesFrame(wx.Frame):
         self.imgpath_groups = imgpath_groups
         self.callback = callback
         self.realign_callback = realign_callback
-        
+
         self.separatepanel = SeparateImagesPanel(self)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.separatepanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
-        
+        self.sizer.Add(self.separatepanel, border=10,
+                       proportion=1, flag=wx.EXPAND | wx.ALL)
+
         self.SetSizer(self.sizer)
-        
-        imggroups = {} # maps {tag: [imgpath_i, ...]}
+
+        imggroups = {}  # maps {tag: [imgpath_i, ...]}
         for tagid, imgpaths in enumerate(imgpath_groups):
             imggroups[tagid] = imgpaths
 
@@ -1516,15 +1626,18 @@ class SeparateImagesFrame(wx.Frame):
         wx.CallAfter(self.callback, out)
         self.Close()
 
+
 class Group(object):
+
     def __init__(self, imgpaths, tag=None, do_align=False):
         self.tag = tag
         self.imgpaths = imgpaths
-    
+
         # self.OVERLAY_MIN, self.OVERLAY_MAX: IplImage overlays.
         self.overlay_min = None
         self.overlay_max = None
         self.do_align = do_align
+
     def get_overlays(self, bbs_map=None, force=False, imgCache=None, queue_mygauge=None):
         """
         Input:
@@ -1536,25 +1649,17 @@ class Group(object):
         if self.overlay_min == None or force:
             debug("...Computing Min/Max Overlays for {0} images...",
                   len(self.imgpaths))
-            t = time.time()
-            #minimg, maximg = make_overlays.minmax_cv(self.imgpaths, do_align=self.do_align,
-            #                                         rszFac=0.75, bbs_map=bbs_map)
-            # NOTE: calling with numProcs>1 actually slows things down. 
-            #       The slowdown might be due to all the .tostring()'ing
-            #       I have to do to deal with IplImages not being
-            #       pickle'able. Might just have to use nparrays (which
-            #       are pickle'able.
-            #minimg, maximg = make_overlays.minmax_cv_par(self.imgpaths, do_align=self.do_align,
-            #                                             rszFac=0.75, bbs_map=bbs_map, numProcs=1,
-            #                                             imgCache=imgCache)
-            minimg, maximg = make_overlays.make_minmax_overlay(self.imgpaths, do_align=self.do_align,
-                                                               rszFac=0.75, imgCache=imgCache,
-                                                               queue_mygauge=queue_mygauge)
-            dur = time.time() - t
-            debug("...Finished Computing Min/Max Overlays ({0} s).", dur)
+            with util.time_operation('computing min/max overlays'):
+                minimg, maximg = make_overlays.make_minmax_overlay(
+                    self.imgpaths,
+                    do_align=self.do_align,
+                    rszFac=0.75,
+                    imgCache=imgCache,
+                    queue_mygauge=queue_mygauge)
             self.overlay_min = minimg
             self.overlay_max = maximg
         return self.overlay_min, self.overlay_max
+
     def marshall(self):
         """ Returns a dict-rep of myself. In particular, you can't pickle
         IplImages, so don't include them.
@@ -1569,14 +1674,18 @@ class Group(object):
 
     def __eq__(self, o):
         return (isinstance(o, Group) and self.imgpaths == o.imgpaths)
+
     def __repr__(self):
         return "Group({0},numimgs={1})".format(self.tag,
                                                len(self.imgpaths))
+
     def __str__(self):
         return "Group({0},numimgs={1})".format(self.tag,
                                                len(self.imgpaths))
 
+
 class SplitGroup(Group):
+
     def midsplit(self):
         """ Laziest split method: Split down the middle. """
         if len(self.imgpaths) == 1:
@@ -1592,13 +1701,14 @@ class SplitGroup(Group):
                 self.imgpaths, k=K, do_downsize=True,
                 do_align=False, imgCache=imgCache)
         if len(clusters) != K:
-            warn("Kmeans only found {0} clusters, yet user "\
-                 "specified K={1}. Falling back to simple "\
+            warn("Kmeans only found {0} clusters, yet user "
+                 "specified K={1}. Falling back to simple "
                  "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(
+                imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -1607,16 +1717,17 @@ class SplitGroup(Group):
             clusters = cluster_imgs.cluster_imgs_pca_kmeans(
                 self.imgpaths, k=K, do_align=False)
         if len(clusters) != K:
-            warn("PCA+Kmeans only found {0} clusters, yet user "\
-                 "specified K={1}. Falling back to simple "\
+            warn("PCA+Kmeans only found {0} clusters, yet user "
+                 "specified K={1}. Falling back to simple "
                  "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(
+                imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
-        
+
     def split_kmeans2(self, K=2):
         with util.time_operation("k-meansV2"):
             clusters = cluster_imgs.kmeans_2D(self.imgpaths,
@@ -1624,13 +1735,14 @@ class SplitGroup(Group):
                                               distfn_method='vardiff',
                                               do_align=False)
         if len(clusters) != K:
-            warn("Kmeans2 only found {0} clusters, yet user "\
-                 "specified K={1}. Falling back to simple "\
+            warn("Kmeans2 only found {0} clusters, yet user "
+                 "specified K={1}. Falling back to simple "
                  "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(
+                imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -1641,13 +1753,14 @@ class SplitGroup(Group):
                                                 distfn_method='vardiff',
                                                 do_align=False)
         if len(clusters) != K:
-            warn("Kmediods only found {0} clusters, yet user "\
-                 "specified K={1}. Falling back to simple "\
+            warn("Kmediods only found {0} clusters, yet user "
+                 "specified K={1}. Falling back to simple "
                  "split-down-the-middle.", len(clusters), K)
             return self.midsplit()
         groups = []
         for clusterid, imgpaths in clusters.iteritems():
-            groups.append(type(self)(imgpaths, tag=self.tag, do_align=self.do_align))
+            groups.append(type(self)(
+                imgpaths, tag=self.tag, do_align=self.do_align))
         assert len(groups) == K
         return groups
 
@@ -1682,9 +1795,11 @@ class SplitGroup(Group):
         if mode == 'midsplit':
             out_groups = sum([g.midsplit() for g in input_groups], [])
         elif mode == 'kmeans':
-            out_groups = sum([g.split_kmeans(K=2, imgCache=imgCache) for g in input_groups], [])
+            out_groups = sum([g.split_kmeans(K=2, imgCache=imgCache)
+                              for g in input_groups], [])
         elif mode == 'pca_kmeans':
-            out_groups = sum([g.split_pca_kmeans(K=2, N=3) for g in input_groups], [])
+            out_groups = sum([g.split_pca_kmeans(K=2, N=3)
+                              for g in input_groups], [])
         elif mode == 'kmeans2':
             out_groups = sum([g.split_kmeans2(K=2) for g in input_groups], [])
         elif mode == 'kmediods':
@@ -1697,20 +1812,26 @@ class SplitGroup(Group):
     @staticmethod
     def unmarshall(d):
         return SplitGroup(d['imgpaths'], tag=d['tag'], do_align=d['do_align'])
+
     def __eq__(self, o):
         return (isinstance(o, SplitGroup) and self.imgpaths == o.imgpaths)
+
     def __repr__(self):
         return "SplitGroup({0},numimgs={1})".format(self.tag,
                                                     len(self.imgpaths))
+
     def __str__(self):
         return "SplitGroup({0},numimgs={1})".format(self.tag,
                                                     len(self.imgpaths))
-    
+
+
 class VerifyGroup(SplitGroup):
+
     def __init__(self, imgpaths, rlist_idx=0, exmpl_idx=0, *args, **kwargs):
         SplitGroup.__init__(self, imgpaths, *args, **kwargs)
         self.rlist_idx = rlist_idx
         self.exmpl_idx = exmpl_idx
+
     def split(self, mode=None, MAX_GROUP_SIZE=None, imgCache=None):
         if mode == None:
             mode = 'rankedlist'
@@ -1718,45 +1839,56 @@ class VerifyGroup(SplitGroup):
             return [self]
         else:
             return SplitGroup.split(self, mode=mode, MAX_GROUP_SIZE=MAX_GROUP_SIZE, imgCache=imgCache)
+
     def marshall(self):
         me = SplitGroup.marshall(self)
         me['rlist_idx'] = self.rlist_idx
         me['exmpl_idx'] = self.exmpl_idx
         return me
+
     @staticmethod
     def unmarshall(d):
         return VerifyGroup(d['imgpaths'], rlist_idx=d['rlist_idx'],
                            exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
+
     def __eq__(self, o):
         return (isinstance(o, VerifyGroup) and self.imgpaths == o.imgpaths)
+
     def __repr__(self):
         return "VerifyGroup({0},rlidx={1},exidx={2},numimgs={3})".format(self.tag,
                                                                          self.rlist_idx,
                                                                          self.exmpl_idx,
                                                                          len(self.imgpaths))
+
     def __str__(self):
         return "VerifyGroup({0},rlidx={1},exidx={2},numimgs={3})".format(self.tag,
                                                                          self.rlist_idx,
                                                                          self.exmpl_idx,
                                                                          len(self.imgpaths))
 
+
 class DigitGroup(VerifyGroup):
+
     @staticmethod
     def unmarshall(d):
         return DigitGroup(d['imgpaths'], rlist_idx=d['rlist_idx'],
                           exmpl_idx=d['exmpl_idx'], tag=d['tag'], do_align=d['do_align'])
+
     def __eq__(self, o):
         return (isinstance(o, VerifyGroup) and self.imgpaths == o.imgpaths)
+
     def __repr__(self):
         return "DigitGroup({0},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
                                                                         self.rlist_idx,
                                                                         self.exmpl_idx,
                                                                         len(self.imgpaths))
+
     def __str__(self):
         return "DigitGroup({0},rlidx={2},exidx={3},numimgs={4})".format(self.tag,
                                                                         self.rlist_idx,
                                                                         self.exmpl_idx,
                                                                         len(self.imgpaths))
+
 
 def trim_group(group, max_group_size):
     """ Given a Group, pares the group down into smaller group sizes
@@ -1767,12 +1899,14 @@ def trim_group(group, max_group_size):
         return [group]
     i = 0
     while i < len(group.imgpaths):
-        j = min(len(group.imgpaths), i+max_group_size)
+        j = min(len(group.imgpaths), i + max_group_size)
         new_imgpaths = group.imgpaths[i:j]
-        new_group = type(group)(new_imgpaths, tag=group.tag, do_align=group.do_align)
+        new_group = type(group)(new_imgpaths, tag=group.tag,
+                                do_align=group.do_align)
         out_groups.append(new_group)
         i = j
     return out_groups
+
 
 def trim_groups_by_mem(groups, max_mem_usage):
     """ Given a list of groups, pare the group down into smaller groups
@@ -1810,6 +1944,7 @@ def trim_groups_by_mem(groups, max_mem_usage):
             out_groups.append(group)
     return out_groups
 
+
 def groupsplit_by_n(group, n):
     """ Splits a group up into N (roughly) equally-sized groups.
     Assumes that 1 <= N <= len(group.imgpaths).
@@ -1822,34 +1957,37 @@ def groupsplit_by_n(group, n):
     out_groups = []
     grpsize = int(math.ceil(len(group.imgpaths) / n))
     for grpnum in xrange(n):
-        start_i = (grpnum*grpsize)
-        if grpnum == (n-1):
+        start_i = (grpnum * grpsize)
+        if grpnum == (n - 1):
             imgpaths_cur = group.imgpaths[start_i:]
         else:
             end_i = start_i + grpsize
             imgpaths_cur = group.imgpaths[start_i:end_i]
-        group_new = type(group)(imgpaths_cur, tag=group.tag, do_align=group.do_align)
+        group_new = type(group)(imgpaths_cur, tag=group.tag,
+                                do_align=group.do_align)
         out_groups.append(group_new)
     return out_groups
 
+
 class ManualRelabelDialog(wx.Dialog):
+
     def __init__(self, parent, tags, *args, **kwargs):
         """
         Input:
             list TAGS: list [tag_i, ...]
         """
         wx.Dialog.__init__(self, parent, *args, **kwargs)
-        
+
         self.tag = None
 
         self.tags = tags
 
         txt0 = wx.StaticText(self, label="What is the correct tag?")
-        self.combobox_tags = wx.ComboBox(self, choices=map(str, tags), 
+        self.combobox_tags = wx.ComboBox(self, choices=map(str, tags),
                                          style=wx.CB_READONLY | wx.CB_SORT, size=(200, -1))
         cbox_sizer = wx.BoxSizer(wx.HORIZONTAL)
         cbox_sizer.AddMany([(txt0,), (self.combobox_tags,)])
-        
+
         btn_ok = wx.Button(self, label="Ok")
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
         btn_cancel = wx.Button(self, label="Cancel")
@@ -1867,8 +2005,10 @@ class ManualRelabelDialog(wx.Dialog):
     def onButton_ok(self, evt):
         self.tag = self.tags[self.combobox_tags.GetSelection()]
         self.EndModal(wx.OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.CANCEL)
+
 
 class ChooseSplitModeDialog(wx.Dialog):
     ID_MIDSPLIT = 41
@@ -1884,15 +2024,19 @@ class ChooseSplitModeDialog(wx.Dialog):
         if disable == None:
             disable = []
         sizer = wx.BoxSizer(wx.VERTICAL)
-        txt = wx.StaticText(self, label="Please choose the desired 'Split' method.")
+        txt = wx.StaticText(
+            self, label="Please choose the desired 'Split' method.")
 
-        self.midsplit_rbtn = wx.RadioButton(self, label="Split in the middle (fast, but not good)", style=wx.RB_GROUP)
+        self.midsplit_rbtn = wx.RadioButton(
+            self, label="Split in the middle (fast, but not good)", style=wx.RB_GROUP)
         self.rankedlist_rbtn = wx.RadioButton(self, label='Ranked-List (fast)')
         self.kmeans_rbtn = wx.RadioButton(self, label='K-means (not-as-fast)')
-        self.pca_kmeans_rbtn = wx.RadioButton(self, label='PCA+K-means (not-as-fast)')
-        self.kmeans2_rbtn = wx.RadioButton(self, label="K-means V2 (not-as-fast)")
+        self.pca_kmeans_rbtn = wx.RadioButton(
+            self, label='PCA+K-means (not-as-fast)')
+        self.kmeans2_rbtn = wx.RadioButton(
+            self, label="K-means V2 (not-as-fast)")
         self.kmediods_rbtn = wx.RadioButton(self, label="K-Mediods")
-        
+
         if parent.splitmode == 'midsplit':
             self.midsplit_rbtn.SetValue(1)
         elif parent.splitmode == 'rankedlist':
@@ -1906,7 +2050,7 @@ class ChooseSplitModeDialog(wx.Dialog):
         elif parent.splitmode == 'kmediods':
             self.kmediods_rbtn.SetValue(1)
         else:
-            debug("Unrecognized parent.splitmode: {0}. "\
+            debug("Unrecognized parent.splitmode: {0}. "
                   "Defaulting to kmeans.", parent.splitmode)
             self.kmeans_rbtn.SetValue(1)
 
@@ -1927,12 +2071,12 @@ class ChooseSplitModeDialog(wx.Dialog):
         btn_cancel = wx.Button(self, label="Cancel")
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
         btn_cancel.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CANCEL))
-        
+
         btn_sizer.AddMany([(btn_ok,), (btn_cancel,)])
 
-        sizer.AddMany([(txt,), ((20,20),), (self.midsplit_rbtn,), (self.rankedlist_rbtn,),
+        sizer.AddMany([(txt,), ((20, 20),), (self.midsplit_rbtn,), (self.rankedlist_rbtn,),
                        (self.kmeans_rbtn,), (self.pca_kmeans_rbtn,),
-                       (self.kmeans2_rbtn,), (self.kmediods_rbtn),])
+                       (self.kmeans2_rbtn,), (self.kmediods_rbtn), ])
         sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
 
         self.SetSizer(sizer)
@@ -1955,7 +2099,9 @@ class ChooseSplitModeDialog(wx.Dialog):
             debug("Unrecognized split mode. Defaulting to K-means.")
             self.EndModal(self.ID_KMEANS)
 
+
 class ThreadGenerateOverlays(threading.Thread):
+
     def __init__(self, group, manager, queue_mygauge, thread_listener,
                  bbs_map, imgCache, jobid, callback, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
@@ -1967,23 +2113,29 @@ class ThreadGenerateOverlays(threading.Thread):
         self.imgCache = imgCache
         self.jobid = jobid
         self.callback = callback
-        
+
     def run(self):
         overlay_min, overlay_max = self.group.get_overlays(bbs_map=self.bbs_map, imgCache=self.imgCache,
                                                            queue_mygauge=self.queue_mygauge)
         self.thread_listener.stop_running()
         self.jobid.done()
         wx.CallAfter(self.callback, overlay_min, overlay_max)
+
+
 class ThreadListen(threading.Thread):
+
     def __init__(self, queue_mygauge, jobid, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.queue_mygauge = queue_mygauge
         self.jobid = jobid
         self._stop = threading.Event()
+
     def stop_running(self):
         self._stop.set()
+
     def do_i_keep_running(self):
         return not self._stop.is_set()
+
     def run(self):
         while self.do_i_keep_running():
             try:
@@ -1992,14 +2144,21 @@ class ThreadListen(threading.Thread):
             except Empty:
                 pass
 
-def PilImageToWxBitmap( myPilImage ) :
-    return WxImageToWxBitmap( PilImageToWxImage( myPilImage ) )
-def PilImageToWxImage( myPilImage ):
-    myWxImage = wx.EmptyImage( myPilImage.size[0], myPilImage.size[1] )
-    myWxImage.SetData( myPilImage.convert( 'RGB' ).tobytes() )
+
+def PilImageToWxBitmap(myPilImage):
+    return WxImageToWxBitmap(PilImageToWxImage(myPilImage))
+
+
+def PilImageToWxImage(myPilImage):
+    myWxImage = wx.EmptyImage(myPilImage.size[0], myPilImage.size[1])
+    myWxImage.SetData(myPilImage.convert('RGB').tobytes())
     return myWxImage
-def WxImageToWxBitmap( myWxImage ) :
+
+
+def WxImageToWxBitmap(myWxImage):
     return myWxImage.ConvertToBitmap()
+
+
 def NumpyToWxBitmap(img):
     """
     Assumption: img represents a grayscale img [not sure if necessary]
@@ -2007,16 +2166,19 @@ def NumpyToWxBitmap(img):
     img_pil = Image.fromarray(img)
     return PilImageToWxBitmap(img_pil)
 
+
 def iplimage2np(iplimage):
     """ Assumes IPLIMAGE has depth cv.CV_8U. """
     w, h = cv.GetSize(iplimage)
     img_np = np.fromstring(iplimage.tobytes(), dtype='uint8')
     img_np = img_np.reshape(h, w)
-    
+
     return img_np
+
 
 def is_img_ext(p):
     return os.path.splitext(p)[1].lower() in ('.png', '.jpg', '.jpeg', '.bmp', '.tif')
+
 
 def gray2rgb_np(nparray):
     if len(nparray.shape) == 2:
@@ -2025,13 +2187,14 @@ def gray2rgb_np(nparray):
         #     http://projects.scipy.org/scipy/ticket/1828
         h_out = (4 if h == 3 else h)
         w_out = (4 if w == 3 else w)
-        npout = np.zeros((h_out,w_out,3), dtype=nparray.dtype)
-        npout[:h,:w,0] = nparray.copy()
-        npout[:h,:w,1] = nparray.copy()
-        npout[:h,:w,2] = nparray.copy()
+        npout = np.zeros((h_out, w_out, 3), dtype=nparray.dtype)
+        npout[:h, :w, 0] = nparray.copy()
+        npout[:h, :w, 1] = nparray.copy()
+        npout[:h, :w, 2] = nparray.copy()
     else:
         npout = nparray.copy()
     return npout
+
 
 def get_imgSize(img):
     """ Handles both IplImage and numpy nparrays. """
@@ -2044,8 +2207,10 @@ def get_imgSize(img):
     except:
         raise Exception("get_imgSize died!")
 
+
 def test_verifyoverlays(imgsdir, exmpls_dir):
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, imggroups, exemplars, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
@@ -2058,12 +2223,13 @@ def test_verifyoverlays(imgsdir, exmpls_dir):
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.viewoverlays.start(self.imggroups, exemplars, {}, do_align=False, ondone=self.ondone, auto_ondone=True)
+            self.viewoverlays.start(self.imggroups, exemplars, {
+            }, do_align=False, ondone=self.ondone, auto_ondone=True)
 
         def ondone(self, verify_results):
             debug('verify_results: {0}', verify_results)
 
-    imggroups = {} # maps {str groupname: [imgpath_i, ...]}
+    imggroups = {}  # maps {str groupname: [imgpath_i, ...]}
     for dirpath, dirnames, filenames in os.walk(imgsdir):
         imggroup = []
         groupname = os.path.split(dirpath)[1]
@@ -2087,8 +2253,10 @@ def test_verifyoverlays(imgsdir, exmpls_dir):
     f.Show()
     app.MainLoop()
 
+
 def test_checkimgequal(imgsdir, catimgpath):
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, imgpaths, catimgpath, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
@@ -2099,7 +2267,8 @@ def test_checkimgequal(imgsdir, catimgpath):
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.chkimgequals.start(imgpaths, catimgpath, do_align=False, ondone=self.ondone)
+            self.chkimgequals.start(
+                imgpaths, catimgpath, do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
             debug('verify_results: {0}', verify_results)
@@ -2114,8 +2283,10 @@ def test_checkimgequal(imgsdir, catimgpath):
     f.Show()
     app.MainLoop()
 
+
 def test_verifycategories(imgsdir, exmpls_dir):
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, imgcategories, exmplcategories, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
@@ -2126,37 +2297,41 @@ def test_verifycategories(imgsdir, exmpls_dir):
             self.SetSizer(self.sizer)
             self.Layout()
 
-            self.viewoverlays.start(imgcategories, exmplcategories, 
+            self.viewoverlays.start(imgcategories, exmplcategories,
                                     do_align=False, ondone=self.ondone)
 
         def ondone(self, verify_results):
             debug('verify_results: {0}', verify_results)
 
-    imgcats = {} # maps {cat_tag: {str groupname: [imgpath_i, ...]}}
+    imgcats = {}  # maps {cat_tag: {str groupname: [imgpath_i, ...]}}
     for catdir in os.listdir(imgsdir):
         cat_fulldir = pathjoin(imgsdir, catdir)
         for groupdir in os.listdir(cat_fulldir):
             group_fulldir = pathjoin(cat_fulldir, groupdir)
             for imgname in os.listdir(group_fulldir):
                 imgpath = pathjoin(group_fulldir, imgname)
-                imgcats.setdefault(catdir, {}).setdefault(groupdir, []).append(imgpath)
+                imgcats.setdefault(catdir, {}).setdefault(
+                    groupdir, []).append(imgpath)
 
-    exmplscats = {} # maps {cat_tag: {groupname: [exmplpath_i, ...]}}
+    exmplscats = {}  # maps {cat_tag: {groupname: [exmplpath_i, ...]}}
     for catdir in os.listdir(exmpls_dir):
         cat_fulldir = pathjoin(exmpls_dir, catdir)
         for groupdir in os.listdir(cat_fulldir):
             group_fulldir = pathjoin(cat_fulldir, groupdir)
             for imgname in os.listdir(group_fulldir):
                 imgpath = pathjoin(group_fulldir, imgname)
-                exmplscats.setdefault(catdir, {}).setdefault(groupdir, []).append(imgpath)
+                exmplscats.setdefault(catdir, {}).setdefault(
+                    groupdir, []).append(imgpath)
 
     app = wx.App(False)
     f = TestFrame(None, imgcats, exmplscats)
     f.Show()
     app.MainLoop()
 
+
 def test_separateimages(imgsdir, altimg=None):
     class TestFrame(wx.Frame):
+
         def __init__(self, parent, imggroups, altimg, *args, **kwargs):
             wx.Frame.__init__(self, parent, size=(600, 500), *args, **kwargs)
 
@@ -2181,8 +2356,8 @@ def test_separateimages(imgsdir, altimg=None):
             for imgpath in imgpaths:
                 out.append(self.altimg)
             return out
-    
-    imggroups = {} # maps {tag: [imgpath_i, ...]}
+
+    imggroups = {}  # maps {tag: [imgpath_i, ...]}
     for catdir in os.listdir(imgsdir):
         cat_fulldir = pathjoin(imgsdir, catdir)
         if os.path.isdir(cat_fulldir):
@@ -2195,14 +2370,19 @@ def test_separateimages(imgsdir, altimg=None):
     f.Show()
     app.MainLoop()
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--verify_overlays", nargs=2, metavar=("IMGSDIR", "EXMPLS_DIR"))
-    parser.add_argument("--check_imgequal", nargs=2, metavar=("IMGSDIR", "CATIMG"))
-    parser.add_argument("--verify_categories", nargs=2, metavar=("IMGSDIR", "EXMPLS_DIR"))
+    parser.add_argument("--verify_overlays", nargs=2,
+                        metavar=("IMGSDIR", "EXMPLS_DIR"))
+    parser.add_argument("--check_imgequal", nargs=2,
+                        metavar=("IMGSDIR", "CATIMG"))
+    parser.add_argument("--verify_categories", nargs=2,
+                        metavar=("IMGSDIR", "EXMPLS_DIR"))
     parser.add_argument("--separate_images", nargs=2, metavar=("IMGSDIR", "ALTIMG"),
                         help="To ignore ALTIMG, pass in None as second arg.")
     return parser.parse_args()
+
 
 def main():
     args = parse_args()

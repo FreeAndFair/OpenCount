@@ -1,6 +1,7 @@
 import optparse
 from os.path import join as pathjoin
 
+
 def totaltime(filename):
     f = open(filename, 'r')
     start_time = 0
@@ -13,7 +14,8 @@ def totaltime(filename):
     print 'Total time (secs):', end_time - start_time
     print '           (mins):', (end_time - start_time) / 60.0
     print '          (hours):', (end_time - start_time) / 3600.0
-            
+
+
 def totaltime_tempmatch(filename):
     f = open(filename, 'r')
     totaltime = 0.0
@@ -23,6 +25,7 @@ def totaltime_tempmatch(filename):
     print 'Total time (secs):', totaltime
     print '           (mins):', totaltime / 60.0
     print '          (hours):', totaltime / 3600.0
+
 
 def main():
     usage = "usage: python get_times.py projects/PROJNAME"
@@ -39,9 +42,9 @@ def main():
     tempmatch_file = pathjoin(projdir, 'tempmatch_timing.log')
     runtargets_file = pathjoin(projdir, 'timing_runtarget')
 
-    print "="*32
+    print "=" * 32
     print "Select and Group Targets CPU Time \n(i.e. TemplateMatching)"
-    print "="*32
+    print "=" * 32
     try:
         totaltime_tempmatch(tempmatch_file)
     except IOError:
@@ -49,9 +52,9 @@ def main():
 
     print
 
-    print "="*32
+    print "=" * 32
     print "Run page CPU time \n(i.e. target extraction)"
-    print "="*32
+    print "=" * 32
     try:
         totaltime(runtargets_file)
     except IOError:

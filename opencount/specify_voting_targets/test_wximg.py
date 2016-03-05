@@ -1,14 +1,18 @@
-import sys, time
+import sys
+import time
 
-import numpy as np, scipy.misc, cv
+import numpy as np
+import scipy.misc
+import cv
 import wx
+
 
 def main():
     args = sys.argv[1:]
     imgpath = args[0]
 
     wximg = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
-    
+
     w, h = wximg.GetWidth(), wximg.GetHeight()
 
     '''
@@ -50,6 +54,7 @@ def main():
     cv.SaveImage("_cvimgColor.png", cv_imgColor)
     scipy.misc.imsave("_npimgColor.png", np_imgColor)
 
+
 def wximg_to_np(wximg, flatten=False):
     """ Converts a WxImage to a numpy array, with optional conversion
     to Grayscale (single channel).
@@ -59,18 +64,19 @@ def wximg_to_np(wximg, flatten=False):
     if flatten:
         wximg = wximg.ConvertToGreyscale()
     #data = wximg.GetDataBuffer()
-    #pdb.set_trace()
+    # pdb.set_trace()
     #npdata = np.frombuffer(data, dtype="u1")
     #npdata = np.frombuffer(data, dtype='uint8')
     npdata = np.fromstring(wximg.GetData(), dtype='uint8')
-    #pdb.set_trace()
+    # pdb.set_trace()
     npdata = npdata.reshape(h, w, 3)
     if flatten:
         # WxImage data buffers always hold RGB (3) channels.
         # Only return one of the channels (all equiv anyways, due to
-        # the prior ConvertToGreyscale() call. 
-        return npdata[:,:,0]
+        # the prior ConvertToGreyscale() call.
+        return npdata[:, :, 0]
     return npdata
+
 
 def wximg_to_cv(wximg, flatten=False):
     """ Converts a WxImage to a OpenCV IplImage, with optional conversion
@@ -89,7 +95,7 @@ def wximg_to_cv(wximg, flatten=False):
     #cv.SetData(cv_mat, data)
 
     #cv_mathead= cv.CreateMatHeader(h, w, cv.CV_8UC3)
-    #cv.CreateData(cv_mathead)
+    # cv.CreateData(cv_mathead)
     #cv.SetData(cv_mat, data)
 
     cv_mat = cv.CreateMat(h, w, cv.CV_8UC3)
@@ -100,8 +106,8 @@ def wximg_to_cv(wximg, flatten=False):
         #cv.SetImageCOI(cv_im, 1)
         #res = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 1)
         #cv.Copy(cv_im, res)
-        #return res
-        res = cv.CreateMat(h,w,cv.CV_8UC1)
+        # return res
+        res = cv.CreateMat(h, w, cv.CV_8UC1)
         cv.Split(cv_mat, res, None, None, None)
         return res
     else:

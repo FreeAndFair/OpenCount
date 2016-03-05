@@ -1,10 +1,22 @@
-import sys, os, pdb, Queue, threading, time, traceback, random, argparse, math
+import sys
+import os
+import pdb
+import Queue
+import threading
+import time
+import traceback
+import random
+import argparse
+import math
 try:
     import cPickle as pickle
 except ImportError as e:
     import pickle
 
-import wx, cv, scipy, Image
+import wx
+import cv
+import scipy
+import Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
 
@@ -23,7 +35,7 @@ Assumes extracted_dir looks like:
     <projdir>/extracted_attrs/precinct/*.png
 Where each *.png is the result of encodepath'ing a blank ballot
 id.
-"""        
+"""
 
 """
 Output files:
@@ -63,6 +75,7 @@ GRP_MODE_ALL_BALLOTS_NUM_MAX = 750
 # Used to give a unique ID to all Digit-template-match matches.
 matchID = 0
 
+
 def get_last_matchID(imgsdir):
     """ Given the directory of saved imgmatches, return the last
     matchID. imgsdir would be like:
@@ -82,10 +95,12 @@ def get_last_matchID(imgsdir):
                 i = curidx
     return i
 
+
 class LabelDigitsPanel(OpenCountPanel):
     """ A wrapper-class of DigitMainPanel that is meant to be
     integrated into OpenCount itself.
     """
+
     def __init__(self, parent, *args, **kwargs):
         OpenCountPanel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -99,8 +114,10 @@ class LabelDigitsPanel(OpenCountPanel):
         self.project = project
         extracted_digitpatches_fulldir = pathjoin(project.projdir_path,
                                                   project.extracted_digitpatch_dir)
-        digit_ex_fulldir = pathjoin(project.projdir_path, project.digit_exemplars_outdir)
-        precinctnums_fullpath = pathjoin(project.projdir_path, project.precinctnums_outpath)
+        digit_ex_fulldir = pathjoin(
+            project.projdir_path, project.digit_exemplars_outdir)
+        precinctnums_fullpath = pathjoin(
+            project.projdir_path, project.precinctnums_outpath)
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
             _t = time.time()
@@ -128,9 +145,10 @@ class LabelDigitsPanel(OpenCountPanel):
 
         statefile = pathjoin(self.project.projdir_path,
                              self.project.labeldigitstate)
-        self.statefile=statefile
+        self.statefile = statefile
         self.mainpanel.start(statefile=statefile)
-        self._hookfn = lambda: self.mainpanel.digitpanel.save_session(statefile=statefile)
+        self._hookfn = lambda: self.mainpanel.digitpanel.save_session(
+            statefile=statefile)
         self.project.addCloseEvent(self._hookfn)
 
         self.Layout()
@@ -175,10 +193,12 @@ missing digits. This will sort the image patches by number of labeled \
 digits present, in increasing order.".format(cnt_bad, num_digits),
                     0, None)
 
+
 class DigitMainPanel(wx.Panel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
     simple button tool bar.
     """
+
     def __init__(self, parent, imgpaths,
                  digit_exemplars_outdir='digit_exemplars',
                  precinctnums_outpath='precinct_nums.txt',
@@ -191,13 +211,13 @@ class DigitMainPanel(wx.Panel):
         self.button_sort.Bind(wx.EVT_BUTTON, self.onButton_sort)
         self.button_done = wx.Button(self, label="I'm Done.")
         self.button_done.Bind(wx.EVT_BUTTON, self.onButton_done)
-        self.button_done.Hide() # Just hide this for convenience
+        self.button_done.Hide()  # Just hide this for convenience
         btn_zoomin = wx.Button(self, label="Zoom In.")
         btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
         btn_zoomout = wx.Button(self, label="Zoom Out.")
         btn_zoomout.Bind(wx.EVT_BUTTON, self.onButton_zoomout)
-	self.reset_button = wx.Button(self, label="Reset")
-	self.reset_button.Bind(wx.EVT_BUTTON, self.onButton_reset)
+        self.reset_button = wx.Button(self, label="Reset")
+        self.reset_button.Bind(wx.EVT_BUTTON, self.onButton_reset)
         self.digitpanel = DigitLabelPanel(self, imgpaths,
                                           digit_exemplars_outdir,
                                           precinctnums_outpath,
@@ -205,17 +225,18 @@ class DigitMainPanel(wx.Panel):
 
         sizerbtns = wx.BoxSizer(wx.HORIZONTAL)
         sizerbtns.Add(self.button_sort)
-        sizerbtns.Add((20,20))
+        sizerbtns.Add((20, 20))
         sizerbtns.Add(self.button_done)
-        sizerbtns.Add((20,20))
+        sizerbtns.Add((20, 20))
         sizerbtns.Add(btn_zoomin)
-        sizerbtns.Add((20,20))
+        sizerbtns.Add((20, 20))
         sizerbtns.Add(btn_zoomout)
-        sizerbtns.Add((20,20))
+        sizerbtns.Add((20, 20))
         sizerbtns.Add(self.reset_button)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizerbtns, border=10, flag=wx.ALL)
-        self.sizer.Add(self.digitpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.digitpanel, border=10,
+                       proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -236,7 +257,7 @@ class DigitMainPanel(wx.Panel):
         self.digitpanel.on_done()
 
     def onButton_reset(self, evt):
-	self.digitpanel.reset()    
+        self.digitpanel.reset()
 
     def onButton_zoomin(self, evt):
         dlg = wx.MessageDialog(self, message="Not implemented yet.")
@@ -249,6 +270,7 @@ class DigitMainPanel(wx.Panel):
         self.Disable()
         dlg.ShowModal()
         self.Enable()
+
 
 class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
     MAX_WIDTH = 200
@@ -274,7 +296,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
                    finished. It should accept the results, which is a dict:
                        {str patchpath: str precinct number}
         """
-        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent, *args, **kwargs)
+        wx.lib.scrolledpanel.ScrolledPanel.__init__(
+            self, parent, *args, **kwargs)
         self.parent = parent
         self.imgpaths = imgpaths
         self.digit_exemplars_outdir = digit_exemplars_outdir
@@ -284,7 +307,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # Keeps track of the currently-being-labeled digit
         self.current_digit = None
-        # maps {str regionpath: list of (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
+        # maps {str regionpath: list of (patchpath, matchID, digit, score,
+        # y1,y2,x1,x2, rszFac)
         self.matches = {}
 
         # self.PATCH2REGION: maps {str patchpath: str regionpath}
@@ -297,22 +321,23 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.gridsizer = wx.GridSizer(rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
+        self.gridsizer = wx.GridSizer(
+            rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
         #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
         self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
 
         self.rszFac = None
-        
+
         self.i, self.j = 0, 0    # Keeps track of all boxes
         self.i_cur, self.j_cur = 0, 0  # Keeps track of currently
-                                       # displayed boxes
+        # displayed boxes
 
-        self.imgID2cell = {} # Maps {str imgID: (i,j)}
-        self.cell2imgID = {} # Maps {(i,j): str imgID}
+        self.imgID2cell = {}  # Maps {str imgID: (i,j)}
+        self.cell2imgID = {}  # Maps {(i,j): str imgID}
 
-        self._box = None # A Box that is being created
+        self._box = None  # A Box that is being created
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.onChildFocus)
 
@@ -358,12 +383,13 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             i, j = self.imgID2cell[regionpath]
             k = (self.NUM_COLS * i) + j
             self.precinct_txts[regionpath].SetLabel("{0} Precinct Number: {1}".format(str(k),
-                                                                                       digits_str))
-        #for regionpath, boxes in cell_boxes.iteritems():
+                                                                                      digits_str))
+        # for regionpath, boxes in cell_boxes.iteritems():
         #    self.cells[regionpath].boxes = boxes
-        # For awhile, a bug happened where self.matches could become 
+        # For awhile, a bug happened where self.matches could become
         # out-of-sync with self.cells. This code will ensure that they
         # stay synced.
+
         def get_digit(patchpath):
             """ patchpaths are of the form:
                 <projdir>/digit_exemplars/0_examples/*.png
@@ -371,12 +397,14 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
         for regionpath, matches in self.matches.iteritems():
             boxes = []
-            for (patchpath, matchID, digit, score, y1,y2,x1,x2,rszFac) in matches:
-                x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+            for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in matches:
+                x1, y1, x2, y2 = map(lambda c: int(
+                    round((c / rszFac))), (x1, y1, x2, y2))
                 # Then, scale it by the resizing done in setup_grid
-                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                x1, y1, x2, y2 = map(lambda c: int(
+                    round((c / self.rszFac))), (x1, y1, x2, y2))
                 digit = get_digit(patchpath)
-                box = Box(x1,y1,x2,y2,digit=digit)
+                box = Box(x1, y1, x2, y2, digit=digit)
                 boxes.append(box)
             self.cells[regionpath].boxes = boxes
         return True
@@ -390,7 +418,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         state['matches'] = self.matches
         state['patch2region'] = self.patch2region
         cell_boxes = {}
-        digits = {} # maps regionpath to digits
+        digits = {}  # maps regionpath to digits
         for regionpath, cell in self.cells.iteritems():
             cell_boxes[regionpath] = cell.boxes
             digits[regionpath] = cell.get_digits()
@@ -423,7 +451,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         w, h = imgbitmap.GetSize()
         s = wx.BoxSizer(wx.VERTICAL)
         txt = wx.StaticText(self, label="Precinct Number:")
-        staticbitmap = MyStaticBitmap(self, self.i, self.j, imgpath, bitmap=imgbitmap, npimg=npimg, rszFac=rszFac)
+        staticbitmap = MyStaticBitmap(
+            self, self.i, self.j, imgpath, bitmap=imgbitmap, npimg=npimg, rszFac=rszFac)
         s.Add(txt)
         s.Add(staticbitmap, proportion=1, flag=wx.EXPAND)
         assert imgpath not in self.cells
@@ -433,7 +462,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         self.gridsizer.Add(staticbitmap)
         self.gridsizer.Add(s, border=10, flag=wx.ALL)
 
-    def setup_grid(self, sorted=False,sorted_patches=None):
+    def setup_grid(self, sorted=False, sorted_patches=None):
         """Reads in the digit patches (given by self.imgpaths)
         and displays them on a grid.
         """
@@ -448,9 +477,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         # TODO: The following code block from here until the end of the
         # function can take a /long/ time (and consume quite a bit of
-        # memory, >7 GB on Orange) on large elections. 
+        # memory, >7 GB on Orange) on large elections.
         def add_patches(imgpath):
-            npimg = np.asarray(cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE))
+            npimg = np.asarray(cv.LoadImageM(
+                imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE))
             w, h = npimg.shape[1], npimg.shape[0]
             c = float(w) / self.MAX_WIDTH
             w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
@@ -464,11 +494,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         if sorted == True:
             for imgname in sorted_patches:
-                add_patches(imgname,'')
+                add_patches(imgname, '')
         else:
             for imgpath in self.imgpaths:
                 add_patches(imgpath)
-        
+
         print 'num images:', len(self.imgID2cell)
         self.Refresh()
 
@@ -478,7 +508,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         cell = self.cells[imgpath]
         i, j = self.imgID2cell[imgpath]
         k = (self.NUM_COLS * i) + j
-        txt.SetLabel("{0} Precinct Number: {1}".format(str(k), cell.get_digits()))
+        txt.SetLabel("{0} Precinct Number: {1}".format(
+            str(k), cell.get_digits()))
 
     def start_tempmatch(self, imgpatch, cell):
         """ The user has selected a digit (imgpatch). Now we want to
@@ -498,14 +529,17 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if digitval == None or digitval == '':
             d = wx.MessageDialog(self, message="You must enter in the \
 digit.")
-            self.Disable(); self.disable_cells()
+            self.Disable()
+            self.disable_cells()
             d.ShowModal()
-            self.Enable(); self.enable_cells()
+            self.Enable()
+            self.enable_cells()
             return
         self.current_digit = digitval
 
         self.queue = Queue.Queue()
-        t = ThreadDoTempMatch(imgpatch, self.imgpaths, self.queue, self.util.Gauges.digit_match)
+        t = ThreadDoTempMatch(imgpatch, self.imgpaths,
+                              self.queue, self.util.Gauges.digit_match)
         gauge = util.MyGauge(self, 1, thread=t, ondone=self.on_tempmatchdone,
                              msg="Finding digit instances...",
                              job_id=self.util.Gauges.digit_match)
@@ -528,13 +562,13 @@ digit.")
 
         print "Number of matches pruned: {0}".format(len(matches) - len(matches_prune))
         matches = matches_prune
-        
+
         if not matches:
             print "Couldn't find any matches."
             return
         print "Num. Matches Found:", len(matches)
 
-        self.overlaymaps = {} # maps {int matchID: (i,j)}
+        self.overlaymaps = {}  # maps {int matchID: (i,j)}
 
         imgpatch = shared.standardImread(self.PATCH_TMP, flatten=True)
         h, w = imgpatch.shape
@@ -543,23 +577,26 @@ digit.")
         matchID = get_last_matchID(self.digit_exemplars_outdir)
         imgpaths = []
         # regionpath is an attrpatch, not the blank ballot itself
-        for (regionpath,score1,score2,Ireg,y1,y2,x1,x2,rszFac) in matches:
-            rootdir = os.path.join(self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
+        for (regionpath, score1, score2, Ireg, y1, y2, x1, x2, rszFac) in matches:
+            rootdir = os.path.join(
+                self.digit_exemplars_outdir, '{0}_examples'.format(self.current_digit))
             util_gui.create_dirs(rootdir)
             patchpath = os.path.join(rootdir, '{0}_match.png'.format(matchID))
-            bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
+            bb = map(lambda c: int(round(c / rszFac)), (y1, y2, x1, x2))
             Ireg = np.nan_to_num(Ireg)
             Ireg = shared.fastResize(Ireg, 1 / rszFac)
             scipy.misc.imsave(patchpath, Ireg)
             imgpaths.append(patchpath)
-            self.matches.setdefault(regionpath, []).append((patchpath, matchID, self.current_digit, score2, y1, y2, x1, x2, rszFac))
+            self.matches.setdefault(regionpath, []).append(
+                (patchpath, matchID, self.current_digit, score2, y1, y2, x1, x2, rszFac))
             self.patch2region[patchpath] = regionpath
             matchID += 1
 
         exemplar_imgpath = self.PATCH_TMP
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = verify_overlays_new.CheckImageEqualsFrame(self, imgpaths, exemplar_imgpath, self.on_verifydone)
+        self.f = verify_overlays_new.CheckImageEqualsFrame(
+            self, imgpaths, exemplar_imgpath, self.on_verifydone)
         self.f.Maximize()
         self.Disable()
         self.disable_cells()
@@ -585,7 +622,8 @@ digit.")
                 for patchpath in patchpaths:
                     regionpath = self.patch2region.pop(patchpath)
                     os.remove(patchpath)
-                    # stuff[i] := (patchpath, matchID, digit, score, y1,y2,x1,x2, rszFac)
+                    # stuff[i] := (patchpath, matchID, digit, score,
+                    # y1,y2,x1,x2, rszFac)
                     stuff = self.matches[regionpath]
                     stuff = [t for t in stuff if t[0] != patchpath]
                     self.matches[regionpath] = stuff
@@ -601,10 +639,12 @@ digit.")
         for regionpath, stuff in self.matches.iteritems():
             boxes = []
             for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in stuff:
-                x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+                x1, y1, x2, y2 = map(lambda c: int(
+                    round((c / rszFac))), (x1, y1, x2, y2))
                 # Then, scale it by the resizing done in setup_grid
                 # (these coords are only for the LabelDigits UI).
-                _x1, _y1, _x2, _y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                _x1, _y1, _x2, _y2 = map(lambda c: int(
+                    round((c / self.rszFac))), (x1, y1, x2, y2))
                 dig = get_digit(patchpath)
                 newbox = Box(_x1, _y1, _x2, _y2, digit=dig)
                 added_matches += 1
@@ -613,21 +653,21 @@ digit.")
             self.cells[regionpath].boxes = boxes
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
-    
+
     def reset(self):
         """ resets the labelling state and digit ui """
         self.current_digit = None
-        self.matches = {}   
+        self.matches = {}
         self.cells = {}
         self.precinct_txts = {}
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
         self.rszFac = None
-        self.i, self.j = 0, 0 
+        self.i, self.j = 0, 0
         self.i_cur, self.j_cur = 0, 0
-        self.imgID2cell = {} 
-        self.cell2imgID = {} 
-        self._box = None 
-            
+        self.imgID2cell = {}
+        self.cell2imgID = {}
+        self._box = None
+
         # reset the UI
 
         self.gridsizer.Clear(deleteWindows=True)
@@ -649,12 +689,13 @@ digit.")
         for x in patch2precincts:
             if x[1] == 'Precinct Number':
                 loc = patch2precincts.index(x)
-                patch2precincts[loc] = (x[0],'')
+                patch2precincts[loc] = (x[0], '')
 
         sorted_patches = sorted(patch2precincts, key=lambda x: len(x[1]))
         sorted_patches = [x[0] for x in sorted_patches]
 
-        # Reset instance variables. Consider integrating this into reset method when it is created.
+        # Reset instance variables. Consider integrating this into reset method
+        # when it is created.
         self.i, self.j = 0, 0    # Keeps track of all boxes
         self.i_cur, self.j_cur = 0, 0  # Keeps track of currently display boxes
         self.imgID2cell = {}
@@ -663,28 +704,30 @@ digit.")
         self.precinct_txts = {}
 
         self.gridsizer.Clear(deleteWindows=True)
-        self.setup_grid(sorted=True,sorted_patches=sorted_patches)
-        
+        self.setup_grid(sorted=True, sorted_patches=sorted_patches)
+
         def get_digit(patchpath):
             """ patchpaths are of the form:
                 <projdir>/digit_exemplars/0_examples/*.png
             """
             return os.path.split(os.path.split(patchpath)[0])[1].split("_")[0]
-        
+
         # Add digit bounding boxes to the UI
         for regionpath, matches in self.matches.iteritems():
             boxes = []
-            for (patchpath, matchID, digit, score, y1,y2,x1,x2,rszFac) in matches:
-                x1, y1, x2, y2 = map(lambda c: int(round((c/rszFac))), (x1,y1,x2,y2))
+            for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in matches:
+                x1, y1, x2, y2 = map(lambda c: int(
+                    round((c / rszFac))), (x1, y1, x2, y2))
                 # Then, scale it by the resizing done in setup_grid
-                x1, y1, x2, y2 = map(lambda c: int(round((c/self.rszFac))), (x1,y1,x2,y2))
+                x1, y1, x2, y2 = map(lambda c: int(
+                    round((c / self.rszFac))), (x1, y1, x2, y2))
                 digit = get_digit(patchpath)
-                box = Box(x1,y1,x2,y2,digit=digit)
+                box = Box(x1, y1, x2, y2, digit=digit)
                 boxes.append(box)
             self.cells[regionpath].boxes = boxes
 
         digits = {}
-        
+
         # Set the Precinct Text labels
         for regionpath, cell in self.cells.iteritems():
             digits[regionpath] = cell.get_digits()
@@ -693,21 +736,23 @@ digit.")
             i, j = self.imgID2cell[regionpath]
             k = (self.NUM_COLS * i) + j
             self.precinct_txts[regionpath].SetLabel("{0} Precinct Number: {1}".format(str(k),
-                                                                                       digits_str))
-        
+                                                                                      digits_str))
+
         self.gridsizer.Layout()
         self.Enable()
-                   
+
     def compute_and_save_digitexemplars_map(self):
-        digitexemplars_map = {} # maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)}
+        # maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)}
+        digitexemplars_map = {}
         for regionpath, stuff in self.matches.iteritems():
             for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in stuff:
-                bb = map(lambda c: int(round(c / rszFac)), (y1,y2,x1,x2))
-                digitexemplars_map.setdefault(digit, []).append((regionpath, score, bb, patchpath))
+                bb = map(lambda c: int(round(c / rszFac)), (y1, y2, x1, x2))
+                digitexemplars_map.setdefault(digit, []).append(
+                    (regionpath, score, bb, patchpath))
         de_mapP = pathjoin(self.parent.parent.project.projdir_path,
                            self.parent.parent.project.digit_exemplars_map)
         pickle.dump(digitexemplars_map, open(de_mapP, 'wb'))
-    
+
     def get_num_bad_digitstrings(self):
         """ Invoked when the user clicks the "I'm done" button:
         Make sure that len(all digit strings) == number user specified.
@@ -736,7 +781,7 @@ digit.")
         # Check if all the precinct strings have the correct number of digits
         if self.get_num_bad_digitstrings() != 0:
             msg = 'Please check all digits have been matched. OpenCount has detected that some strings\
-are not of proper length.' 
+are not of proper length.'
             dlg = wx.MessageDialog(self, message=msg, style=wx.OK)
             dlg.ShowModal()
         else:
@@ -744,7 +789,7 @@ are not of proper length.'
             self.compute_and_save_digitexemplars_map()
             if self.ondone:
                 self.ondone(result)
-    
+
             self.Disable()
 
     def export_results(self):
@@ -752,14 +797,14 @@ are not of proper length.'
         result = self.get_patch2precinct()
         self.export_precinct_nums(result)
         return result
-    
+
     def get_patch2cellID(self):
         """ Return dictionary mapping patchpath to the cell ID on the digit UI """
         result = {}
         for patchpath, txt in self.precinct_txts.iteritems():
             assert patchpath not in result
             result[patchpath] = txt.GetLabel().split(' ')[0]
-        
+
         return result
 
     def get_patch2precinct(self):
@@ -795,7 +840,8 @@ are not of proper length.'
                 print "Uhoh, patchpath not in digitpatch2temp:", patchpath
                 pdb.set_trace()
             temppath, attrstr, bb, side = digitpatch2temp[patchpath]
-            digitattrvals_blanks.setdefault(temppath, {})[attrstr] = (digitval, bb, side)
+            digitattrvals_blanks.setdefault(
+                temppath, {})[attrstr] = (digitval, bb, side)
         pickle.dump(digitattrvals_blanks, open(pathjoin(proj.projdir_path,
                                                         proj.digitattrvals_blanks),
                                                'wb'))
@@ -808,11 +854,14 @@ are not of proper length.'
     def enable_cells(self):
         for cell in self.cells.values():
             cell.Enable()
+
     def disable_cells(self):
         for cell in self.cells.values():
             cell.Disable()
 
+
 class MyStaticBitmap(wx.Panel):
+
     def __init__(self, parent, i, j, imgpath, bitmap=None, npimg=None, rszFac=1.0, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
@@ -849,7 +898,8 @@ class MyStaticBitmap(wx.Panel):
 
     def _start_box(self, x, y):
         assert not self._box
-        self._box = Box(x, y, x+1, y+1)
+        self._box = Box(x, y, x + 1, y + 1)
+
     def _finish_box(self, x, y):
         assert self._box
         if self._box.width < 4 or self._box.height < 4:
@@ -858,12 +908,13 @@ class MyStaticBitmap(wx.Panel):
         tmp = self._box
         self._box = None
         # cut off coords that are out-of-bounds
-        x1,y1,x2,y2 = Box.make_canonical(tmp)
+        x1, y1, x2, y2 = Box.make_canonical(tmp)
         tmp.x1 = max(0, x1)
         tmp.y1 = max(0, y1)
-        tmp.x2 = min(self.npimg.shape[1]-1, x2)
-        tmp.y2 = min(self.npimg.shape[0]-1, y2)
+        tmp.x2 = min(self.npimg.shape[1] - 1, x2)
+        tmp.y2 = min(self.npimg.shape[0] - 1, y2)
         return tmp
+
     def _update_box(self, x, y):
         assert self._box
         self._box.x2, self._box.y2 = x, y
@@ -876,6 +927,7 @@ class MyStaticBitmap(wx.Panel):
         x, y = evt.GetPosition()
         self._start_box(x, y)
         self.Refresh()
+
     def onLeftUp(self, evt):
         x, y = evt.GetPosition()
         box = self._finish_box(x, y)
@@ -896,7 +948,7 @@ matching. Saving to: _errtmp_npimg.png"
             #npimg_crop = autocrop_img(npimg)
             # Let's try not cropping, since it might help with digit
             # recognition.
-            npimg_crop = npimg 
+            npimg_crop = npimg
             if npimg_crop == None:
                 print "autocrop failed. saving to: _errtmp_npimg_failcrop.png"
                 scipy.misc.imsave("_errtmp_npimg_failcrop.png", npimg)
@@ -905,6 +957,7 @@ matching. Saving to: _errtmp_npimg.png"
             #scipy.misc.imsave('after_crop.png', npimg_crop)
             self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
+
     def onMotion(self, evt):
         x, y = evt.GetPosition()
         if self._box and evt.LeftIsDown():
@@ -917,7 +970,7 @@ matching. Saving to: _errtmp_npimg.png"
         #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
         #npimg = scipy.misc.imread(self.imgpath, flatten=True)
         npimg = shared.standardImread_v2(self.imgpath, flatten=True)
-        x1,y1,x2,y2=map(lambda n: int(round(n*self.rszFac)),coords)
+        x1, y1, x2, y2 = map(lambda n: int(round(n * self.rszFac)), coords)
         return npimg[y1:y2, x1:x2]
 
     def onPaint(self, evt):
@@ -929,7 +982,7 @@ matching. Saving to: _errtmp_npimg.png"
         dc.DrawBitmap(self.bitmap, 0, 0)
         self._draw_boxes(dc)
         evt.Skip()
-        
+
     def _draw_boxes(self, dc):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Green", 2))
@@ -940,9 +993,11 @@ matching. Saving to: _errtmp_npimg.png"
         if self._box:
             dc.SetPen(wx.Pen("Red", 2))
             x1, y1, x2, y2 = Box.make_canonical(self._box)
-            dc.DrawRectangle(x1, y1, self._box.width, self._box.height)        
+            dc.DrawRectangle(x1, y1, self._box.width, self._box.height)
+
 
 class ThreadDoTempMatch(threading.Thread):
+
     def __init__(self, img1, imgpaths, queue, job_id, *args, **kwargs):
         """ Search for img1 within images in imgpaths. """
         threading.Thread.__init__(self, *args, **kwargs)
@@ -951,10 +1006,10 @@ class ThreadDoTempMatch(threading.Thread):
 
         self.queue = queue
         self.job_id = job_id
-        
+
     def run(self):
-        h, w =  self.img1.shape
-        bb = [0, h-1, 0, w-1]
+        h, w = self.img1.shape
+        bb = [0, h - 1, 0, w - 1]
         regions = []
         for imgpath in self.imgpaths:
             regions.append(imgpath)
@@ -978,17 +1033,19 @@ class ThreadDoTempMatch(threading.Thread):
     def abort(self):
         print "Sorry, abort not implemented yet. :("
 
+
 class LabelDigitDialog(common.TextInputDialog):
+
     def __init__(self, parent, imgpath=None, *args, **kwargs):
         common.TextInputDialog.__init__(self, parent, *args, **kwargs)
-        img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG) # assume PNG
+        img = wx.Image(imgpath, wx.BITMAP_TYPE_PNG)  # assume PNG
         staticbitmap = wx.StaticBitmap(self, bitmap=wx.BitmapFromImage(img))
         self.sizer.Insert(1, staticbitmap, proportion=0)
         self.Fit()
 
 
-
 class Box(object):
+
     def __init__(self, x1, y1, x2, y2, digit=None):
         self.x1, self.y1 = x1, y1
         self.x2, self.y2 = x2, y2
@@ -997,12 +1054,14 @@ class Box(object):
     @property
     def width(self):
         return abs(self.x1 - self.x2)
+
     @property
     def height(self):
         return abs(self.y1 - self.y2)
-    
+
     def set_coords(self, pts):
         self.x1, self.y1, self.x2, self.y2 = pts
+
     def get_coords(self):
         return self.x1, self.y1, self.x2, self.y2
 
@@ -1044,12 +1103,13 @@ class Box(object):
             return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
         x1, y1, x2, y2 = Box.make_canonical(box1)
         rect1 = Box.make_canonical(box2)
-        w, h = abs(x2-x1), abs(y2-y1)
+        w, h = abs(x2 - x1), abs(y2 - y1)
         # Checks (in order): UL, UR, LR, LL corners
-        return (is_within_box((x1,y1), rect1) or
-                is_within_box((x1+w,y1), rect1) or 
-                is_within_box((x1+w,y1+h), rect1) or 
-                is_within_box((x1,y1+h), rect1))
+        return (is_within_box((x1, y1), rect1) or
+                is_within_box((x1 + w, y1), rect1) or
+                is_within_box((x1 + w, y1 + h), rect1) or
+                is_within_box((x1, y1 + h), rect1))
+
     @staticmethod
     def too_close(box_a, box_b):
         """
@@ -1062,13 +1122,15 @@ class Box(object):
         (x1_b, y1_b, x2_b, y2_b) = Box.make_canonical(box_b)
         return ((abs(x1_a - x1_b) <= w / 2.0 and
                  abs(y1_a - y1_b) <= h / 2.0) or
-                Box.is_overlap(box_a, box_b) or 
+                Box.is_overlap(box_a, box_b) or
                 Box.is_overlap(box_b, box_a))
+
 
 class DigitMainFrame(wx.Frame):
     """A frame that contains both the DigitLabelPanel, and a simple
     button toolbar.
     """
+
     def __init__(self, parent, imgpaths,
                  digit_exemplars_outdir='digit_exemplars',
                  precinctnums_outpath='precinct_nums.txt',
@@ -1084,9 +1146,10 @@ class DigitMainFrame(wx.Frame):
                                         digit_exemplars_outdir,
                                         precinctnums_outpath,
                                         ondone)
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.mainpanel, border=10, proportion=1, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.mainpanel, border=10,
+                       proportion=1, flag=wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
 
     def start(self):
@@ -1097,6 +1160,7 @@ class DigitMainFrame(wx.Frame):
 
     def on_done(self, results):
         self.Close()
+
 
 def prune_matches(matches, prev_matches):
     """ Discards matches that are already present within 'prev_matches'.
@@ -1113,14 +1177,15 @@ def prune_matches(matches, prev_matches):
         Input:
             bb1, bb2: tuple (y1, y2, x1, x2)
         """
-        area_1 = float(abs(bb1[0]-bb1[1])*abs(bb1[2]-bb1[3]))
+        area_1 = float(abs(bb1[0] - bb1[1]) * abs(bb1[2] - bb1[3]))
         common_area = float(get_common_area(bb1, bb2))
         overlap_area = common_area / area_1
-        if overlap_area  >= c:
+        if overlap_area >= c:
             return True
         else:
             return False
         return False
+
     def is_overlap_any(regionpath, bb, bb_lst, c=0.25):
         for regionpath2, bb2 in bb_lst:
             if regionpath == regionpath2 and is_overlap(bb, bb2, c=c):
@@ -1130,11 +1195,13 @@ def prune_matches(matches, prev_matches):
     prev_bbs = []
     for regionpath, tuples in prev_matches.iteritems():
         for (patchpath, matchID, digit, score, y1, y2, x1, x2, rszFac) in tuples:
-            prev_bbs.append((regionpath, (y1,y2,x1,x2)))
-    for (regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac) in matches:
-        if not is_overlap_any(regionpath, (y1,y2,x1,x2), prev_bbs):
-            pruned_matches.append((regionpath,s1,s2,IReg,y1,y2,x1,x2,rszFac))
+            prev_bbs.append((regionpath, (y1, y2, x1, x2)))
+    for (regionpath, s1, s2, IReg, y1, y2, x1, x2, rszFac) in matches:
+        if not is_overlap_any(regionpath, (y1, y2, x1, x2), prev_bbs):
+            pruned_matches.append(
+                (regionpath, s1, s2, IReg, y1, y2, x1, x2, rszFac))
     return pruned_matches
+
 
 def get_common_area(bb1, bb2):
     """ Returns common area between bb1, bb2.
@@ -1167,20 +1234,20 @@ def get_common_area(bb1, bb2):
         tmp = bb1
         bb1 = bb2
         bb2 = tmp
-    y1a,y2a,x1a,x2a = bb1
-    y1b,y2b,x1b,x2b = bb2
-    w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
-    w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
-    segw_a = x1a, x1a+w_a
-    segh_a = y1a, y1a+h_a
-    segw_b = x1b, x1b+w_b
-    segh_b = y1b, y1b+h_b
+    y1a, y2a, x1a, x2a = bb1
+    y1b, y2b, x1b, x2b = bb2
+    w_a, h_a = abs(x1a - x2a), abs(y1a - y2a)
+    w_b, h_b = abs(x1b - x2b), abs(y1b - y2b)
+    segw_a = x1a, x1a + w_a
+    segh_a = y1a, y1a + h_a
+    segw_b = x1b, x1b + w_b
+    segh_b = y1b, y1b + h_b
     cseg_w = common_segment(segw_a, segw_b)
     cseg_h = common_segment(segh_a, segh_b)
     if cseg_w == None or cseg_h == None:
         return 0.0
     else:
-        return abs(cseg_w[0]-cseg_w[1]) * abs(cseg_h[0]-cseg_h[1])
+        return abs(cseg_w[0] - cseg_w[1]) * abs(cseg_h[0] - cseg_h[1])
     '''
     if x1b < (x1a+w_a):
         x_segment = x1a+w_a - x1b
@@ -1204,6 +1271,7 @@ def get_common_area(bb1, bb2):
     return x_segment * y_segment
     '''
 
+
 def _test_get_common_area():
     bb1 = [2, 0, 0, 1]
     bb2 = [1, 0, 0, 2]
@@ -1217,7 +1285,8 @@ def _test_get_common_area():
     bb2 = [1, 3, 2, 3]
     print get_common_area(bb1, bb2)
 #_test_get_common_area()
-#pdb.set_trace()
+# pdb.set_trace()
+
 
 def is_overlap(rect1, rect2):
     """
@@ -1229,12 +1298,14 @@ def is_overlap(rect1, rect2):
     def is_within_box(pt, box):
         return box[0] < pt[0] < box[2] and box[1] < pt[1] < box[3]
     x1, y1, x2, y2 = rect1
-    w, h = abs(x2-x1), abs(y2-y1)
+    w, h = abs(x2 - x1), abs(y2 - y1)
     # Checks (in order): UL, UR, LR, LL corners
-    return (is_within_box((x1,y1), rect2) or
-            is_within_box((x1+w,y1), rect2) or 
-            is_within_box((x1+w,y1+h), rect2) or 
-            is_within_box((x1,y1+h), rect2))
+    return (is_within_box((x1, y1), rect2) or
+            is_within_box((x1 + w, y1), rect2) or
+            is_within_box((x1 + w, y1 + h), rect2) or
+            is_within_box((x1, y1 + h), rect2))
+
+
 def too_close(b1, b2):
     """
     Input:
@@ -1242,11 +1313,12 @@ def too_close(b1, b2):
         b2: Tuple of (x1,y1,x2,y2)
     """
     dist = util_gui.dist_euclidean
-    w, h = abs(b1[0]-b1[2]), abs(b1[1]-b1[3])
+    w, h = abs(b1[0] - b1[2]), abs(b1[1] - b1[3])
     return ((abs(b1[0] - b2[0]) <= w / 2.0 and
              abs(b1[1] - b2[1]) <= h / 2.0) or
-            is_overlap(b1, b2) or 
+            is_overlap(b1, b2) or
             is_overlap(b2, b1))
+
 
 def autocrop_img(img):
     """ Given an image, try to find the bounding box. """
@@ -1257,11 +1329,11 @@ def autocrop_img(img):
         b = a.copy()
         for i in range(b.shape[0]):
             for j in range(b.shape[1]):
-                val = a[i,j]
+                val = a[i, j]
                 if val == 255:
-                    b[i,j] = 0
+                    b[i, j] = 0
                 else:
-                    b[i,j] = 1
+                    b[i, j] = 1
         return np.argwhere(b)
     thresholded = util_gui.autothreshold_numpy(img, method='otsu')
     B = new_argwhere(thresholded)
@@ -1270,6 +1342,7 @@ def autocrop_img(img):
         return None
     (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
     return img[ystart:ystop, xstart:xstop]
+
 
 def do_extract_digitbased_patches(proj, C, MIN, MAX):
     """ Extracts all digit-based attribute patches, and stores them
@@ -1295,7 +1368,8 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
             y2 = attrbox_dict['y2']
             side = attrbox_dict['side']
             is_part_consistent = attrbox_dict['grp_per_partition']
-            digit_attrtypes.append((attrs,x1,y1,x2,y2,side,is_part_consistent))
+            digit_attrtypes.append(
+                (attrs, x1, y1, x2, y2, side, is_part_consistent))
     if len(digit_attrtypes) >= 2:
         raise Exception("Only one digit attribute may exist.")
     bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
@@ -1318,13 +1392,14 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
         # Randomly choose ballots from the election.
         candidate_balids = sum(partitions_map.values(), [])
         N = max(min(int(round(len(candidate_balids) * C)), MAX), MIN)
-        N = min(N, len(candidate_balids)) # If MIN < len(B), avoid oversampling
+        # If MIN < len(B), avoid oversampling
+        N = min(N, len(candidate_balids))
         chosen_bids = set(random.sample(candidate_balids, N))
         print "...Digit attribute is NOT consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
 
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.partition_exmpls), 'rb'))
-    tasks = [] # list [(int ballotID, [imgpath_side0, ...]), ...]
+    tasks = []  # list [(int ballotID, [imgpath_side0, ...]), ...]
     for ballotid in chosen_bids:
         imgpaths = bal2imgs[ballotid]
         imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
@@ -1337,20 +1412,22 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
                               pass_idx=True,
                               N=None)
 
+
 def _my_combfn(results, subresults):
     return dict(results.items() + subresults.items())
+
 
 def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
     i = 0
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
-    patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, int side)}
-    for (attrs,x1,y1,x2,y2,side,is_part_consistent) in digit_attrtypes:
+    patch2temp = {}  # maps {str patchpath: (imgpath, attrtype, bb, int side)}
+    for (attrs, x1, y1, x2, y2, side, is_part_consistent) in digit_attrtypes:
         for templateid, imgpaths in tasks:
             imgpath = imgpaths[side]
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
             if img2flip[imgpath]:
                 cv.Flip(I, I, flipMode=-1)
-            cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
+            cv.SetImageROI(I, (x1, y1, x2 - x1, y2 - y1))
             attrs_sorted = sorted(attrs)
             attrs_sortedstr = '_'.join(attrs_sorted)
             try:
@@ -1367,6 +1444,7 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
             i += 1
     return patch2temp
 
+
 def get_num_digits(proj):
     # list ATTRS: [dict attrbox_marsh, ...]
     attrs = pickle.load(open(proj.ballot_attributesfile))
@@ -1374,6 +1452,7 @@ def get_num_digits(proj):
         if attr['is_digitbased']:
             return attr['num_digits']
     raise Exception("Couldn't find any digit-based attributes?!")
+
 
 def fastResize(I, w_new):
     """ Resizes a numpy image I to have width W_NEW. Maintains aspect ratio.
@@ -1394,7 +1473,8 @@ def fastResize(I, w_new):
         cv.Resize(Icv, I1cv, interpolation=cv.CV_INTER_CUBIC)
     Iout = np.asarray(I1cv)
     return Iout
-    
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("imgsdir", help="Input directory containing \
@@ -1407,6 +1487,7 @@ digit patches.")
 there are N patches to label in the UI. Useful to test how scale-able the \
 widget is.")
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -1435,7 +1516,7 @@ def main():
             imgpaths.extend([imgpaths_cpy[i % len(imgpaths_cpy)]]*redund)
             i += 1
     '''
-        
+
     print "(Info) Displaying {0} images.".format(len(imgpaths))
     app = wx.App(False)
     frame = DigitMainFrame(None, imgpaths)
@@ -1444,4 +1525,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

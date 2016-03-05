@@ -1,12 +1,15 @@
-import sys, os
+import sys
+import os
 
 import scipy.misc
 import cluster_imgs
 
 from util import debug, warn, error
 
+
 def is_img_ext(p):
     return os.path.splitext(p.lower())[1] in ('.png', '.jpg', '.jpeg')
+
 
 def main():
     args = sys.argv[1:]
@@ -27,11 +30,11 @@ def main():
             imgpaths.append(os.path.join(dirpath, imgname))
             if election == 'marin':
                 bb_map[os.path.join(dirpath, imgname)] = (137, 173, 37, 201)
-    
-    #random.shuffle(imgpaths)
+
+    # random.shuffle(imgpaths)
     #clusters = cluster_imgs.cluster_imgs_kmeans_alignerr(imgpaths, bb_map=bb_map)
-    #clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff', 
-    #                                                 centroidfn_method='median', 
+    # clusters = cluster_imgs.cluster_imgs_kmeans_mine(imgpaths, distfn_method='vardiff',
+    #                                                 centroidfn_method='median',
     #                                                 bb_map=bb_map)
     clusters = cluster_imgs.kmeans_2D(imgpaths, distfn_method='vardiff', k=4,
                                       do_align=True,
@@ -51,7 +54,7 @@ def main():
     for cluster, imgpaths in clusters.iteritems():
         #overlay, minimg, maximg = make_overlays.overlay_im(imgpaths, include_min_max=True)
         #minimg, maximg = make_overlays.make_minmax_overlay(imgpaths)
-        
+
         outrootdir = os.path.join(outdir, str(cluster))
         try:
             os.makedirs(outrootdir)
@@ -62,7 +65,8 @@ def main():
             if imgpath in bb_map:
                 bb = bb_map[imgpath]
                 img = img[bb[0]:bb[1], bb[2]:bb[3]]
-            scipy.misc.imsave(os.path.join(outrootdir, os.path.split(imgpath)[1]), img)
+            scipy.misc.imsave(os.path.join(
+                outrootdir, os.path.split(imgpath)[1]), img)
 
         #scipy.misc.imsave(os.path.join(outrootdir, 'min.png'), minimg)
         #scipy.misc.imsave(os.path.join(outrootdir, 'max.png'), maximg)

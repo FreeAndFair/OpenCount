@@ -1,11 +1,14 @@
-import os, sys, traceback, pdb
+import os
+import sys
+import traceback
+import pdb
 try:
     import cPickle as pickle
 except:
     import pickle
 from os.path import join as pathjoin
 
-import cv    
+import cv
 import diebold_raw
 
 sys.path.append('..')
@@ -33,14 +36,17 @@ COLMARK_PATH = pathjoin(MYDIR, 'diebold_colmark.png')
 ON = 'ON'
 OFF = 'OFF'
 
+
 class DieboldVendor(Vendor):
+
     def __init__(self, proj):
         self.proj = proj
 
     def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, *args, **kwargs):
         return partask.do_partask(_decode_ballots,
                                   ballots,
-                                  _args=(TEMPLATE_PATH, COLMARK_PATH, skipVerify),
+                                  _args=(TEMPLATE_PATH,
+                                         COLMARK_PATH, skipVerify),
                                   combfn=_combfn,
                                   init=({}, {}, {}, [], []),
                                   manager=manager,
@@ -61,11 +67,12 @@ class DieboldVendor(Vendor):
 
         if verified_results:
             img2decoding = {}
-            decodings_tmp = {} # maps {imgpath: list}
+            decodings_tmp = {}  # maps {imgpath: list}
             for markval, tups in verified_results.iteritems():
                 digitval = '1' if markval == ON else '0'
                 for (imgpath, bb, idx) in tups:
-                    decodings_tmp.setdefault(imgpath, []).append((bb[0], digitval))
+                    decodings_tmp.setdefault(
+                        imgpath, []).append((bb[0], digitval))
 
             for imgpath, tups in decodings_tmp.iteritems():
                 # sort by x1 coordinate
@@ -83,7 +90,7 @@ class DieboldVendor(Vendor):
 
         img2bal = pickle.load(open(self.proj.image_to_ballot))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images))
-        decoding2partition = {} # maps {(dec0, dec1, ...): int partitionID}
+        decoding2partition = {}  # maps {(dec0, dec1, ...): int partitionID}
         curPartitionID = 0
         history = set()
         for imgpath, decoding_tuple in img2decoding.iteritems():
@@ -91,8 +98,10 @@ class DieboldVendor(Vendor):
             if ballotid in history:
                 continue
             imgpaths = bal2imgs[ballotid]
-            imgpaths_ordered = sorted(imgpaths, key=lambda imP: imginfo_map[imP]['page'])
-            decodings_ordered = tuple([img2decoding[imP] for imP in imgpaths_ordered])
+            imgpaths_ordered = sorted(
+                imgpaths, key=lambda imP: imginfo_map[imP]['page'])
+            decodings_ordered = tuple([img2decoding[imP]
+                                       for imP in imgpaths_ordered])
             partitionid = decoding2partition.get(decodings_ordered, None)
             if partitionid == None:
                 decoding2partition[decodings_ordered] = curPartitionID
@@ -100,13 +109,15 @@ class DieboldVendor(Vendor):
                 curPartitionID += 1
             partitions.setdefault(partitionid, []).append(ballotid)
             history.add(ballotid)
-        
+
         return partitions, img2decoding, imginfo_map
-    
+
     def __repr__(self):
         return 'DieboldVendor()'
+
     def __str__(self):
         return 'DieboldVendor()'
+
 
 def get_imginfo(decoding):
     if get_page(decoding) == 0:
@@ -124,6 +135,7 @@ def get_imginfo(decoding):
                 'endercode': get_endercode(decoding),
                 'page': 1}
 
+
 def _combfn(a, b):
     img2dec_a, flipmap_a, mark_bbs_map_a, errs_imgpaths_a, ioerrs_a = a
     img2dec_b, flipmap_b, mark_bbs_map_b, errs_imgpaths_b, ioerrs_b = b
@@ -135,6 +147,7 @@ def _combfn(a, b):
     errs_imgpaths_out = errs_imgpaths_a + errs_imgpaths_b
     ioerrs_out = ioerrs_a + ioerrs_b
     return (img2dec_out, flipmap_out, mark_bbs_map_out, errs_imgpaths_out, ioerrs_out)
+
 
 def _decode_ballots(ballots, (template_path, colpath, skipVerify), queue=None):
     """
@@ -149,7 +162,8 @@ def _decode_ballots(ballots, (template_path, colpath, skipVerify), queue=None):
     ioerr_imgpaths = []
     Imark = cv.LoadImage(template_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
     Icol = cv.LoadImage(colpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-    w_cur, h_cur = cv.GetSize(cv.LoadImage(ballots[ballots.keys()[0]][0], cv.CV_LOAD_IMAGE_UNCHANGED))
+    w_cur, h_cur = cv.GetSize(cv.LoadImage(
+        ballots[ballots.keys()[0]][0], cv.CV_LOAD_IMAGE_UNCHANGED))
     W_ORIG, H_ORIG = diebold_raw.SIZE_ORIG
     h_gap_cur = diebold_raw.HORIZ_GAP
     w_mark, h_mark = diebold_raw.WIDTH_MARK, diebold_raw.HEIGHT_MARK
@@ -182,7 +196,8 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
                     bbs = sorted(bbs, key=lambda t: t[0])
                     for i, markval in enumerate(decoding):
                         MYVAL = ON if markval == '1' else OFF
-                        mark_bbs_map.setdefault(MYVAL, []).append((imgpath, bbs[i], None))
+                        mark_bbs_map.setdefault(MYVAL, []).append(
+                            (imgpath, bbs[i], None))
                 img2decoding[imgpath] = (decoding,)
             if queue:
                 queue.put(True)

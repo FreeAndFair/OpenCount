@@ -1,6 +1,11 @@
-import sys, os, pdb, time, argparse
+import sys
+import os
+import pdb
+import time
+import argparse
 import cv
 import i2of5
+
 
 def decode_patch(img, n, topbot_pairs, cols=4, debug=False, imgP=None):
     """ Decodes the barcode present in IMG, returns it as a string.
@@ -16,6 +21,7 @@ def decode_patch(img, n, topbot_pairs, cols=4, debug=False, imgP=None):
     else:
         I = img
     return i2of5.decode_i2of5(I, n, topbot_pairs, cols=cols, debug=debug, imgP=imgP)
+
 
 def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerify=True):
     """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will 
@@ -53,14 +59,15 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerif
         I = imgpath
     w, h = cv.GetSize(I)
     isflipped = False
-    bb_ul = (10, int(round(h*0.03)), int(round(w * 0.13)), int(round(h * 0.23)))
+    bb_ul = (10, int(round(h * 0.03)),
+             int(round(w * 0.13)), int(round(h * 0.23)))
     cv.SetImageROI(I, bb_ul)
     dec_ul, outbb_ul, bbstripes_ul = decode_patch(I, 14, topbot_pairs, cols=col_sched[0],
                                                   debug=debug, imgP=imgpath)
     check = check_result(dec_ul)
     if not check:
         isflipped = True
-        tmp = cv.CreateImage((w,h), I.depth, I.channels)
+        tmp = cv.CreateImage((w, h), I.depth, I.channels)
         cv.ResetImageROI(I)
         cv.Flip(I, tmp, flipMode=-1)
         I = tmp
@@ -89,10 +96,11 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerif
             y1_out = bb[1] + bb_out[1]
             bbs_new.append((int(round(x1_out)),
                             int(round(y1_out)),
-                            int(round(x1_out + bb[2])), 
+                            int(round(x1_out + bb[2])),
                             int(round(y1_out + bb[3]))))
         bbstripes_ul_new[label] = tuple(bbs_new)
     return ((dec_ul,), isflipped, (bb_out,), bbstripes_ul_new)
+
 
 def interpret_labels(img_bc_labels):
     """
@@ -114,9 +122,11 @@ def interpret_labels(img_bc_labels):
                 pdb.set_trace()
             assert i == idx
             if label in (i2of5.WHITE_NARROW, i2of5.WHITE_WIDE):
-                whts.append(i2of5.NARROW if label == i2of5.WHITE_NARROW else i2of5.WIDE)
+                whts.append(i2of5.NARROW if label ==
+                            i2of5.WHITE_NARROW else i2of5.WIDE)
             else:
-                blks.append(i2of5.NARROW if label == i2of5.BLACK_NARROW else i2of5.WIDE)
+                blks.append(i2of5.NARROW if label ==
+                            i2of5.BLACK_NARROW else i2of5.WIDE)
         # Strip out begin/end guards
         whts_noguard = whts[2:-1]
         blks_noguard = blks[2:-2]
@@ -126,12 +136,19 @@ def interpret_labels(img_bc_labels):
         img_decoded_map[imgpath] = decoding
     return img_decoded_map
 
+
 def get_sheet(bc):
     return bc[0]
+
+
 def get_precinct(bc):
     return bc[1:7]
+
+
 def get_page(bc):
     return int(bc[8])
+
+
 def get_language(bc):
     '''
     MAP = {'0': 'en',
@@ -143,6 +160,8 @@ def get_language(bc):
     return MAP.get(k, 'lang{0}'.format(k))
     '''
     return bc[9]
+
+
 def get_party(bc):
     '''
     MAP = {'0': 'nonpartisan',
@@ -158,23 +177,28 @@ def get_party(bc):
     return MAP[bc[11]]
     '''
     return bc[10:12]
+
+
 def get_checksum(bc):
     return bc[-2:]
+
+
 def check_checksum(bc):
     def compute_chksum(digits):
-         outsum = 1
-         w = 82
-         for digit in digits:
-             outsum = (outsum+digit*w)%97
-             w = (w*68)%97
-         if outsum == 1:
-             return 98
-         elif outsum == 0:
-             return 97
-         return outsum
+        outsum = 1
+        w = 82
+        for digit in digits:
+            outsum = (outsum + digit * w) % 97
+            w = (w * 68) % 97
+        if outsum == 1:
+            return 98
+        elif outsum == 0:
+            return 97
+        return outsum
     chk = compute_chksum(map(int, bc[:-2]))
     chk_shouldbe = int(get_checksum(bc))
     return chk == chk_shouldbe, chk, chk_shouldbe
+
 
 def get_info(barcodes):
     """ Extracts various semantic meaning(s) from the decoded
@@ -191,8 +215,11 @@ def get_info(barcodes):
             'party': get_party(ul)}
     return info
 
+
 def isimgext(f):
     return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.bmp', '.jpg')
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("imgsdir", help="Directory of ballot images to \
@@ -206,7 +233,8 @@ output a new image in OUTDIR with each detected mark outlined in colored \
 rectangles.")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
-    
+
+
 def main():
     args = parse_args()
 
@@ -226,7 +254,8 @@ def main():
     t = time.time()
     if not args.patch:
         for imgpath in imgpaths:
-            bcs, isflip, bcloc, bbstripes = decode(imgpath, topbot_pairs, debug=args.debug)
+            bcs, isflip, bcloc, bbstripes = decode(
+                imgpath, topbot_pairs, debug=args.debug)
             print '{0}: '.format(imgpath), bcs, isflip, bcloc
             if None in bcs:
                 errs.append(imgpath)
@@ -236,14 +265,17 @@ def main():
                 imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
                 outrootdir = os.path.join(outdir, imgname)
                 bc_ul = bcloc[0]
-                try: os.makedirs(outrootdir)
-                except: pass
+                try:
+                    os.makedirs(outrootdir)
+                except:
+                    pass
                 Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
                 if isflip:
                     cv.Flip(Icolor, Icolor, flipMode=-1)
                 # 1.) First, draw Barcode boundingbox
                 pt1 = tuple(map(int, (bc_ul[0], bc_ul[1])))
-                pt2 = tuple(map(int, (bc_ul[0]+bc_ul[2], bc_ul[1]+bc_ul[3])))
+                pt2 = tuple(
+                    map(int, (bc_ul[0] + bc_ul[2], bc_ul[1] + bc_ul[3])))
                 cv.Rectangle(Icolor, pt1, pt2,
                              cv.CV_RGB(255, 0, 0), thickness=2)
                 Icolor_whiteNarrows = cv.CloneImage(Icolor)
@@ -291,6 +323,6 @@ def main():
     print "Avg. Time per ballot ({0} ballots): {1} s".format(len(imgpaths), avg_time)
     print "    Number of Errors: {0}".format(len(errs))
     print errs
-    
+
 if __name__ == '__main__':
     main()

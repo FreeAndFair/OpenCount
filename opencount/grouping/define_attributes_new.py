@@ -18,10 +18,12 @@ import specify_voting_targets.select_targets as select_targets
 import grouping.common as common
 import grouping.cust_attrs as cust_attrs
 
+
 class DefineAttributesMainPanel(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         self.init_ui()
 
     def init_ui(self):
@@ -53,7 +55,8 @@ class DefineAttributesMainPanel(wx.Panel):
                 break
             for ballotid in ballotids:
                 imgpaths = b2imgs[ballotid]
-                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                imgpaths_ordered = sorted(
+                    imgpaths, key=lambda imP: img2page[imP])
                 for side, imgpath in enumerate(imgpaths_ordered):
                     if side == len(ballot_sides):
                         ballot_sides.append([imgpath])
@@ -76,7 +79,7 @@ class DefineAttributesMainPanel(wx.Panel):
         m_boxes = [attrbox.marshall() for attrbox in attrboxes]
         pickle.dump(m_boxes, open(self.proj.ballot_attributesfile, 'wb'))
         # 1.) Save the newer proj.attrprops dict.
-        attrprops = {} # maps {str attrmode: {str attrtype: dict props}}
+        attrprops = {}  # maps {str attrmode: {str attrtype: dict props}}
         DIGBASED = 'DIGITBASED'
         IMGBASED = 'IMGBASED'
         CUSTATTR = 'CUSTATTR'
@@ -101,11 +104,13 @@ class DefineAttributesMainPanel(wx.Panel):
             attrprops.setdefault(CUSTATTR, {})[attrtype] = cattr.marshall()
         pickle.dump(attrprops, open(pathjoin(self.proj.projdir_path,
                                              self.proj.attrprops), 'wb'))
-        
+
+
 class DefineAttributesPanel(ScrolledPanel):
+
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
-        
+
         # BOXES_MAP: {int side: [Box_i, ...]}
         self.boxes_map = None
         # BALLOT_SIDES: [[imgpath_i_front, ...], ...]
@@ -116,13 +121,14 @@ class DefineAttributesPanel(ScrolledPanel):
 
         # CUR_SIDE: Which side we're displaying
         self.cur_side = 0
-        # CUR_I: Index into self.BALLOT_SIDES[self.CUR_SIDE] that we're displaying
+        # CUR_I: Index into self.BALLOT_SIDES[self.CUR_SIDE] that we're
+        # displaying
         self.cur_i = 0
 
         self.stateP = None
 
         self.init_ui()
-    
+
     def init_ui(self):
         self.toolbar = ToolBar(self)
         self.boxdraw = DrawAttrBoxPanel(self)
@@ -164,6 +170,7 @@ class DefineAttributesPanel(ScrolledPanel):
         except:
             return False
         return True
+
     def save_session(self):
         # 0.) Add new boxes from self.BOXDRAW to self.BOXES_MAP, if any
         for box in self.boxdraw.boxes:
@@ -215,7 +222,7 @@ class DefineAttributesPanel(ScrolledPanel):
             size = None
         self.boxdraw.set_image(wximg, size=size)
         self.boxdraw.set_boxes(boxes)
-    
+
     def get_attrtypes(self):
         """ Returns a list of all attrtypes currently created so far. """
         attrtypes = []
@@ -228,7 +235,7 @@ class DefineAttributesPanel(ScrolledPanel):
             if attrtypestr not in attrtypes:
                 attrtypes.append(attrtypestr)
         return attrtypes
-    
+
     def add_custom_attr(self, cattr_box):
         """ Adds the customattribute CATTR_BOX to my data structs.
         Input:
@@ -240,23 +247,28 @@ class DefineAttributesPanel(ScrolledPanel):
 
     def next_side(self):
         pass
+
     def prev_side(self):
         pass
+
     def next_img(self):
         pass
+
     def prev_img(self):
         pass
 
+
 class ToolBar(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.init_ui()
 
     def init_ui(self):
-        btn_addattr = FFButton (
+        btn_addattr = FFButton(
             self, label="Add Attribute", on_click=self.onButton_addattr
         )
-        btn_modify = FFButton (
+        btn_modify = FFButton(
             self, label="Modify", on_click=self.onButton_modify
         )
         btn_zoomin = FFButton(
@@ -280,7 +292,7 @@ class ToolBar(wx.Panel):
             btn_modify,
             btn_addcustomattr,
             btn_viewcustomattrs,
-            (50,50),
+            (50, 50),
             btn_zoomin,
             btn_zoomout,
         )
@@ -307,7 +319,7 @@ class ToolBar(wx.Panel):
     def onButton_addcustomattr(self, evt):
         SPREADSHEET = 'SpreadSheet'
         FILENAME = 'Filename'
-        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Custom Attribute do you want to add?", 
+        choice_dlg = common.SingleChoiceDialog(self, message="Which type of Custom Attribute do you want to add?",
                                                choices=[SPREADSHEET, FILENAME])
         status = choice_dlg.ShowModal()
         if status == wx.ID_CANCEL:
@@ -368,9 +380,10 @@ an Attribute Name.")
             attrname = dlg.attrname
             regex = dlg.regex
             is_tabulationonly = dlg.is_tabulationonly
-            cattr = cust_attrs.Filename_attr(attrname, regex, is_tabulationonly)
+            cattr = cust_attrs.Filename_attr(
+                attrname, regex, is_tabulationonly)
             self.GetParent().add_custom_attr(cattr)
-        
+
     def onButton_viewcustomattrs(self, evt):
         proj = self.GetParent().GetParent().proj
         custom_attrs = self.GetParent().cust_attrs
@@ -390,16 +403,19 @@ an Attribute Name.")
                 debug("  Attrname: {0} FilenameRegex: {1}",
                       attrname,
                       cattr.filename_regex)
+
+
 class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
+
     def __init__(self, parent, *args, **kwargs):
         select_targets.BoxDrawPanel.__init__(self, parent, *args, **kwargs)
 
     def onLeftDown(self, evt):
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
-        x_img, y_img = self.c2img(x,y)
+        x_img, y_img = self.c2img(x, y)
         w_img, h_img = self.img.GetSize()
-        if x_img >= (w_img-1) or y_img >= (h_img-1):
+        if x_img >= (w_img - 1) or y_img >= (h_img - 1):
             return
 
         if self.mode_m == self.M_CREATE:
@@ -420,6 +436,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             self.clear_selected()
             self.dirty_all_boxes()
         self.Refresh()
+
     def onLeftUp(self, evt):
         x, y = self.CalcUnscrolledPosition(evt.GetPositionTuple())
         if self.mode_m == self.M_CREATE and self.isCreate:
@@ -456,12 +473,13 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             dc.SetTextForeground("Blue")
             w = int(round(abs(attrbox.x2 - attrbox.x1) * self.scale))
             h = int(round(abs(attrbox.y2 - attrbox.y1) * self.scale))
-            client_x, client_y = self.img2c(attrbox.x1, attrbox.y1)            
+            client_x, client_y = self.img2c(attrbox.x1, attrbox.y1)
             w_txt, h_txt = dc.GetTextExtent(attrbox.label)
             x_txt, y_txt = client_x, client_y - h_txt
             if y_txt < 0:
                 y_txt = client_y + h
             dc.DrawText(attrbox.label, x_txt, y_txt)
+
 
 class AttrBox(select_targets.Box):
     shading_clr = (0, 255, 0)
@@ -479,24 +497,30 @@ class AttrBox(select_targets.Box):
         self.is_tabulationonly = is_tabulationonly
         self.side = side
         self.grp_per_partition = grp_per_partition
+
     def __str__(self):
         return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
+
     def __repr__(self):
         return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
+
     def __eq__(self, o):
         return (isinstance(o, AttrBox) and self.x1 == o.x1 and self.x2 == o.x2
                 and self.y1 == o.y1 and self.y2 == o.y2 and self.label == o.label
                 and self.side == o.side)
+
     def copy(self):
         return AttrBox(self.x1, self.y1, self.x2, self.y2, label=self.label,
                        attrtypes=self.attrtypes, is_digitbased=self.is_digitbased,
                        num_digits=self.num_digits, is_tabulationonly=self.is_tabulationonly,
                        side=self.side, grp_per_partition=self.grp_per_partition)
+
     def get_draw_opts(self):
         if self.is_sel:
             return ("Yellow", 3)
         else:
             return ("Green", 3)
+
     def marshall(self):
         """ Return a dict-equivalent version of myself. """
         data = select_targets.Box.marshall(self)
@@ -508,12 +532,14 @@ class AttrBox(select_targets.Box):
         data['grp_per_partition'] = self.grp_per_partition
         return data
 
+
 class DefineAttributeDialog(wx.Dialog):
     """
     A dialog to allow the user to add attribute types to a 
     bounding box.
     """
-    def __init__(self, parent, message="Please enter your input(s).", 
+
+    def __init__(self, parent, message="Please enter your input(s).",
                  vals=('',),
                  can_add_more=False,
                  *args, **kwargs):
@@ -522,7 +548,8 @@ class DefineAttributeDialog(wx.Dialog):
         can_add_more: If True, allow the user to add more text entry
                       fields.
         """
-        wx.Dialog.__init__(self, parent, title='Input required', *args, **kwargs)
+        wx.Dialog.__init__(
+            self, parent, title='Input required', *args, **kwargs)
         self.parent = parent
         self.results = []
         self._panel_btn = None
@@ -559,22 +586,26 @@ class DefineAttributeDialog(wx.Dialog):
         self.btn_add = btn_add
 
         horizsizer = wx.BoxSizer(wx.HORIZONTAL)
-        horizsizer.Add(btn_add, proportion=0, flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
+        horizsizer.Add(btn_add, proportion=0,
+                       flag=wx.ALIGN_LEFT | wx.ALIGN_TOP)
 
         gridsizer.Add(self.input_pairs[0][0])
         gridsizer.Add(self.input_pairs[0][1])
         horizsizer.Add(gridsizer)
         for txt, input_ctrl in self.input_pairs[1:]:
-            gridsizer.Add((1,1))
+            gridsizer.Add((1, 1))
             gridsizer.Add(txt, border=10, flag=wx.ALL)
             gridsizer.Add(input_ctrl, border=10, flag=wx.ALL)
         self.gridsizer = gridsizer
         self.sizer.Add(horizsizer)
-        
-        self.chkbox_is_digitbased = wx.CheckBox(self, label="This region is composed solely of digits (0-9) (e.g., a precinct number).")
-        self.chkbox_is_tabulationonly = wx.CheckBox(self, label="This region should be used only for reporting (it does not affect the layout of the ballot).")
+
+        self.chkbox_is_digitbased = wx.CheckBox(
+            self, label="This region is composed solely of digits (0-9) (e.g., a precinct number).")
+        self.chkbox_is_tabulationonly = wx.CheckBox(
+            self, label="This region should be used only for reporting (it does not affect the layout of the ballot).")
         numdigits_label = wx.StaticText(self, label="Number of Digits:")
-        self.chkbox_grp_per_partition = wx.CheckBox(self, label="This region looks the same on all ballots with the same barcode. (If unsure, you can leave this unselected.)")
+        self.chkbox_grp_per_partition = wx.CheckBox(
+            self, label="This region looks the same on all ballots with the same barcode. (If unsure, you can leave this unselected.)")
         self.numdigits_label = numdigits_label
         self.num_digits_ctrl = wx.TextCtrl(self, value='')
         digit_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -618,7 +649,7 @@ class DefineAttributeDialog(wx.Dialog):
         self._panel_btn = panel_btn
         btn_ok = FFButton(panel_btn, id=wx.ID_OK, on_click=self.onButton_ok)
         self.btn_ok = btn_ok
-        btn_cancel = FFButton (
+        btn_cancel = FFButton(
             panel_btn, id=wx.ID_CANCEL, on_click=self.onButton_cancel
         )
         panel_btn.sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -651,7 +682,8 @@ more than once. Please correct.".format(val),
         self.EndModal(wx.ID_CANCEL)
 
     def onButton_add(self, evt):
-        txt = wx.StaticText(self, label="Attribute {0}:".format(len(self.input_pairs)))
+        txt = wx.StaticText(
+            self, label="Attribute {0}:".format(len(self.input_pairs)))
         input_ctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
         input_ctrl.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
         self.input_pairs[-1][1].Unbind(wx.EVT_TEXT_ENTER)
@@ -662,7 +694,9 @@ more than once. Please correct.".format(val),
         self.Fit()
         input_ctrl.SetFocus()
 
+
 class SpreadSheetAttrDialog(DefineAttributeDialog):
+
     def __init__(self, parent, attrtypes, *args, **kwargs):
         DefineAttributeDialog.__init__(self, parent, *args, **kwargs)
 
@@ -684,7 +718,8 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
 
         sizer_horiz = wx.BoxSizer(wx.HORIZONTAL)
         txt2 = wx.StaticText(self, label="Custom attr is a 'function' of:")
-        self.combobox = wx.ComboBox(self, choices=attrtypes, style=wx.CB_READONLY)
+        self.combobox = wx.ComboBox(
+            self, choices=attrtypes, style=wx.CB_READONLY)
         sizer_horiz.Add(txt2)
         sizer_horiz.Add(self.combobox, proportion=1, flag=wx.EXPAND)
 
@@ -699,7 +734,7 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
 
         self.input_pairs.append((txt, file_inputctrl))
 
-        self.sizer.Insert(len(self.sizer.GetChildren())-1, sizer,
+        self.sizer.Insert(len(self.sizer.GetChildren()) - 1, sizer,
                           proportion=1,
                           border=10,
                           flag=wx.EXPAND | wx.ALL)
@@ -716,6 +751,7 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         self.file_inputctrl.SetValue(path)
         self.path = path
 
+
 class FilenameAttrDialog(wx.Dialog):
     """
     Dialog that handles the creation of a Filename-based Custom
@@ -726,10 +762,11 @@ class FilenameAttrDialog(wx.Dialog):
     The user-input regex would be:
         r'\d*_\d*_\d*_\d*_(\d*).png'
     """
+
     def __init__(self, parent, *args, **kwargs):
         wx.Dialog.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        
+
         # self.attrname is the name of the CustomAttribute
         self.attrname = None
         # self.regex is the user-inputted regex to use
@@ -751,7 +788,7 @@ regex that will match the attribute value.")
         sizer_input0.Add(txt0)
         sizer_input0.Add(attrname_input, proportion=1, flag=wx.EXPAND)
         sizer.Add(sizer_input0, flag=wx.EXPAND)
-        
+
         sizer.Add((20, 20))
 
         sizer_input = wx.BoxSizer(wx.HORIZONTAL)
@@ -780,7 +817,7 @@ for Tabulation Only?")
         self.Fit()
 
         self.attrname_input.SetFocus()
-        
+
     def onButton_ok(self, evt):
         self.attrname = self.attrname_input.GetValue()
         self.regex = self.re_input.GetValue()
@@ -789,11 +826,10 @@ for Tabulation Only?")
 
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
-        
+
+
 def main():
     pass
 
 if __name__ == '__main__':
     main()
-
-

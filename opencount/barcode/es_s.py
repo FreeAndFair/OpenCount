@@ -1,5 +1,7 @@
-import os, time
+import os
+import time
 import cv
+
 
 def decode_patch(original_image, original_mark, expected_bits):
     """
@@ -21,17 +23,18 @@ def decode_patch(original_image, original_mark, expected_bits):
     resized_mark_height = 15  # will not match if lower than ~10
 
     # left portion of page to template match (ex: 5 means 1/5 of page)
-    portion = 5               # error if more than ~6 
+    portion = 5               # error if more than ~6
 
-    mark_w,mark_h = cv.GetSize(original_mark)
-    scaling = float(resized_mark_height)/mark_h
+    mark_w, mark_h = cv.GetSize(original_mark)
+    scaling = float(resized_mark_height) / mark_h
     w = int(round(mark_w * scaling))
     h = int(round(mark_h * scaling))
     resized_mark = cv.CreateImage((w, h), 8, 1)
     cv.Resize(original_mark, resized_mark)
 
     image_W, image_H = cv.GetSize(original_image)
-    cv.SetImageROI(original_image, (0, 0, int(round(image_W/portion)), image_H))
+    cv.SetImageROI(original_image, (0, 0, int(
+        round(image_W / portion)), image_H))
     W = int(round(image_W / portion * scaling))
     H = int(round(image_H * scaling))
     resized_image = cv.CreateImage((W, H), 8, 1)
@@ -39,7 +42,8 @@ def decode_patch(original_image, original_mark, expected_bits):
     width = W - w + 1
     height = H - h + 1
     match_mat = cv.CreateImage((width, height), 32, 1)
-    cv.MatchTemplate(resized_image, resized_mark, match_mat, cv.CV_TM_CCOEFF_NORMED)
+    cv.MatchTemplate(resized_image, resized_mark,
+                     match_mat, cv.CV_TM_CCOEFF_NORMED)
     cv.ResetImageROI(original_image)
 
     # find all possible match locations
@@ -49,8 +53,8 @@ def decode_patch(original_image, original_mark, expected_bits):
     for x in range(width):
         column_matches = 0
         for y in range(height):
-            if match_mat[y,x] > 0.6:
-                possible.append((y,x))
+            if match_mat[y, x] > 0.6:
+                possible.append((y, x))
                 column_matches += 1
         if column_matches > most_matches:
             most_matches = column_matches
@@ -66,7 +70,7 @@ def decode_patch(original_image, original_mark, expected_bits):
     locations = []
     for p in f1[1:]:
         y, x = p
-        r = match_mat[y,x]
+        r = match_mat[y, x]
         if y > last_location[0] + h:
             locations.append(last_location)
             last_max = r
@@ -85,33 +89,35 @@ def decode_patch(original_image, original_mark, expected_bits):
     thresh = 0
     black = 0
     white = 0
-    for x in range(x0,x0+w):
-        black += resized_image[y0+h/2, x]
-        white += resized_image[y0-h/2, x]
-    thresh = 0.7*white + 0.3*black
+    for x in range(x0, x0 + w):
+        black += resized_image[y0 + h / 2, x]
+        white += resized_image[y0 - h / 2, x]
+    thresh = 0.7 * white + 0.3 * black
     bitstring = ''
     bit_locations = {}
     for (y, x) in locations:
         intensity = 0
-        x_start = x + (2*w)
+        x_start = x + (2 * w)
         x_end = x_start + w
         digit = ''
         for x_check in range(x_start, x_end):
-            intensity += resized_image[y+(h/2), x_check]
+            intensity += resized_image[y + (h / 2), x_check]
         digit = '1' if (intensity < thresh) else '0'
         bitstring += digit
-        resized_locations = [x_start, y, x_end, y+h]
+        resized_locations = [x_start, y, x_end, y + h]
         total_intensity = 0
         if digit == '0':
             # check for stray marks
             for x1 in range(x_start, x_end):
-                for y1 in range(y, y+h):
+                for y1 in range(y, y + h):
                     total_intensity += resized_image[y1, x1]
             if total_intensity < 255 * 0.99 * w * h:
                 return (None, None)
-        mark_location = tuple([int(round(z/scaling)) for z in resized_locations])
+        mark_location = tuple([int(round(z / scaling))
+                               for z in resized_locations])
         bit_locations.setdefault(digit, []).append(mark_location)
     return bitstring, bit_locations
+
 
 def decode(imgpath, mark, bits):
     """
@@ -133,11 +139,12 @@ def decode(imgpath, mark, bits):
     if not bitstring:
         is_flipped = True
         w, h = cv.GetSize(img)
-        tmp = cv.CreateImage((w,h), img.depth, img.channels)
+        tmp = cv.CreateImage((w, h), img.depth, img.channels)
         cv.Flip(img, tmp, flipMode=-1)
         img = tmp
         bitstring, bit_locations = decode_patch(img, mark, bits)
     return bitstring, is_flipped, bit_locations
+
 
 def build_bitstrings(img_bit_locations, expected_bits):
     """
@@ -157,6 +164,7 @@ def build_bitstrings(img_bit_locations, expected_bits):
         img_decoded_map[imgpath] = decoding
     return img_decoded_map
 
+
 def get_info(bitstring):
     """
     Converts the barcode bitstring to dictionary with info about the ballot.
@@ -169,11 +177,13 @@ def get_info(bitstring):
     info = {'page': 0}  # TODO: change once barcode meaning is understood
     return info
 
+
 def isimgext(f):
     return os.path.splitext(os.path.split(f)[1])[1].lower() in ('.png', '.bmp', '.jpg')
 
+
 def main():
-    imgpath = "merced2.jpg" 
+    imgpath = "merced2.jpg"
     mark_path = "ess_mark.png"
     bits = 36
     trials = 1
@@ -183,7 +193,7 @@ def main():
     for i in range(trials):
         bitstring, is_flipped, bit_locations = decode(imgpath, mark, bits)
     print "%s\t%s\t%s" % (imgpath, is_flipped, bitstring)
-    print "Time/ballot: %s" % str((time.time() - start)/trials)
+    print "Time/ballot: %s" % str((time.time() - start) / trials)
 
     print "\nTesting build_bitstrings():"
     img_bc_temp = {}
@@ -198,4 +208,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

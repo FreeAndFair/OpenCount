@@ -13,6 +13,7 @@ except:
 
 from os.path import join as pathjoin
 
+
 class QuarantinePanel(wx.Panel):
     firstTime = True
 
@@ -23,7 +24,8 @@ class QuarantinePanel(wx.Panel):
 
     def start(self, proj, sz):
         self.proj = proj
-        if not self.firstTime: return
+        if not self.firstTime:
+            return
         self.firstTime = False
 
         qballotids = get_quarantined_ballots(proj)
@@ -45,25 +47,34 @@ class QuarantinePanel(wx.Panel):
             self.quarantinepanel.save()
             self.proj.removeCloseEvent(self.quarantinepanel.save)
 
+
 class MainPanel(wx.Panel):
+
     def __init__(self, parent, qballotids, proj, sz, *args, **kwargs):
         wx.Panel.__init__(self, parent, -1, *args, **kwargs)
 
         self.parent = parent
         self.proj = proj
         self.qballotids = qballotids
-        #print 'QBALLOTS {}'.format(qballotids)
+        # print 'QBALLOTS {}'.format(qballotids)
         self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
         bal2img = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))        
-        self.bal2group = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group), 'rb'))
+        img2page = pickle.load(
+            open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))
+        self.bal2group = pickle.load(
+            open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group), 'rb'))
         if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap)):
-            self.part2attrs = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap), 'rb'))
+            self.part2attrs = pickle.load(
+                open(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap), 'rb'))
 
-        # compute contests for each group ID to display contests for decoded ballots
-        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls), 'rb'))
-        groupID_imgpaths = [(x[0],sorted(bal2img[x[1][0]], key=lambda imP: img2page[imP])) for x in group_exmpls.items()]
-        rep_paths = [path for id_paths in groupID_imgpaths for path in id_paths[1]]
+        # compute contests for each group ID to display contests for decoded
+        # ballots
+        group_exmpls = pickle.load(
+            open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls), 'rb'))
+        groupID_imgpaths = [(x[0], sorted(bal2img[x[1][0]], key=lambda imP: img2page[
+                             imP])) for x in group_exmpls.items()]
+        rep_paths = [
+            path for id_paths in groupID_imgpaths for path in id_paths[1]]
         img_contest_dict = defaultdict(list)
         for line in csv.reader(open(self.proj.contest_id)):
             if line[0] in rep_paths:
@@ -72,22 +83,23 @@ class MainPanel(wx.Panel):
         for groupID, imgpaths in groupID_imgpaths:
             self.group2contests[groupID] = []
             for imgpath in imgpaths:
-                self.group2contests[groupID].append([int(x[1]) for x in sorted(img_contest_dict[imgpath])])
+                self.group2contests[groupID].append(
+                    [int(x[1]) for x in sorted(img_contest_dict[imgpath])])
 
-        self.qfiles          = []    # [quarantined_filepath1, ...]
-        self.data            = []    # [[contestID, True, False, ...], ...]
-        self.discardlist     = []    # [False, True, ...]
-        self.attributes      = []    # ?
+        self.qfiles = []    # [quarantined_filepath1, ...]
+        self.data = []    # [[contestID, True, False, ...], ...]
+        self.discardlist = []    # [False, True, ...]
+        self.attributes = []    # ?
 
-        self.curballot       = 0     # index in self.qfiles
-        self.labeltext       = {}    # {contestid: [cand1, cand2, ...], ...}
+        self.curballot = 0     # index in self.qfiles
+        self.labeltext = {}    # {contestid: [cand1, cand2, ...], ...}
         self.sizer_checklist = {}    # {contest_name: (sizer, checklist)}
 
         # adjustable parameters
-        self.contest_pane_width  = 200
-        self.contest_pane_height = sz[1]-400
-        self.attr_pane_height    = 400
-        self.scroll_area_width   = self.contest_pane_width + 150
+        self.contest_pane_width = 200
+        self.contest_pane_height = sz[1] - 400
+        self.attr_pane_height = 400
+        self.scroll_area_width = self.contest_pane_width + 150
 
         # aggregate all quarantined imagepaths
         self.imgpath2page = {}
@@ -102,19 +114,20 @@ class MainPanel(wx.Panel):
                 # the user will have to manually correct the auto-loaded
                 # contests if it gets the front/back wrong, which is fine.
                 pass
-            for i,imgpath in enumerate(imgpaths):
+            for i, imgpath in enumerate(imgpaths):
                 self.imgpath2page[imgpath] = i
             self.qfiles.extend(imgpaths)
         self.qfiles = sorted(list(set(self.qfiles)))
 
         # build list of attributes
         self.ballot_attributes = self.load_grouping()
-        #print 'attributes {}'.format(self.ballot_attributes)
+        # print 'attributes {}'.format(self.ballot_attributes)
 
         # make list of contests and candidates
         temp_contest_dict = {}
         for line in csv.reader(open(self.proj.contest_text)):
-            if len(line) < 2: break
+            if len(line) < 2:
+                break
             temp_contest_dict[int(line[0])] = line[2:]
         self.labeltext = [x[1] for x in sorted(temp_contest_dict.items())]
         self.labeltext_alphabetical = sorted(self.labeltext)
@@ -122,20 +135,22 @@ class MainPanel(wx.Panel):
         for x in self.labeltext:
             self.glob2sorted_index.append(self.labeltext_alphabetical.index(x))
         self.title_names = [x[0] for x in self.labeltext_alphabetical]
-        #print 'glob {}'.format([x[0] for x in self.labeltext])
-        #print 'glob2sorted {}'.format(self.glob2sorted_index)
-        #print 'labeltext {}'.format(self.labeltext)
-        #print 'ltalpha {}'.format(self.labeltext_alphabetical)
-        #print 'sorted_titles {}'.format(self.title_names)
+        # print 'glob {}'.format([x[0] for x in self.labeltext])
+        # print 'glob2sorted {}'.format(self.glob2sorted_index)
+        # print 'labeltext {}'.format(self.labeltext)
+        # print 'ltalpha {}'.format(self.labeltext_alphabetical)
+        # print 'sorted_titles {}'.format(self.title_names)
 
         # load saved information
         if os.path.exists(self.proj.quarantine_internal):
-            self.data, self.discardlist, self.attributes = pickle.load(open(self.proj.quarantine_internal))
+            self.data, self.discardlist, self.attributes = pickle.load(
+                open(self.proj.quarantine_internal))
 
         # create left pane for image
-        self.image_width = max(sz[0]/2, 400)
-        self.image_height = max(sz[1]-200, 500)
-        self.imagebox = ImageManipulate(self, size=(self.image_width,self.image_height))
+        self.image_width = max(sz[0] / 2, 400)
+        self.image_height = max(sz[1] - 200, 500)
+        self.imagebox = ImageManipulate(
+            self, size=(self.image_width, self.image_height))
         szh_zoom = wx.BoxSizer(wx.HORIZONTAL)
         zoomin = wx.Button(self, label="Zoom In")
         zoomout = wx.Button(self, label="Zoom Out")
@@ -149,7 +164,8 @@ class MainPanel(wx.Panel):
         self.imagebox.zoomin()
 
         # create pane for contests
-        self.contest_dropdown = wx.Choice(self, size=(self.contest_pane_width, 30), choices=self.title_names)
+        self.contest_dropdown = wx.Choice(self, size=(
+            self.contest_pane_width, 30), choices=self.title_names)
         add_btn = wx.Button(self, id=wx.ID_ADD)
         add_btn.Bind(wx.EVT_BUTTON, self.add_contest_handler)
         clear_btn = wx.Button(self, id=wx.ID_CLEAR)
@@ -159,16 +175,19 @@ class MainPanel(wx.Panel):
         szh_select_contest.Add(add_btn, border=10, flag=wx.LEFT)
         szh_select_contest.Add(clear_btn, border=10, flag=wx.LEFT)
         self.szv_add_contest = wx.BoxSizer(wx.VERTICAL)
-        self.szv_add_contest.Add(self.create_title(self, 'Select Contest'), border=5, flag=wx.BOTTOM)
+        self.szv_add_contest.Add(self.create_title(
+            self, 'Select Contest'), border=5, flag=wx.BOTTOM)
         self.szv_add_contest.Add(szh_select_contest, border=15, flag=wx.BOTTOM)
 
-        self.contest_panel = wx.lib.scrolledpanel.ScrolledPanel(self, size=(self.scroll_area_width, self.contest_pane_height))
+        self.contest_panel = wx.lib.scrolledpanel.ScrolledPanel(
+            self, size=(self.scroll_area_width, self.contest_pane_height))
         self.contest_panel.SetAutoLayout(True)
         self.contest_panel.SetupScrolling(False, True)
         self.szv_contests = wx.BoxSizer(wx.VERTICAL)
         self.contest_panel.SetSizer(self.szv_contests)
 
-        self.attribute_panel = wx.lib.scrolledpanel.ScrolledPanel(self, size=(self.scroll_area_width, self.contest_pane_height))
+        self.attribute_panel = wx.lib.scrolledpanel.ScrolledPanel(
+            self, size=(self.scroll_area_width, self.contest_pane_height))
         self.attribute_panel.SetAutoLayout(True)
         self.attribute_panel.SetupScrolling(False, True)
         self.attribute_area = wx.BoxSizer(wx.VERTICAL)
@@ -179,8 +198,10 @@ class MainPanel(wx.Panel):
         self.discard.Bind(wx.EVT_CHECKBOX, self.discard_handler)
         szv_leftpane.Add(self.discard)
         szv_leftpane.Add(self.szv_add_contest, border=10, flag=wx.TOP)
-        szv_leftpane.Add(self.contest_panel) #, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
-        szv_leftpane.Add(self.attribute_panel, border=20, flag=wx.TOP) # proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
+        # , proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
+        szv_leftpane.Add(self.contest_panel)
+        # proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
+        szv_leftpane.Add(self.attribute_panel, border=20, flag=wx.TOP)
 
         # create main panel by joining left and right panes
         szh_main = wx.BoxSizer(wx.HORIZONTAL)
@@ -191,7 +212,8 @@ class MainPanel(wx.Panel):
         self.attributes_text = []
         if self.ballot_attributes:
             if self.ballot_attributes.get('header'):
-                self.attribute_area.Add(wx.StaticText(self.attribute_panel, -1, label="Enter the ballot attributes below."))
+                self.attribute_area.Add(wx.StaticText(
+                    self.attribute_panel, -1, label="Enter the ballot attributes below."))
                 for title in self.ballot_attributes['header'][1:]:
                     sz = wx.BoxSizer(wx.HORIZONTAL)
                     attr = wx.TextCtrl(self.attribute_panel, -1)
@@ -231,7 +253,8 @@ class MainPanel(wx.Panel):
     def add_contest_handler(self, event):
         ''' Handler to add contest selected in dropdown '''
         index = self.contest_dropdown.GetSelection()
-        if index == -1: return
+        if index == -1:
+            return
         self.add_contest(index)
 
     def add_contest(self, index):
@@ -239,42 +262,46 @@ class MainPanel(wx.Panel):
         contest = self.labeltext_alphabetical[index]
         contest_name = contest[0]
         # check if contest already added
-        if (contest_name,index) in self.sizer_checklist: return
-        candlist = wx.CheckListBox(self.contest_panel, size=(self.contest_pane_width, (len(contest) - 1) * 24), choices=contest[1:])
-        btn_rm = wx.Button(self.contest_panel, id=wx.ID_REMOVE, name=contest_name+'$'+str(index))
+        if (contest_name, index) in self.sizer_checklist:
+            return
+        candlist = wx.CheckListBox(self.contest_panel, size=(
+            self.contest_pane_width, (len(contest) - 1) * 24), choices=contest[1:])
+        btn_rm = wx.Button(self.contest_panel, id=wx.ID_REMOVE,
+                           name=contest_name + '$' + str(index))
         btn_rm.Bind(wx.EVT_BUTTON, self.remove_contest_handler)
         szv = wx.BoxSizer(wx.VERTICAL)
         szh = wx.BoxSizer(wx.HORIZONTAL)
-        szv.Add(self.create_title(self.contest_panel, contest_name), border=5, flag=wx.BOTTOM)
+        szv.Add(self.create_title(self.contest_panel,
+                                  contest_name), border=5, flag=wx.BOTTOM)
         szh.Add(candlist)
         szh.Add(btn_rm, border=10, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
         szv.Add(szh)
         self.szv_contests.InsertSizer(0, szv, border=10, flag=wx.BOTTOM)
         self.contest_panel.Fit()
         self.contest_panel.Refresh()
-        self.sizer_checklist[(contest_name,index)] = (szv, candlist)
+        self.sizer_checklist[(contest_name, index)] = (szv, candlist)
         self.contest_order.append(index)
 
     def remove_contest_handler(self, event):
         ''' Remove contest associated with button that triggered the event '''
         btn = event.GetEventObject()
-        contest_name,index = btn.GetName().split('$')
+        contest_name, index = btn.GetName().split('$')
         self.remove_contest(contest_name, int(index))
 
     def remove_contest(self, contest_name, index):
         ''' Remove contest associated with button that triggered the event '''
-        contest_sizer = self.sizer_checklist[(contest_name,index)][0]
+        contest_sizer = self.sizer_checklist[(contest_name, index)][0]
         self.szv_contests.Hide(contest_sizer)
         self.szv_contests.Remove(contest_sizer)
         self.contest_panel.Fit()
         self.contest_panel.Refresh()
-        del self.sizer_checklist[(contest_name,index)]
+        del self.sizer_checklist[(contest_name, index)]
         self.contest_order.remove(index)
 
     def clear_contests(self, event):
         ''' Clear all contests '''
-        for contest_name,index in [x[0] for x in self.sizer_checklist.items()]:
-            self.remove_contest(contest_name,index)
+        for contest_name, index in [x[0] for x in self.sizer_checklist.items()]:
+            self.remove_contest(contest_name, index)
 
     def discard_handler(self, event):
         checkbox = event.GetEventObject()
@@ -283,17 +310,21 @@ class MainPanel(wx.Panel):
     def discard_update(self, checked):
         ''' Hide ability to add contests if discarding ballot '''
         for i in range(len(self.szv_add_contest.GetChildren())):
-            if checked: self.szv_add_contest.Hide(i)
-            else: self.szv_add_contest.Show(i)
+            if checked:
+                self.szv_add_contest.Hide(i)
+            else:
+                self.szv_add_contest.Show(i)
         self.szv_add_contest.Layout()
-        if checked: self.clear_contests(None)
+        if checked:
+            self.clear_contests(None)
 
     def show_ballot(self, n, firsttime=False):
         ''' Show ballot n in the main panel '''
         # save data if any
         if self.curballot < len(self.data) and not firsttime:
             self.save_contest_data()
-            self.attributes[self.curballot] = [x.GetValue() for x in self.attributes_text]
+            self.attributes[self.curballot] = [x.GetValue()
+                                               for x in self.attributes_text]
 
         # create entries for new ballot
         while n >= len(self.data):
@@ -304,7 +335,8 @@ class MainPanel(wx.Panel):
         # update and clean up
         self.curballot = n
         bID = self.img2bal[self.qfiles[n]]
-        for child in self.contest_panel.GetChildren(): child.Destroy()
+        for child in self.contest_panel.GetChildren():
+            child.Destroy()
         self.szv_contests.Clear()
         self.sizer_checklist = {}
         self.contest_order = []
@@ -322,10 +354,12 @@ class MainPanel(wx.Panel):
             contest_name = contest_info[0]
             alpha_id = self.glob2sorted_index[contest_id]
             self.add_contest(alpha_id)
-            checklist = self.sizer_checklist[(contest_name,alpha_id)][1]
+            checklist = self.sizer_checklist[(contest_name, alpha_id)][1]
             selected_candidates = []
             for i, voted in enumerate(contest_data[1:]):
-                if voted: selected_candidates.append(self.labeltext_alphabetical[alpha_id][1:][i])
+                if voted:
+                    selected_candidates.append(
+                        self.labeltext_alphabetical[alpha_id][1:][i])
             checklist.SetCheckedStrings(selected_candidates)
         if not self.data[n] and bID in self.bal2group:
             group = self.bal2group[bID]
@@ -337,7 +371,7 @@ class MainPanel(wx.Panel):
                 self.add_contest(index)
         self.contest_panel.Fit()
         self.contest_panel.Refresh()
-        #print 'contest_order {}'.format(self.contest_order)
+        # print 'contest_order {}'.format(self.contest_order)
 
         # load attribute data
         attrs = []
@@ -349,10 +383,11 @@ class MainPanel(wx.Panel):
             else:
                 attrs = [''] * (len(self.ballot_attributes['header']) - 1)
 
-        #print self.curballot, self.ballot_attributes
-        #print self.attributes[self.curballot]
-        #print 'here {}, {}'.format(self.attributes_text, attrs)
-        for inp, dat in zip(self.attributes_text, attrs): inp.SetValue(dat)
+        # print self.curballot, self.ballot_attributes
+        # print self.attributes[self.curballot]
+        # print 'here {}, {}'.format(self.attributes_text, attrs)
+        for inp, dat in zip(self.attributes_text, attrs):
+            inp.SetValue(dat)
 
         discarded = self.discardlist[n]
         self.discard.SetValue(discarded)
@@ -363,11 +398,13 @@ class MainPanel(wx.Panel):
     def save(self):
         ''' Save and dump all data to disk '''
         self.save_contest_data()
-        pickle.dump((self.data, self.discardlist, self.attributes), open(self.proj.quarantine_internal, "w"))
+        pickle.dump((self.data, self.discardlist, self.attributes),
+                    open(self.proj.quarantine_internal, "w"))
         out = open(self.proj.quarantine_res, "w")
         outattr = csv.writer(open(self.proj.quarantine_attributes, "w"))
         for bpath, ballot, drop, attr in zip(self.qfiles, self.data, self.discardlist, self.attributes):
-            if drop: continue
+            if drop:
+                continue
             out.write(bpath + ",")
             outattr.writerow([bpath] + attr)
             for contest in ballot:
@@ -386,7 +423,7 @@ class MainPanel(wx.Panel):
                     ballot images exist, so, no need to save contest data."
             return
         new_collected = []
-        for (name,index),sizer_checklist in self.sizer_checklist.items():
+        for (name, index), sizer_checklist in self.sizer_checklist.items():
             contest_info = self.labeltext_alphabetical[index]
             contestid = self.labeltext.index(contest_info)
             checked = sizer_checklist[1].GetChecked()
@@ -395,7 +432,8 @@ class MainPanel(wx.Panel):
                 voted = True if i in checked else False
                 votes.append(voted)
             new_collected.append(votes)
-        ballot_global_ids_sorted = [self.glob2sorted_index.index(x) for x in self.contest_order]
+        ballot_global_ids_sorted = [
+            self.glob2sorted_index.index(x) for x in self.contest_order]
         new_collected.sort(key=lambda x: ballot_global_ids_sorted.index(x[0]))
         self.data[self.curballot] = new_collected
 
@@ -417,21 +455,26 @@ class MainPanel(wx.Panel):
 
         c_t = {}
         for line in csv.reader(open(self.proj.grouping_results)):
-            if len(line) < 2: continue
+            if len(line) < 2:
+                continue
             if line[0] == 'ballotid':
                 attrtypes = line[1:]
-                attrtypes = attrtypes[:-1]  # ignore partitionID (always at end)
+                # ignore partitionID (always at end)
+                attrtypes = attrtypes[:-1]
                 c_t['header'] = attrtypes
             elif line[0] in self.qfiles:
                 ballotid = int(line[0])
                 imgpaths = bal2imgs[ballotid]
-                imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                imgpaths_ordered = sorted(
+                    imgpaths, key=lambda imP: img2page[imP])
                 attrvals = line[1:]
                 attrvals = attrvals[:-1]  # ignore partitionID (always at end)
                 c_t[imgpaths_ordered[0]] = attrvals
         return c_t
 
+
 class TopPanel(wx.Panel):
+
     def __init__(self, parent):
         wx.Panel.__init__(self, parent, -1)
 
@@ -477,9 +520,9 @@ class TopPanel(wx.Panel):
         mainsizer = wx.BoxSizer(wx.VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(prev)
-        sizer.Add(curnum, border=10, flag=wx.LEFT|wx.RIGHT)
+        sizer.Add(curnum, border=10, flag=wx.LEFT | wx.RIGHT)
         sizer.Add(nxt)
-        sizer.AddMany([((10,0),), (btn_jumpto)])
+        sizer.AddMany([((10, 0),), (btn_jumpto)])
         mainsizer.Add(sizer)
         mainsizer.Add(path)
 
@@ -487,6 +530,7 @@ class TopPanel(wx.Panel):
 
         self.Fit()
         self.Refresh()
+
 
 def get_quarantined_ballots(proj):
     qballotids = []
@@ -498,8 +542,10 @@ def get_quarantined_ballots(proj):
         # list GROUPING_QUARANTINED: [int ballotID_i, ...]
         qballotids.extend(pickle.load(open(grouping_qpath, 'rb')))
     if os.path.exists(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')):
-        qballotids.extend(list(pickle.load(open(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')))))
-    targetextract_qpath = pathjoin(proj.projdir_path, proj.targetextract_quarantined)
+        qballotids.extend(list(pickle.load(
+            open(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')))))
+    targetextract_qpath = pathjoin(
+        proj.projdir_path, proj.targetextract_quarantined)
     if os.path.exists(targetextract_qpath):
         qballotids.extend(pickle.load(open(targetextract_qpath, 'rb')))
     if os.path.exists(proj.quarantined):
@@ -511,6 +557,7 @@ def get_quarantined_ballots(proj):
         lines = [int(l) for l in lines if l != '']
         qballotids.extend(lines)
     return list(set(qballotids))
+
 
 def get_discarded_ballots(proj):
     discarded_balids = []
@@ -527,7 +574,8 @@ def get_discarded_ballots(proj):
         for qballotid in qballotids:
             qfiles.extend(bal2imgs[qballotid])
         qfiles = sorted(list(set(qfiles)))
-        data, discardlist, attributes = pickle.load(open(proj.quarantine_internal, 'rb'))
+        data, discardlist, attributes = pickle.load(
+            open(proj.quarantine_internal, 'rb'))
         for i, isDiscard in enumerate(discardlist):
             if isDiscard:
                 imgpath = qfiles[i]

@@ -9,7 +9,10 @@ USAGE = """Usage:
     python interpret_timing.py [-h --help -help] TIMING_LOGFILE
 """
 
-import sys, pdb, collections
+import sys
+import pdb
+import collections
+
 
 def parse_logfile(filepath):
     """ Timing Logfiles are of the form:
@@ -26,7 +29,7 @@ def parse_logfile(filepath):
     f = open(filepath)
     lines = f.readlines()
     i = 0
-    timings = collections.OrderedDict() # maps {str task: float time}
+    timings = collections.OrderedDict()  # maps {str task: float time}
     while i < len(lines):
         line = lines[i]
         if not line or not line.strip():
@@ -43,20 +46,21 @@ def parse_logfile(filepath):
             pdb.set_trace()
             print "Fatal Error: Invalid logfile format. Exiting."
             exit(1)
-        task = line[6:-2] # Task '<FOO>': -> <FOO>
+        task = line[6:-2]  # Task '<FOO>': -> <FOO>
         if i == len(lines) - 1:
             print "Woah, Task definition doesn't have associated time declaration?!"
             print line
             pdb.set_trace()
             print "Fatal Error: Invalid logfile format. Exiting."
             exit(1)
-        if lines[i+1].strip() == 'UNKNOWN':
+        if lines[i + 1].strip() == 'UNKNOWN':
             timings[task] = 'UNKNOWN'
         else:
-            time = float(lines[i+1].strip().replace(' seconds', ''))
+            time = float(lines[i + 1].strip().replace(' seconds', ''))
             timings[task] = time
         i += 2
     return timings
+
 
 def main():
     args = sys.argv[1:]
@@ -70,7 +74,7 @@ def main():
         exit(1)
 
     filepath = args[-1]
-    
+
     timings = parse_logfile(filepath)
 
     total_acc = 0

@@ -3,7 +3,9 @@ An abstract base class to be used for vendor-specific functions, such
 as barcode decoding.
 """
 
+
 class Vendor(object):
+
     def __init__(self, proj):
         pass
         #raise NotImplementedError("Can't instantiate abstract Vendor class.")
@@ -90,37 +92,37 @@ class Vendor(object):
         Given an image of a contest, extract 
             (a) the tile and 
             (b) each of the voting targets
-        
+
         Input:
             PIL Image: ballot_image
             (int left, int up, int right, int down) contest
             targets: [(int left, int up, int right, int down),...]
-        
+
         Output:
             [(int count, (int upper, int lower)),...], the upper and lower coords of each thing to extract
         """
 
         target_x_pos = [x[0] for x in targets]
-        target_x_range = max(target_x_pos)-min(target_x_pos)
+        target_x_range = max(target_x_pos) - min(target_x_pos)
         target_y_pos = [x[1] for x in targets]
-        target_y_range = max(target_y_pos)-min(target_y_pos)
-        l,u,r,d = contest
-        tops = sorted([a[1]-u-10 for a in targets])+[d]
+        target_y_range = max(target_y_pos) - min(target_y_pos)
+        l, u, r, d = contest
+        tops = sorted([a[1] - u - 10 for a in targets]) + [d]
         if tops[0] > 0:
-            tops = [0]+tops
+            tops = [0] + tops
         else:
-            tops = [0,0]+tops[1:] # In case the top is negative.
+            tops = [0, 0] + tops[1:]  # In case the top is negative.
         if target_y_range > target_x_range:
             # it is a vertical contest
             blocks = []
-            for count,upperlower in enumerate(zip(tops, tops[1:])):
+            for count, upperlower in enumerate(zip(tops, tops[1:])):
                 blocks.append((count, upperlower))
-            
+
             return blocks
         else:
-            return [(0,(tops[0],tops[1])), #header
-                    (1,(tops[1], d)),
-                    (2,(d, d))]
+            return [(0, (tops[0], tops[1])),  # header
+                    (1, (tops[1], d)),
+                    (2, (d, d))]
 
     def get_grouping_propnames(self):
         """ If the vendor-specific decoder is able to generate additional
@@ -134,5 +136,6 @@ class Vendor(object):
 
     def __repr__(self):
         return 'Vendor()'
+
     def __str__(self):
         return 'Vendor()'

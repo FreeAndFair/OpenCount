@@ -1,7 +1,16 @@
-import sys, os, pdb, time, cPickle as pickle, argparse, math
+import sys
+import os
+import pdb
+import time
+import cPickle as pickle
+import argparse
+import math
 from os.path import join as pathjoin
 
-import numpy as np, scipy.misc, scipy.ndimage, cv
+import numpy as np
+import scipy.misc
+import scipy.ndimage
+import cv
 
 sys.path.append('..')
 from projconfig_new.project_panel import Project
@@ -20,12 +29,14 @@ For each image Isrc, we perturb it with varying amounts of rotation,
 translation, noise, intensity-modifications.
 """
 
+
 def fastFlip(I):
-    Icv=cv.fromarray(np.copy(I))
-    I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
-    cv.Flip(Icv,I1cv,-1)
-    Iout=np.asarray(I1cv)
+    Icv = cv.fromarray(np.copy(I))
+    I1cv = cv.CreateMat(I.shape[0], I.shape[1], Icv.type)
+    cv.Flip(Icv, I1cv, -1)
+    Iout = np.asarray(I1cv)
     return Iout
+
 
 def create_testset(imgpaths, outdir, args,
                    X, Y, STEP_TRANS_X, STEP_TRANS_Y,
@@ -46,16 +57,19 @@ def create_testset(imgpaths, outdir, args,
         scipy.misc.imsave(outpath, I)
         return outpath
     cnt = 0
-    src2dsts = {} # maps {str src_imP: [(str dst_imP, x, y, theta, bright_amt), ...]
-    dst2src = {} # maps {str dst_imP: str src_imP}
+    # maps {str src_imP: [(str dst_imP, x, y, theta, bright_amt), ...]
+    src2dsts = {}
+    dst2src = {}  # maps {str dst_imP: str src_imP}
     # Type-convert some floats to ints, just in case
-    X, Y, STEP_TRANS_X, STEP_TRANS_Y = int(X), int(Y), int(STEP_TRANS_X), int(STEP_TRANS_Y)
+    X, Y, STEP_TRANS_X, STEP_TRANS_Y = int(X), int(
+        Y), int(STEP_TRANS_X), int(STEP_TRANS_Y)
 
     t_start = time.time()
     t_prev = time.time()
     N = len(imgpaths)
-    step = N / 10 # Update every 10%
+    step = N / 10  # Update every 10%
     cur_i = 0
+
     def update_status():
         if cur_i == 0:
             return
@@ -63,7 +77,8 @@ def create_testset(imgpaths, outdir, args,
         dur_step = t_cur - t_prev
         n_remain = N - cur_i
         try:
-            est_time = ((dur_step / float(step)) * n_remain) / 60.0 # In Minutes
+            est_time = ((dur_step / float(step)) *
+                        n_remain) / 60.0  # In Minutes
             print "...{0:.2f}% done... ({1} images left, {2:.4f} min. left)...".format(100.0 * (cur_i / float(N)),
                                                                                        n_remain,
                                                                                        est_time)
@@ -81,52 +96,56 @@ def create_testset(imgpaths, outdir, args,
         if not args.dontsave:
             I = scipy.misc.imread(imgpath, flatten=True)
         else:
-            I = np.zeros((2*(Y+1), 2*(X+1)), dtype='uint8')
+            I = np.zeros((2 * (Y + 1), 2 * (X + 1)), dtype='uint8')
         if I != None and img2flip != None and img2flip[imgpath]:
             I = fastFlip(I)
         for x in range(-X, X, STEP_TRANS_X):
             Ix = np.zeros(I.shape, dtype=I.dtype)
             if x == 0:
-                Ix[:,:] = I
+                Ix[:, :] = I
             elif x < 0:
-                Ix[:,:x] = I[:,-x:]
+                Ix[:, :x] = I[:, -x:]
             else:
-                Ix[:,x:] = I[:,:-x]
+                Ix[:, x:] = I[:, :-x]
             for y in range(-Y, Y, STEP_TRANS_Y):
                 Ixy = np.zeros(I.shape, dtype=I.dtype)
                 if y == 0:
-                    Ixy[:,:] = Ix
+                    Ixy[:, :] = Ix
                 elif y < 0:
-                    Ixy[:y,:] = Ix[-y:,:]
+                    Ixy[:y, :] = Ix[-y:, :]
                 else:
-                    Ixy[y:,:] = Ix[:-y,:]
-                for theta in np.linspace(-THETA, THETA, num=((2*THETA / STEP_ROT)+1), endpoint=True):
+                    Ixy[y:, :] = Ix[:-y, :]
+                for theta in np.linspace(-THETA, THETA, num=((2 * THETA / STEP_ROT) + 1), endpoint=True):
                     if not args.dontsave:
                         Ixyt = scipy.ndimage.rotate(Ixy, theta, reshape=False)
                     else:
                         Ixyt = Ixy
-                    brightamt_iter = np.linspace(-BRIGHT_AMT, BRIGHT_AMT, num=(2*BRIGHT_AMT / BRIGHT_STEP), endpoint=True) if BRIGHT_AMT != None else [0]
+                    brightamt_iter = np.linspace(-BRIGHT_AMT, BRIGHT_AMT, num=(
+                        2 * BRIGHT_AMT / BRIGHT_STEP), endpoint=True) if BRIGHT_AMT != None else [0]
                     for bright_amt in brightamt_iter:
                         Ixytb = Ixyt + bright_amt
                         if MEAN != None and STD != None:
-                            noise = np.random.normal(MEAN, STD, size=(Ixytb.shape))
+                            noise = np.random.normal(
+                                MEAN, STD, size=(Ixytb.shape))
                             Ixytb += noise
                         Ixytb[np.where(Ixytb < 0)] = 0
                         Ixytb[np.where(Ixytb > 255)] = 255
                         outpath = saveimg(Ixytb, idx, x, y, theta, bright_amt)
-                        src2dsts.setdefault(imgpath, []).append((outpath, x, y, theta, bright_amt))
+                        src2dsts.setdefault(imgpath, []).append(
+                            (outpath, x, y, theta, bright_amt))
                         dst2src[outpath] = imgpath
                         cnt += 1
         cur_i += 1
     return cnt, src2dsts, dst2src
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    ## Positional Arguments
+    # Positional Arguments
     parser.add_argument("imgsdir", help="Directory of images \
 to create the testset from. (Alternate: imgpath, or OpenCount projdir)")
     parser.add_argument("outdir", help="Output path to store testset.")
-    ## Optional Arguments
+    # Optional Arguments
     parser.add_argument("--as_projdir", help="If given, then treat IMGSDIR positional \
 argument as a directory to an OpenCount project directory. Sample N ballots from \
 each M groups to create the testset from. If N/M is -1, then do all ballots/groups.",
@@ -181,9 +200,10 @@ compressed.")
             args,
             imgsdir, outdir, ALT_VOTEDDIR)
 
+
 def main():
     X, Y, STEP_TRANS_X, STEP_TRANS_Y, THETA, STEP_ROT, MEAN, STD, BRIGHT_AMT, BRIGHT_STEP, args, imgsdir, outdir, alt_voteddir = parse_args()
-    
+
     if not args.as_projdir:
         imgpaths = []
         if not os.path.isdir(imgsdir):
@@ -210,6 +230,7 @@ def main():
         def get_proj_voteddir():
             proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
             return proj.voteddir
+
         def has_targets(grpid, side):
             return len(grp2targets[grpid].get(side, [])) >= 1
 
@@ -222,22 +243,24 @@ def main():
             if LIMIT_GRP != -1 and n_grps >= LIMIT_GRP:
                 break
             if args.side != None and not has_targets(grpid, args.side):
-                continue # Avoid empty groups counting towards N_GRPS
+                continue  # Avoid empty groups counting towards N_GRPS
             for j, balid in enumerate(balids):
                 if LIMIT_BAL != -1 and j >= LIMIT_BAL:
                     break
-                bal_imgpaths = sorted(bal2imgs[balid], key=lambda imP: img2page[imP])
+                bal_imgpaths = sorted(
+                    bal2imgs[balid], key=lambda imP: img2page[imP])
                 if not alt_voteddir:
                     for side, imgpath in enumerate(bal_imgpaths):
                         if (args.side != None and args.side != side) or not has_targets(grpid, side):
-                            continue # This isn't a side we care about
+                            continue  # This isn't a side we care about
                         imgpaths.append(imgpath)
                         img2flip_[imgpath] = img2flip_proj[imgpath]
                 else:
                     for side, imgpath_old in enumerate(bal_imgpaths):
                         if (args.side != None and args.side != side) or not has_targets(grpid, side):
-                            continue # This isn't a side we care about
-                        rp = os.path.relpath(os.path.abspath(imgpath_old), os.path.abspath(voteddir_root))
+                            continue  # This isn't a side we care about
+                        rp = os.path.relpath(os.path.abspath(
+                            imgpath_old), os.path.abspath(voteddir_root))
                         imgpath_new = pathjoin(alt_voteddir, rp)
                         imgpaths.append(imgpath_new)
                         img2flip_[imgpath_new] = img2flip_proj[imgpath_old]
@@ -253,7 +276,8 @@ def main():
     print >>f_info, "Y: {0}  STEP_Y: {1}".format(Y, STEP_TRANS_Y)
     print >>f_info, "THETA: {0}  STEP_THETA: {1}".format(THETA, STEP_ROT)
     print >>f_info, "NOISE_MEAN: {0}  NOISE_STD: {1}".format(MEAN, STD)
-    print >>f_info, "BRIGHT_AMT: {0}  BRIGHT_AMT: {1}".format(BRIGHT_AMT, BRIGHT_STEP)
+    print >>f_info, "BRIGHT_AMT: {0}  BRIGHT_AMT: {1}".format(
+        BRIGHT_AMT, BRIGHT_STEP)
     print >>f_info, sys.argv
     f_info.close()
 
@@ -262,7 +286,7 @@ def main():
     cnt, src2dsts, dst2src,  = create_testset(imgpaths, outdir, args,
                                               X, Y, STEP_TRANS_X, STEP_TRANS_Y,
                                               THETA, STEP_ROT,
-                                              MEAN, STD, 
+                                              MEAN, STD,
                                               BRIGHT_AMT, BRIGHT_STEP,
                                               img2flip=img2flip_)
     dur = time.time() - t
@@ -270,6 +294,6 @@ def main():
     pickle.dump(src2dsts, open(os.path.join(outdir, 'src2dsts.p'), 'wb'))
     pickle.dump(dst2src, open(os.path.join(outdir, 'dst2src.p'), 'wb'))
     pickle.dump(img2flip_, open(os.path.join(outdir, 'src2flip.p'), 'wb'))
-        
+
 if __name__ == '__main__':
     main()

@@ -1,13 +1,16 @@
-import wx, pdb
+import wx
+import pdb
 
 """
 The interface for all OpenCount UI components.
 """
 
+
 class OpenCountPanel(wx.Panel):
+
     def __init__(self, *args, **kwargs):
         wx.Panel.__init__(self, *args, **kwargs)
-        
+
         # self.sanitychecks_callbacks: maps {int ID_FLAG: fn callback}
         #     This is used to (optionally) allow each widget to add
         #     special handling for certain failed sanity checks. For
@@ -39,14 +42,15 @@ class OpenCountPanel(wx.Panel):
         """
         can_go_on = True
         lst_statuses = self.invoke_sanity_checks()
-        
+
         for (isok, isfatal, msg, id_flag, data) in lst_statuses:
             if not isok:
                 if isfatal:
                     can_go_on = False
 
                 _title = "OpenCount Warning" if not isfatal else "OpenCount Fatal Warning"
-                wx.MessageDialog(self, message=msg, caption=_title, style=wx.OK).ShowModal()
+                wx.MessageDialog(self, message=msg,
+                                 caption=_title, style=wx.OK).ShowModal()
 
                 callback_fn = self.sanitychecks_callbacks.get(id_flag, None)
                 if callback_fn:
@@ -57,7 +61,7 @@ class OpenCountPanel(wx.Panel):
                 if user_judgement == False:
                     # User indicated that this was a fatal error
                     can_go_on = False
-                    break # No sense in continuing to yell at the user
+                    break  # No sense in continuing to yell at the user
 
         return can_go_on
 

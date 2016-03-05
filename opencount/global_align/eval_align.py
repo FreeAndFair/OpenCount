@@ -1,5 +1,19 @@
-import sys, os, pdb, time, cPickle as pickle, math, traceback, argparse, random
-import numpy as np, scipy.misc, cv2, matplotlib.pyplot as plt, matplotlib.cm as cm, cv, scipy.stats
+import sys
+import os
+import pdb
+import time
+import cPickle as pickle
+import math
+import traceback
+import argparse
+import random
+import numpy as np
+import scipy.misc
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import cv
+import scipy.stats
 import global_align
 """
 A script that evaluates alignment methods against a synthetic test set
@@ -17,6 +31,7 @@ ALIGN_STRATS_ALL = (STRAT_CV, STRAT_LK)
 
 TRY_ALL_STRATS = 'all'
 
+
 def standardImread_v2(imgpath, flatten=False, dtype='float32', normalize=True):
     """ Reads in IMGPATH, and outputs a numpy array with pix. If normalize
     is True, then intensity values will be floats from [0.0, 1.0]. O.w.
@@ -29,12 +44,14 @@ def standardImread_v2(imgpath, flatten=False, dtype='float32', normalize=True):
         Inp = Inp / 255.0
     return Inp
 
+
 def fastFlip(I):
-    Icv=cv.fromarray(np.copy(I))
-    I1cv=cv.CreateMat(I.shape[0],I.shape[1],Icv.type)
-    cv.Flip(Icv,I1cv,-1)
-    Iout=np.asarray(I1cv)
+    Icv = cv.fromarray(np.copy(I))
+    I1cv = cv.CreateMat(I.shape[0], I.shape[1], Icv.type)
+    cv.Flip(Icv, I1cv, -1)
+    Iout = np.asarray(I1cv)
     return Iout
+
 
 def apply_varyContrast_patches(I, N, PATCH_W, PATCH_H, ALPHA, WITHIN=0.05, maxPixVal=1.0, BBOXES=None):
     """ Randomly places N patches of size (PATCH_W, PATCH_H) on image I,
@@ -49,21 +66,25 @@ def apply_varyContrast_patches(I, N, PATCH_W, PATCH_H, ALPHA, WITHIN=0.05, maxPi
     h, w = I.shape
     if not BBOXES:
         N = int(N)
-        y_low, y_high = (int(round(h * WITHIN)), int(round(h * (1.0 - WITHIN)) - PATCH_H))
-        x_low, x_high = (int(round(w * WITHIN)), int(round(w * (1.0 - WITHIN)) - PATCH_W))
-        xs, ys = random.sample(xrange(x_low, x_high), N), random.sample(xrange(y_low, y_high), N)
+        y_low, y_high = (int(round(h * WITHIN)),
+                         int(round(h * (1.0 - WITHIN)) - PATCH_H))
+        x_low, x_high = (int(round(w * WITHIN)),
+                         int(round(w * (1.0 - WITHIN)) - PATCH_W))
+        xs, ys = random.sample(xrange(x_low, x_high), N), random.sample(
+            xrange(y_low, y_high), N)
         maskAlpha = np.ones(I.shape, dtype=I.dtype)
         for i, x1 in enumerate(xs):
             y1 = ys[i]
-            maskAlpha[y1:min(h, y1+PATCH_H), x1:min(w, x1+PATCH_W)] = ALPHA
+            maskAlpha[y1:min(h, y1 + PATCH_H), x1:min(w, x1 + PATCH_W)] = ALPHA
     else:
         maskAlpha = np.ones(I.shape, dtype=I.dtype)
-        for (x1,y1,x2,y2) in BBOXES:
+        for (x1, y1, x2, y2) in BBOXES:
             maskAlpha[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = ALPHA
     Iout = I * maskAlpha
-    Iout[np.where(Iout > maxPixVal)] = maxPixVal # Saturate
+    Iout[np.where(Iout > maxPixVal)] = maxPixVal  # Saturate
     num_pixs = len(np.where(maskAlpha == ALPHA)[0])
     return Iout, num_pixs
+
 
 def eval_testset(testsetdir, align_strat=STRAT_CV,
                  debug=False, CACHE_IMG=None, NUM_BALLOTS=None,
@@ -86,22 +107,26 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p'), 'rb'))
     # dict DST2SRC: {str dstimgP: str srcimgP}
     dst2src = pickle.load(open(os.path.join(testsetdir, 'dst2src.p'), 'rb'))
-    # dict SRC2FLIP: {str srcimgP: bool isFlip} Note: dsts have already been correctly flipped
+    # dict SRC2FLIP: {str srcimgP: bool isFlip} Note: dsts have already been
+    # correctly flipped
     src2flip = pickle.load(open(os.path.join(testsetdir, 'src2flip.p')))
 
     FLAG_EXP_VARY_CONTRAST = CONTRAST_NUM == None and CONTRAST_ALPHA != None
-    
+
     errs = []
     errs_x, errs_y, errs_theta = [], [], []
-    errs_map = {} # maps {(str srcimgP, str dstimgP): (tuple P_EXPECTED, tuple P_ESTIMATED)}
+    # maps {(str srcimgP, str dstimgP): (tuple P_EXPECTED, tuple P_ESTIMATED)}
+    errs_map = {}
     userdata = {}
     t_start = time.time()
+
     def load_img(imP, dtype='float32', normalize=True):
         if alt_refimgpath != None:
             imP = alt_refimgpath
         I = CACHE_IMG.get(imP, None) if CACHE_IMG else None
         if I == None:
-            I = standardImread_v2(imP, flatten=True, dtype=dtype, normalize=normalize)
+            I = standardImread_v2(
+                imP, flatten=True, dtype=dtype, normalize=normalize)
             if CACHE_IMG != None:
                 CACHE_IMG[imP] = I
         return I
@@ -111,26 +136,29 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
         N = NUM_BALLOTS * len(src2dsts[src2dsts.keys()[0]])
     i = 0
     t_prev = time.time()
-    step = N / 10 # Print out at each 10% interval
+    step = N / 10  # Print out at each 10% interval
     step = 1 if step == 0 else step
+
     def update_status():
         if i == 0:
             return False
         t_cur = time.time()
         dur_step = t_cur - t_prev
         n_remain = N - i
-        est = ((dur_step / float(step)) * n_remain) / 60.0 # est. time left in minutes
+        est = ((dur_step / float(step)) * n_remain) / \
+            60.0  # est. time left in minutes
         if i % step == 0:
             print "...{0:.2f}% complete... ({1} left, {2:.4f} min. left)".format(100.0 * (i / float(N)), n_remain, est)
             return True
         return False
+
     def plotimages(I, Iref, Ireg, x_, y_, theta_, x, y, theta, err):
         A = Iref + Ireg
         fig = plt.figure(figsize=(18, 10))
         fig.suptitle("(Found):  x={0:.2f} y={1:.2f} theta={2:.3f}\n\
 (Expect): x={3:.2f} y={4:.2f} theta={5:.3f}\n\
 Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
-                     
+
         plt_Iref = fig.add_subplot(221)
         plt_Iref.set_title("Iref")
         plt_Iref.imshow(Iref, cmap=cm.Greys_r)
@@ -157,10 +185,12 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
             Iref_orig = fastFlip(Iref_orig)
         if CONTRAST_BBOXES != None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
-            Iref, num_pixels = apply_varyContrast_patches(Iref_orig, None, None, None, CONTRAST_ALPHA, maxPixVal=maxPixVal, BBOXES=CONTRAST_BBOXES)
+            Iref, num_pixels = apply_varyContrast_patches(
+                Iref_orig, None, None, None, CONTRAST_ALPHA, maxPixVal=maxPixVal, BBOXES=CONTRAST_BBOXES)
         elif CONTRAST_NUM != None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
-            Iref, num_pixels = apply_varyContrast_patches(Iref_orig, CONTRAST_NUM, CONTRAST_W, CONTRAST_H, CONTRAST_ALPHA, maxPixVal=maxPixVal)
+            Iref, num_pixels = apply_varyContrast_patches(
+                Iref_orig, CONTRAST_NUM, CONTRAST_W, CONTRAST_H, CONTRAST_ALPHA, maxPixVal=maxPixVal)
         elif CONTRAST_ALPHA != None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
             Iref = varyContrast(Iref_orig, CONTRAST_ALPHA, maxPixVal=maxPixVal)
@@ -170,37 +200,45 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
         for (dstimgpath, x, y, theta, bright_amt) in sorted(dst_tpls, key=lambda t: t[0]):
             # X,Y,THETA are the amts. by which IREF was perturbed to create I.
             # If X,Y=-50,-50, then IREF was shifted left 50 pixels, up 50 pixels to create I.
-            # Here, Negative THETA is clock-wise, Positive THETA is counter-clockwise.
+            # Here, Negative THETA is clock-wise, Positive THETA is
+            # counter-clockwise.
             if show_progress:
                 did_update = update_status()
                 if did_update:
                     t_prev = time.time()
             if align_strat == STRAT_CV:
                 if dstimgpath != None:
-                    I = standardImread_v2(dstimgpath, dtype='uint8', normalize=False, flatten=True)
+                    I = standardImread_v2(
+                        dstimgpath, dtype='uint8', normalize=False, flatten=True)
                 else:
                     I = warp_img(Iref, x, y, theta, bright_amt)
                 if FLAG_EXP_VARY_CONTRAST:
                     I_inkmean, I_inkstd = estimate_inkstats(I, THRESHOLD=0.9)
-                    Iref_inkmean, Iref_inkstd = estimate_inkstats(Iref, THRESHOLD=0.9)
-                    userdata.setdefault('inkstats', []).append((I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd))
+                    Iref_inkmean, Iref_inkstd = estimate_inkstats(
+                        Iref, THRESHOLD=0.9)
+                    userdata.setdefault('inkstats', []).append(
+                        (I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd))
 
-                H, Ireg, err = global_align.align_cv(I, Iref, computeErr=True, crop=(cropx, cropy))
-                x_ = -H[0,2]
-                y_ = -H[1,2]
-                theta_ = -math.degrees(H[0,1])
+                H, Ireg, err = global_align.align_cv(
+                    I, Iref, computeErr=True, crop=(cropx, cropy))
+                x_ = -H[0, 2]
+                y_ = -H[1, 2]
+                theta_ = -math.degrees(H[0, 1])
                 x_err = x_ - x
                 y_err = y_ - y
                 theta_err = theta_ - theta
             elif align_strat == STRAT_LK:
                 if dstimgpath != None:
-                    I = standardImread_v2(dstimgpath, dtype='float32', normalize=True, flatten=True)
+                    I = standardImread_v2(
+                        dstimgpath, dtype='float32', normalize=True, flatten=True)
                 else:
                     I = warp_img(Iref, x, y, theta, bright_amt)
                 if FLAG_EXP_VARY_CONTRAST:
                     I_inkmean, I_inkstd = estimate_inkstats(I, THRESHOLD=0.9)
-                    Iref_inkmean, Iref_inkstd = estimate_inkstats(Iref, THRESHOLD=0.9)
-                    userdata.setdefault('inkstats', []).append((I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd))
+                    Iref_inkmean, Iref_inkstd = estimate_inkstats(
+                        Iref, THRESHOLD=0.9)
+                    userdata.setdefault('inkstats', []).append(
+                        (I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd))
 
                 H, Ireg, err_ = global_align.align_image(I, Iref, verbose=False,
                                                          CROPX=cropx, CROPY=cropy, RSZFAC=rszfac,
@@ -211,14 +249,14 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 #     [-sin(R), cos(R), t_y]
                 #     [   0   ,   0   ,  1 ]
                 # Note that H is living in ORIGIN coordinates (e.g. the
-                # center of the image). In particular, t_x/t_y are NOT simply the 
+                # center of the image). In particular, t_x/t_y are NOT simply the
                 # translation amounts.
                 # To transform a point P (in IMAGE coords):
                 #     P_trans := T0 . H . T1 . P    ('.' is matrix multiplication)
                 # where T0 := Shifts from ORIGIN to (0,0)
                 #       T1 := Shifts from (0,0) to ORIGIN
                 x_, y_ = recover_xy_trans(H, I.shape[1], I.shape[0])
-                x_ = -x_ # Multiply by -1.0 to "undo" the translation
+                x_ = -x_  # Multiply by -1.0 to "undo" the translation
                 y_ = -y_
                 # negative theta -> counter-clockwise
                 theta_ = -1.0 * recover_theta_rot(H)
@@ -226,7 +264,8 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 y_err = y_ - y
                 theta_err = theta_ - theta
             else:
-                raise Exception("Unrecognized alignment strategy: {0}".format(align_strat))
+                raise Exception(
+                    "Unrecognized alignment strategy: {0}".format(align_strat))
             errs_x.append(x_err)
             errs_y.append(y_err)
             errs_theta.append(theta_err)
@@ -237,25 +276,32 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
             if show_overlays_interactive:
                 print H
                 print "(Found): x={0} y={1} theta={2}".format(x_, y_, theta_)
-                print "(Expect): x={0}, y={1}, theta={2}".format(x,y,theta)
+                print "(Expect): x={0}, y={1}, theta={2}".format(x, y, theta)
                 print "Err:", err
                 print "x_err={0} y_err={1} theta_err={2}".format(x_err, y_err, theta_err)
-                fig = plotimages(I, Iref_orig, Ireg, x_, y_, theta_, x, y, theta, err)
+                fig = plotimages(I, Iref_orig, Ireg, x_, y_,
+                                 theta_, x, y, theta, err)
                 pdb.set_trace()
             i += 1
 
     dur_total = time.time() - t_start
     return errs_map, errs, errs_x, errs_y, errs_theta, dur_total, userdata
 
+
 def recover_xy_trans(H, w, h):
     """ Returns the x,y translation encoded in the H affine matrix. Assume
     H is in origin-coordinates.
     """
     # T0: Transforms (0,0) to image center
-    T0=np.eye(3); T0[0,2]=w/2.0; T0[1,2]=h/2.0
+    T0 = np.eye(3)
+    T0[0, 2] = w / 2.0
+    T0[1, 2] = h / 2.0
     # T1: Transforms image center to (0,0)
-    T1=np.eye(3); T1[0,2]=-w/2.0; T1[1,2]=-h/2.0
-    H1 = np.dot(T0, np.dot(H, T1)) # H1 inputs image-coords, outputs image-coords
+    T1 = np.eye(3)
+    T1[0, 2] = -w / 2.0
+    T1[1, 2] = -h / 2.0
+    # H1 inputs image-coords, outputs image-coords
+    H1 = np.dot(T0, np.dot(H, T1))
     theta = math.radians(recover_theta_rot(H))
     Hrot = np.array([[math.cos(theta), math.sin(theta), 0.0],
                      [-math.sin(theta), math.cos(theta), 0.0],
@@ -268,8 +314,10 @@ def recover_xy_trans(H, w, h):
     #     T0  := Shifts origin-coords -> image-coords
     #     T   := Translation matrix (in image-coords)
     # Recover the translation matrix T via manipulations to eq. (1)
-    T = np.dot(H1, np.dot(np.linalg.inv(T1), np.dot(np.linalg.inv(Hrot), np.linalg.inv(T0))))
-    return T[0,2], T[1,2]
+    T = np.dot(H1, np.dot(np.linalg.inv(T1), np.dot(
+        np.linalg.inv(Hrot), np.linalg.inv(T0))))
+    return T[0, 2], T[1, 2]
+
 
 def recover_theta_rot(H):
     """ Recovers the theta rotation of H (in degrees). Assumes H is in
@@ -286,9 +334,10 @@ def recover_theta_rot(H):
     We need to disambiguate this to always return theta s.t.
         Positive theta -> counter-clockwise rotation.
     '''
-    H00 = min(max(H[0,0], -1.0), 1.0) # clamp to [-1.0, 1.0] to avoid numerical instability
-    H01 = min(max(H[0,1], -1.0), 1.0)
-    H10 = min(max(H[0,1], -1.0), 1.0)
+    H00 = min(max(H[0, 0], -1.0),
+              1.0)  # clamp to [-1.0, 1.0] to avoid numerical instability
+    H01 = min(max(H[0, 1], -1.0), 1.0)
+    H10 = min(max(H[0, 1], -1.0), 1.0)
     theta_0 = math.degrees(math.acos(H00))
     theta_1 = math.degrees(math.asin(H01))
     if theta_0 >= 0.0 and theta_1 >= 0.0:
@@ -298,23 +347,25 @@ def recover_theta_rot(H):
         # theta is in clockwise mode
         return -theta_0
 
+
 def make_affine_mat(x, y, theta, w, h):
     """ Creates affine mat, rotating w.r.t. image center. Assumes that
     THETA is in radians. Outputs the affine mat H that is in image-coordinates.
     """
     T1, T0 = np.eye(3), np.eye(3)
-    T1[0,2] = -w / 2.0
-    T1[1,2] = -h / 2.0
+    T1[0, 2] = -w / 2.0
+    T1[1, 2] = -h / 2.0
     Hrot = np.array([[math.cos(theta), math.sin(theta), 0.0],
                      [-math.sin(theta), math.cos(theta), 0.0],
                      [0.0, 0.0, 1.0]])
-    T0[0,2] = w / 2.0
-    T0[1,2] = h / 2.0
+    T0[0, 2] = w / 2.0
+    T0[1, 2] = h / 2.0
     S = np.eye(3)
-    S[0,2] = x
-    S[1,2] = y
+    S[0, 2] = x
+    S[1, 2] = y
     H_out = np.dot(S, np.dot(T0, np.dot(Hrot, T1)))
     return H_out
+
 
 def warp_img(I, x, y, theta, bright_amt):
     """ Warps image I by translating by (X,Y), rotating by THETA, and 
@@ -324,7 +375,8 @@ def warp_img(I, x, y, theta, bright_amt):
     h, w = I.shape
     Itrans = np.zeros(I.shape, dtype=I.dtype)
 
-    Itrans[max(0, y):min(h, h + y), max(0, x):min(w, w + x)] = I[max(0, -y):min(h, h-y), max(0, -x):min(w, w - x)]
+    Itrans[max(0, y):min(h, h + y), max(0, x):min(w, w + x)
+           ] = I[max(0, -y):min(h, h - y), max(0, -x):min(w, w - x)]
     Iout = Itrans
     if theta != 0.0:
         # scipy.ndimage.rotate: Counter-clockwise rotation for positive theta
@@ -333,13 +385,15 @@ def warp_img(I, x, y, theta, bright_amt):
         Iout += bright_amt
     return Iout
 
+
 def plot_hist(data, plot, width=None, **kwargs):
-    hist, bins = np.histogram(data, bins = 50)
+    hist, bins = np.histogram(data, bins=50)
     if width == None:
-        width = 0.7*(bins[1]-bins[0])
-    center = (bins[:-1]+bins[1:])/2
-    b = plot.bar(center, hist, align = 'center', width = width, **kwargs)
+        width = 0.7 * (bins[1] - bins[0])
+    center = (bins[:-1] + bins[1:]) / 2
+    b = plot.bar(center, hist, align='center', width=width, **kwargs)
     return b
+
 
 def plot_errs(errs_map, errs, errs_x, errs_y, errs_theta):
     fig = plt.figure()
@@ -375,6 +429,7 @@ def plot_errs(errs_map, errs, errs_x, errs_y, errs_theta):
     fig.show()
     raw_input("Enter to continue.")
 
+
 def experiment_vary_crop(args):
     """ Run an experiment by varying the CROP parameter. """
     testsetdir = args.testsetdir
@@ -383,6 +438,7 @@ def experiment_vary_crop(args):
     interactive_overlays = args.interactive
     debug = args.debug
     N = args.n
+
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
         num_ballots = args.n if args.n != None else len(src2dsts)
@@ -397,10 +453,13 @@ def experiment_vary_crop(args):
         cropY, cropYSTEP = cropX, cropXSTEP
 
     rszfacLOW, rszfacMAX, rszfacSTEP = args.rszFacs
-    cropXs = (cropX,) if cropXSTEP == 0 else np.linspace(0.0, cropX, num=math.ceil(cropX / cropXSTEP), endpoint=True)
-    cropYs = (cropY,) if cropYSTEP == 0 else np.linspace(0.0, cropY, num=math.ceil(cropY / cropYSTEP), endpoint=True)
+    cropXs = (cropX,) if cropXSTEP == 0 else np.linspace(
+        0.0, cropX, num=math.ceil(cropX / cropXSTEP), endpoint=True)
+    cropYs = (cropY,) if cropYSTEP == 0 else np.linspace(
+        0.0, cropY, num=math.ceil(cropY / cropYSTEP), endpoint=True)
     rszfacs = (rszfacLOW,) if (rszfacMAX == 0 or rszfacSTEP == 0) else np.linspace(rszfacLOW, rszfacHIGH, endpoint=True,
                                                                                    num=math.ceil((rszfacHIGH - rszfacLOW) / rszfacSTEP))
+
     def plot_err_vs_crop(errs_all):
         """ Plots the AggregateError vs. a 'single' crop parameter C. C only considers
         choices of CROPX/CROPY where CROPX == CROPY.
@@ -439,18 +498,20 @@ def experiment_vary_crop(args):
             return math.sqrt(err_out / num_rel_params)
 
         fig = plt.figure()
-        str_cropXs = "[" + ' '.join(["{0:.3f}".format(c_amt) for c_amt in cropXs]) + "]"
+        str_cropXs = "[" + ' '.join(["{0:.3f}".format(c_amt)
+                                     for c_amt in cropXs]) + "]"
         fig.suptitle("Experiment: varyCrop (testset={0}, align_strat={1}, num_ballots={2} num_alignments={3})\n\
 Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_cropXs))
-        
+
         p0 = fig.add_subplot(321)
         p0.set_title("CropBox Param vs. Aggregate Param. Error")
         p0.set_xlabel("Crop Amt.")
         p0.set_ylabel("Root-Mean-Square (RMS) deviation")
 
-        crop_vs_Xerrs, crop_vs_Yerrs, crop_vs_Terrs = {}, {}, {} # maps {float CROP: [err_0, ...]}
+        crop_vs_Xerrs, crop_vs_Yerrs, crop_vs_Terrs = {
+        }, {}, {}  # maps {float CROP: [err_0, ...]}
         crop_vs_L1norms = {}
-        crop2aggerrs = {} # maps {float CROP: [aggerr_p_0, ...]}
+        crop2aggerrs = {}  # maps {float CROP: [aggerr_p_0, ...]}
         for (cropx, cropy, rszfac), data in errs_all.iteritems():
             # dict errs_map: maps {(srcpath, dstpath): (P_expected, P_found)}
             errs_map, errs, errs_x, errs_y, errs_theta, dur = data
@@ -461,7 +522,8 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
             crop_vs_Terrs[cropx] = np.abs(errs_theta)
             crop_vs_L1norms[cropx] = errs
             for (srcpath, dstpath), (P_expected, P_found) in errs_map.iteritems():
-                crop2aggerrs.setdefault(cropx, []).append(get_aggregate_error_P(P_expected, P_found))
+                crop2aggerrs.setdefault(cropx, []).append(
+                    get_aggregate_error_P(P_expected, P_found))
 
         xs_0, ys_0 = [], []
 
@@ -471,9 +533,9 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
             mean, std = np.mean(aggerrs_p), np.std(aggerrs_p)
             xs_0.append(crop)
             ys_0.append(mean)
-            SE = std / math.sqrt(len(aggerrs_p)) # Standard Error (SE)
-            CIs.append(1.96 * SE) # 95% Confidence Interval (CI)
-    
+            SE = std / math.sqrt(len(aggerrs_p))  # Standard Error (SE)
+            CIs.append(1.96 * SE)  # 95% Confidence Interval (CI)
+
         p0.errorbar(xs_0, ys_0, yerr=CIs, fmt='ro')
 
         def plot_aggregate_stats(x_vs_ys, plot):
@@ -488,7 +550,8 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
                 mean, std = np.mean(ys), np.std(ys)
                 SE = std / math.sqrt(len(ys))
                 CIs.append(1.96 * SE)
-                xs_.append(x); ys_.append(mean)
+                xs_.append(x)
+                ys_.append(mean)
             plot.errorbar(xs_, ys_, yerr=CIs, fmt='ro')
             return plot
 
@@ -497,7 +560,7 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
         p1.set_xlabel("Crop Amt.")
         p1.set_ylabel("Abs. X Error (Pixels)")
         plot_aggregate_stats(crop_vs_Xerrs, p1)
-        
+
         p2 = fig.add_subplot(323)
         p2.set_title("CropBox Param. vs. Abs Y Error")
         p2.set_xlabel("Crop Amt.")
@@ -526,7 +589,9 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
     else:
         print "    crops: {0}".format(cropXs)
     print "    rszFacs: {0}".format(rszfacs)
-    errs_all = {} # maps {(cropx, cropy, rszfac): (errs_map, errs, errs_x, errs_y, errs_theta, dur)}
+    # maps {(cropx, cropy, rszfac): (errs_map, errs, errs_x, errs_y,
+    # errs_theta, dur)}
+    errs_all = {}
     iter_i = 0
     t_total = time.time()
     for cropx in cropXs:
@@ -536,19 +601,22 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
             for rszfac in rszfacs:
                 print "(Iter {0}/{1}) Doing cropx={2:.3f} cropy={3:.3f} rszfac={4:.3f}...".format(iter_i, len(cropXs), cropx, cropy, rszfac)
                 t = time.time()
-                # dict errs_map: maps {(srcpath, dstpath): (P_expected, P_found)}
+                # dict errs_map: maps {(srcpath, dstpath): (P_expected,
+                # P_found)}
                 errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
                                                                                   debug=debug, NUM_BALLOTS=N,
                                                                                   show_overlays_interactive=interactive_overlays,
                                                                                   cropx=cropx, cropy=cropy, rszfac=rszfac,
                                                                                   show_progress=False)
-                errs_all[(cropx, cropy, rszfac)] = (errs_map, errs, errs_x, errs_y, errs_theta, dur)
+                errs_all[(cropx, cropy, rszfac)] = (
+                    errs_map, errs, errs_x, errs_y, errs_theta, dur)
                 dur = time.time() - t
                 print "...Finished iter {0}/{1} ({2:.4f}s)".format(iter_i, len(cropXs), dur)
                 iter_i += 1
     dur_total = time.time()
     print "Done. ({0:.4f}s total)".format(dur_total - t_total)
     plot_err_vs_crop(errs_all)
+
 
 def experiment_compare_align_strats(args):
     """ Empirically compare different alignment strategies. """
@@ -570,8 +638,13 @@ def experiment_compare_align_strats(args):
 
     strat2L1norms = {}
     strat2xerrs, strat2yerrs, strat2terrs = {}, {}, {}
-    strat2goodbadcnts = {} # maps {str align_strat: {(int X_TOL, int Y_TOL, float T_TOL): (int cnt_goodAligns, int cnt_badAligns)}}
-    strat2outliers = {} # maps {str align_strat: [(str srcpath, str dstpath, P_expected, P_found), ...]}
+    # maps {str align_strat: {(int X_TOL, int Y_TOL, float T_TOL): (int
+    # cnt_goodAligns, int cnt_badAligns)}}
+    strat2goodbadcnts = {}
+    # maps {str align_strat: [(str srcpath, str dstpath, P_expected, P_found),
+    # ...]}
+    strat2outliers = {}
+
     def is_good_align(P_expected, P_found, X_TOL=6, Y_TOL=6, T_TOL=0.05):
         """ Returns True if P_FOUND is reasonably close to P_EXPECTED. """
         x_star, y_star, theta_star, brightamt_star = P_expected
@@ -582,14 +655,14 @@ def experiment_compare_align_strats(args):
     TRANS_TOLS = np.linspace(0.0, 40, num=_GOODBAD_NUMSTEPS, endpoint=True)
     THETA_TOLS = np.linspace(0.0, 0.5, num=_GOODBAD_NUMSTEPS, endpoint=True)
     for i_align, align_strat in enumerate(ALIGN_STRATS_ALL):
-        print "({0}/{1} align_strat={2})".format(i_align+1, len(ALIGN_STRATS_ALL), align_strat)
+        print "({0}/{1} align_strat={2})".format(i_align + 1, len(ALIGN_STRATS_ALL), align_strat)
         t = time.time()
         errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
                                                                           debug=debug, NUM_BALLOTS=N,
                                                                           cropx=cropx, cropy=cropy,
                                                                           show_overlays_interactive=args.interactive)
         dur = time.time() - t
-        print "Done ({0:.4f}s) (Iter {1}/{2})".format(dur, i_align+1, len(ALIGN_STRATS_ALL))
+        print "Done ({0:.4f}s) (Iter {1}/{2})".format(dur, i_align + 1, len(ALIGN_STRATS_ALL))
         strat2xerrs[align_strat] = errs_x
         strat2yerrs[align_strat] = errs_y
         strat2terrs[align_strat] = errs_theta
@@ -603,8 +676,11 @@ def experiment_compare_align_strats(args):
                 else:
                     cnt_badAlign += 1
                     if step == _GOODBAD_NUMSTEPS - 1:
-                        strat2outliers.setdefault(align_strat, []).append((srcpath, dstpath, P_expected, P_found))
-            strat2goodbadcnts.setdefault(align_strat, {})[(TRANS_TOL, TRANS_TOL, THETA_TOL)] = cnt_goodAlign, cnt_badAlign
+                        strat2outliers.setdefault(align_strat, []).append(
+                            (srcpath, dstpath, P_expected, P_found))
+            strat2goodbadcnts.setdefault(align_strat, {})[(
+                TRANS_TOL, TRANS_TOL, THETA_TOL)] = cnt_goodAlign, cnt_badAlign
+
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
         num_ballots = args.n if args.n != None else len(src2dsts)
@@ -619,9 +695,11 @@ testset={3}".format(align_strat, num_ballots, num_alignments, testsetdir))
 
     p_accs = fig_accs.add_subplot(111)
     p_accs.set_title("Accuracy")
-    p_accs.set_xlabel("Allowed Slack. 0 is most strict (perfect), end allows {0} pixel translation, {1} degree rotation slack.".format(TRANS_TOLS[-1], THETA_TOLS[-1]))
+    p_accs.set_xlabel("Allowed Slack. 0 is most strict (perfect), end allows {0} pixel translation, {1} degree rotation slack.".format(
+        TRANS_TOLS[-1], THETA_TOLS[-1]))
     p_accs.set_ylabel("Percentage of 'Good' Alignments")
-    p_accs.set_xticks(xrange(1, len(strat2goodbadcnts[strat2goodbadcnts.keys()[0]])))
+    p_accs.set_xticks(
+        xrange(1, len(strat2goodbadcnts[strat2goodbadcnts.keys()[0]])))
     COLORS = ("b", "r", "g")
 
     for i_align, (align_strat, tols2cnts) in enumerate(sorted(strat2goodbadcnts.iteritems())):
@@ -632,29 +710,37 @@ testset={3}".format(align_strat, num_ballots, num_alignments, testsetdir))
     p_accs.legend()
 
     fig_accs.show()
-    
+
     for align_strat, outliers in sorted(strat2outliers.iteritems()):
         print "{0} outliers for align_strat={1}".format(len(outliers), align_strat)
 
     fig = plt.figure()
-    titletext = "Compare Alignment Methods (Num. Ballots={0} Num. Alignments={1}) {2}".format(num_ballots, num_alignments, ALIGN_STRATS_ALL)
+    titletext = "Compare Alignment Methods (Num. Ballots={0} Num. Alignments={1}) {2}".format(
+        num_ballots, num_alignments, ALIGN_STRATS_ALL)
     for align_strat in ALIGN_STRATS_ALL:
-        xerr_mean, xerr_std = np.mean(strat2xerrs[align_strat]), np.std(strat2xerrs[align_strat])
-        yerr_mean, yerr_std = np.mean(strat2yerrs[align_strat]), np.std(strat2yerrs[align_strat])
-        terr_mean, terr_std = np.mean(strat2terrs[align_strat]), np.std(strat2terrs[align_strat])
-        L1_mean, L1_std = np.mean(strat2L1norms[align_strat]), np.std(strat2L1norms[align_strat])
+        xerr_mean, xerr_std = np.mean(
+            strat2xerrs[align_strat]), np.std(strat2xerrs[align_strat])
+        yerr_mean, yerr_std = np.mean(
+            strat2yerrs[align_strat]), np.std(strat2yerrs[align_strat])
+        terr_mean, terr_std = np.mean(
+            strat2terrs[align_strat]), np.std(strat2terrs[align_strat])
+        L1_mean, L1_std = np.mean(strat2L1norms[align_strat]), np.std(
+            strat2L1norms[align_strat])
         titletext += "\n"
         titletext += "align_strat={0}\n".format(align_strat)
-        titletext += "    XERR mean/std={0:.2f}, {1:.2f}".format(xerr_mean, xerr_std)
-        titletext += " YERR mean/std={0:.2f}, {1:.2f}".format(yerr_mean, yerr_std)
-        titletext += " TERR mean/std={0:.3f}, {1:.3f}".format(terr_mean, terr_std)
+        titletext += "    XERR mean/std={0:.2f}, {1:.2f}".format(
+            xerr_mean, xerr_std)
+        titletext += " YERR mean/std={0:.2f}, {1:.2f}".format(
+            yerr_mean, yerr_std)
+        titletext += " TERR mean/std={0:.3f}, {1:.3f}".format(
+            terr_mean, terr_std)
         titletext += " L1 mean/std={0:.5f}, {1:.5f}\n".format(L1_mean, L1_std)
-                                  
+
     fig.suptitle(titletext)
-    
+
     def plot_stacked_hists(strat2data, plot):
         COLORS = ("b", "r", "g")
-        bars = [] # [(str align_strat, Plot bargraph)]
+        bars = []  # [(str align_strat, Plot bargraph)]
         width = 0.0
         for _, data in strat2data.iteritems():
             hist, bins = np.histogram(data, bins=50)
@@ -673,7 +759,7 @@ testset={3}".format(align_strat, num_ballots, num_alignments, testsetdir))
     p0.set_title("X errors histograms")
     p0.set_xlabel("X error (pixels)")
     plot_stacked_hists(strat2xerrs, p0)
-    
+
     p1 = fig.add_subplot(222)
     p1.set_title("Y errors histograms")
     p1.set_xlabel("Y error (pixels)")
@@ -693,6 +779,7 @@ testset={3}".format(align_strat, num_ballots, num_alignments, testsetdir))
 
     pdb.set_trace()
 
+
 def varyContrast(I, ALPHA, THRESHOLD=0.9, maxPixVal=1.0):
     """ Multiplies pixel intensity values of I by ALPHA for all pixels
     whose intensity value is <=THRESHOLD. Intensity values should range
@@ -707,13 +794,14 @@ def varyContrast(I, ALPHA, THRESHOLD=0.9, maxPixVal=1.0):
     alphaMask = np.ones(I.shape, dtype='float32')
     alphaMask[np.where(I < THRESHOLD)] = ALPHA
     Iout = I * alphaMask
-    Iout[np.where(Iout > maxPixVal)] = maxPixVal # Saturate
+    Iout[np.where(Iout > maxPixVal)] = maxPixVal  # Saturate
     return Iout
+
 
 def estimate_inkstats(I, THRESHOLD=0.9):
     """ Returns the mean, std of pixel intensity values of the INK on the image. """
     mask = np.zeros(I.shape, dtype=I.dtype)
-    mask[:,:] = np.nan
+    mask[:, :] = np.nan
     idxs = np.where(I < THRESHOLD)
     mask[idxs] = 1.0
     area = len(idxs[0])
@@ -721,6 +809,7 @@ def estimate_inkstats(I, THRESHOLD=0.9):
     mean = scipy.stats.nanmean(Imasked.flatten())
     std = scipy.stats.nanstd(Imasked.flatten())
     return mean, std
+
 
 def experiment_vary_contrast(args):
     """ Investigates the affect of varying the contrast of INK-levels on
@@ -737,20 +826,23 @@ def experiment_vary_contrast(args):
     if ALPHA_LOW == ALPHA_HIGH:
         ALPHAS = [ALPHA_LOW]
     else:
-        ALPHAS = np.linspace(ALPHA_LOW, ALPHA_HIGH, num=math.ceil((ALPHA_HIGH-ALPHA_LOW)/ALPHA_STEP), endpoint=True)
+        ALPHAS = np.linspace(ALPHA_LOW, ALPHA_HIGH, num=math.ceil(
+            (ALPHA_HIGH - ALPHA_LOW) / ALPHA_STEP), endpoint=True)
     alpha2Ps = {}
     alpha2L1norms, alpha2xerrs, alpha2yerrs, alpha2terrs = {}, {}, {}, {}
-    alpha2inkstats = {} # maps {float ALPHA: [(I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd), ...]}
+    # maps {float ALPHA: [(I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd),
+    # ...]}
+    alpha2inkstats = {}
     t_total = time.time()
     for i, alpha in enumerate(ALPHAS):
-        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i+1, len(ALPHAS), alpha)
+        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i + 1, len(ALPHAS), alpha)
         t = time.time()
         errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
                                                                                  debug=debug, NUM_BALLOTS=N,
                                                                                  CONTRAST_ALPHA=alpha,
                                                                                  show_overlays_interactive=args.interactive)
         dur = time.time() - t
-        print "Finished iter {0}/{1} ({2:.4f}s)".format(i+1, len(ALPHAS), dur)
+        print "Finished iter {0}/{1} ({2:.4f}s)".format(i + 1, len(ALPHAS), dur)
         alpha2L1norms[alpha] = errs
         alpha2xerrs[alpha] = np.abs(errs_x)
         alpha2yerrs[alpha] = np.abs(errs_y)
@@ -770,7 +862,8 @@ def experiment_vary_contrast(args):
     num_ballots, num_alignments = get_nums()
 
     fig0 = plt.figure()
-    fig0.suptitle("Experiment: VaryContrast (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+    fig0.suptitle("Experiment: VaryContrast (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(
+        testsetdir, align_strat, num_ballots, num_alignments))
 
     plot_xerrs = fig0.add_subplot(321)
     plot_xerrs.set_title("ALPHA vs. Abs X Errors")
@@ -810,8 +903,9 @@ def experiment_vary_contrast(args):
     plot_errorbars(alpha2inkmeandiffs, plot_inkstats)
 
     fig0.show()
-    
+
     pdb.set_trace()
+
 
 def experiment_vary_contrast_patches(args):
     """ Investigates affect of adjusting the contrast of a random set of
@@ -824,6 +918,7 @@ def experiment_vary_contrast_patches(args):
     N = args.n
 
     C_N, C_W, C_H, C_ALPHA_LOW, C_ALPHA_HIGH, C_ALPHA_STEP = args.vary_contrast_patches
+
     def parse_contrastbboxes():
         if not args.contrastbboxes:
             return None
@@ -837,17 +932,18 @@ def experiment_vary_contrast_patches(args):
             curbox.append(coord)
         bboxes.append(curbox)
         return bboxes
-    
+
     contrast_bboxes = parse_contrastbboxes()
     if C_ALPHA_LOW == C_ALPHA_HIGH:
         ALPHAS = [C_ALPHA_LOW]
     else:
-        ALPHAS = np.linspace(C_ALPHA_LOW, C_ALPHA_HIGH, num=math.ceil((C_ALPHA_HIGH-C_ALPHA_LOW)/C_ALPHA_STEP), endpoint=True)
+        ALPHAS = np.linspace(C_ALPHA_LOW, C_ALPHA_HIGH, num=math.ceil(
+            (C_ALPHA_HIGH - C_ALPHA_LOW) / C_ALPHA_STEP), endpoint=True)
     alpha2Ps = {}
     alpha2L1norms, alpha2xerrs, alpha2yerrs, alpha2terrs = {}, {}, {}, {}
     t_total = time.time()
     for i, alpha in enumerate(ALPHAS):
-        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i+1, len(ALPHAS), alpha)
+        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i + 1, len(ALPHAS), alpha)
         t = time.time()
         errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
                                                                           debug=debug, NUM_BALLOTS=N,
@@ -855,7 +951,7 @@ def experiment_vary_contrast_patches(args):
                                                                           CONTRAST_BBOXES=contrast_bboxes,
                                                                           show_overlays_interactive=args.interactive)
         dur = time.time() - t
-        print "Finished iter {0}/{1} ({2:.4f}s)".format(i+1, len(ALPHAS), dur)
+        print "Finished iter {0}/{1} ({2:.4f}s)".format(i + 1, len(ALPHAS), dur)
         alpha2L1norms[alpha] = errs
         alpha2xerrs[alpha] = np.abs(errs_x)
         alpha2yerrs[alpha] = np.abs(errs_y)
@@ -874,7 +970,8 @@ def experiment_vary_contrast_patches(args):
     num_ballots, num_alignments = get_nums()
 
     fig0 = plt.figure()
-    fig0.suptitle("Experiment: VaryContrastPatches (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+    fig0.suptitle("Experiment: VaryContrastPatches (testsetdir={0}, align_strat={1}, num_ballots={2}, num_alignments={3})".format(
+        testsetdir, align_strat, num_ballots, num_alignments))
 
     plot_xerrs = fig0.add_subplot(221)
     plot_xerrs.set_title("ALPHA vs. Abs X Errors")
@@ -901,8 +998,9 @@ def experiment_vary_contrast_patches(args):
     plot_errorbars(alpha2L1norms, plot_L1norms)
 
     fig0.show()
-    
+
     pdb.set_trace()
+
 
 def plot_errorbars(x2ys, plot):
     """ Plots error bars with given data X2YS.
@@ -916,11 +1014,13 @@ def plot_errorbars(x2ys, plot):
     CIs = []
     for x, ys in sorted(x2ys.iteritems(), key=lambda t: t[0]):
         mean, std = np.mean(ys), np.std(ys)
-        SE = std / math.sqrt(len(ys)) # Standard Error
-        CIs.append(1.96 * SE) # 95% confidence
-        xs_.append(x); ys_.append(mean)
+        SE = std / math.sqrt(len(ys))  # Standard Error
+        CIs.append(1.96 * SE)  # 95% confidence
+        xs_.append(x)
+        ys_.append(mean)
     plot.errorbar(xs_, ys_, yerr=CIs, fmt='ro')
     return plot
+
 
 def experiment_alt_refimg(args):
     """ Aligns each image in the testset to alternate reference images (rather
@@ -942,6 +1042,7 @@ def experiment_alt_refimg(args):
         num_ballots = args.n if args.n != None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
+
     def get_refimgpaths(alt_refimgsdir):
         imgpaths_out = []
         if not os.path.isdir(alt_refimgsdir):
@@ -958,24 +1059,26 @@ def experiment_alt_refimg(args):
     ref2xerrs, ref2yerrs, ref2terrs, ref2L1norms = {}, {}, {}, {}
     t_total = time.time()
     for i, refimgpath in enumerate(sorted(alt_refimgpaths)):
-        print "({0}/{1}) Trying refimg={2}".format(i+1, len(alt_refimgpaths), refimgpath)
+        print "({0}/{1}) Trying refimg={2}".format(i + 1, len(alt_refimgpaths), refimgpath)
         t = time.time()
-        
+
         errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
                                                                                  debug=debug, NUM_BALLOTS=N,
                                                                                  alt_refimgpath=refimgpath,
-                                                                                 minArea=np.power(2, 14),
+                                                                                 minArea=np.power(
+                                                                                     2, 14),
                                                                                  show_overlays_interactive=args.interactive)
         ref2xerrs[refimgpath] = np.abs(errs_x)
         ref2yerrs[refimgpath] = np.abs(errs_y)
         ref2terrs[refimgpath] = np.abs(errs_theta)
         ref2L1norms[refimgpath] = errs
 
-        dur = time.time() -t
-        print "Done with iter {0}/{1} ({2:.4f}s)".format(i+1, len(alt_refimgpaths), dur)
+        dur = time.time() - t
+        print "Done with iter {0}/{1} ({2:.4f}s)".format(i + 1, len(alt_refimgpaths), dur)
 
     fig0 = plt.figure()
-    fig0.suptitle("Experiment: Alt. Refimgs. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+    fig0.suptitle("Experiment: Alt. Refimgs. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(
+        testsetdir, align_strat, num_ballots, num_alignments))
 
     refpath2refname = {}
     for refimgpath in alt_refimgpaths:
@@ -997,7 +1100,8 @@ def experiment_alt_refimg(args):
     plot_stacked_hists(ref2terrs, plot_terrs, labels=refpath2refname)
 
     plot_L1norms = fig0.add_subplot(224)
-    plot_L1norms.set_title("L1 norms (btwn Ireg, Iref) Histogram across refimgs")
+    plot_L1norms.set_title(
+        "L1 norms (btwn Ireg, Iref) Histogram across refimgs")
     plot_L1norms.set_xlabel("L1 norm (ranges from [0.0, 1.0])")
     plot_stacked_hists(ref2L1norms, plot_L1norms, labels=refpath2refname)
 
@@ -1007,6 +1111,7 @@ def experiment_alt_refimg(args):
     fig0.show()
 
     pdb.set_trace()
+
 
 def experiment_vary_minarea(args):
     """ Investigate the affect of varying the minarea parameter, i.e. how much
@@ -1027,13 +1132,14 @@ def experiment_vary_minarea(args):
         k_low, k_high, k_step = float(k_low), float(k_high), float(k_step)
         print "Using alternate refimg={0}".format(refimgpath)
 
-    ks = np.linspace(k_low, k_high, num=math.ceil((k_high - k_low) / k_step), endpoint=True)
-    
+    ks = np.linspace(k_low, k_high, num=math.ceil(
+        (k_high - k_low) / k_step), endpoint=True)
+
     t_total = time.time()
     k2xerrs, k2yerrs, k2terrs, k2L1norms = {}, {}, {}, {}
     for i, k in enumerate(ks):
         minArea = np.power(2, k)
-        print "({0}/{1}) Running with minArea={2}".format(i+1, len(ks), minArea)
+        print "({0}/{1}) Running with minArea={2}".format(i + 1, len(ks), minArea)
         t = time.time()
         errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
                                                                                  debug=debug, NUM_BALLOTS=N,
@@ -1045,7 +1151,7 @@ def experiment_vary_minarea(args):
         k2terrs[k] = np.abs(errs_theta)
         k2L1norms[k] = errs
         dur = time.time() - t
-        print "Iter Finished ({0:.4f}s) ({1}/{2})".format(dur, i+1, len(ks))
+        print "Iter Finished ({0:.4f}s) ({1}/{2})".format(dur, i + 1, len(ks))
 
     dur_total = time.time() - t_total
 
@@ -1059,7 +1165,8 @@ def experiment_vary_minarea(args):
     print "Done. ({0:.4f}s)".format(dur_total)
 
     fig0 = plt.figure()
-    fig0.suptitle("Experiment: varyMinArea. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(testsetdir, align_strat, num_ballots, num_alignments))
+    fig0.suptitle("Experiment: varyMinArea. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(
+        testsetdir, align_strat, num_ballots, num_alignments))
 
     plot_xerrs = fig0.add_subplot(221)
     plot_xerrs.set_title("Abs. X Error across K (minArea := 2**K)")
@@ -1089,6 +1196,7 @@ def experiment_vary_minarea(args):
 
     pdb.set_trace()
 
+
 def plot_stacked_hists(x2data, plot, labels=None):
     """ For each set of (x->DATA) in X2DATA, plot each DATA histogram onto
     PLOT, with different colors.
@@ -1096,7 +1204,7 @@ def plot_stacked_hists(x2data, plot, labels=None):
         dict LABELS: {X: str label}
     """
     COLORS = ("b", "g", "r", "c", "m", "y")
-    bars = [] # [(x, Plot bar), ...]
+    bars = []  # [(x, Plot bar), ...]
     width = 0.0
     for _, data in x2data.iteritems():
         hist, bins = np.histogram(data, bins=50)
@@ -1109,15 +1217,17 @@ def plot_stacked_hists(x2data, plot, labels=None):
         plot.axvline(x=bins[-1], color=COLOR)
         bars.append((x, bar))
     if labels != None:
-        plot.legend([tup[1][0] for tup in bars], [labels[x] for (x,bar) in bars])
+        plot.legend([tup[1][0] for tup in bars], [labels[x]
+                                                  for (x, bar) in bars])
     return plot
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    ## Positional Arguments
+    # Positional Arguments
     parser.add_argument("testsetdir", help="Testset location (from the \
 'create_testset.py' script).")
-    ## Optional Arguments
+    # Optional Arguments
     parser.add_argument("--out", help="Output path to store results as \
 a pickle'd file. (Suggested: <testsetdir>/out_eval_align.p)")
     parser.add_argument("--align_strat", help="Alignment strategy to use. \
@@ -1134,7 +1244,7 @@ resulting images+overlays, and wait for the user to hit enter. Default: False",
     parser.add_argument("--restore", help="Read-in a previously-generated pickle'd \
 results file, and re-plot the data.")
 
-    ## align_lk specific 
+    # align_lk specific
     parser.add_argument("--crop", help="(LK) Evaluate align_lk on a range of X/Y crop values. \
 Should be percentages of the image width/height, e.g. --crop 0.10 0.02 0.15 0.05. If the STEP \
 are 0, then use only a fixed-size crop param, e.g. --crop 0.02 0 0.02 0. Default: (0.02 0 0.02 0).",
@@ -1152,13 +1262,14 @@ If STEP or HIGH is 0, then use a fixed-size rescale factor. Default: (0.15 0 0).
 
     parser.add_argument("--vary_contrast", help="Investigate effect of increasing/lowering \
 the contrast of ink on ballots. ALPHA is the amount by which to multiply intensity values by.",
-                         nargs=3, metavar=("ALPHA_LOW", "ALPHA_HIGH", "ALPHA_STEP"),
-                         type=float)
+                        nargs=3, metavar=("ALPHA_LOW", "ALPHA_HIGH", "ALPHA_STEP"),
+                        type=float)
 
     parser.add_argument("--vary_contrast_patches", help="Investigate affect of increasing/lowering \
 the contrast of N patches of size WxH, randomly placed, by a factor of ALPHA. Runs a separate \
 experiment.",
-                        metavar=("N", "W", "H", "ALPHA_LOW", "ALPHA_HIGH", "ALPHA_STEP"),
+                        metavar=("N", "W", "H", "ALPHA_LOW",
+                                 "ALPHA_HIGH", "ALPHA_STEP"),
                         nargs=6,
                         type=float)
     parser.add_argument("--contrastbboxes", help="Specify hardcoded boundingboxes, e.g. \
@@ -1183,6 +1294,7 @@ using a different refimg.",
 
     args = parser.parse_args()
     return args
+
 
 def main():
     args = parse_args()
@@ -1218,7 +1330,8 @@ def main():
     else:
         restore_path = args.restore
         print "(Info) Loading in previous results file: {0}".format(restore_path)
-        _, _, (errs_map, errs, errs_x, errs_y, errs_theta, dur) = pickle.load(open(restore_path, 'rb'))
+        _, _, (errs_map, errs, errs_x, errs_y, errs_theta,
+               dur) = pickle.load(open(restore_path, 'rb'))
     print "...Done Evaluating ({0} secs)".format(dur)
     print "    Average per Alignment: {0} secs".format(dur / float(len(errs)))
     print
@@ -1226,9 +1339,10 @@ def main():
     print "(X Error) Mean={0}    Std={1}".format(np.mean(errs_x), np.std(errs_x))
     print "(Y Error) Mean={0}    Std={1}".format(np.mean(errs_y), np.std(errs_y))
     print "(Theta Error) Mean={0}    Std={1}".format(np.mean(errs_theta), np.std(errs_theta))
-    
+
     if outpath:
-        outinfo = (testsetdir, align_strat, (errs_map, errs, errs_x, errs_y, errs_theta, dur))
+        outinfo = (testsetdir, align_strat, (errs_map,
+                                             errs, errs_x, errs_y, errs_theta, dur))
         print "(Info) Saving eval info to: {0}".format(outpath)
         pickle.dump(outinfo, open(outpath, 'wb'))
 

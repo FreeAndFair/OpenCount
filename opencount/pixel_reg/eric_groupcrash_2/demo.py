@@ -1,4 +1,5 @@
-import sys, pickle
+import sys
+import pickle
 sys.path.append('..')
 sys.path.append('../..')
 import doGrouping
@@ -20,13 +21,14 @@ sometimes comes up. (like a 50% chance)...
 
 """
 
+
 def main():
     d = pickle.load(open(errdict, 'rb'))
 
     patchTuples = d['patchTuples']
     sc1 = d['sc1']
-    
+
     scores, locs = doGrouping.dist2patches(patchTuples, sc1)
-    
+
 if __name__ == '__main__':
     main()

@@ -1,4 +1,7 @@
-import os, sys, time, pdb
+import os
+import sys
+import time
+import pdb
 import cv
 
 sys.path.append('..')
@@ -16,6 +19,7 @@ overlay, i.e.:
     python view_minmax.py 005/
 """
 
+
 def main():
     args = sys.argv[1:]
     imgsdir = args[0]
@@ -25,7 +29,7 @@ def main():
         for imgname in [f for f in filenames if isimgext(f)]:
             imgpath = os.path.join(dirpath, imgname)
             imgpaths.append(imgpath)
-    
+
     print "Computing min/max overlays..."
     t = time.time()
     Imin, Imax = make_overlays.minmax_cv(imgpaths, do_align=True, rszFac=0.75)
@@ -37,9 +41,11 @@ def main():
 
     print "...Or, if you happen to instead have a list of images, \
 instead of a list of image paths:"
-    imgs = [cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE) for imgpath in imgpaths]
+    imgs = [cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            for imgpath in imgpaths]
     t = time.time()
-    Imin_2, Imax_2 = make_overlays.minmax_cv_V2(imgs, do_align=True, rszFac=0.75)
+    Imin_2, Imax_2 = make_overlays.minmax_cv_V2(
+        imgs, do_align=True, rszFac=0.75)
     dur = time.time() - t
     print "...Finished Computing min/max overlays V2 ({0} s).".format(dur)
     print "...Saving as: IminV2.png, ImaxV2.png..."
@@ -48,10 +54,10 @@ instead of a list of image paths:"
 
     print "Done."
 
+
 def isimgext(f):
     return os.path.splitext(f)[1].lower() in ('.png', 'jpeg', '.jpg',
                                               '.bmp', '.tif')
 
 if __name__ == "__main__":
     main()
-

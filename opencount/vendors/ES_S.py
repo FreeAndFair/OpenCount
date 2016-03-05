@@ -27,7 +27,9 @@ except NameError:
 MARK = pathjoin(MYDIR, 'ess_mark.png')
 bits = 36
 
+
 class ESSVendor(Vendor):
+
     def __init__(self, proj):
         self.proj = proj
 
@@ -56,11 +58,11 @@ class ESSVendor(Vendor):
         mark_path = MARK
         # decoded_results: {ballotID: (barcode, is_flipped, bit_locations)}
         decoded_results = decode_ballots(ballots, mark_path, manager, queue)
-        img2decoding = {} # {imgpath: (str decoding_0, ..., str decoding_N)}
+        img2decoding = {}  # {imgpath: (str decoding_0, ..., str decoding_N)}
         flip_map = {}  # {imgpath: is_flipped}
         bbs_map = {}   # {bit_value: [(imgpath, (x1,y1,x2,y2), None), ...]}
         err_imgpaths = []
-        ioerr_imgpaths = [] # TODO: Populate me if IOErrors occur!
+        ioerr_imgpaths = []  # TODO: Populate me if IOErrors occur!
         counter = 0
         for ballotid, decoded_results in decoded_results.iteritems():
             imgpaths = ballots[ballotid]
@@ -112,18 +114,19 @@ class ESSVendor(Vendor):
         imginfo_map = {}
         img_bc_temp = {}
         for bit_value, tups in verified_results.iteritems():
-            for (imgpath, (x1,y1,x2,y2), userinfo) in tups:
+            for (imgpath, (x1, y1, x2, y2), userinfo) in tups:
                 img_bc_temp.setdefault(imgpath, []).append((bit_value, y1))
         # img_decoded_map: {str imgpath: str decoding}
         img_decoded_map = es_s.build_bitstrings(img_bc_temp, bits)
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        attrs2partitionID = {} # {('precinct', 'language', 'party'): int partitionID}
+        # {('precinct', 'language', 'party'): int partitionID}
+        attrs2partitionID = {}
         curPartitionID = 0
         for imgpath, decoding in dict(img_decoded_map.items() + manual_labeled.items()).iteritems():
             img2decoding[imgpath] = decoding
             imginfo = es_s.get_info([decoding])
             imginfo_map[imgpath] = imginfo
-            tag = decoding # TODO: change once we know meaning of barcode
+            tag = decoding  # TODO: change once we know meaning of barcode
             partitionid = attrs2partitionID.get(tag, None)
             if partitionid == None:
                 partitionid = curPartitionID
@@ -137,6 +140,7 @@ class ESSVendor(Vendor):
 
     def __repr__(self):
         return 'ES&SVendor()'
+
     def __str__(self):
         return 'ES&SVendor()'
 
@@ -158,7 +162,8 @@ def _do_decode_ballots(ballots, mark_path, queue=None):
         for ballotid, imgpaths in ballots.iteritems():
             balresults = []
             for imgpath in imgpaths:
-                bitstring, is_flipped, bit_locations = es_s.decode(imgpath, mark, bits)
+                bitstring, is_flipped, bit_locations = es_s.decode(
+                    imgpath, mark, bits)
                 balresults.append((bitstring, is_flipped, bit_locations))
             results[ballotid] = balresults
             if queue:
@@ -166,6 +171,7 @@ def _do_decode_ballots(ballots, mark_path, queue=None):
         return results
     except:
         traceback.print_exc()
+
 
 def decode_ballots(ballots, mark_path, manager, queue):
     """ 

@@ -1,4 +1,11 @@
-import os, sys, math, csv, copy, pdb, traceback, time
+import os
+import sys
+import math
+import csv
+import copy
+import pdb
+import traceback
+import time
 import util_gui
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -9,7 +16,7 @@ Contains two main widgets:
 """
 
 ####
-## Import 3rd party libraries
+# Import 3rd party libraries
 ####
 
 import wx
@@ -51,11 +58,12 @@ handlers (onLeftDown, onLeftUp, onMotion, etc.) to get exactly the
 behavior you'd like.
 """
 
+
 class ImageViewer(wx.ScrolledWindow):
     """
     Window that displays an image, and lets the draw boxes.
     """
-    
+
     """
     STATE_IDLE: User can create boxes (by clicking+dragging), and
                 resize boxes (dragging LR corner)
@@ -67,17 +75,17 @@ class ImageViewer(wx.ScrolledWindow):
     STATE_RESIZE_TARGET: Activated when the user's mouse is near the
                          LR corner of a box, but not during ZOOM_IN/OUT
     """
-    
+
     # Constants used for Edit State
     STATE_IDLE = 0
     STATE_ZOOM_IN = 5
     STATE_ZOOM_OUT = 6
-    
+
     # Aux States
     STATE_RESIZE_TARGET = 6
-    
+
     def __init__(self, parent, world,
-                 can_resize=True, 
+                 can_resize=True,
                  can_delete=True,
                  can_modify=True,
                  *args, **kwargs):
@@ -101,36 +109,40 @@ class ImageViewer(wx.ScrolledWindow):
         self.target_width = 40
         self.target_height = 30
 
-        self.current_imgpath = None # Currently-displayed imgpath
+        self.current_imgpath = None  # Currently-displayed imgpath
         self.img_pil = None         # Original PIL image (no resizing)
         self.img_resize_pil = None  # PIL image that was resized
         self.img_bitmap = None      # wxBitmap object used (for painting)
-        
+
         self._grabbed_box = None  # Currently 'grabbed' target (if any)
-                                  # Note: Only used by ImageViewer atm
+        # Note: Only used by ImageViewer atm
         self._new_box = None      # Member to be used to temporarily store
-                                  # a box being created for the first time
+        # a box being created for the first time
         self._sel_boxes = []    # Currently selected boxes
-        self._resize_target = None # Current target that's being resized (if any)
-        self._resize_mode = ''    # One of 'top', 'bottom', 'left', 'right', 'upperleft', ...
+        # Current target that's being resized (if any)
+        self._resize_target = None
+        # One of 'top', 'bottom', 'left', 'right', 'upperleft', ...
+        self._resize_mode = ''
         self._resize_rect = None    # (Client) coords of target being resized:
-                                    # (<upper-left x>, <u-l y>, <lower-right x>, <l-r y>)
+        # (<upper-left x>, <u-l y>, <lower-right x>, <l-r y>)
         self._prev_cursor = None    # Store the previous cursor
         self._prev_state = None
         self._prev_auxstate = None
-        
-        self._dragselectregion = []  # (Client) coords of a click-and-drag 
-                                       # selection box made by the user
 
-        self._resize_cursor_flag = False   # Used for changing mouse cursor for resizing targets
-        self._delete_cursor_flag = False    # Used for changing mouse cursor for deleting boxes
+        self._dragselectregion = []  # (Client) coords of a click-and-drag
+        # selection box made by the user
+
+        # Used for changing mouse cursor for resizing targets
+        self._resize_cursor_flag = False
+        # Used for changing mouse cursor for deleting boxes
+        self._delete_cursor_flag = False
         self._can_drag = False              # Used to allow better click-drag behavior
-        
+
         self._oldmousepos = None    # Used to keep track of last mouse position
-                                    # for dragging boxes around
-                                  
+        # for dragging boxes around
+
         self.state_stack = []       # A stack of WorldState objects.
-                                    # Used to enable undo, etc.
+        # Used to enable undo, etc.
         # Pubsub callbacks
         self.callbacks = [("broadcast.push_state", self._pubsub_push_state),
                           ("broadcast.updated_world", self._pubsub_updated_world),
@@ -140,7 +152,7 @@ class ImageViewer(wx.ScrolledWindow):
         self.subscribe_pubsubs()
         self._init_ui()
         self._bind_events()
-        
+
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             pub.subscribe(callback, topic)
@@ -152,27 +164,33 @@ class ImageViewer(wx.ScrolledWindow):
     def _init_ui(self):
         # Grab default image
         self.set_image(None)
-        
+
     def is_resize_enabled(self):
         return self._is_resize_enabled
+
     def is_delete_enabled(self):
         return self._is_delete_enabled
+
     def is_modify_enabled(self):
         return self._is_modify_enabled
 
     def _bind_events(self):
         for evt, handler in [
-                (wx.EVT_LEFT_DOWN, self.onLeftDown),    # Create/Lift voting target box
+                # Create/Lift voting target box
+                (wx.EVT_LEFT_DOWN, self.onLeftDown),
                 (wx.EVT_LEFT_UP, self.onLeftUp),        # Drop voting target box
-                (wx.EVT_RIGHT_DOWN, self.onRightDown),  # Modify voting target box
-                (wx.EVT_MOTION, self.onMotion),         # Move/Resize voting target box        
-                (wx.EVT_SIZE, self.onSize),             # Signal to redraw screen (not sure if needed)
+                # Modify voting target box
+                (wx.EVT_RIGHT_DOWN, self.onRightDown),
+                # Move/Resize voting target box
+                (wx.EVT_MOTION, self.onMotion),
+                # Signal to redraw screen (not sure if needed)
+                (wx.EVT_SIZE, self.onSize),
                 (wx.EVT_IDLE, self.onIdle),             # Redraw
                 (wx.EVT_PAINT, self.onPaint),           # Refresh
                 (wx.EVT_ERASE_BACKGROUND, self.onEraseBackground),
                 (wx.EVT_WINDOW_DESTROY, self.cleanup)]:
             self.Bind(evt, handler)
-        
+
     def set_image(self, imgpath):
         """
         Displays the given image. If None is passed, then displays an
@@ -197,16 +215,16 @@ class ImageViewer(wx.ScrolledWindow):
         imgbitmap = util_gui.PilImageToWxBitmap(img_rescale)
         # bitmap upper left corner is in the position tuple (x, y) = (5, 5)
         self.img_bitmap = imgbitmap
-        #self.set_state(ImageViewer.STATE_IDLE)
+        # self.set_state(ImageViewer.STATE_IDLE)
         self._setup_scrollbars()
-        
+
     def set_image_pil(self, imgpath, img_pil):
         def compute_scale(imgsize, w_client):
             """
             Return the scale that most closely ensures that the
             img width matches the client width.
             """
-            w_img,h_img = imgsize
+            w_img, h_img = imgsize
             _factor = float(w_client) / w_img
             return _factor
         self.current_imgpath = imgpath
@@ -217,22 +235,23 @@ class ImageViewer(wx.ScrolledWindow):
         if self.get_selected_boxes():
             for box in self.get_selected_boxes():
                 self.unselect_target(box)
-            
+
         w_img, h_img = img_pil.size
         w_client = self.GetClientSize()[0]
         new_scale = compute_scale((w_img, h_img), w_client)
         self.set_scale(new_scale)
         self.Refresh()
-        
+
     def _setup_scrollbars(self):
-        ## Scrollbar calculations
+        # Scrollbar calculations
         _num_scrolls_x, _num_scrolls_y = 10.0, 10.0
         w_client, h_client = self.GetClientSize()
         w_img, h_img = (max(self.img_bitmap.GetWidth(), w_client),
                         max(self.img_bitmap.GetHeight(), h_client))
         x, y = round(w_img / _num_scrolls_x), round(h_img / _num_scrolls_y)
-        self.SetScrollbars(x, y, _num_scrolls_x, _num_scrolls_y, noRefresh=True)
-        
+        self.SetScrollbars(x, y, _num_scrolls_x,
+                           _num_scrolls_y, noRefresh=True)
+
     def get_imgsize(self):
         """
         Return the native (unscaled) size of the displayed image.
@@ -248,28 +267,33 @@ class ImageViewer(wx.ScrolledWindow):
 
     def get_boxes(self):
         return self.world.get_boxes(self.current_imgpath)
+
     def get_targets(self):
         return [t for t in self.get_boxes() if not t.is_contest]
+
     def get_contests(self):
         return [c for c in self.get_boxes() if c.is_contest]
+
     def remove_box(self, b):
         self.world.remove_box(self.current_imgpath, b)
+
     def add_box(self, b):
         self.world.add_box(self.current_imgpath, b)
+
     def add_boxes(self, boxes):
         self.world.add_boxes(self.current_imgpath, boxes)
 
     def reset_scale(self):
         """ Called when, say, loading a new image """
         self.scale = 1.0
-        
+
     def scale_image(self):
         """ Rescales image (keep aspect ratio) to fill in available space """
         w_client, h_client = self.GetClientSize()
         w_img, h_img = self.get_imgsize()
         factor = float(w_client) / w_img
         self.set_scale(factor)
-        
+
     def set_scale(self, scale):
         """
         Changes the scale of the entire ImageViewer (used for zooming
@@ -289,41 +313,43 @@ class ImageViewer(wx.ScrolledWindow):
         self.scale = scale
         # Rescale img bitmap
         w, h = self.img_pil.size
-        w_scaled, h_scaled = int(round(w*scale)), int(round(h*scale))
-        if dofancyresize((w,h), scale):
-            rescaled_img = self.img_pil.resize((w_scaled, h_scaled), resample=Image.ANTIALIAS)
+        w_scaled, h_scaled = int(round(w * scale)), int(round(h * scale))
+        if dofancyresize((w, h), scale):
+            rescaled_img = self.img_pil.resize(
+                (w_scaled, h_scaled), resample=Image.ANTIALIAS)
         else:
             rescaled_img = self.img_pil.resize((w_scaled, h_scaled))
         self.img_resize_pil = rescaled_img
         self.img_bitmap = util_gui.PilImageToWxBitmap(rescaled_img)
         self._setup_scrollbars()
-        
+
     def increase_scale(self, amt):
         self.set_scale(self.scale + amt)
+
     def decrease_scale(self, amt):
         self.set_scale(self.scale - amt)
-        
-    def to_scaled_coords(self, (x,y)):
+
+    def to_scaled_coords(self, (x, y)):
         """ Convert (x,y) client coords to scaled-client coords """
-        return int(round(x*self.scale)), int(round(y*self.scale))
-        
+        return int(round(x * self.scale)), int(round(y * self.scale))
+
     def set_state(self, newstate):
-        if newstate not in (ImageViewer.STATE_IDLE, 
-                         ImageViewer.STATE_ZOOM_IN,
-                         ImageViewer.STATE_ZOOM_OUT,
-                         ImageViewer.STATE_RESIZE_TARGET):
+        if newstate not in (ImageViewer.STATE_IDLE,
+                            ImageViewer.STATE_ZOOM_IN,
+                            ImageViewer.STATE_ZOOM_OUT,
+                            ImageViewer.STATE_RESIZE_TARGET):
             print "Incorrect newstate provided:", newstate
             return
         oldstate = self.curstate
         self.curstate = newstate
-        
+
         self.set_cursor(newstate)
         self.Refresh()
-        
+
     def set_auxstate(self, newstate):
         self.auxstate = newstate
         self.set_cursor(newstate)
-        
+
     def pop_state(self):
         if self.state_stack:
             if len(self.state_stack) == 1:
@@ -333,12 +359,14 @@ class ImageViewer(wx.ScrolledWindow):
                 return self.state_stack.pop()
         else:
             return None
-    def push_state(self, worldstate):  
+
+    def push_state(self, worldstate):
         """
         For convenience, this function will make a copy of 'worldstate',
         instead of relying on the caller to copy the worldstate.
         """
         self.state_stack.append(worldstate.copy())
+
     def undo(self):
         """
         Reverts the current WorldState to a prior one.
@@ -347,7 +375,7 @@ class ImageViewer(wx.ScrolledWindow):
         if oldstate:
             self.world.mutate(oldstate)
             pub.sendMessage("broadcast.updated_world")
-            
+
     def set_cursor(self, state):
         if state == ImageViewer.STATE_ZOOM_IN or state == ImageViewer.STATE_ZOOM_OUT:
             c = wx.CURSOR_MAGNIFIER
@@ -356,25 +384,27 @@ class ImageViewer(wx.ScrolledWindow):
         else:
             c = wx.CURSOR_ARROW
         self.SetCursor(wx.StockCursor(c))
-        
+
     def set_target_width(self, w):
         self.target_width = w
-        
+
     def set_target_height(self, h):
         self.target_height = h
-        
+
     def import_locations(self, csvfilepath):
         """ 
         Import locations (both targets and contests) from 'csvfilepath'.
         OUTDATED: Doesn't use self.world yet.
         """
-        fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id')
+        fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
+                  'label', 'is_contest', 'contest_id')
         try:
             csvfile = open(csvfilepath, 'rb')
             dictreader = csv.DictReader(csvfile)
             w_img, h_img = self.img_pil.size
             # Ensure that target ID's are consecutive
-            sorted_rows = sorted([row for row in dictreader], key=lambda r: int(r['id']))
+            sorted_rows = sorted([row for row in dictreader],
+                                 key=lambda r: int(r['id']))
             for i, row in enumerate(sorted_rows):
                 # Scaling that has to be done
                 x1 = float(row['x']) / float(w_img)
@@ -389,15 +419,17 @@ class ImageViewer(wx.ScrolledWindow):
                                      contest_id=contest_id,
                                      id=i)
                 assert target.contest_id == contest_id
-                self.world.add_box(os.path.abspath(self.current_imgpath), target)
+                self.world.add_box(os.path.abspath(
+                    self.current_imgpath), target)
                 assert target.contest_id == contest_id
             self.Refresh()
         except IOError as e:
-            print "Unable to open file: {0}".format(csvfilepath)        
-        
+            print "Unable to open file: {0}".format(csvfilepath)
+
     def export_locations(self, outfilepath):
         """ Save all bounding boxes (targets, contests) to CSV file """
-        fields = ['imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id']
+        fields = ['imgpath', 'id', 'x', 'y', 'width',
+                  'height', 'label', 'is_contest', 'contest_id']
         try:
             csvfile = open(outfilepath, 'wb')
             dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
@@ -408,7 +440,8 @@ class ImageViewer(wx.ScrolledWindow):
             bounding_boxes = self.world.get_boxes(self.current_imgpath)
             if self.get_selected_boxes():
                 bounding_boxes.extend(self.get_selected_boxes())
-            # Let's avoid holes in ID's, which may cause headaches down the line
+            # Let's avoid holes in ID's, which may cause headaches down the
+            # line
             bounding_boxes = sorted(bounding_boxes, key=lambda t: t.id)
             # Ensure that ID's are consecutive via use of 'enumerate'
             for id, t in enumerate(bounding_boxes):
@@ -424,19 +457,21 @@ class ImageViewer(wx.ScrolledWindow):
                 height = int(round(abs(t.y1 - t.y2) * h_img))
                 row['width'] = width
                 row['height'] = height
-                # Replace commas with underscore to avoid problems with csv files
+                # Replace commas with underscore to avoid problems with csv
+                # files
                 row['label'] = t.label.replace(",", "_")
                 row['is_contest'] = 1 if t.is_contest else 0
                 row['contest_id'] = t.contest_id
                 dictwriter.writerow(row)
             csvfile.close()
         except IOError as e:
-            print "Couldn't write to file:", outfilepath            
-        
-    #### PubSub callbacks
-        
+            print "Couldn't write to file:", outfilepath
+
+    # PubSub callbacks
+
     def _update_state(self, msg):
         self.set_state(msg.data)
+
     def _new_image(self, msg):
         """
         Happens when the user loads up a new image, File->Open...
@@ -445,6 +480,7 @@ class ImageViewer(wx.ScrolledWindow):
         self.set_image(filepath)
         self.set_state(ImageViewer.STATE_IDLE)
         self.Refresh()
+
     def _pubsub_push_state(self, msg):
         """
         Triggered whenever the world gets modified by the user (in a
@@ -452,13 +488,14 @@ class ImageViewer(wx.ScrolledWindow):
         """
         worldstate = msg.data
         self.push_state(worldstate)
+
     def _pubsub_updated_world(self, msg):
         """
         Triggered whenever the world changes. Check to see if any of
         the boxes are selected. Updates my internal data structs, but
         don't modify the world itself.
         """
-        #self.unselect_boxes()
+        # self.unselect_boxes()
         self._sel_boxes = []
         for box in self.world.get_boxes(self.current_imgpath):
             if box.is_selected:
@@ -482,8 +519,8 @@ class ImageViewer(wx.ScrolledWindow):
         Zoom in/out by amt, and also center the viewport.
         If amt > 1.0, then zoom in. Otherwise zoom out.
         """
-        x,y = self.GetClientSize()[0] / 2, self.GetClientSize()[1] / 2
-        x,y = self.CalcUnscrolledPosition((x,y))
+        x, y = self.GetClientSize()[0] / 2, self.GetClientSize()[1] / 2
+        x, y = self.CalcUnscrolledPosition((x, y))
         old_scale = self.scale
         # If the image gets too small, an EVT_SIZE event is fired, which
         # expands image to max-fit -- annoying when zooming out a lot.
@@ -493,11 +530,12 @@ class ImageViewer(wx.ScrolledWindow):
         else:
             self.decrease_scale(1.0 - amt)
 
-        new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
-        self.center_viewport(new_virt_pos, (x,y))
+        new_virt_pos = (x * (self.scale / old_scale),
+                        y * (self.scale / old_scale))
+        self.center_viewport(new_virt_pos, (x, y))
         self.Refresh()
         self.Bind(wx.EVT_SIZE, self.onSize)
-        
+
     def get_closest_target(self, mousepos, boxes=None, mode="upper-left"):
         """
         Given current mouse position, return the closest target w.r.t 
@@ -515,43 +553,45 @@ class ImageViewer(wx.ScrolledWindow):
                 boxes += [self._grabbed_box]
         w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
         if mode == "upper-left":
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, (t.x1*w_img, t.y1*h_img))],
-                                key=lambda t : util_gui.dist_euclidean(mousepos, (t.x1*w_img, t.y1*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, (t.x1 * w_img, t.y1 * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, (t.x1 * w_img, t.y1 * h_img)))
             return candidates[0] if candidates else None
         elif mode == "lower-right":
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1+t.width)*w_img, (t.y1+t.height)*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1+t.width)*w_img, (t.y1+t.height)*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1 + t.width) * w_img, (t.y1 + t.height) * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1 + t.width) * w_img, (t.y1 + t.height) * h_img)))
             return candidates[0] if candidates else None
         elif mode == "upper-right":
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1+t.width)*w_img, t.y1*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1+t.width)*w_img, t.y1*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1 + t.width) * w_img, t.y1 * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1 + t.width) * w_img, t.y1 * h_img)))
             return candidates[0] if candidates else None
         elif mode == "lower-left":
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1)*w_img, (t.y1+t.height)*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1)*w_img, (t.y1+t.height)*h_img)))
-            return candidates[0] if candidates else None            
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1) * w_img, (t.y1 + t.height) * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1) * w_img, (t.y1 + t.height) * h_img)))
+            return candidates[0] if candidates else None
         elif mode == 'top':
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1+(t.width/2.0))*w_img, t.y1*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1+(t.width/2.0))*w_img, t.y1*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1 + (t.width / 2.0)) * w_img, t.y1 * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1 + (t.width / 2.0)) * w_img, t.y1 * h_img)))
             return candidates[0] if candidates else None
         elif mode == 'bottom':
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1+(t.width/2.0))*w_img, (t.y1+t.height)*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1+(t.width/2.0))*w_img, (t.y1+t.height)*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1 + (t.width / 2.0)) * w_img, (t.y1 + t.height) * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1 + (t.width / 2.0)) * w_img, (t.y1 + t.height) * h_img)))
             return candidates[0] if candidates else None
         elif mode == 'left':
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, (t.x1*w_img, (t.y1+t.height/2.0)*h_img))],
-                                key=lambda t : util_gui.dist_euclidean(mousepos, (t.x1*w_img, (t.y1+t.height/2.0)*h_img)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, (t.x1 * w_img, (t.y1 + t.height / 2.0) * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, (t.x1 * w_img, (t.y1 + t.height / 2.0) * h_img)))
             return candidates[0] if candidates else None
         elif mode == 'right':
-            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1+t.width)*w_img, (t.y1+(t.height/2.0))*h_img))],
-                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1+t.width)*w_img, (t.y1+(t.height/2.0))*h_img/2)))
+            candidates = sorted([t for t in boxes if util_gui.is_close_to(mousepos, ((t.x1 + t.width) * w_img, (t.y1 + (t.height / 2.0)) * h_img))],
+                                key=lambda t: util_gui.dist_euclidean(mousepos, ((t.x1 + t.width) * w_img, (t.y1 + (t.height / 2.0)) * h_img / 2)))
             return candidates[0] if candidates else None
         elif mode == "bounding-box":
             x, y = mousepos
             candidates = []
             for box in boxes:
-                x_t, y_t = int(round(box.x1 * w_img)), int(round(box.y1 * h_img))
-                w_t, h_t = int(round(box.width * w_img)), int(round(box.height * h_img))
+                x_t, y_t = int(round(box.x1 * w_img)
+                               ), int(round(box.y1 * h_img))
+                w_t, h_t = int(round(box.width * w_img)
+                               ), int(round(box.height * h_img))
                 if util_gui.is_on_bounding_box(mousepos, (x_t, y_t), w_t, h_t, 3):
                     candidates.append(box)
             return candidates[0] if candidates else None
@@ -559,10 +599,12 @@ class ImageViewer(wx.ScrolledWindow):
             x, y = mousepos
             candidates = []
             for box in boxes:
-                x1_box, y1_box = int(round(box.x1 * w_img)), int(round(box.y1 * h_img))
-                w_box, h_box = int(round(box.width * w_img)), int(round(box.height * h_img))
-                if (x >= x1_box and x <= (x1_box+w_box)
-                        and y >= y1_box and y <= (y1_box+h_box)):
+                x1_box, y1_box = int(round(box.x1 * w_img)
+                                     ), int(round(box.y1 * h_img))
+                w_box, h_box = int(round(box.width * w_img)
+                                   ), int(round(box.height * h_img))
+                if (x >= x1_box and x <= (x1_box + w_box)
+                        and y >= y1_box and y <= (y1_box + h_box)):
                     candidates.append(box)
             # To handle case where there are nested boxes, we want the
             # 'inner-most' box to be returned, which I believe will
@@ -570,13 +612,13 @@ class ImageViewer(wx.ScrolledWindow):
             fn = util_gui.dist_euclidean
             if not candidates:
                 return None
-            return sorted(candidates, 
+            return sorted(candidates,
                           key=lambda box: fn(mousepos,
-                                             (box.x1*w_img, box.y1*h_img)))[0]
+                                             (box.x1 * w_img, box.y1 * h_img)))[0]
         else:
             raise RuntimeException("Error: in BallotScreen.get_closest_target(3), \
 unexpected mode given: {0}".format(mode))
-                
+
     def get_closest_resize_box(self, targets, mousepos):
         """
         Like get_closest_target(5), but only to get candidate boxes
@@ -591,6 +633,7 @@ unexpected mode given: {0}".format(mode))
             if t:
                 return t, mode
         return None, ''
+
     def get_closest_box_any(self, targets, mousepos):
         """
         Like get_closest_target(5), but also returns the mode.
@@ -603,16 +646,16 @@ unexpected mode given: {0}".format(mode))
             t = self.get_closest_target(mousepos, boxes=targets, mode=mode)
             if t:
                 return t, mode
-        return None, ''                 
+        return None, ''
 
     def get_selected_boxes(self):
         return self._sel_boxes
-            
+
     def select_target(self, box):
         if box not in self._sel_boxes:
             box.select()
             self._sel_boxes.append(box)
-            
+
     def unselect_boxes(self):
         """ Unselect all currently-selected boxes """
         for box in self._sel_boxes:
@@ -623,31 +666,34 @@ unexpected mode given: {0}".format(mode))
         """ Unselect the currently selected target """
         box.unselect()
         self._sel_boxes.remove(box)
-        
+
     def is_select_target(self):
         """
         Returns True if a target is selected at the moment.
         """
         return self._sel_boxes
-    
+
     def enable_dragging(self):
         """
         Allows the user to click-drag a selected BoundingBox. 
         """
         self._can_drag = True
+
     def disable_dragging(self):
         self._can_drag = False
+
     def can_drag(self):
         """
         Returns True iff the user is allowed to click-drag a Box.
         """
         return self._can_drag
-    
+
     def is_new_box(self):
         """
         Returns True if a box is in the middle of being created.
         """
         return self._new_box != None
+
     def set_new_box(self, b):
         """
         Registers 'b' as being a box currently being created (i.e.
@@ -658,14 +704,15 @@ unexpected mode given: {0}".format(mode))
         assert self._new_box == None
         self._new_box = b
         self._new_box.is_new = True
+
     def unset_new_box(self):
         assert self._new_box != None
         self._new_box.is_new = False
         self._new_box = None
-        
+
     def get_new_box(self):
         return self._new_box
-    
+
     def set_resize_target(self, box, corner):
         """ 
         Select a box for it to be resized by the user.
@@ -679,24 +726,24 @@ unexpected mode given: {0}".format(mode))
         self._resize_mode = corner
         w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
         x1, y1 = int(round(box.x1 * w_img)), int(round(box.y1 * h_img))
-        x2 = int(round(box.x1*w_img + box.width*w_img))
-        y2 = int(round(box.y1*h_img + box.height*h_img))
+        x2 = int(round(box.x1 * w_img + box.width * w_img))
+        y2 = int(round(box.y1 * h_img + box.height * h_img))
         self._resize_rect = [x1, y1, x2, y2]
-        
+
     def unset_resize_target(self):
         self._resize_target = None
         self._resize_rect = None
         self._resize_mode = ''
-        
+
     def is_resize_target(self):
         """ Return True if a user is currently resizing a target """
         return self._resize_target != None
-        
+
     def delete_target(self, box):
         if box in self.world.get_boxes(self.current_imgpath):
             self.world.remove_box(self.current_imgpath, box)
         else:
-            print "ImageViewer.delete_target: BoundingBox wasn't found:", box            
+            print "ImageViewer.delete_target: BoundingBox wasn't found:", box
         if box in self.get_selected_boxes()[:]:
             self.unselect_target(box)
 
@@ -707,17 +754,19 @@ unexpected mode given: {0}".format(mode))
         """
         if self.GetScrollPixelsPerUnit()[0]:
             _round = lambda x: int(round(x))
-            x,y = virt_pos
-            x_offset = _round((self.GetClientSize()[0])/2.0)
-            y_offset = _round((self.GetClientSize()[1])/2.0)
-            x_foo = x-x_offset if x-x_offset > 0 else 0
-            y_foo = y-y_offset if y-y_offset > 0 else 0
-            x_scrollunit = _round(x_foo / float(self.GetScrollPixelsPerUnit()[0]))
-            y_scrollunit = _round(y_foo / float(self.GetScrollPixelsPerUnit()[1]))
+            x, y = virt_pos
+            x_offset = _round((self.GetClientSize()[0]) / 2.0)
+            y_offset = _round((self.GetClientSize()[1]) / 2.0)
+            x_foo = x - x_offset if x - x_offset > 0 else 0
+            y_foo = y - y_offset if y - y_offset > 0 else 0
+            x_scrollunit = _round(
+                x_foo / float(self.GetScrollPixelsPerUnit()[0]))
+            y_scrollunit = _round(
+                y_foo / float(self.GetScrollPixelsPerUnit()[1]))
             self.Scroll(x_scrollunit, y_scrollunit)
-        
-    #### Event handlers
-    
+
+    # Event handlers
+
     def onLeftDown(self, event):
         """
         Depending on the edit mode, either creates a new voting target
@@ -730,35 +779,39 @@ unexpected mode given: {0}".format(mode))
             # Create new box at mouse location
             w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
             x1_rel, y1_rel = x / float(w_img), y / float(h_img)
-            x2_rel, y2_rel = (x+1)/float(w_img), (y+1)/float(h_img) #x1_rel, y1_rel
+            x2_rel, y2_rel = (x + 1) / float(w_img), (y + 1) / \
+                float(h_img)  # x1_rel, y1_rel
             new_box = BoundingBox(x1_rel, y1_rel, x2_rel, y2_rel)
             self._grabbed_box = new_box
             self.Refresh()
             return
         elif self.curstate == ImageViewer.STATE_ZOOM_IN:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
             self.increase_scale(0.2)
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         elif self.curstate == ImageViewer.STATE_ZOOM_OUT:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
             self.decrease_scale(0.2)
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
-            
+
         if (self.curstate == ImageViewer.STATE_IDLE):
-            t, mode = self.get_closest_resize_box(self.world.get_boxes(self.current_imgpath), (x,y))
+            t, mode = self.get_closest_resize_box(
+                self.world.get_boxes(self.current_imgpath), (x, y))
             if t and self.is_resize_enabled():
                 self.set_resize_target(t, mode)
                 self._prev_auxstate = self.auxstate
                 self.set_auxstate(ImageViewer.STATE_RESIZE_TARGET)
                 self.Refresh()
         event.Skip()
-        
+
     def onLeftUp(self, event):
         """ Drop the voting target box at the current mouse location. """
         mousepos = self.CalcUnscrolledPosition(event.GetPositionTuple())
@@ -770,26 +823,33 @@ unexpected mode given: {0}".format(mode))
             self._grabbed_box = None
             self.Refresh()
             return
-        
+
         # Auxillary State Handling
         if self.auxstate == ImageViewer.STATE_RESIZE_TARGET:
             if self.is_resize_target():
                 x, y = mousepos
                 x1, y1, x2, y2 = self._resize_rect
-                (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
-                w_pixs = int(round((abs(x2-x1) / float(self.img_bitmap.GetWidth())) * self.img_pil.size[0]))
-                h_pixs = int(round((abs(y2-y1) / float(self.img_bitmap.GetHeight())) * self.img_pil.size[1]))
-                self._resize_target.x1 = ul_x / float(self.img_bitmap.GetWidth())
-                self._resize_target.y1 = ul_y / float(self.img_bitmap.GetHeight())
-                self._resize_target.x2 = lr_x / float(self.img_bitmap.GetWidth())
-                self._resize_target.y2 = lr_y / float(self.img_bitmap.GetHeight())
+                (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners(
+                    (x1, y1), (x2, y2))
+                w_pixs = int(
+                    round((abs(x2 - x1) / float(self.img_bitmap.GetWidth())) * self.img_pil.size[0]))
+                h_pixs = int(round(
+                    (abs(y2 - y1) / float(self.img_bitmap.GetHeight())) * self.img_pil.size[1]))
+                self._resize_target.x1 = ul_x / \
+                    float(self.img_bitmap.GetWidth())
+                self._resize_target.y1 = ul_y / \
+                    float(self.img_bitmap.GetHeight())
+                self._resize_target.x2 = lr_x / \
+                    float(self.img_bitmap.GetWidth())
+                self._resize_target.y2 = lr_y / \
+                    float(self.img_bitmap.GetHeight())
                 self.unset_resize_target()
                 self.set_auxstate(self._prev_auxstate)
                 self._prev_auxstate = None
-                
+
         self.Refresh()
         event.Skip()
-        
+
     def onRightDown(self, event):
         """
         If the edit mode is 'Modify', then if the user right-clicks a
@@ -797,30 +857,32 @@ unexpected mode given: {0}".format(mode))
         dimensions of that particular box.
         Not sure if needed.
         """
-        x,y = self.CalcUnscrolledPosition(event.GetPositionTuple())        
+        x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
         if (self.curstate == ImageViewer.STATE_ZOOM_IN):
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
-            
+
             self.decrease_scale(0.2)
 
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
-            
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
+
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         elif self.curstate == ImageViewer.STATE_ZOOM_OUT:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
-            
+
             self.increase_scale(0.2)
 
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
-            
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
+
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         self.Refresh()
         event.Skip()
-        
+
     def onMotion(self, event):
         """
         Depending on the edit mode, move the voting target box 
@@ -828,17 +890,17 @@ unexpected mode given: {0}".format(mode))
         """
         x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
         if (self.curstate == ImageViewer.STATE_IDLE
-                and self.get_closest_target((x,y), mode="lower-right")
+                and self.get_closest_target((x, y), mode="lower-right")
                 and not self.is_resize_target()
                 and not self._resize_cursor_flag):
             # We just entered LR corner of a voting box
-            myCursor= wx.StockCursor(wx.CURSOR_SIZENWSE)
+            myCursor = wx.StockCursor(wx.CURSOR_SIZENWSE)
             self._prev_cursor = self.GetCursor()
             self.SetCursor(myCursor)
             self._resize_cursor_flag = True
             self.Refresh()
         elif (self.curstate == ImageViewer.STATE_IDLE
-                and not self.get_closest_target((x,y), mode="lower-right")
+                and not self.get_closest_target((x, y), mode="lower-right")
                 and not self.is_resize_target()
                 and self._resize_cursor_flag):
             # Mouse just left region of LR corner of a voting box
@@ -846,7 +908,7 @@ unexpected mode given: {0}".format(mode))
             self._prev_cursor = None
             self._resize_cursor_flag = False
             self.Refresh()
-        elif (self._grabbed_box 
+        elif (self._grabbed_box
                 and self.curstate == ImageViewer.STATE_IDLE
                 and event.LeftIsDown()
                 and not self._resize_cursor_flag):
@@ -855,14 +917,14 @@ unexpected mode given: {0}".format(mode))
             self._grabbed_box.x2 = x_rel
             self._grabbed_box.y2 = y_rel
             self._grabbed_box.set_color("Red")
-            self.Refresh()            
+            self.Refresh()
         elif self.get_selected_boxes() and event.LeftIsDown():
             w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
             for box in self.get_selected_boxes():
                 box.x2 = x / float(w_img)
                 box.y2 = y / float(h_img)
                 box.set_color("Red")
-            self.Refresh()        
+            self.Refresh()
         # Aux State Handling
         if (self.auxstate == ImageViewer.STATE_RESIZE_TARGET
                 and self.is_resize_target()):
@@ -870,7 +932,7 @@ unexpected mode given: {0}".format(mode))
                                  x, y]
             self.Refresh()
         event.Skip()
-        
+
     def onSize(self, event):
         """ Rescale image to fill available space (maintain aspect ratio) """
         if self.img_bitmap:
@@ -885,7 +947,7 @@ unexpected mode given: {0}".format(mode))
         """ Redraw screen. """
         self.Update()
         event.Skip()
-        
+
     def onPaint(self, event):
         """ Refresh screen. """
         if self.IsDoubleBuffered():
@@ -902,7 +964,7 @@ unexpected mode given: {0}".format(mode))
         if self._dragselectregion:
             self._draw_dragselectregion(dc)
         event.Skip()
-        
+
     def _draw_dragselectregion(self, dc):
         """
         Draw the selection box created when a user click-drags
@@ -913,7 +975,7 @@ unexpected mode given: {0}".format(mode))
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Black", 1.0))
         ul_x, ul_y, lr_x, lr_y = self._dragselectregion
-        (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((ul_x,ul_y),
+        (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((ul_x, ul_y),
                                                               (lr_x, lr_y))
         w, h = abs(ul_x - lr_x), abs(ul_y - lr_y)
         dc.DrawRectangle(ul_x, ul_y, w, h)
@@ -927,33 +989,33 @@ unexpected mode given: {0}".format(mode))
         CIRCLE_RAD = 1 if self.scale == 1.0 else 3
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen(box.color, box.line_width))
-        
+
         w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
-        x1, y1 = int(round(box.x1*w_img)), int(round(box.y1*h_img))
-        x2, y2 = int(round(box.x2*w_img)), int(round(box.y2*h_img))
-        w, h = abs(x1-x2), abs(y1-y2)
-        (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1,y1),(x2,y2))
-        dc.DrawRectangle(ul_x,ul_y,w,h)
+        x1, y1 = int(round(box.x1 * w_img)), int(round(box.y1 * h_img))
+        x2, y2 = int(round(box.x2 * w_img)), int(round(box.y2 * h_img))
+        w, h = abs(x1 - x2), abs(y1 - y2)
+        (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
+        dc.DrawRectangle(ul_x, ul_y, w, h)
         # Draw the 'grabber' circles
         dc.SetPen(wx.Pen("Black", 1))
         dc.SetBrush(wx.Brush("White"))
         dc.DrawCircle(ul_x, ul_y, CIRCLE_RAD)           # Upper-Left
-        dc.DrawCircle(ul_x+(w/2), ul_y, CIRCLE_RAD)     # Top
-        dc.DrawCircle(ul_x+w, ul_y, CIRCLE_RAD)         # Upper-Right
-        dc.DrawCircle(ul_x, ul_y+(h/2), CIRCLE_RAD)     # Left
-        dc.DrawCircle(ul_x+w, ul_y+(h/2), CIRCLE_RAD)   # Right
-        dc.DrawCircle(ul_x, ul_y+h, CIRCLE_RAD)         # Lower-Left
-        dc.DrawCircle(ul_x+(w/2), lr_y, CIRCLE_RAD)     # Bottom
+        dc.DrawCircle(ul_x + (w / 2), ul_y, CIRCLE_RAD)     # Top
+        dc.DrawCircle(ul_x + w, ul_y, CIRCLE_RAD)         # Upper-Right
+        dc.DrawCircle(ul_x, ul_y + (h / 2), CIRCLE_RAD)     # Left
+        dc.DrawCircle(ul_x + w, ul_y + (h / 2), CIRCLE_RAD)   # Right
+        dc.DrawCircle(ul_x, ul_y + h, CIRCLE_RAD)         # Lower-Left
+        dc.DrawCircle(ul_x + (w / 2), lr_y, CIRCLE_RAD)     # Bottom
         dc.DrawCircle(lr_x, lr_y, CIRCLE_RAD)           # Lower-Right
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        
+
         # Draw the ID numbers (for now)
-        #if box.is_contest:
+        # if box.is_contest:
         #    dc.SetTextForeground("Blue")
-        #else:
+        # else:
         #    dc.SetTextForeground("Red")
         #dc.DrawText(str(box.contest_id), ul_x, ul_y)
-        
+
     def _draw_resize_rect(self, dc):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Orange", 3))
@@ -961,7 +1023,7 @@ unexpected mode given: {0}".format(mode))
         (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
         w, h = abs(lr_x - ul_x), abs(lr_y - ul_y)
         dc.DrawRectangle(ul_x, ul_y, w, h)
-        
+
     def _display_targets(self, dc):
         """ Only to be called from self.onPaint(2) """
         if self.current_imgpath:
@@ -970,14 +1032,16 @@ unexpected mode given: {0}".format(mode))
                 self._draw_box(dc, box)
         if self._grabbed_box:
             self._draw_box(dc, self._grabbed_box)
+
     def onEraseBackground(self, event):
         pass
-        #event.Skip()
-        
+        # event.Skip()
+
     def cleanup(self, event):
         """ Release held resources (like open image files). """
         event.Skip()
-       
+
+
 class WorldState(object):
     """
     A class to hold all shared state amongst widgets -- i.e. the
@@ -985,9 +1049,11 @@ class WorldState(object):
     Having each widget store its own 'copy' of the world is a
     BadIdea (tm).
     """
+
     def __init__(self, box_locations=None):
         if box_locations:
-            self.box_locations = box_locations     # {str templatepath: list boxes}
+            # {str templatepath: list boxes}
+            self.box_locations = box_locations
         else:
             self.box_locations = {}
         self.callbacks = [("signals.world.set_boxes", self._pubsub_set_boxes),
@@ -996,22 +1062,27 @@ class WorldState(object):
     def subscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             pub.subscribe(callback, topic)
+
     def unsubscribe_pubsubs(self):
         for (topic, callback) in self.callbacks:
             pub.unsubscribe(callback, topic)
 
     def get_boxes(self, imgpath):
         return self.box_locations.get(imgpath, [])
+
     def get_boxes_all(self):
         return self.box_locations
+
     def get_boxes_all_list(self):
         """
         Return a list of all BoundingBoxes as a flatlist. Useful if you want
         to perfrom some global operation on all boxes, like a global resize.
         """
-        return reduce(lambda x,y: x+y, self.box_locations.values(), [])
+        return reduce(lambda x, y: x + y, self.box_locations.values(), [])
+
     def get_boxes_count(self, imgpath):
         return len(self.get_boxes(imgpath))
+
     def get_boxes_count_all(self):
         return sum([self.get_boxes_count(path) for path in self.box_locations])
 
@@ -1023,6 +1094,7 @@ class WorldState(object):
             print 'WorldState.add_box: {0} already in box_locations for {1}'.format(box, imgpath)
         else:
             self.box_locations.setdefault(imgpath, []).append(box)
+
     def add_boxes(self, imgpath, boxes):
         if not boxes:
             # Still register 'imgpath' into self.box_locations
@@ -1030,13 +1102,18 @@ class WorldState(object):
         else:
             for b in boxes:
                 self.add_box(imgpath, b)
+
     def remove_box(self, imgpath, box):
         self.box_locations[imgpath].remove(box)
+
     def remove_voting_targets(self, imgpath):
-        self.box_locations[imgpath] = [b for b in self.box_locations[imgpath] if b.is_contest]
+        self.box_locations[imgpath] = [
+            b for b in self.box_locations[imgpath] if b.is_contest]
+
     def remove_contests(self, imgpath):
-        self.box_locations[imgpath] = [b for b in self.box_locations[imgpath] if not b.is_contest]
-       
+        self.box_locations[imgpath] = [
+            b for b in self.box_locations[imgpath] if not b.is_contest]
+
     def mutate(self, worldstate):
         """
         Change this WorldState to match the input 'worldstate'. 
@@ -1044,6 +1121,7 @@ class WorldState(object):
         the Undo feature.
         """
         self.box_locations = worldstate.box_locations
+
     def reset(self):
         """
         Reset this WorldState to be 'blank'.
@@ -1053,9 +1131,9 @@ class WorldState(object):
     def copy(self):
         newboxlocs = {}
         for tmppath, boxes in self.box_locations.iteritems():
-            newboxlocs[tmppath] = [b.copy() for b  in boxes]
+            newboxlocs[tmppath] = [b.copy() for b in boxes]
         return WorldState(newboxlocs)
-        
+
     # Pubsub callbacks
     def _pubsub_templatesdir(self, msg):
         templatesdir = msg.data
@@ -1063,9 +1141,11 @@ class WorldState(object):
             for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
                 imgpath = os.path.abspath(os.path.join(dirpath, imgname))
                 self.box_locations.setdefault(imgpath, [])
+
     def _pubsub_set_boxes(self, msg):
         self.box_locations = msg.data
-       
+
+
 class BoundingBox(object):
     """
     To account for image resizing, all coordinates (x1,y1,x2,y2)
@@ -1078,9 +1158,9 @@ class BoundingBox(object):
     # Radius of the 'grab' circle in the upper-left corner
     CIRCLE_RAD = 5.5
     CIRCLE_COLOR = "Blue"
-    
-    def __init__(self, x1, y1, x2, y2, label='', color=None, 
-                 id=None, is_contest=False, contest_id=None, 
+
+    def __init__(self, x1, y1, x2, y2, label='', color=None,
+                 id=None, is_contest=False, contest_id=None,
                  target_id=None,
                  line_width=None, children=[],
                  is_new=False, is_selected=False):
@@ -1094,7 +1174,7 @@ class BoundingBox(object):
         bool is_new: True iff this box is in the middle of being
                      created.
         bool is_selected: True iff this box is currently selected.
-                        
+
         Note: id is subject to be changed if 'holes' in the id range
         are detected during importing/exporting voting targets.
         """
@@ -1127,20 +1207,21 @@ class BoundingBox(object):
             self.line_width = line_width
         self.children = children
 
-        
     def get_coords(self):
         """ Return x1,y1,x2,y2 as rel coords """
         return self.x1, self.y1, self.x2, self.y2
-        
+
     @property
     def width(self):
         return abs(self.x1 - self.x2)
+
     @property
     def height(self):
         return abs(self.y1 - self.y2)
-        
+
     def set_color(self, color):
         self.color = color
+
     def restore_color(self):
         """
         Depending on what kind of BoundingBox I am (voting target, or
@@ -1150,6 +1231,7 @@ class BoundingBox(object):
             self.set_color("Blue")
         else:
             self.set_color("Orange")
+
     def restore_line_width(self):
         """
         Depending on what kind of BoundingBox I am (voting target, or
@@ -1159,17 +1241,18 @@ class BoundingBox(object):
             self.line_width = 3
         else:
             self.line_width = 2
-    
+
     def select(self):
         self.set_color("Yellow")
         self.is_selected = True
+
     def unselect(self):
         self.restore_color()
         self.is_selected = False
-        
+
     def copy(self):
         """ Return a copy of myself """
-        return BoundingBox(self.x1, self.y1, 
+        return BoundingBox(self.x1, self.y1,
                            self.x2, self.y2, label=self.label,
                            color=self.color, id=self.id, is_contest=self.is_contest,
                            contest_id=self.contest_id, is_new=self.is_new,
@@ -1192,7 +1275,7 @@ class BoundingBox(object):
         """
         Returns a BoundingBox instance that is fed from 'data'.
         """
-        box = BoundingBox(0,0,0,0)
+        box = BoundingBox(0, 0, 0, 0)
         for (propname, propval) in data.iteritems():
             setattr(box, propname, propval)
         return box
@@ -1201,10 +1284,13 @@ class BoundingBox(object):
         return (a and self.x1 == a.x1 and self.y1 == a.y1 and self.x2 == a.x2
                 and self.y2 == a.y2 and self.is_contest == a.is_contest
                 and self.label == a.label)
+
     def __repr__(self):
         return "BoundingBox({0},{1},{2},{3},label={4},is_contest={5})".format(self.x1, self.y1, self.x2, self.y2, self.label, self.is_contest)
+
     def __str___(self):
         return "BoundingBox({0},{1},{2},{3},label={4},is_contest={5})".format(self.x1, self.y1, self.x2, self.y2, self.label, self.is_contest)
+
 
 class BallotViewer(wx.Panel):
     """
@@ -1212,6 +1298,7 @@ class BallotViewer(wx.Panel):
     creation of boxes), and a toolbar that controls the behavior of
     the BallotScreen.
     """
+
     def __init__(self, parent, world, ballotscreen=None, toolbar=None, *args, **kwargs):
         """
         obj parent: Parent widget.
@@ -1223,7 +1310,7 @@ class BallotViewer(wx.Panel):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         self.world = world
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         if not toolbar:
             self.toolbar = ToolBar(self)
@@ -1235,14 +1322,16 @@ class BallotViewer(wx.Panel):
             self.ballotscreen = BallotScreen(self, self.world)
         else:
             self.ballotscreen = ballotscreen(self, self.world)
-        self.sizer.Add(self.ballotscreen, proportion=1, flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
-        
+        self.sizer.Add(self.ballotscreen, proportion=1,
+                       flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
+
         self.SetSizer(self.sizer)
         self.Fit()
-        
+
         # Pubsubs
         self.callbacks = [("signals.ballotviewer.set_image_pil", self.pubsub_set_image_pil),
-                          ("signals.ballotviewer.set_candidate_targets", self.pubsub_set_candidate_targets),
+                          ("signals.ballotviewer.set_candidate_targets",
+                           self.pubsub_set_candidate_targets),
                           ("signals.ballotviewer.set_targets", self.pubsub_set_targets)]
 
     def subscribe_pubsubs(self):
@@ -1265,28 +1354,34 @@ class BallotViewer(wx.Panel):
         else:
             self.toolbar.enable_buttons()
         self.ballotscreen.set_image(imgpath)
+
     def set_image_pil(self, path, img_pil):
         if not path or not img_pil:
             self.toolbar.disable_buttons()
         else:
-            self.toolbar.enable_buttons()        
+            self.toolbar.enable_buttons()
         self.ballotscreen.set_image_pil(path, img_pil)
+
     def get_imgsize(self):
         return (self.ballotscreen.img_bitmap.GetWidth(),
                 self.ballotscreen.img_bitmap.GetHeight())
-        
-    #### Pubsub callbacks
+
+    # Pubsub callbacks
     def pubsub_set_image_pil(self, msg):
         """ msg.data is a tuple: (str path, obj Image) """
         path, img_pil = msg.data
         self.set_image_pil(path, img_pil)
+
     def pubsub_set_candidate_targets(self, msg):
         target_locations, refimg_size_rel = msg.data
-        self.ballotscreen.set_candidate_targets(target_locations, refimg_size_rel)
+        self.ballotscreen.set_candidate_targets(
+            target_locations, refimg_size_rel)
+
     def pubsub_set_targets(self, msg):
         target_locations = msg.data
         self.ballotscreen.set_targets(target_locations)
-    
+
+
 class ToolBar(wx.Panel):
     """
     Panel that displays all available tools (like create target,
@@ -1294,15 +1389,15 @@ class ToolBar(wx.Panel):
     """
     # Restrict size of icons to 50 pixels height
     SIZE_ICON = 50.0
-    
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 
         # Instance vars
         self.parent = parent
         self.images = []
-        self.iconsdir = os.path.join(MYDIR, 'imgs','icons')
-        
+        self.iconsdir = os.path.join(MYDIR, 'imgs', 'icons')
+
         # vars for button states
         self.state_zoomin = False
         self.state_zoomout = False
@@ -1310,14 +1405,15 @@ class ToolBar(wx.Panel):
         self.state_select = False
         self.state_addcontest = False
         self.state_splitcontest = False
-        
+
         self._populate_icons(self.iconsdir)
         self._bind_events()
-        
-        ### PubSub Subscribing
+
+        # PubSub Subscribing
         pub.subscribe(self._enter_autodetect, "signals.enter_autodetect")
         pub.subscribe(self._cancel_autodetect, "signals.cancel_autodetect")
-        pub.subscribe(self._leave_autodetect_verify, "signals.leave_autodetect_verify")
+        pub.subscribe(self._leave_autodetect_verify,
+                      "signals.leave_autodetect_verify")
         pub.subscribe(self._clear_buttons, "signals.Toolbar.clear_buttons")
 
     def _bind_events(self):
@@ -1338,7 +1434,7 @@ class ToolBar(wx.Panel):
         self.btn_splitcontest.Bind(wx.EVT_BUTTON, self.onButton_splitcontest)
         self.btn_infercontests.Bind(wx.EVT_BUTTON, self.onButton_infercontests)
         self.btn_sanitycheck.Bind(wx.EVT_BUTTON, self.onButton_sanitycheck)
-        
+
     def _resize_icons(self, iconpaths):
         """ Rescale all icon images to have height Toolbar.SIZE_ICON """
         bitmaps = {}
@@ -1347,10 +1443,12 @@ class ToolBar(wx.Panel):
                 imgpath = os.path.join(dirpath, imgfile)
                 wx_img = wx.Image(imgpath, wx.BITMAP_TYPE_ANY)
                 c = wx_img.GetHeight() / ToolBar.SIZE_ICON
-                wx_img = wx_img.Scale(wx_img.GetWidth() / c, wx_img.GetHeight() / c, wx.IMAGE_QUALITY_HIGH)
-                bitmaps[util_gui.get_filename(imgpath)] = wx_img.ConvertToBitmap()
+                wx_img = wx_img.Scale(
+                    wx_img.GetWidth() / c, wx_img.GetHeight() / c, wx.IMAGE_QUALITY_HIGH)
+                bitmaps[util_gui.get_filename(
+                    imgpath)] = wx_img.ConvertToBitmap()
         return bitmaps
-       
+
     def _populate_icons(self, iconsdir):
         bitmaps = self._resize_icons(iconsdir)
         self.bitmaps = bitmaps
@@ -1381,67 +1479,72 @@ class ToolBar(wx.Panel):
         panel_infercontest = wx.Panel(self)
         panel_sanitycheck = wx.Panel(self)
         self.btn_zoomin = wx.BitmapButton(panel_zoomin, bitmap=zoomin_unsel,
-                                           id=wx.ID_ZOOM_IN,
-                                           size=(zoomin_unsel.GetWidth()+8,
-                                                 zoomin_unsel.GetHeight()+8),
+                                          id=wx.ID_ZOOM_IN,
+                                          size=(zoomin_unsel.GetWidth() + 8,
+                                                zoomin_unsel.GetHeight() + 8),
                                           name='btn_zoomin')
         self.btn_zoomout = wx.BitmapButton(panel_zoomout, bitmap=zoomout_unsel,
-                                            id=wx.ID_ZOOM_OUT,
-                                            size=(zoomout_unsel.GetWidth()+8,
-                                                  zoomout_unsel.GetHeight()+8),
+                                           id=wx.ID_ZOOM_OUT,
+                                           size=(zoomout_unsel.GetWidth() + 8,
+                                                 zoomout_unsel.GetHeight() + 8),
                                            name='btn_zoomout')
         self.btn_addtarget = wx.BitmapButton(panel_addtarget, bitmap=addtarget_unsel,
-                                       id=wx.ID_ANY,
-                                       size=(addtarget_unsel.GetWidth()+8,
-                                             addtarget_unsel.GetHeight()+8),
-                                       name='btn_addtarget')
+                                             id=wx.ID_ANY,
+                                             size=(addtarget_unsel.GetWidth() + 8,
+                                                   addtarget_unsel.GetHeight() + 8),
+                                             name='btn_addtarget')
         self.btn_select = wx.BitmapButton(panel_select, bitmap=select_unsel,
                                           id=wx.ID_ANY,
-                                          size=(select_unsel.GetWidth()+8,
-                                                select_unsel.GetHeight()+8),
+                                          size=(select_unsel.GetWidth() + 8,
+                                                select_unsel.GetHeight() + 8),
                                           name='btn_select')
-        #self.btn_select.Hide()
+        # self.btn_select.Hide()
         self.btn_addcontest = wx.BitmapButton(panel_addcontest, bitmap=addcontest_unsel,
                                               id=wx.ID_ANY,
-                                              size=(addcontest_unsel.GetWidth()+8,
-                                                    addcontest_unsel.GetHeight()+8),
+                                              size=(addcontest_unsel.GetWidth() + 8,
+                                                    addcontest_unsel.GetHeight() + 8),
                                               name='btn_addcontest')
         self.btn_splitcontest = wx.BitmapButton(panel_splitcontest, bitmap=splitcontest_unsel,
                                                 id=wx.ID_ANY,
-                                                size=(splitcontest_unsel.GetWidth()+8,
-                                                      splitcontest_unsel.GetHeight()+8),
+                                                size=(splitcontest_unsel.GetWidth() + 8,
+                                                      splitcontest_unsel.GetHeight() + 8),
                                                 name='btn_splitcontest')
 
         self.btn_undo = wx.BitmapButton(panel_undo, bitmap=undo,
                                         id=wx.ID_ANY,
-                                        size=(undo.GetWidth()+8,
-                                              undo.GetHeight()+8),
+                                        size=(undo.GetWidth() + 8,
+                                              undo.GetHeight() + 8),
                                         name='btn_undo')
         self.btn_infercontests = wx.BitmapButton(panel_infercontest, bitmap=infercontest_unsel,
-                                                id=wx.ID_ANY,
-                                                size=(infercontest_unsel.GetWidth()+8,
-                                                      infercontest_unsel.GetHeight()+8),
-                                                name='btn_infercontest')
-        self.btn_sanitycheck = wx.Button(panel_sanitycheck, label="Sanity Check...")
+                                                 id=wx.ID_ANY,
+                                                 size=(infercontest_unsel.GetWidth() + 8,
+                                                       infercontest_unsel.GetHeight() + 8),
+                                                 name='btn_infercontest')
+        self.btn_sanitycheck = wx.Button(
+            panel_sanitycheck, label="Sanity Check...")
 
-        font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        font = wx.Font(8, wx.FONTFAMILY_DEFAULT,
+                       wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         sizer_zoomin = wx.BoxSizer(wx.VERTICAL)
         panel_zoomin.SetSizer(sizer_zoomin)
-        txt1 = wx.StaticText(panel_zoomin, label="Zoom in", style=wx.ALIGN_CENTER)
+        txt1 = wx.StaticText(panel_zoomin, label="Zoom in",
+                             style=wx.ALIGN_CENTER)
         txt1.SetFont(font)
         sizer_zoomin.Add(self.btn_zoomin)
         sizer_zoomin.Add(txt1, flag=wx.ALIGN_CENTER)
-        
+
         sizer_zoomout = wx.BoxSizer(wx.VERTICAL)
         panel_zoomout.SetSizer(sizer_zoomout)
-        txt2 = wx.StaticText(panel_zoomout, label="Zoom out", style=wx.ALIGN_CENTER)
+        txt2 = wx.StaticText(
+            panel_zoomout, label="Zoom out", style=wx.ALIGN_CENTER)
         txt2.SetFont(font)
         sizer_zoomout.Add(self.btn_zoomout)
         sizer_zoomout.Add(txt2, flag=wx.ALIGN_CENTER)
 
         sizer_addtarget = wx.BoxSizer(wx.VERTICAL)
         panel_addtarget.SetSizer(sizer_addtarget)
-        txt3 = wx.StaticText(panel_addtarget, label="New voting target", style=wx.ALIGN_CENTER)
+        txt3 = wx.StaticText(
+            panel_addtarget, label="New voting target", style=wx.ALIGN_CENTER)
         txt3.SetFont(font)
         sizer_addtarget.Add(self.btn_addtarget)
         sizer_addtarget.Add(txt3, flag=wx.ALIGN_CENTER)
@@ -1455,35 +1558,40 @@ class ToolBar(wx.Panel):
 
         sizer_addcontest = wx.BoxSizer(wx.VERTICAL)
         panel_addcontest.SetSizer(sizer_addcontest)
-        txt5 = wx.StaticText(panel_addcontest, label="Add New Contest", style=wx.ALIGN_CENTER)
+        txt5 = wx.StaticText(
+            panel_addcontest, label="Add New Contest", style=wx.ALIGN_CENTER)
         txt5.SetFont(font)
         sizer_addcontest.Add(self.btn_addcontest)
         sizer_addcontest.Add(txt5, flag=wx.ALIGN_CENTER)
 
         sizer_splitcontest = wx.BoxSizer(wx.VERTICAL)
         panel_splitcontest.SetSizer(sizer_splitcontest)
-        txt6 = wx.StaticText(panel_splitcontest, label="Split a Contest", style=wx.ALIGN_CENTER)
+        txt6 = wx.StaticText(panel_splitcontest,
+                             label="Split a Contest", style=wx.ALIGN_CENTER)
         txt6.SetFont(font)
         sizer_splitcontest.Add(self.btn_splitcontest)
         sizer_splitcontest.Add(txt6, flag=wx.ALIGN_CENTER)
 
         sizer_select = wx.BoxSizer(wx.VERTICAL)
         panel_select.SetSizer(sizer_select)
-        txt7 = wx.StaticText(panel_select, label="Select", style=wx.ALIGN_CENTER)
+        txt7 = wx.StaticText(panel_select, label="Select",
+                             style=wx.ALIGN_CENTER)
         txt7.SetFont(font)
         sizer_select.Add(self.btn_select)
         sizer_select.Add(txt7, flag=wx.ALIGN_CENTER)
 
         sizer_infercontest = wx.BoxSizer(wx.VERTICAL)
         panel_infercontest.SetSizer(sizer_infercontest)
-        txt8 = wx.StaticText(panel_infercontest, label="Infer Contests", style=wx.ALIGN_CENTER)
+        txt8 = wx.StaticText(panel_infercontest,
+                             label="Infer Contests", style=wx.ALIGN_CENTER)
         txt8.SetFont(font)
         sizer_infercontest.Add(self.btn_infercontests)
         sizer_infercontest.Add(txt8, flag=wx.ALIGN_CENTER)
 
         sizer_sanitycheck = wx.BoxSizer(wx.VERTICAL)
         panel_sanitycheck.SetSizer(sizer_sanitycheck)
-        txt9 = wx.StaticText(panel_sanitycheck, label="Run Sanity Check...", style=wx.ALIGN_CENTER)
+        txt9 = wx.StaticText(
+            panel_sanitycheck, label="Run Sanity Check...", style=wx.ALIGN_CENTER)
         txt9.SetFont(font)
         sizer_sanitycheck.Add(self.btn_sanitycheck)
         sizer_sanitycheck.Add(txt9, flag=wx.ALIGN_CENTER)
@@ -1500,7 +1608,7 @@ class ToolBar(wx.Panel):
         self.sizer.Add(panel_sanitycheck)
         self.SetSizer(self.sizer)
         self.SetAutoLayout(1)
-                          
+
     def clear_btns(self):
         self.state_zoomin = False
         self.state_zoomout = False
@@ -1514,19 +1622,24 @@ class ToolBar(wx.Panel):
         self.btn_addtarget.SetBitmapLabel(self.bitmaps['addtarget_unsel'])
         self.btn_select.SetBitmapLabel(self.bitmaps['select_unsel'])
         self.btn_addcontest.SetBitmapLabel(self.bitmaps['addcontest_unsel'])
-        self.btn_splitcontest.SetBitmapLabel(self.bitmaps['splitcontest_unsel'])
-        self.btn_infercontests.SetBitmapLabel(self.bitmaps['infercontest_unsel'])
-        
-    #### PubSub Callbacks
+        self.btn_splitcontest.SetBitmapLabel(
+            self.bitmaps['splitcontest_unsel'])
+        self.btn_infercontests.SetBitmapLabel(
+            self.bitmaps['infercontest_unsel'])
+
+    # PubSub Callbacks
     def _enter_autodetect(self, msg):
         self.disable_buttons()
+
     def _cancel_autodetect(self, msg):
         self.enable_buttons()
+
     def _leave_autodetect_verify(self, msg):
         self.enable_buttons()
+
     def _clear_buttons(self, msg):
         self.clear_btns()
-        
+
     def select_button(self, name):
         mapping = {'addtarget': self.btn_addtarget,
                    'select': self.btn_select,
@@ -1535,9 +1648,9 @@ class ToolBar(wx.Panel):
                    'addcontest': self.btn_addcontest,
                    'splitcontest': self.btn_splitcontest,
                    'infercontest': self.btn_infercontests}
-        sel_bitmap = self.bitmaps[name+"_sel"]
+        sel_bitmap = self.bitmaps[name + "_sel"]
         mapping[name].SetBitmapLabel(sel_bitmap)
-        
+
     def enable_buttons(self):
         self.btn_zoomin.Enable()
         self.btn_zoomout.Enable()
@@ -1546,6 +1659,7 @@ class ToolBar(wx.Panel):
         self.btn_addcontest.Enable()
         self.btn_splitcontest.Enable()
         self.btn_infercontests.Enable()
+
     def disable_buttons(self, flag=None):
         if flag != "allow_zoom":
             self.btn_zoomin.Disable()
@@ -1555,37 +1669,46 @@ class ToolBar(wx.Panel):
         self.btn_addcontest.Disable()
         self.btn_splitcontest.Disable()
         self.btn_infercontests.Disable()
-        
-    #### Event handling
+
+    # Event handling
     def onButton_zoomin(self, event):
         pub.sendMessage("signals.BallotScreen.zoom", 'in')
         event.Skip()
+
     def onButton_zoomout(self, event):
         pub.sendMessage("signals.BallotScreen.zoom", 'out')
         event.Skip()
+
     def onButton_addtarget(self, event):
         if not self.state_addtarget:
             self.clear_btns()
             self.state_addtarget = True
             self.btn_addtarget.SetBitmapLabel(self.bitmaps['addtarget_sel'])
-            Publisher.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_ADD_TARGET)
+            Publisher.sendMessage(
+                "signals.BallotScreen.update_state", BallotScreen.STATE_ADD_TARGET)
         event.Skip()
+
     def onButton_select(self, event):
         if not self.state_select:
             self.clear_btns()
             self.state_select = True
             self.btn_select.SetBitmapLabel(self.bitmaps['select_sel'])
-            pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_IDLE)
+            pub.sendMessage("signals.BallotScreen.update_state",
+                            BallotScreen.STATE_IDLE)
         event.Skip()
+
     def onButton_undo(self, event):
         pub.sendMessage("broadcast.undo")
+
     def onButton_addcontest(self, event):
         if not self.state_addcontest:
             self.clear_btns()
             self.state_addcontest = True
             self.btn_addcontest.SetBitmapLabel(self.bitmaps['addcontest_sel'])
-            pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_ADD_CONTEST)
+            pub.sendMessage("signals.BallotScreen.update_state",
+                            BallotScreen.STATE_ADD_CONTEST)
         event.Skip()
+
     def onButton_splitcontest(self, event):
         self.clear_btns()
         self.state_splitcontest = True
@@ -1598,7 +1721,8 @@ class ToolBar(wx.Panel):
             self.clear_btns()
             return
         splitmode = dlg.get_splitmode()
-        pub.sendMessage("signals.BallotScreen.update_state", BallotScreen.STATE_SPLIT_CONTEST)
+        pub.sendMessage("signals.BallotScreen.update_state",
+                        BallotScreen.STATE_SPLIT_CONTEST)
         pub.sendMessage("signals.BallotScreen.set_splitmode", splitmode)
 
     def onButton_infercontests(self, event):
@@ -1616,31 +1740,41 @@ next step.", style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
-            
+
     def onEnter_zoomin(self, event):
-        pub.sendMessage('signals.StatusBar.push', "Zoom into the opened image.")
+        pub.sendMessage('signals.StatusBar.push',
+                        "Zoom into the opened image.")
         event.Skip()
+
     def onLeave_zoomin(self, event):
         pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
+
     def onEnter_zoomout(self, event):
-        pub.sendMessage('signals.StatusBar.push', "Zoom out of the opened image.")
+        pub.sendMessage('signals.StatusBar.push',
+                        "Zoom out of the opened image.")
         event.Skip()
+
     def onLeave_zoomout(self, event):
         pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
+
     def onEnter_addtarget(self, event):
         pub.sendMessage('signals.StatusBar.push', "Create new voting targets.")
         event.Skip()
+
     def onLeave_addtarget(self, event):
         pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
+
     def onEnter_select(self, event):
         pub.sendMessage('signals.StatusBar.push', 'Select voting targets.')
         event.Skip()
+
     def onLeave_select(self, event):
         pub.sendMessage('signals.StatusBar.pop', None)
         event.Skip()
+
 
 class BallotScreen(ImageViewer):
     """
@@ -1649,7 +1783,7 @@ class BallotScreen(ImageViewer):
     Also, we will allow the user to draw bounding boxes around 
     contests.
     """
-    
+
     # Constants used for Edit State
     STATE_IDLE = 0
     STATE_ADD_TARGET = 1
@@ -1660,65 +1794,72 @@ class BallotScreen(ImageViewer):
     STATE_ZOOM_OUT = 6
     STATE_ADD_CONTEST = 7
     STATE_SPLIT_CONTEST = 8
-    
+
     # Aux States
     STATE_RESIZE_TARGET = 9
-    
+
     def __init__(self, parent, world, *args, **kwargs):
         ImageViewer.__init__(self, parent, world, *args, **kwargs)
-        
-        self._autodet_rect = None           # Coords of selected region (client coords)
-        self._autodetect_region = None  # PIL Image of selected region 
-        
+
+        # Coords of selected region (client coords)
+        self._autodet_rect = None
+        self._autodetect_region = None  # PIL Image of selected region
+
         # Instance vars
         self.candidate_targets = None   # Stores list of autodetected targets-to-be-verified
 
         # _splitmode is for Split Contest, either 'horizontal' or 'vertical'
         self._splitmode = 'horizontal'
-        
+
     def subscribe_pubsubs(self):
         ImageViewer.subscribe_pubsubs(self)
         callbacks = (("signals.BallotScreen.update_state", self._update_state),
                      ("signals.BallotScreen.new_image", self._new_image),
                      ("signals.enter_autodetect", self._enter_autodetect),
                      ("signals.cancel_autodetect", self._cancel_autodetect),
-                     ("signals.enter_autodetect_verify", self._enter_autodetect_verify),
-                     ("signals.leave_autodetect_verify", self._leave_autodetect_verify),
-                     ("signals.BallotScreen.fit_autodetect_region", self._fit_autodetect_region),
+                     ("signals.enter_autodetect_verify",
+                      self._enter_autodetect_verify),
+                     ("signals.leave_autodetect_verify",
+                      self._leave_autodetect_verify),
+                     ("signals.BallotScreen.fit_autodetect_region",
+                      self._fit_autodetect_region),
                      ("signals.BallotScreen.set_targets", self.pubsub_set_targets),
-                     ("signals.BallotScreen.set_contests", self._pubsub_set_contests),
-                     ("signals.BallotScreen.set_bounding_boxes", self._pubsub_set_bounding_boxes),
-                     ("signals.ballotscreen.remove_targets", self._pubsub_remove_targets),
+                     ("signals.BallotScreen.set_contests",
+                      self._pubsub_set_contests),
+                     ("signals.BallotScreen.set_bounding_boxes",
+                      self._pubsub_set_bounding_boxes),
+                     ("signals.ballotscreen.remove_targets",
+                      self._pubsub_remove_targets),
                      ("signals.BallotScreen.set_splitmode", self._pubsub_set_splitmode))
         self.callbacks.extend(callbacks)
         for (topic, callback) in callbacks:
             pub.subscribe(callback, topic)
-        
+
     def _bind_events(self):
         ImageViewer._bind_events(self)
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
 
     def set_state(self, newstate):
-        if newstate not in (BallotScreen.STATE_IDLE, 
-                         BallotScreen.STATE_ADD_TARGET,
-                         BallotScreen.STATE_MODIFY,
-                         BallotScreen.STATE_AUTODETECT,
-                         BallotScreen.STATE_ZOOM_IN,
-                         BallotScreen.STATE_ZOOM_OUT,
-                         BallotScreen.STATE_RESIZE_TARGET,
-                         BallotScreen.STATE_AUTODETECT_VERIFY,
-                         BallotScreen.STATE_ADD_CONTEST,
-                         BallotScreen.STATE_SPLIT_CONTEST):
+        if newstate not in (BallotScreen.STATE_IDLE,
+                            BallotScreen.STATE_ADD_TARGET,
+                            BallotScreen.STATE_MODIFY,
+                            BallotScreen.STATE_AUTODETECT,
+                            BallotScreen.STATE_ZOOM_IN,
+                            BallotScreen.STATE_ZOOM_OUT,
+                            BallotScreen.STATE_RESIZE_TARGET,
+                            BallotScreen.STATE_AUTODETECT_VERIFY,
+                            BallotScreen.STATE_ADD_CONTEST,
+                            BallotScreen.STATE_SPLIT_CONTEST):
             print "Incorrect newstate provided:", newstate
             return
         oldstate = self.curstate
         self.curstate = newstate
         if oldstate == BallotScreen.STATE_MODIFY and newstate != BallotScreen.STATE_MODIFY:
             self.unselect_boxes()
-            
+
         self.set_cursor(newstate)
         self.Refresh()
-        
+
     def set_splitmode(self, mode):
         """
         Sets the mode of the 'Split Contest' feature, either:
@@ -1735,7 +1876,7 @@ class BallotScreen(ImageViewer):
     def set_auxstate(self, newstate):
         self.auxstate = newstate
         self.set_cursor(newstate)
-        
+
     def set_cursor(self, state):
         if state in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST):
             c = wx.CURSOR_CROSS
@@ -1768,17 +1909,18 @@ class BallotScreen(ImageViewer):
         Given a list of (relative) (x,y,w,h), update the current state.
         """
         candidates = []
-        for (x,y,w,h) in target_locations:
-            x2,y2 = x+w, y+h
-            
+        for (x, y, w, h) in target_locations:
+            x2, y2 = x + w, y + h
+
             candidates.append(BoundingBox(x, y, x2, y2, color="Orange"))
         self.candidate_targets = candidates
-        
+
     def remove_voting_targets(self):
         self.world.remove_voting_targets(self.current_imgpath)
+
     def remove_contests(self):
         self.world.remove_contests(self.current_imgpath)
-        
+
     def set_targets(self, target_locations):
         """
         Given a list of BoundingBoxes, update the current state.
@@ -1787,14 +1929,14 @@ class BallotScreen(ImageViewer):
         targets = []
         for box in target_locations:
             x1, y1, x2, y2 = box.get_coords()
-            targets.append(BoundingBox(x1, y1, x2, y2, 
+            targets.append(BoundingBox(x1, y1, x2, y2,
                                        color=box.color,
                                        id=box.id,
                                        contest_id=box.contest_id))
         self.remove_voting_targets()
         for b in targets:
             self.world.add_box(self.current_imgpath, b)
-        
+
     def set_contests(self, contest_locations):
         """
         Given a list of BoundingBoxes, update the current state.
@@ -1803,29 +1945,31 @@ class BallotScreen(ImageViewer):
         contests = []
         for box in contest_locations:
             x1, y1, x2, y2 = box.get_coords()
-            contests.append(BoundingBox(x1, y1, x2, y2, 
-                                        color=box.color, 
+            contests.append(BoundingBox(x1, y1, x2, y2,
+                                        color=box.color,
                                         is_contest=True,
                                         id=box.id,
                                         contest_id=box.contest_id))
         self.remove_contests()
         for b in contests:
             self.world.add_box(self.current_imgpath, b)
-        
+
     def set_bounding_boxes(self, bounding_boxes):
         """
         Given a list of BoundingBoxes (which may be for voting targets
         or contests), update the current state.
         """
         self.world.set_boxes(self.current_imgpath, bounding_boxes)
-        
-    #### PubSub callbacks
-        
+
+    # PubSub callbacks
+
     def _update_state(self, msg):
         self.set_state(msg.data)
+
     def _set_sel_target_size(self, msg):
         for box in self.get_selected_boxes():
             box.update_size(msg.data)
+
     def _global_resize(self, msg):
         newsize = msg.data
         for t in self.world.get_boxes(self.current_imgpath):
@@ -1833,6 +1977,7 @@ class BallotScreen(ImageViewer):
         for box in self.get_selected_boxes():
             box.update_size(newsize)
         self.Refresh()
+
     def _new_image(self, msg):
         """
         Happens when the user loads up a new image, File->Open...
@@ -1841,12 +1986,14 @@ class BallotScreen(ImageViewer):
         self.set_image(filepath)
         self.set_state(BallotScreen.STATE_IDLE)
         self.Refresh()
+
     def _enter_autodetect(self, msg):
         self.set_state(BallotScreen.STATE_AUTODETECT)
-        
+
     def _cancel_autodetect(self, msg):
         self.set_state(BallotScreen.STATE_IDLE)
         self._autodet_rect = None
+
     def _enter_autodetect_verify(self, msg):
         if self._autodetect_region:
             w_img, h_img = self.img_pil.size
@@ -1854,17 +2001,20 @@ class BallotScreen(ImageViewer):
             t_h_rel = (self._autodetect_region.size[1] / float(h_img))
             self.target_width, self.target_height = (int(round(t_w_rel * self.GetClientSize()[0])),
                                                      int(round(t_h_rel * self.GetClientSize()[1])))
-            pub.sendMessage("signals.TargetDimPanel", (self.target_width, self.target_height))
-            pub.sendMessage("signals.autodetect.final_refimg", self._autodetect_region)
-            self.candidate_targets = self.autodetect_targets(self.img_pil, self._autodetect_region)
+            pub.sendMessage("signals.TargetDimPanel",
+                            (self.target_width, self.target_height))
+            pub.sendMessage("signals.autodetect.final_refimg",
+                            self._autodetect_region)
+            self.candidate_targets = self.autodetect_targets(
+                self.img_pil, self._autodetect_region)
             #frame = Autodetect_Confirm(self, self.candidate_targets)
-            #frame.Show()
+            # frame.Show()
             self.set_state(BallotScreen.STATE_AUTODETECT_VERIFY)
-            #self.Refresh()
+            # self.Refresh()
         else:
             print "Error -- in BallotScreen._enter_autodetect_verify, \
 self._autodetect_region was None, i.e. the user didn't choose anything."
-        
+
     def _leave_autodetect_verify(self, msg):
         # Clean up autodetect state, consolidate verified detected
         # targets (if necessary), restore state to IDLE
@@ -1877,23 +2027,29 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         self._autodet_rect = None
         self._autodetect_region = None
         self.set_state(BallotScreen.STATE_IDLE)
-        
+
     def _fit_autodetect_region(self, msg):
         if self._autodetect_region:
-            self._autodetect_region = util_gui.fit_image(self._autodetect_region)
-            pub.sendMessage("signals.autodetect.updatebox", 
-                                    self._autodetect_region)
-            pub.sendMessage("signals.TargetDimPanel", (self._autodetect_region.size))
+            self._autodetect_region = util_gui.fit_image(
+                self._autodetect_region)
+            pub.sendMessage("signals.autodetect.updatebox",
+                            self._autodetect_region)
+            pub.sendMessage("signals.TargetDimPanel",
+                            (self._autodetect_region.size))
         self.Refresh()
+
     def pubsub_set_targets(self, msg):
         imgpath, boxes = msg.data
         self.set_targets(boxes)
+
     def _pubsub_set_contests(self, msg):
         imgpath, boxes = msg.data
         self.set_contests(boxes)
+
     def _pubsub_set_bounding_boxes(self, msg):
         imgpath, boxes = msg.data
         self.set_bounding_boxes(boxes)
+
     def _pubsub_remove_targets(self, msg):
         targets = msg.data
         for t in targets:
@@ -1903,7 +2059,8 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
     def select_target(self, t):
         ImageViewer.select_target(self, t)
         w_client, h_client = self.GetClientSize()
-        pub.sendMessage("signals.TargetDimPanel._set_sel_target_size", (int(round(t.width*w_client)), int(round(t.height*h_client))))
+        pub.sendMessage("signals.TargetDimPanel._set_sel_target_size", (int(
+            round(t.width * w_client)), int(round(t.height * h_client))))
 
     def autodetect_targets(self, img, refimg):
         """
@@ -1915,24 +2072,26 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         w_refimg, h_refimg = refimg.size
         img_array = np.array(img)
         refimg_array = np.array(refimg)
-        match_coords = util_gui.template_match(img_array, refimg_array, confidence=0.6)
+        match_coords = util_gui.template_match(
+            img_array, refimg_array, confidence=0.6)
         pts = []
         candidate_targets = []
-        for x,y in match_coords:
+        for x, y in match_coords:
             too_close = False
             for pt in pts:
-                if util_gui.dist_euclidean((x,y), pt) <= 5.0:
+                if util_gui.dist_euclidean((x, y), pt) <= 5.0:
                     too_close = True
                     break
             if too_close:
                 continue
-            pts.append((x,y))
+            pts.append((x, y))
             x_rel = x / float(w_img)
             y_rel = y / float(h_img)
             w_rel = w_refimg / float(w_img)
             h_rel = h_refimg / float(h_img)
             x2_rel, y2_rel = x_rel + w_rel, y_rel + h_rel
-            candidate_targets.append(BoundingBox(x_rel, y_rel, x2_rel, y2_rel, color="Orange"))
+            candidate_targets.append(BoundingBox(
+                x_rel, y_rel, x2_rel, y2_rel, color="Orange"))
         return candidate_targets
 
     def is_within_img(self, pos):
@@ -1940,12 +2099,12 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         Return True if the user's mouse is actually within the displayed
         ballot image.
         """
-        x,y = pos
+        x, y = pos
         return (x < self.img_bitmap.GetWidth() and
                 y < self.img_bitmap.GetHeight())
-        
-    #### Event handlers
-    
+
+    # Event handlers
+
     def onLeftDown(self, event):
         """
         Depending on the edit mode, either creates a new voting target
@@ -1954,14 +2113,14 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         """
         self.SetFocus()
         x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
-        if not self.is_within_img((x,y)):
+        if not self.is_within_img((x, y)):
             return
         # Resizing-handling events has precedence - no other
         # mouse-event handling should occur unless no resizing is
         # going on.
         if (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)):
-            box, mode = self.get_closest_resize_box(self.world.get_boxes(self.current_imgpath), 
-                                                    (x,y))
+            box, mode = self.get_closest_resize_box(self.world.get_boxes(self.current_imgpath),
+                                                    (x, y))
             if box and self.is_resize_enabled() and not self.get_selected_boxes():
                 self.set_resize_target(box, mode)
                 self._prev_auxstate = self.auxstate
@@ -1974,15 +2133,16 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             w_rel, h_rel = 1.0 / float(w_img), 1.0 / float(h_img)
             x2_rel, y2_rel = x_rel + w_rel, y_rel + h_rel
             is_contest = self.curstate == BallotScreen.STATE_ADD_CONTEST
-            new_box = BoundingBox(x_rel, y_rel, x2_rel, y2_rel, is_contest=is_contest)
+            new_box = BoundingBox(x_rel, y_rel, x2_rel,
+                                  y2_rel, is_contest=is_contest)
             self.set_new_box(new_box)
             #self.world.add_box(self.current_imgpath, new_box)
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
-                and self.get_closest_target((x,y),mode="interior")
+                and self.get_closest_target((x, y), mode="interior")
                 and self.is_modify_enabled()):
             # Select the relevant box to be moved
-            mousepos = (x,y)
+            mousepos = (x, y)
             closest_t = self.get_closest_target(mousepos, mode="interior")
             if closest_t in self.get_selected_boxes():
                 # Don't unselect it
@@ -1998,30 +2158,36 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
               and self.is_modify_enabled()):
             # Start dragging a selection box
-            assert len(self._dragselectregion) == 0, "dragselectregion wasn't empty."
-            self._dragselectregion = [x,y,x+1,y+1]
+            assert len(
+                self._dragselectregion) == 0, "dragselectregion wasn't empty."
+            self._dragselectregion = [x, y, x + 1, y + 1]
             self.unselect_boxes()
             self.Refresh()
         elif (self.curstate == BallotScreen.STATE_SPLIT_CONTEST
               and self.is_modify_enabled()):
             contests = self.get_contests()
-            c = self.get_closest_target((x,y), boxes=contests, mode="interior")
+            c = self.get_closest_target(
+                (x, y), boxes=contests, mode="interior")
             if c:
                 w_img, h_img = self.get_bitmapsize()
                 x_rel = x / float(w_img)
                 y_rel = y / float(h_img)
-                res = split_contest((x_rel, y_rel), c, self.get_boxes(), mode=self._splitmode)
+                res = split_contest((x_rel, y_rel), c,
+                                    self.get_boxes(), mode=self._splitmode)
                 try:
                     self.push_state(self.world)
                     c1, c2 = res
                     self.remove_box(c)
-                    self.add_boxes((c1,c2))
+                    self.add_boxes((c1, c2))
                     contests = [b for b in self.get_boxes() if b.is_contest]
                     for target in [b for b in self.get_boxes() if not b.is_contest]:
-                        target.contest_id = util_gui.find_assoc_contest(target, contests).contest_id
+                        target.contest_id = util_gui.find_assoc_contest(
+                            target, contests).contest_id
                     pub.sendMessage("broadcast.updated_world")
-                    pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, c1))
-                    pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, c2))
+                    pub.sendMessage("broadcast.freeze_contest",
+                                    (self.current_imgpath, c1))
+                    pub.sendMessage("broadcast.freeze_contest",
+                                    (self.current_imgpath, c2))
                     print "Split successful."
                     self.Refresh()
                 except TypeError as e:
@@ -2033,35 +2199,39 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 pass
             self.Refresh()
         elif self.curstate == BallotScreen.STATE_AUTODETECT:
-            self._autodet_rect = (x, y, x+1, y+1)
+            self._autodet_rect = (x, y, x + 1, y + 1)
             self.Refresh()
         elif self.curstate == BallotScreen.STATE_ZOOM_IN:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
             self.increase_scale(0.6)
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         elif self.curstate == BallotScreen.STATE_ZOOM_OUT:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
             self.decrease_scale(0.6)
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         elif self.curstate == BallotScreen.STATE_AUTODETECT_VERIFY:
-            closest_target = self.get_closest_target((x,y), boxes=self.candidate_targets, mode="bounding-box")
+            closest_target = self.get_closest_target(
+                (x, y), boxes=self.candidate_targets, mode="bounding-box")
             if closest_target:
                 self.candidate_targets.remove(closest_target)
             self.Refresh()
-            
-        closest_box, mode = self.get_closest_box_any(self.world.get_boxes(self.current_imgpath), (x,y))
+
+        closest_box, mode = self.get_closest_box_any(
+            self.world.get_boxes(self.current_imgpath), (x, y))
         if (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and not closest_box):
             # User clicked the 'background', i.e. an area with no
             # boxes, so unselect any selected box
             self.unselect_boxes()
-            
+
     def onLeftUp(self, event):
         """ Drop the voting target box at the current mouse location. """
         mousepos = self.CalcUnscrolledPosition(event.GetPositionTuple())
@@ -2075,26 +2245,27 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             # auto-fit around it, then add the auto-cropped bounding
             # box to world
             if new_box.is_contest:
-                pub.sendMessage("broadcast.ballotscreen.added_contest", 
-                                        (self.current_imgpath, new_box))
+                pub.sendMessage("broadcast.ballotscreen.added_contest",
+                                (self.current_imgpath, new_box))
             else:
-                pub.sendMessage("broadcast.ballotscreen.added_target", 
-                                        (self.current_imgpath, new_box))
+                pub.sendMessage("broadcast.ballotscreen.added_target",
+                                (self.current_imgpath, new_box))
             pub.sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.is_select_target()):
             moved_contests = [b for b in self._sel_boxes if b.is_contest]
             for contest in moved_contests:
-                pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, contest))
+                pub.sendMessage("broadcast.freeze_contest",
+                                (self.current_imgpath, contest))
             self.disable_dragging()
             self._dragselectregion = []
-            pub.sendMessage("broadcast.updated_world")            
+            pub.sendMessage("broadcast.updated_world")
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
               and self._dragselectregion):
             x1, y1, x2, y2 = self._dragselectregion
-            ul_corner, lr_corner = util_gui.get_box_corners((x1,y1), (x2,y2))
+            ul_corner, lr_corner = util_gui.get_box_corners((x1, y1), (x2, y2))
             dragselectregion = list(ul_corner + lr_corner)
             self._dragselectregion = []
             # Also select all boxes that lie within this
@@ -2103,7 +2274,8 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                                     dragselectregion[1] / float(h_img),
                                     dragselectregion[2] / float(w_img),
                                     dragselectregion[3] / float(h_img))
-            boxes = util_gui.get_boxes_inside(self.get_boxes(), dragselectregion_rel)
+            boxes = util_gui.get_boxes_inside(
+                self.get_boxes(), dragselectregion_rel)
             for box in boxes:
                 self.select_target(box)
             pub.sendMessage("broadcast.updated_world")
@@ -2114,19 +2286,21 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             except IOError:
                 # Sometimes, a BMP file throws a PIL error: Unsupported BMP Compression,
                 # but wxImage can open it just fine. Weird!
-                img = util_gui.imageToPil(wx.Image(self.current_imgpath), flatten=True)
+                img = util_gui.imageToPil(
+                    wx.Image(self.current_imgpath), flatten=True)
             x1, y1, x2, y2 = self._autodet_rect
             w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
             x1 = int(round((x1 / float(w_img)) * img.size[0]))
             y1 = int(round((y1 / float(h_img)) * img.size[1]))
             x2 = int(round((x2 / float(w_img)) * img.size[0]))
             y2 = int(round((y2 / float(h_img)) * img.size[1]))
-            region = img.crop(((x1,y1,x2,y2)))
+            region = img.crop(((x1, y1, x2, y2)))
             #region_threshold = util_gui.fit_image(region)
-            
+
             self._autodetect_region = region
-            pub.sendMessage("signals.autodetect.updatebox", self._autodetect_region)
-        
+            pub.sendMessage("signals.autodetect.updatebox",
+                            self._autodetect_region)
+
         if self.is_resize_target() and self.is_resize_enabled():
             # Finalize the current resizing
             pub.sendMessage("broadcast.push_state", self.world)
@@ -2141,17 +2315,20 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                 # Now update all other voting targets, since we want all voting
                 # targets to have the same size.
                 w_rel, h_rel = (abs(ul_x - lr_x) / float(self.img_bitmap.GetWidth()),
-                        abs(ul_y - lr_y) / float(self.img_bitmap.GetHeight()))
-                alltargets = [b for b in self.world.get_boxes_all_list() if not b.is_contest]
-                util_gui.resize_boxes(alltargets, (w_rel, h_rel), self._resize_mode)
+                                abs(ul_y - lr_y) / float(self.img_bitmap.GetHeight()))
+                alltargets = [
+                    b for b in self.world.get_boxes_all_list() if not b.is_contest]
+                util_gui.resize_boxes(
+                    alltargets, (w_rel, h_rel), self._resize_mode)
             if self._resize_target.is_contest:
-                pub.sendMessage("broadcast.freeze_contest", (self.current_imgpath, self._resize_target))
+                pub.sendMessage("broadcast.freeze_contest",
+                                (self.current_imgpath, self._resize_target))
             self.unset_resize_target()
             pub.sendMessage("broadcast.updated_world")
             self.set_auxstate(self._prev_auxstate)
             self._prev_auxstate = None
         self.Refresh()
-        
+
     def onRightDown(self, event):
         """
         If the edit mode is 'Modify', then if the user right-clicks a
@@ -2159,7 +2336,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
         dimensions of that particular box.
         Not sure if needed.
         """
-        x,y = self.CalcUnscrolledPosition(event.GetPositionTuple())
+        x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
         if (self.curstate == BallotScreen.STATE_MODIFY):
             mousepos = self.CalcUnscrolledPosition(event.GetPositionTuple())
             closest_t = self.get_closest_target(mousepos)
@@ -2168,25 +2345,27 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
 selected box...in your imagination."
                 self.select_target(closest_t)
         elif (self.curstate == BallotScreen.STATE_ZOOM_IN):
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
-            
+
             self.decrease_scale(0.6)
 
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
-            
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
+
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
             self.Refresh()
         elif self.curstate == BallotScreen.STATE_ZOOM_OUT:
-            old_virt_pos = (x,y)
+            old_virt_pos = (x, y)
             old_scale = self.scale
-            
+
             self.increase_scale(0.6)
 
-            new_virt_pos = (x*(self.scale / old_scale), y*(self.scale / old_scale))
-            
+            new_virt_pos = (x * (self.scale / old_scale),
+                            y * (self.scale / old_scale))
+
             self.center_viewport(new_virt_pos, event.GetPositionTuple())
-            self.Refresh()            
+            self.Refresh()
         self.Refresh()
 
     def onMotion(self, event):
@@ -2196,8 +2375,8 @@ selected box...in your imagination."
         """
         x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
         if not self._oldmousepos:
-            self._oldmousepos = x,y
-            
+            self._oldmousepos = x, y
+
         # Aux State Handling
         if self.is_resize_target() and self.is_resize_enabled():
             # Resizing takes precedence - no other mouse-handling
@@ -2223,9 +2402,9 @@ selected box...in your imagination."
                 self._resize_rect[2] = x
                 self._resize_rect[3] = y
             self.Refresh()
-            self._oldmousepos = (x,y)
-            return            
-            
+            self._oldmousepos = (x, y)
+            return
+
         if (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.is_select_target() and event.LeftIsDown()
                 and self.can_drag() and self.is_modify_enabled()):
@@ -2239,7 +2418,7 @@ selected box...in your imagination."
                 box.y1 += y_delta
                 box.x2 += x_delta
                 box.y2 += y_delta
-            self._oldmousepos = (x,y)
+            self._oldmousepos = (x, y)
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_ADD_TARGET, BallotScreen.STATE_ADD_CONTEST)
                 and self.is_new_box() and event.LeftIsDown()):
@@ -2267,7 +2446,8 @@ selected box...in your imagination."
                 and not self.is_resize_target()
                 and not self._resize_cursor_flag):
             # Chcek to see if we need to change mouse cursor
-            t, mode = self.get_closest_box_any(self.world.get_boxes(self.current_imgpath), (x,y))
+            t, mode = self.get_closest_box_any(
+                self.world.get_boxes(self.current_imgpath), (x, y))
             if t:
                 if mode in ('upper-left', 'lower-right') and self.is_resize_enabled():
                     myCursor = wx.StockCursor(wx.CURSOR_SIZENWSE)
@@ -2290,31 +2470,33 @@ selected box...in your imagination."
                 and not self.is_resize_target()
                 and self._resize_cursor_flag):
             # Check to see if we need to revert mouse cursor
-            t, mode = self.get_closest_box_any(self.world.get_boxes(self.current_imgpath), (x,y))
+            t, mode = self.get_closest_box_any(
+                self.world.get_boxes(self.current_imgpath), (x, y))
             if not t:
                 self.SetCursor(self._prev_cursor)
                 self._prev_cursor = wx.StockCursor(wx.CURSOR_ARROW)
                 self._resize_cursor_flag = False
                 self.Refresh()
-                
+
         # Update oldmousepos
-        self._oldmousepos = (x,y)
+        self._oldmousepos = (x, y)
         event.Skip()
-        
+
     def onKeyDown(self, event):
         keycode = event.GetKeyCode()
         if (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.get_selected_boxes()):
-            if ((keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK) 
+            if ((keycode == wx.WXK_DELETE or keycode == wx.WXK_BACK)
                     and self.is_delete_enabled()
                     and self.is_modify_enabled()):
                 pub.sendMessage("broadcast.push_state", self.world)
                 deleted_boxes = self.get_selected_boxes()
                 for box in self.get_selected_boxes()[:]:
                     self.delete_target(box)
-                
+
                 pub.sendMessage("broadcast.updated_world")
-                pub.sendMessage("broadcast.deleted_targets", (self.current_imgpath, deleted_boxes))
+                pub.sendMessage("broadcast.deleted_targets",
+                                (self.current_imgpath, deleted_boxes))
             elif ((keycode in (wx.WXK_UP, wx.WXK_DOWN, wx.WXK_LEFT, wx.WXK_RIGHT))
                   and self.is_modify_enabled()):
                 w_img, h_img = self.img_bitmap.GetWidth(), self.img_bitmap.GetHeight()
@@ -2323,14 +2505,14 @@ selected box...in your imagination."
                         box.y1 = max(0.0, box.y1 - (1.0 / h_img))
                         box.y2 -= (1.0 / h_img)
                     elif keycode == wx.WXK_DOWN:
-                        box.y1 = min(h_img-1, box.y1 + (1.0 / h_img))
-                        box.y2 = min(h_img-1, box.y2 + (1.0 / h_img))
+                        box.y1 = min(h_img - 1, box.y1 + (1.0 / h_img))
+                        box.y2 = min(h_img - 1, box.y2 + (1.0 / h_img))
                     elif keycode == wx.WXK_LEFT:
                         box.x1 = max(0.0, box.x1 - (1.0 / w_img))
                         box.x2 -= (1.0 / w_img)
                     elif keycode == wx.WXK_RIGHT:
-                        box.x1 = min(w_img-1, box.x1 + (1.0 / w_img))
-                        box.x2 = min(w_img-1, box.x2 + (1.0 / w_img))
+                        box.x1 = min(w_img - 1, box.x1 + (1.0 / w_img))
+                        box.x2 = min(w_img - 1, box.x2 + (1.0 / w_img))
                 self.Refresh()
                 return  # To avoid event.Skip() propagating to scrollbars
         self.Refresh()
@@ -2350,7 +2532,7 @@ selected box...in your imagination."
         # You must do PrepareDC in order to force the dc to account
         # for scrolling.
         self.PrepareDC(dc)
-        
+
         dc.DrawBitmap(self.img_bitmap, 0, 0)
         self._display_targets(dc)
         if self.curstate == BallotScreen.STATE_AUTODETECT and self._autodet_rect:
@@ -2362,7 +2544,7 @@ selected box...in your imagination."
         if self._dragselectregion:
             self._draw_dragselectregion(dc)
         event.Skip()
-        
+
     def _draw_autodet_rect(self, dc):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Green", 3))
@@ -2370,7 +2552,7 @@ selected box...in your imagination."
         (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
         w, h = abs(lr_x - ul_x), abs(lr_y - ul_y)
         dc.DrawRectangle(ul_x, ul_y, w, h)
-        
+
     def _draw_resize_rect(self, dc):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         dc.SetPen(wx.Pen("Orange", 3))
@@ -2378,18 +2560,20 @@ selected box...in your imagination."
         (ul_x, ul_y), (lr_x, lr_y) = util_gui.get_box_corners((x1, y1), (x2, y2))
         w, h = abs(lr_x - ul_x), abs(lr_y - ul_y)
         dc.DrawRectangle(ul_x, ul_y, w, h)
-        
+
     def _draw_candidate_targets(self, dc, candidate_targets):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         for t in candidate_targets:
             self._draw_box(dc, t)
-            
+
     def _display_targets(self, dc):
         """ Only to be called from self.onPaint(2) """
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         if self.current_imgpath:
-            targets = [t for t in self.world.get_boxes(os.path.abspath(self.current_imgpath)) if not t.is_contest]
-            contests = [t for t in self.world.get_boxes(os.path.abspath(self.current_imgpath)) if t.is_contest]
+            targets = [t for t in self.world.get_boxes(
+                os.path.abspath(self.current_imgpath)) if not t.is_contest]
+            contests = [t for t in self.world.get_boxes(
+                os.path.abspath(self.current_imgpath)) if t.is_contest]
             if self.is_new_box() and not self._new_box.is_contest:
                 targets.append(self._new_box)
             elif self.is_new_box() and self._new_box.is_contest:
@@ -2401,14 +2585,17 @@ selected box...in your imagination."
                 c = t.contest_id
                 self._draw_box(dc, t)
 
+
 class Autodetect_Panel(wx.Panel):
     """
     Frame that pops up when user clicks 'Autodetect'
     """
+
     def __init__(self, parent, *args, **kwargs):
         #wx.Frame.__init__(self, parent, title="Autodetect Voting Targets Frame")
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        font = wx.Font(12, wx.MODERN, style=wx.NORMAL, weight=wx.NORMAL, underline=False)
+        font = wx.Font(12, wx.MODERN, style=wx.NORMAL,
+                       weight=wx.NORMAL, underline=False)
         txt_inst = wx.StaticText(self, label="""
 Please highlight an example voting target 
 from the ballot image, (by clicking-and-dragging),
@@ -2424,9 +2611,10 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         self.panel_btns.sizer.Add(btn_cancel, flag=wx.ALIGN_CENTRE)
         self.panel_btns.SetSizer(self.panel_btns.sizer)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        
+
         help_gif = 'imgs/help/autodetect.gif'
-        self.ag = wx.animate.GIFAnimationCtrl(self, wx.ID_ANY, help_gif, pos=(0,0))
+        self.ag = wx.animate.GIFAnimationCtrl(
+            self, wx.ID_ANY, help_gif, pos=(0, 0))
         self.ag.GetPlayer().UseBackgroundColour(True)
         self.ag.Play()
         # self.staticbmp represents the image region currently selected
@@ -2439,35 +2627,36 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         self.sizer.Add(self.staticbmp, flag=wx.ALIGN_CENTER)
         self.sizer.Add(self.btn_fit, flag=wx.ALIGN_CENTER)
         self.sizer.Add(self.panel_btns, flag=wx.ALIGN_CENTER)
-        
+
         self.Bind(wx.EVT_WINDOW_DESTROY, self.onWindowDestroy)
         self.btn_fit.Bind(wx.EVT_BUTTON, self.onButton_fit)
-        
+
         # Set to True if I destroy myself (vs. system destroying it)
         self._did_i_destroy = None
-        
+
         self.SetSizer(self.sizer)
         self.Fit()
         self.rect_coords = None
-        
+
         # PubSub Subscribing
         pub.subscribe(self._boxupdate, "signals.autodetect.updatebox")
-        
-    #### Pubsub Callbacks
+
+    # Pubsub Callbacks
     def _boxupdate(self, msg):
         """ Receives a PIL image """
         img_pil = msg.data
         w_img, h_img = img_pil.size
         c = h_img / 100.0
         new_w = int(round(w_img / c))
-        bmp = util_gui.PilImageToWxBitmap(img_pil.resize((new_w, 100), Image.ANTIALIAS))
+        bmp = util_gui.PilImageToWxBitmap(
+            img_pil.resize((new_w, 100), Image.ANTIALIAS))
         #self.staticbmp.SetSize((100, min(new_h, 20)))
         self.staticbmp.SetBitmap(bmp)
         self.Refresh()
         self.Fit()
         if not self._did_user_select:
             self._did_user_select = True
-        
+
     def onButton_continue(self, event):
         if self._did_user_select:
             pub.sendMessage("signals.enter_autodetect_verify", None)
@@ -2475,13 +2664,15 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
             pub.sendMessage("signals.cancel_autodetect", None)
         self._did_i_destroy = True
         event.Skip()
+
     def onButton_cancel(self, event):
         pub.sendMessage("signals.cancel_autodetect", None)
         self._did_i_destroy = True
+
     def onButton_fit(self, event):
         pub.sendMessage("signals.BallotScreen.fit_autodetect_region", None)
         event.Skip()
-        
+
     def onWindowDestroy(self, event):
         # Question: Does this get called even after a 'successful'
         # autodetect run? I'd prefer that a 'cleanup' routine not
@@ -2492,17 +2683,17 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
 
 
 class Autodetect_Confirm(wx.Panel):
+
     def __init__(self, parent, target_candidates, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
-        
+
         # Set to True iff I destroy myself (vs. system destroying me)
         self._did_i_destroy = None
-        
+
         #self.SetTitle("Verify Autodetected Targets")
         self.panel = wx.Panel(self)
         font = wx.Font(12, wx.MODERN, wx.NORMAL, wx.NORMAL, underline=False)
-        txt = wx.StaticText(self.panel, label=
-"""{0} targets were detected. You may either 
+        txt = wx.StaticText(self.panel, label="""{0} targets were detected. You may either 
 delete specific targets by clicking on the 
 offending target, or proceed by choosing 'Done.'""".format(len(target_candidates)), style=wx.ALIGN_CENTRE)
         txt.SetFont(font)
@@ -2514,34 +2705,38 @@ offending target, or proceed by choosing 'Done.'""".format(len(target_candidates
         self.panel_btn.sizer.Add(btn_done, flag=wx.ALIGN_CENTER)
         self.panel_btn.sizer.Add(btn_removeall, flag=wx.ALIGN_CENTER)
         self.panel_btn.SetSizer(self.panel_btn.sizer)
-        
+
         self.panel.sizer = wx.BoxSizer(wx.VERTICAL)
         self.panel.sizer.Add(txt, flag=wx.ALIGN_CENTER)
         self.panel.sizer.Add(self.panel_btn, flag=wx.ALIGN_CENTER)
         self.panel.SetSizer(self.panel.sizer)
-        
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.panel)
 
         btn_done.Bind(wx.EVT_BUTTON, self.onButtonDone)
         btn_removeall.Bind(wx.EVT_BUTTON, self.onButtonRemoveAll)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.onWindowDestroy)
-        
+
         self.SetSizer(self.sizer)
         self.Fit()
+
     def onButtonDone(self, evt):
         self._did_i_destroy = True
         pub.sendMessage("signals.leave_autodetect_verify")
-        #self.Destroy()
+        # self.Destroy()
+
     def onButtonRemoveAll(self, evt):
         self._did_i_destroy = True
         pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
-        #self.Destroy()
+        # self.Destroy()
+
     def onWindowDestroy(self, evt):
         if self._did_i_destroy != True:
             pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
         evt.Skip()
-        
+
+
 def split_contest(mousepos, contest, boxes, mode='horizontal'):
     """
     Depending on where the user clicked, split the contest in half,
@@ -2567,17 +2762,22 @@ def split_contest(mousepos, contest, boxes, mode='horizontal'):
         Given a list of BoundingBoxes, return a contest bounding box
         that encompasses all boxes in group.
         """
-        min_x1 = min([x1 for (x1,y1,x2,y2) in [b.get_coords() for b in group]])
-        min_y1 = min([y1 for (x1,y1,x2,y2) in [b.get_coords() for b in group]])
-        max_x2 = max([x2 for (x1,y1,x2,y2) in [b.get_coords() for b in group]])
-        max_y2 = max([y2 for (x1,y1,x2,y2) in [b.get_coords() for b in group]])
+        min_x1 = min([x1 for (x1, y1, x2, y2) in [b.get_coords()
+                                                  for b in group]])
+        min_y1 = min([y1 for (x1, y1, x2, y2) in [b.get_coords()
+                                                  for b in group]])
+        max_x2 = max([x2 for (x1, y1, x2, y2) in [b.get_coords()
+                                                  for b in group]])
+        max_y2 = max([y2 for (x1, y1, x2, y2) in [b.get_coords()
+                                                  for b in group]])
         min_x1 = max(0, min_x1 - 0.05)
         min_y1 = max(0, min_y1 - 0.025)
         max_x2 = min(1.0, max_x2 + 0.05)
         max_y2 = min(1.0, max_y2 + 0.025)
         c = BoundingBox(min_x1, min_y1, max_x2, max_y2, is_contest=True)
         return c
-    targets = util_gui.associated_targets(contest, [b for b in boxes if not b.is_contest])
+    targets = util_gui.associated_targets(
+        contest, [b for b in boxes if not b.is_contest])
     x, y = mousepos
     if mode == 'horizontal':
         left, right = [], []
@@ -2607,6 +2807,7 @@ def split_contest(mousepos, contest, boxes, mode='horizontal'):
             c_bottom = get_contest_box(bottom)
             return c_top, c_bottom
 
+
 class SplitContestDialog(wx.Dialog):
     MODE_HORIZONTAL = 'horizontal'
     MODE_VERTICAL = 'vertical'
@@ -2617,14 +2818,15 @@ class SplitContestDialog(wx.Dialog):
         self.splitmode = SplitContestDialog.MODE_HORIZONTAL
         txt = wx.StaticText(self, label="In what direction would you \
 like to split the contest?")
-        self.radiobtn_horizontal = wx.RadioButton(self, label="Split Horizontally", style=wx.RB_GROUP)
+        self.radiobtn_horizontal = wx.RadioButton(
+            self, label="Split Horizontally", style=wx.RB_GROUP)
         self.radiobtn_vertical = wx.RadioButton(self, label="Split Vertically")
         self.radiobtn_horizontal.SetValue(True)
         btn_ok = wx.Button(self, id=wx.ID_OK)
         btn_ok.Bind(wx.EVT_BUTTON, self.onButton_ok)
         btn_cancel = wx.Button(self, id=wx.ID_CANCEL)
         btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
-        
+
         sizer_btns = wx.BoxSizer(wx.HORIZONTAL)
         sizer_btns.Add(btn_ok)
         sizer_btns.Add(btn_cancel)
@@ -2637,7 +2839,7 @@ like to split the contest?")
         self.sizer.Add(sizer_btns)
 
         self.Fit()
-        
+
     def get_splitmode(self):
         return self.splitmode
 
@@ -2647,16 +2849,19 @@ like to split the contest?")
         else:
             self.splitmode = SplitContestDialog.MODE_VERTICAL
         self.EndModal(wx.ID_OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
 
 class MainFrame(wx.Frame):
     """
     Demo Frame to quickly test the ImageViewer
     """
+
     def __init__(self, parent, screen=ImageViewer, *args, **kwargs):
         wx.Frame.__init__(self, parent, title="Demo ImageViewer",
-                          style=wx.DEFAULT_FRAME_STYLE, 
+                          style=wx.DEFAULT_FRAME_STYLE,
                           *args, **kwargs)
         self.parent = parent
         self.world = WorldState()
@@ -2674,18 +2879,20 @@ class MainFrame(wx.Frame):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.viewer, proportion=1, flag=wx.EXPAND)
         self.sizer.Add(btn_sizer)
-        
+
         self.SetSizer(self.sizer)
-        self.Move((0,0))
+        self.Move((0, 0))
 
     def zoomin(self, evt):
         self.viewer.zoom_and_center(1.2)
+
     def zoomout(self, evt):
         self.viewer.zoom_and_center(0.8)
-        
+
     def kill_vertscroll(self, evt):
         xamt, yamt = self.viewer.GetScrollPixelsPerUnit()
         self.viewer.SetScrollbars(xamt, 0, 10.0, 10.0)
+
 
 def main():
     args = sys.argv
@@ -2701,6 +2908,6 @@ def main():
         frame.viewer.set_image_pil(imgpath, img)
     frame.Show()
     app.MainLoop()
-            
+
 if __name__ == '__main__':
     main()

@@ -1,5 +1,6 @@
 import sys
-import numpy as np, scipy.misc
+import numpy as np
+import scipy.misc
 sys.path.append('..')
 
 import shared
@@ -9,6 +10,7 @@ import imagesAlign
 Usage:
     python test_imagesalign.py imgA.png imgB.png
 """
+
 
 def main():
     args = sys.argv[1:]

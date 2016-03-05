@@ -1,4 +1,6 @@
-import multiprocessing, random, math
+import multiprocessing
+import random
+import math
 
 from util import debug, warn, error
 
@@ -8,6 +10,7 @@ parallelizable task.
 I've done the same pattern enough times to tire of doing it again...
 might as well abstract the pattern.
 """
+
 
 def do_partask(fn, jobs, _args=None, blocking=True,
                combfn=None, init=None,
@@ -56,7 +59,8 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         debug("received existing multiprocessing.Manager")
     queue = manager.Queue()
 
-    p = multiprocessing.Process(target=spawn_jobs, args=(queue, fn, jobs, _args, pass_idx, pass_queue, N))
+    p = multiprocessing.Process(target=spawn_jobs, args=(
+        queue, fn, jobs, _args, pass_idx, pass_queue, N))
     p.start()
 
     num_jobs = len(jobs)
@@ -69,7 +73,7 @@ def do_partask(fn, jobs, _args=None, blocking=True,
     elif combfn == 'ignore':
         combfn = combfn_ignore
         init = True
-        
+
     results = init
     while True:
         subresults = queue.get()
@@ -78,11 +82,16 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         results = combfn(results, subresults)
     return results
 
+
 def combfn_ignore(res, subres):
     return True
+
+
 def combfn_lst(res, subres):
     res.extend(subres)
     return res
+
+
 def combfn_dict(res, subres):
     """ Assumes that res/subres maps keys to lists of values. """
     newres = dict(res)
@@ -90,15 +99,18 @@ def combfn_dict(res, subres):
         newres.setdefault(k, []).extend(v)
     return newres
 
+
 class POOL_CLOSED:
     """
     A dummy class to use to signal that the pool is finished
     processing.
     """
+
     def __init__(self):
         pass
 
 _POOL_CLOSED = POOL_CLOSED()
+
 
 def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=None):
     def handle_result(result):
@@ -126,7 +138,8 @@ def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=N
     pool.close()
     pool.join()
     queue.put(POOL_CLOSED())
-    
+
+
 def divy_list(lst, k):
     """ Divides input list into 'k' equally-sized chunks.
     Input:
@@ -160,14 +173,16 @@ def divy_list(lst, k):
     if dictflag:
         chunks = [dict(c) for c in chunks]
     return chunks
-    
+
 """
 Test scripts. Refer to this usage to get an idea of how to use this
 utility script.
 """
 
+
 def square_nums(nums):
     return [x * x for x in nums]
+
 
 def test0():
     nums = [random.random() for _ in range(1)]
@@ -175,11 +190,13 @@ def test0():
     debug("Input nums: {0}", nums)
     debug("Output nums: {0}", nums_squared)
 
+
 def test0_a():
     nums = [random.random() for _ in range(2)]
     nums_squared = do_partask(square_nums, nums)
     debug("Input nums:", nums)
     debug("Output nums:", nums_squared)
+
 
 def test1():
     nums = [random.random() for _ in range(10000)]
@@ -190,18 +207,21 @@ def test1():
     debug("Input nums: {0}", nums[0:10])
     debug("Output nums: {0}", nums_squared[0:10])
 
+
 def eval_quadratic(nums, (a, b, c)):
     """
     Evalutes 'x' with the following quadratic:
         a*x**2 + b*x + c
     """
-    return [a*(x**2) + b*x + c for x in nums]
+    return [a * (x**2) + b * x + c for x in nums]
+
 
 def test2():
     nums = [random.random() for _ in range(10000)]
     result = do_partask(eval_quadratic, nums, _args=[4, 3, 2])
     debug("Input nums: {0}", nums[0:4])
     debug("Output nums: {0}", result[0:4])
+
 
 def count_occurs(strs):
     res = {}
@@ -211,6 +231,7 @@ def count_occurs(strs):
         else:
             res[str] = 1
     return res
+
 
 def count_combfn(d, subd):
     """ Combines two dictionaries. """
@@ -222,6 +243,7 @@ def count_combfn(d, subd):
             final_d[k] = v
     return final_d
 
+
 def test3():
     strs = ('a', 'a', 'a', 'a', 'a', 'a',
             'b', 'b', 'b', 'b',
@@ -230,6 +252,7 @@ def test3():
             'z', 'z', 'z')
     counts = do_partask(count_occurs, strs, combfn=count_combfn, init={})
     debug('{0}', counts)
+
 
 def run_tests():
     debug("==== Running tests...")

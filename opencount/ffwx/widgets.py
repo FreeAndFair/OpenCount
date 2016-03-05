@@ -4,9 +4,11 @@ smaller and clearer.
 '''
 
 import multiprocessing
+import Queue
 import textwrap
 import wx
 from wx.lib.pubsub import pub
+
 
 class FFProgressBar(wx.Dialog):
     '''
@@ -16,7 +18,7 @@ class FFProgressBar(wx.Dialog):
     1. OpenCount uses multiprocessing
     2. wxWidgets progress bars need sporadic nudging in order to
        move forward.
-    3. This means a thread of execution needs to sporadaically
+    3. This means a thread of execution needs to sporadically
        nudge the progress bar.
     4. It is not safe to use multiprocessing and threading
        simultaneously, for fork/lock reasons.
@@ -35,6 +37,7 @@ class FFProgressBar(wx.Dialog):
       system
     - Those will, in turn, ACTUALLY update the object.
     '''
+
     def __init__(self,
                  parent,
                  num_tasks=None,
@@ -47,11 +50,11 @@ class FFProgressBar(wx.Dialog):
         self.signal = 'signals.progress.{id}'.format(id=id(self))
 
         panel = wx.Panel(self)
-        self.t_msg   = wx.StaticText(panel, label=msg)
-        self.t_task  = wx.StaticText(panel, label='')
-        self.gauge   = wx.Gauge(panel, size=(200, 25))
+        t_msg = wx.StaticText(panel, label=msg)
+        self.t_task = wx.StaticText(panel, label='')
+        self.gauge = wx.Gauge(panel, size=(200, 25))
 
-        panel.sizer = ff_vbox(self.t_msg,
+        panel.sizer = ff_vbox(t_msg,
                               self.t_task,
                               self.gauge)
         panel.SetSizer(panel.sizer)
@@ -82,14 +85,24 @@ class FFProgressBar(wx.Dialog):
         self.Show()
 
     def deliver(self):
+        '''
+        Try to fetch a message from the mailbox. This allows copies
+        of this object in a subprocess to interact with the 'original'
+        version of the object.
+        '''
         try:
             msg = self.mailbox.get(False)
             wx.CallAfter(pub.sendMessage, self.signal + msg)
-        except:
+        except Queue.Empty:
             if self.num_tasks is None:
                 wx.CallAfter(pub.sendMessage, self.signal + '.tick')
 
     def on_finish(self, callback):
+        '''
+        Set an action that should happen once the progress bar
+        has been destroyed. If that has already happened, schedule
+        it to be called as soon as possible.
+        '''
         if not self.alive:
             self.finish_cb = callback
         else:
@@ -97,6 +110,9 @@ class FFProgressBar(wx.Dialog):
         return self
 
     def update(self):
+        '''
+        Update the GUI to correspond to the internal state.
+        '''
         if self.num_tasks:
             self.t_task.SetLabel('On task {0} of {1}'.format(
                 self.val,
@@ -107,37 +123,72 @@ class FFProgressBar(wx.Dialog):
             self.gauge.Pulse()
 
     def __enter__(self):
+        '''
+        Show the widget.
+        '''
         self.mailbox.put('.start')
         return self
 
     def __exit__(self, exn, val, tb):
+        '''
+        Destroy the widget.
+        '''
         self.done()
         return exn
 
     def _start_event(self):
+        '''
+        Internal callback: show the widget.
+
+        Must be called in the original process, ideally via
+        the pub-sub system.
+        '''
         self.Show()
 
-    def _tick_event(self, event=None):
+    def _tick_event(self, _=None):
+        '''
+        Internal callback: update the view.
+
+        Must be called in the original process, ideally via
+        the pub-sub system.
+        '''
         if self.num_tasks:
             self.val += 1
         self.update()
 
     def _done_event(self):
+        '''
+        Internal callback: destroy the loading bar, closing the
+        relevant events, stopping the timer, and detroying the
+        pop-up.
+
+        Must be called in the original process, ideally via
+        the pub-sub system.
+        '''
         self.alive = False
         pub.unsubscribe(self._tick_event, self.signal + '.start')
         pub.unsubscribe(self._tick_event, self.signal + '.tick')
         pub.unsubscribe(self._done_event, self.signal + '.done')
-        if self.timer: self.timer.Stop()
-        if self.finish_cb: self.finish_cb()
+        if self.timer:
+            self.timer.Stop()
+        if self.finish_cb:
+            self.finish_cb()
         self.Destroy()
 
     def tick(self):
+        '''
+        Tick the progress of the loading bar.
+        '''
         self.mailbox.put('.tick')
         return self
 
     def done(self):
+        '''
+        Finish showing the loading bar and destroy it.
+        '''
         self.mailbox.put('.done')
         return self
+
 
 class FFStatLabel(wx.BoxSizer):
     '''
@@ -146,17 +197,22 @@ class FFStatLabel(wx.BoxSizer):
     with the value keyword, or set with the set_value
     method.
     '''
+
     def __init__(self, parent, name, value=None):
         wx.BoxSizer.__init__(self, wx.HORIZONTAL)
-        self._name  = wx.StaticText(parent, label=name + ": ")
+        self._name = wx.StaticText(parent, label=name + ": ")
         self._value = wx.StaticText(parent)
         self.AddMany([(self._name,), (self._value,)])
         if value:
             self.set_value(value)
 
     def set_value(self, val):
+        '''
+        Wrapper over label updating.
+        '''
         self._value.SetLabel(str(val))
         return self
+
 
 def ff_vbox(*contents, **kwargs):
     '''
@@ -167,6 +223,7 @@ def ff_vbox(*contents, **kwargs):
     sizer.AddMany([(x,) for x in contents])
     return sizer
 
+
 def ff_hbox(*contents, **kwargs):
     '''
     A wrapper function for creating and populating a
@@ -176,18 +233,25 @@ def ff_hbox(*contents, **kwargs):
     sizer.AddMany([(x,) for x in contents])
     return sizer
 
-def ff_static_wrap(parent, msg, ln, *args, **kwargs):
-    st = wx.StaticText(parent,
-                       *args,
-                       label=textwrap.fill(msg, ln),
-                       **kwargs)
-    return st
+
+def ff_static_wrap(parent, msg, length, *args, **kwargs):
+    '''
+    A wrapper function for creating a simple text-wrapped
+    label.
+    '''
+    text = wx.StaticText(parent,
+                         *args,
+                         label=textwrap.fill(msg, length),
+                         **kwargs)
+    return text
+
 
 class FFButton(wx.Button):
     '''
     A wrapper for the WXWidgets button that makes supplying button
     actions simpler.
     '''
+
     def __init__(self, *args, **kwargs):
         on_click = kwargs.pop('on_click', None)
         on_focus = kwargs.pop('on_focus', None)
@@ -198,25 +262,70 @@ class FFButton(wx.Button):
             self.Bind(wx.EVT_SET_FOCUS, on_focus)
 
     def on_click(self, action):
+        '''
+        Bind a callback for the EVT_BUTTON event.
+        '''
         self.Bind(wx.EVT_BUTTON, action)
         return self
 
     def on_focus(self, action):
+        '''
+        Bind a callback for the EVT_SET_FOCUS event.
+        '''
         self.Bind(wx.EVT_SET_FOCUS, action)
         return self
 
+
 class FFCheckBox(wx.CheckBox):
+    '''
+    A wx.CheckBox wrapper.
+    '''
+
     def __init__(self, *args, **kwargs):
         default = kwargs.pop('default')
         wx.CheckBox.__init__(self, *args, **kwargs)
         self.SetValue(default)
 
-def ff_warn(parent, message, show=True):
+
+def ff_modal(parent, message, show=True, prefix=''):
+    '''
+    Create a new warning dialog and show it. Wrapper over
+    commonly-used wx.MessageDialog code.
+    '''
+    if prefix:
+        msg = prefix + ': ' + message
+    else:
+        msg = message
     dialog = wx.MessageDialog(
         parent,
-        style=wx.ID_OK,
-        message='Warning: ' + message,
+        style=wx.OK,
+        message=msg,
     )
     if show:
         dialog.ShowModal()
     return dialog
+
+
+def ff_warn(parent, message, show=True):
+    '''
+    Toss up a warning dialogue.
+    '''
+    return ff_modal(parent, message, show=show, prefix='Warning')
+
+
+def ff_error(parent, message, show=True):
+    '''
+    Toss up an error dialogue
+    '''
+    return ff_modal(parent, message, show=show, prefix='Error')
+
+
+def ff_yesno(parent, message):
+    '''
+    Toss up a yes/no dialogue, returning the corresponding
+    boolean value.
+    '''
+    dialog = wx.MessageDialog(parent,
+                              style=wx.YES_NO,
+                              message=message)
+    return dialog.ShowModal()

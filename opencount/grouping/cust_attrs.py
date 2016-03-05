@@ -1,4 +1,6 @@
-import sys, os, pickle
+import sys
+import os
+import pickle
 from os.path import join as pathjoin
 sys.path.append('..')
 
@@ -29,7 +31,9 @@ TYPE_CATTR = 'cattr'
 TYPE_SPREADSHEET = 'spreadsheet'
 TYPE_FILENAME = 'filename'
 
+
 class CustomAttribute(object):
+
     def __init__(self, attrname,
                  is_tabulationonly=False):
         """
@@ -38,31 +42,39 @@ class CustomAttribute(object):
         """
         self.attrname = attrname
         self.is_tabulationonly = is_tabulationonly
+
     def marshall(self):
         return {'attrname': self.attrname, 'is_tabulationonly': self.is_tabulationonly,
                 'type': TYPE_CATTR}
 
+
 class Spreadsheet_Attr(CustomAttribute):
+
     def __init__(self, attrname, sspath, attrin, is_tabulationonly):
         CustomAttribute.__init__(self, attrname, is_tabulationonly)
         self.sspath = sspath
         self.attrin = attrin
+
     def marshall(self):
         dct = CustomAttribute.marshall(self)
         dct['sspath'] = self.sspath
         dct['attrin'] = self.attrin
         dct['type'] = TYPE_SPREADSHEET
         return dct
-        
+
+
 class Filename_Attr(CustomAttribute):
+
     def __init__(self, attrname, filename_regex, is_tabulationonly):
         CustomAttribute.__init__(self, attrname, is_tabulationonly)
         self.filename_regex = filename_regex
+
     def marshall(self):
         dct = CustomAttribute.marshall(self)
         dct['filename_regex'] = self.filename_regex
         dct['type'] = TYPE_FILENAME
         return dct
+
 
 def dump_custom_attrs(proj, custattrs=None):
     """ Stores the custom_attributes into the correct output location. """
@@ -71,7 +83,9 @@ def dump_custom_attrs(proj, custattrs=None):
     if custattrs == None:
         custattrs = []
     marshalled = [marshall_cust_attr(cattr) for cattr in custattrs]
-    pickle.dump(marshalled, open(pathjoin(proj.projdir_path, proj.custom_attrs), 'wb'))
+    pickle.dump(marshalled, open(
+        pathjoin(proj.projdir_path, proj.custom_attrs), 'wb'))
+
 
 def load_custom_attrs(proj):
     """ Returns the custom_attrs data structure if it exists, or None
@@ -87,6 +101,7 @@ def load_custom_attrs(proj):
     marshalled = pickle.load(open(path, 'rb'))
     return [unmarshall_cust_attr(m) for m in marshalled]
 
+
 def custattr_get(custom_attrs, attrname):
     """ Returns the CustomAttribute if it exists in custom_attrs,
     or None otherwise.
@@ -97,6 +112,7 @@ def custattr_get(custom_attrs, attrname):
         if cattr.attrname == attrname:
             return cattr
     return None
+
 
 def custattr_exists(proj, attrname):
     """ Returns True if attrname is a custom_attribute. """

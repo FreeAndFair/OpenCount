@@ -8,8 +8,10 @@ import multiprocessing
 import math
 import Queue
 import random
-try: import cPickle as pickle
-except ImportError: import pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 from os.path import join as pathjoin
 
 import wx
@@ -73,7 +75,9 @@ GRP_MODE_ALL_BALLOTS_NUM_MAX = 750
 
 GLOBAL_ID = 0
 
+
 class LabelDigitsPanel(OpenCountPanel):
+
     def __init__(self, parent, *args, **kwargs):
         OpenCountPanel.__init__(self, parent, *args, **kwargs)
 
@@ -85,7 +89,7 @@ class LabelDigitsPanel(OpenCountPanel):
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
         btn_pageup.Hide()    # These haven't been
         btn_pagedown.Hide()  # implemented yet.
-        
+
         btn_zoomin = wx.Button(self, label="Zoom In")
         btn_zoomin.Bind(wx.EVT_BUTTON, lambda evt: self.gridpanel.zoomin())
         btn_zoomout = wx.Button(self, label="Zoom Out")
@@ -95,18 +99,22 @@ class LabelDigitsPanel(OpenCountPanel):
         btn_sort.Bind(wx.EVT_BUTTON, lambda evt: self.gridpanel.sort_cells())
 
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_pageup,), (btn_pagedown,), ((20,0,),), (btn_zoomin,), (btn_zoomout,), ((20,0),), (btn_sort,)])
+        btn_sizer.AddMany([(btn_pageup,), (btn_pagedown,), ((
+            20, 0,),), (btn_zoomin,), (btn_zoomout,), ((20, 0),), (btn_sort,)])
 
         btn_create = wx.Button(self, label="Create")
-        btn_create.Bind(wx.EVT_BUTTON, lambda evt: self.gridpanel.set_mode(CREATE))
+        btn_create.Bind(
+            wx.EVT_BUTTON, lambda evt: self.gridpanel.set_mode(CREATE))
         btn_modify = wx.Button(self, label="Modify")
-        btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.gridpanel.set_mode(IDLE))
-        
+        btn_modify.Bind(
+            wx.EVT_BUTTON, lambda evt: self.gridpanel.set_mode(IDLE))
+
         btnmode_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btnmode_sizer.AddMany([(btn_create,), (btn_modify,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.gridpanel, proportion=1, border=10, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.gridpanel, proportion=1,
+                       border=10, flag=wx.EXPAND | wx.ALL)
         self.sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
         self.sizer.Add(btnmode_sizer, flag=wx.ALIGN_CENTER)
         self.SetSizer(self.sizer)
@@ -114,7 +122,8 @@ class LabelDigitsPanel(OpenCountPanel):
 
     def start(self, proj, *args, **kwargs):
         self.proj = proj
-        self.statefile = pathjoin(self.proj.projdir_path, '_state_labeldigits.p')
+        self.statefile = pathjoin(
+            self.proj.projdir_path, '_state_labeldigits.p')
         self.proj.addCloseEvent(self.save_session)
 
         if os.path.exists(self.statefile):
@@ -123,8 +132,10 @@ class LabelDigitsPanel(OpenCountPanel):
 
         extracted_digitpatches_fulldir = pathjoin(proj.projdir_path,
                                                   proj.extracted_digitpatch_dir)
-        digit_ex_fulldir = pathjoin(proj.projdir_path, proj.digit_exemplars_outdir)
-        precinctnums_fullpath = pathjoin(proj.projdir_path, proj.precinctnums_outpath)
+        digit_ex_fulldir = pathjoin(
+            proj.projdir_path, proj.digit_exemplars_outdir)
+        precinctnums_fullpath = pathjoin(
+            proj.projdir_path, proj.precinctnums_outpath)
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
             t = time.time()
@@ -155,8 +166,10 @@ class LabelDigitsPanel(OpenCountPanel):
 
         self.gridpanel.set_object_limit(get_num_digits(self.proj))
 
-        self.gridpanel.outdir = pathjoin(self.proj.projdir_path, 'labeldigits_tempmatch_outdir')
-        self.gridpanel.start(imgpaths, cellsize=(w, h), rows_page=4, lookahead=2)
+        self.gridpanel.outdir = pathjoin(
+            self.proj.projdir_path, 'labeldigits_tempmatch_outdir')
+        self.gridpanel.start(imgpaths, cellsize=(w, h),
+                             rows_page=4, lookahead=2)
 
         self.Layout()
 
@@ -173,11 +186,14 @@ class LabelDigitsPanel(OpenCountPanel):
         print "(LabelDigits) Exporting results."
         digitpatch2temp = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.digitpatch2temp)))
-        
-        digitattrvals_blanks = {}  # maps {str templatepath: {digitattrtype: (str precinctstr, bb, side)}}
+
+        # maps {str templatepath: {digitattrtype: (str precinctstr, bb, side)}}
+        digitattrvals_blanks = {}
         # Oddly enough, I don't think anything uses the SCORE or PATCHPATH entries
         # of DIGITEXEMPLARS_MAP. Let's not fill them in.
-        digitexemplars_map = {} # maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)} where BB := [y1,y2,x1,x2]
+        # maps {str digit: ((regionpath_i, score, bb, patchpath_i), ...)} where
+        # BB := [y1,y2,x1,x2]
+        digitexemplars_map = {}
 
         for cellid, boxes in self.gridpanel.cellid2boxes.iteritems():
             # TODO: Assumes precinct nums are oriented horizontally.
@@ -186,7 +202,8 @@ class LabelDigitsPanel(OpenCountPanel):
 
             regionpath = self.gridpanel.cellid2imgpath[cellid]
             temppath, attrstr, bb, side = digitpatch2temp[regionpath]
-            digitattrvals_blanks.setdefault(temppath, {})[attrstr] = (precinctstr, bb, side)
+            digitattrvals_blanks.setdefault(
+                temppath, {})[attrstr] = (precinctstr, bb, side)
 
             for box in boxes_sorted:
                 if box[0] == None:
@@ -195,7 +212,8 @@ class LabelDigitsPanel(OpenCountPanel):
                 # digitexemplars_map expects the bb to be: [y1, y2, x1, x2]
                 bb = [box[1], box[3], box[0], box[2]]
                 digitval = box[-1]
-                digitexemplars_map.setdefault(digitval, []).append((regionpath, None, bb, None))
+                digitexemplars_map.setdefault(digitval, []).append(
+                    (regionpath, None, bb, None))
 
         pickle.dump(digitattrvals_blanks, open(pathjoin(self.proj.projdir_path,
                                                         self.proj.digitattrvals_blanks),
@@ -207,9 +225,11 @@ class LabelDigitsPanel(OpenCountPanel):
     def get_state(self):
         state = {'state_grid': self.gridpanel.get_state()}
         return state
+
     def restore_session(self, state):
         state_grid = state['state_grid']
         self.gridpanel.restore_state(state_grid)
+
     def save_session(self):
         if self.statefile:
             print "(LabelDigits) Saving state to statefile:", self.statefile
@@ -217,6 +237,7 @@ class LabelDigitsPanel(OpenCountPanel):
 
     def onButton_pageup(self, evt):
         pass
+
     def onButton_pagedown(self, evt):
         pass
 
@@ -241,7 +262,9 @@ Try clicking the 'Sort Cells' button to easily find the patches that are missing
 digit labels.".format(self.gridpanel.NUM_OBJECTS)
         return [(flag_ok, True, fail_msg, 0, None)]
 
+
 class TempMatchGrid(SmartScrolledGridPanel):
+
     def __init__(self, parent, *args, **kwargs):
         SmartScrolledGridPanel.__init__(self, parent, *args, **kwargs)
 
@@ -254,7 +277,8 @@ class TempMatchGrid(SmartScrolledGridPanel):
         self.TM_THRESHOLD = 0.84
         # Sets num. of processes to use for template matching (multiprocessing)
         #    '1': Single process, don't use multiprocessing
-        #    None: Use number of processes equal to number of CPU cores (good default value)
+        # None: Use number of processes equal to number of CPU cores (good
+        # default value)
         self.NPROCS = None
 
         self.outdir = 'tempmatchgrid_outdir'
@@ -283,7 +307,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
             return
 
         label = dlg.label
-        
+
         # Determine which images to run template matching on
         imgpaths_in = []
         for imgpath, cellid in self.imgpath2cellid.iteritems():
@@ -295,7 +319,8 @@ class TempMatchGrid(SmartScrolledGridPanel):
 
         m = multiprocessing.Manager()
         progress_queue = m.Queue()
-        t_listen = ThreadUpdateGauge(progress_queue, self.util.Gauges.label_digit_match)
+        t_listen = ThreadUpdateGauge(
+            progress_queue, self.util.Gauges.label_digit_match)
         t_listen.start()
 
         numtasks = len(imgpaths_in)
@@ -333,9 +358,11 @@ class TempMatchGrid(SmartScrolledGridPanel):
             jobid.done()
 
         imgpaths = []
-        patch2match = {} # maps {str patchpath: (int cellid, float sc2, x1, y1, x2, y2)}
-        for (imgpath,sc1,sc2,patchpath,y1,y2,x1,x2,rszFac) in matches:
-            x1, y1, x2, y2 = [int(round(coord / rszFac)) for coord in (x1, y1, x2, y2)]
+        # maps {str patchpath: (int cellid, float sc2, x1, y1, x2, y2)}
+        patch2match = {}
+        for (imgpath, sc1, sc2, patchpath, y1, y2, x1, x2, rszFac) in matches:
+            x1, y1, x2, y2 = [int(round(coord / rszFac))
+                              for coord in (x1, y1, x2, y2)]
             cellid = self.imgpath2cellid[imgpath]
             boxes_cell = self.cellid2boxes.get(cellid, [])
             if self.NUM_OBJECTS != None and len(boxes_cell) >= self.NUM_OBJECTS:
@@ -347,7 +374,8 @@ class TempMatchGrid(SmartScrolledGridPanel):
             patch2match[patchpath] = (cellid, sc2, x1, y1, x2, y2)
 
         # == Now, verify the found-matches via overlay-verification
-        self.f = verify_overlays_new.CheckImageEqualsFrame(self, imgpaths, exemplarimg, lambda res: self.on_verify_done(res, patch2match, label))
+        self.f = verify_overlays_new.CheckImageEqualsFrame(
+            self, imgpaths, exemplarimg, lambda res: self.on_verify_done(res, patch2match, label))
         self.f.Maximize()
         self.f.Show()
 
@@ -369,11 +397,13 @@ class TempMatchGrid(SmartScrolledGridPanel):
             elif tag == YES:
                 for patchpath in patchpaths:
                     cellid, sc, x1, y1, x2, y2 = patch2match[patchpath]
-                    self.cellid2boxes.setdefault(cellid, []).append([x1, y1, x2, y2, label])
+                    self.cellid2boxes.setdefault(
+                        cellid, []).append([x1, y1, x2, y2, label])
                     num_added += 1
 
         print "(TempMatchGrid) Added {0} matches final.".format(num_added)
         self.Refresh()
+
 
 def get_common_area(bb1, bb2):
     """ Returns common area between bb1, bb2.
@@ -406,34 +436,36 @@ def get_common_area(bb1, bb2):
         tmp = bb1
         bb1 = bb2
         bb2 = tmp
-    y1a,y2a,x1a,x2a = bb1
-    y1b,y2b,x1b,x2b = bb2
-    w_a, h_a = abs(x1a-x2a), abs(y1a-y2a)
-    w_b, h_b = abs(x1b-x2b), abs(y1b-y2b)
-    segw_a = x1a, x1a+w_a
-    segh_a = y1a-h_a, y1a
-    segw_b = x1b, x1b+w_b
-    segh_b = y1b-h_b, y1b
+    y1a, y2a, x1a, x2a = bb1
+    y1b, y2b, x1b, x2b = bb2
+    w_a, h_a = abs(x1a - x2a), abs(y1a - y2a)
+    w_b, h_b = abs(x1b - x2b), abs(y1b - y2b)
+    segw_a = x1a, x1a + w_a
+    segh_a = y1a - h_a, y1a
+    segw_b = x1b, x1b + w_b
+    segh_b = y1b - h_b, y1b
     cseg_w = common_segment(segw_a, segw_b)
     cseg_h = common_segment(segh_a, segh_b)
     if cseg_w == None or cseg_h == None:
         return 0.0
     else:
-        return abs(cseg_w[0]-cseg_w[1]) * abs(cseg_h[0]-cseg_h[1])
+        return abs(cseg_w[0] - cseg_w[1]) * abs(cseg_h[0] - cseg_h[1])
+
 
 def a_equal(a, b, T=1e-3):
     return abs(a - b) <= T
-        
+
+
 def test_get_common_area():
-    tests = [] # [(A, B, float expected), ...]
-    tests.append(( (1, 4, 4, 1), (9, 9, 18, 4), 0.0))
-    tests.append(( (1, 4, 4, 1), (1, 9, 3, 7), 0.0))
-    tests.append(( (1, 3, 3, 1), (1, 3, 3, 1), 4.0))
-    tests.append(( (1, 3, 3, 1), (2, 3, 3, 1), 2.0))
-    tests.append(( (1, 3, 3, 1), (2, 3, 100, 100), 2.0))
-    tests.append(( (2, 100, 40, 0), (2, 100, 40, 0), 3800.0))
-    tests.append(( (0,0,0,0), (0,0,0,0), 0.0))
-    tests.append(( (0,0,0,0), (1,1,1,1), 0.0))
+    tests = []  # [(A, B, float expected), ...]
+    tests.append(((1, 4, 4, 1), (9, 9, 18, 4), 0.0))
+    tests.append(((1, 4, 4, 1), (1, 9, 3, 7), 0.0))
+    tests.append(((1, 3, 3, 1), (1, 3, 3, 1), 4.0))
+    tests.append(((1, 3, 3, 1), (2, 3, 3, 1), 2.0))
+    tests.append(((1, 3, 3, 1), (2, 3, 100, 100), 2.0))
+    tests.append(((2, 100, 40, 0), (2, 100, 40, 0), 3800.0))
+    tests.append(((0, 0, 0, 0), (0, 0, 0, 0), 0.0))
+    tests.append(((0, 0, 0, 0), (1, 1, 1, 1), 0.0))
 
     num_failed = 0
     for i, (A, B, expected) in enumerate(tests):
@@ -451,6 +483,7 @@ def test_get_common_area():
             num_failed += 1
 
     print "Done. {0} / {1} Tests passed.".format(len(tests) - num_failed, len(tests))
+
 
 def do_extract_digitbased_patches(proj, C, MIN, MAX):
     """ Extracts all digit-based attribute patches, and stores them
@@ -476,7 +509,8 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
             y2 = attrbox_dict['y2']
             side = attrbox_dict['side']
             is_part_consistent = attrbox_dict['grp_per_partition']
-            digit_attrtypes.append((attrs,x1,y1,x2,y2,side,is_part_consistent))
+            digit_attrtypes.append(
+                (attrs, x1, y1, x2, y2, side, is_part_consistent))
     if len(digit_attrtypes) >= 2:
         raise Exception("Only one digit attribute may exist.")
     bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
@@ -499,13 +533,14 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
         # Randomly choose ballots from the election.
         candidate_balids = sum(partitions_map.values(), [])
         N = max(min(int(round(len(candidate_balids) * C)), MAX), MIN)
-        N = min(N, len(candidate_balids)) # If MIN < len(B), avoid oversampling
+        # If MIN < len(B), avoid oversampling
+        N = min(N, len(candidate_balids))
         chosen_bids = set(random.sample(candidate_balids, N))
         print "...Digit attribute is NOT consistent w.r.t partitions, chose {0} ballots".format(len(chosen_bids))
 
     partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
                                                  proj.partition_exmpls), 'rb'))
-    tasks = [] # list [(int ballotID, [imgpath_side0, ...]), ...]
+    tasks = []  # list [(int ballotID, [imgpath_side0, ...]), ...]
     for ballotid in chosen_bids:
         imgpaths = bal2imgs[ballotid]
         imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
@@ -518,20 +553,22 @@ def do_extract_digitbased_patches(proj, C, MIN, MAX):
                               pass_idx=True,
                               N=None)
 
+
 def _my_combfn(results, subresults):
     return dict(results.items() + subresults.items())
+
 
 def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
     i = 0
     outdir = pathjoin(proj.projdir_path, proj.extracted_digitpatch_dir)
-    patch2temp = {} # maps {str patchpath: (imgpath, attrtype, bb, int side)}
-    for (attrs,x1,y1,x2,y2,side,is_part_consistent) in digit_attrtypes:
+    patch2temp = {}  # maps {str patchpath: (imgpath, attrtype, bb, int side)}
+    for (attrs, x1, y1, x2, y2, side, is_part_consistent) in digit_attrtypes:
         for templateid, imgpaths in tasks:
             imgpath = imgpaths[side]
             I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
             if img2flip[imgpath]:
                 cv.Flip(I, I, flipMode=-1)
-            cv.SetImageROI(I, (x1, y1, x2-x1, y2-y1))
+            cv.SetImageROI(I, (x1, y1, x2 - x1, y2 - y1))
             attrs_sorted = sorted(attrs)
             attrs_sortedstr = '_'.join(attrs_sorted)
             '''
@@ -555,6 +592,7 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
             i += 1
     return patch2temp
 
+
 def do_tempmatch_async(patch, imgpaths, callback, outdir,
                        THRESHOLD=0.8, NPROCS=None,
                        jobid=None, progress_queue=None):
@@ -576,7 +614,9 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
     """
     if NPROCS == None:
         NPROCS = multiprocessing.cpu_count()
+
     class ThreadDoTempMatch(threading.Thread):
+
         def __init__(self, img1, imgpaths, callback, THRESHOLD, *args, **kwargs):
             """ Search for img1 within images in imgpaths. """
             threading.Thread.__init__(self, *args, **kwargs)
@@ -587,13 +627,14 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
 
         def run(self):
             global GLOBAL_ID
-            h, w =  self.img1.shape
-            bb = [0, h-1, 0, w-1]
-            # list MATCHES: [(imgath, score1, score2, patch, i1, i2, j1, j2, rszFac), ...]
+            h, w = self.img1.shape
+            bb = [0, h - 1, 0, w - 1]
+            # list MATCHES: [(imgath, score1, score2, patch, i1, i2, j1, j2,
+            # rszFac), ...]
             t = time.time()
 
             imgpatch = self.img1.astype('float32') / 255.0
-            
+
             if NPROCS == 1:
                 print "(ThreadDoTempMatch): Using 1 process (TM_THRESHOLD={0}).".format(self.THRESHOLD)
                 matches = shared.find_patch_matchesV1(imgpatch, bb[:], self.imgpaths, threshold=self.THRESHOLD,
@@ -602,7 +643,7 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
                                                       jobid=jobid, progress_queue=progress_queue)
             else:
                 print "(ThreadDoTempMatch): Using {0} processes. (TM_THRESHOLD={1})".format(NPROCS, self.THRESHOLD)
-                procs = [] # [(Process p, int numimgs), ...]
+                procs = []  # [(Process p, int numimgs), ...]
                 if progress_queue != None:
                     manager = multiprocessing.Manager()
                 else:
@@ -617,9 +658,10 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
                         imgpaths_in = self.imgpaths[i_start:]
                     else:
                         imgpaths_in = self.imgpaths[i_start:i_end]
-                    outdir_in = os.path.join(outdir, "proc_{0}".format(procnum))
+                    outdir_in = os.path.join(
+                        outdir, "proc_{0}".format(procnum))
                     p = multiprocessing.Process(target=mp_patchmatch,
-                                                args=(queue, 
+                                                args=(queue,
                                                       imgpatch, bb[:], imgpaths_in),
                                                 kwargs={'output_Ireg': False,
                                                         'save_patches': True,
@@ -636,7 +678,7 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
                     p_matches = queue.get()
                     print "(Process_{0}) Finished temp matching, got {1} matches ({2:.4f}s, {3} images total)".format(i, len(p_matches), dur, numimgs)
                     matches.extend(p_matches)
-                                                                                          
+
             dur = time.time() - t
             print "DONE with temp matching. Found: {0} matches    ({1:.4f}s, {2:.5f}s per image)".format(len(matches), dur, dur / float(len(self.imgpaths)))
             GLOBAL_ID += len(matches)
@@ -647,7 +689,9 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
     t = ThreadDoTempMatch(patch, imgpaths, callback, THRESHOLD)
     t.start()
 
+
 class ThreadUpdateGauge(threading.Thread):
+
     def __init__(self, progress_queue, jobid, *args, **kwargs):
         threading.Thread.__init__(self, *args, **kwargs)
         self.progress_queue, self.jobid = progress_queue, jobid
@@ -661,15 +705,18 @@ class ThreadUpdateGauge(threading.Thread):
             except Queue.Empty:
                 pass
 
+
 def mp_patchmatch(queue, *args, **kwargs):
     matches = shared.find_patch_matchesV1(*args, **kwargs)
     queue.put(matches)
 
+
 class LabelDigitPatchDialog(wx.Dialog):
+
     def __init__(self, parent, patch, *args, **kwargs):
-        wx.Dialog.__init__(self, parent, title="Digit Value?", 
+        wx.Dialog.__init__(self, parent, title="Digit Value?",
                            style=wx.CAPTION | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | wx.SYSTEM_MENU, *args, **kwargs)
-        
+
         self.label = None
 
         w, h = patch.shape[1], patch.shape[0]
@@ -679,7 +726,8 @@ class LabelDigitPatchDialog(wx.Dialog):
 
         stxt = wx.StaticText(self, label="What digit is this?")
         self.txtctrl = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
-        self.txtctrl.Bind(wx.EVT_TEXT_ENTER, lambda evt: self.onButton_ok(None))
+        self.txtctrl.Bind(wx.EVT_TEXT_ENTER,
+                          lambda evt: self.onButton_ok(None))
 
         txt_sizer = wx.BoxSizer(wx.HORIZONTAL)
         txt_sizer.AddMany([(stxt,), (self.txtctrl,)])
@@ -706,7 +754,8 @@ class LabelDigitPatchDialog(wx.Dialog):
     def onButton_ok(self, evt):
         self.label = self.txtctrl.GetValue()
         if not self.label:
-            dlg = wx.MessageDialog(self, message="Please enter a digit value.", style=wx.OK)
+            dlg = wx.MessageDialog(
+                self, message="Please enter a digit value.", style=wx.OK)
             dlg.ShowModal()
             return
         self.EndModal(wx.ID_OK)
@@ -723,16 +772,18 @@ class LabelDigitPatchDialog(wx.Dialog):
 """
 ==== Dev/Test code
 """
-        
+
+
 class MainFrame(wx.Frame):
+
     def __init__(self, parent, imgpaths, rows_page, lookahead, num_cols, cell_size, no_prefetch, numdigits, nprocs, statefile, *args, **kwargs):
         wx.Frame.__init__(self, parent, size=(1000, 700), *args, **kwargs)
         self.statefile = statefile
         self.mainpanel = TempMatchGrid(self)
-        
+
         btn_activate = wx.Button(self, label="Activate Page...")
         btn_activate.Bind(wx.EVT_BUTTON, self.onButton_activate)
-        
+
         btn_deactivate = wx.Button(self, label="Deactivate Page...")
         btn_deactivate.Bind(wx.EVT_BUTTON, self.onButton_deactivate)
 
@@ -740,7 +791,7 @@ class MainFrame(wx.Frame):
         btn_pageup.Bind(wx.EVT_BUTTON, self.onButton_pageup)
         btn_pagedown = wx.Button(self, label="Page Down")
         btn_pagedown.Bind(wx.EVT_BUTTON, self.onButton_pagedown)
-        
+
         btn_zoomin = wx.Button(self, label="Zoom In")
         btn_zoomin.Bind(wx.EVT_BUTTON, self.onButton_zoomin)
         btn_zoomout = wx.Button(self, label="Zoom Out")
@@ -758,23 +809,27 @@ class MainFrame(wx.Frame):
         btn_sizer.AddMany([(btn_activate,), (btn_deactivate,)])
         btn_sizer.AddMany([(btn_pageup,), (btn_pagedown,)])
         btn_sizer.AddMany([(btn_zoomin,), (btn_zoomout,)])
-        btn_sizer.AddMany([((20,0),), (btn_layout,), (btn_fit,), ((20,0),), (btn_sort,)])
-        
+        btn_sizer.AddMany([((20, 0),), (btn_layout,),
+                           (btn_fit,), ((20, 0),), (btn_sort,)])
+
         btn_create = wx.Button(self, label="Create")
-        btn_create.Bind(wx.EVT_BUTTON, lambda evt: self.mainpanel.set_mode(CREATE))
+        btn_create.Bind(
+            wx.EVT_BUTTON, lambda evt: self.mainpanel.set_mode(CREATE))
         btn_modify = wx.Button(self, label="Modify")
-        btn_modify.Bind(wx.EVT_BUTTON, lambda evt: self.mainpanel.set_mode(IDLE))
-        
+        btn_modify.Bind(
+            wx.EVT_BUTTON, lambda evt: self.mainpanel.set_mode(IDLE))
+
         btnmode_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btnmode_sizer.AddMany([(btn_create,), (btn_modify,)])
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.mainpanel, proportion=1, border=10, flag=wx.EXPAND | wx.ALL)
+        self.sizer.Add(self.mainpanel, proportion=1,
+                       border=10, flag=wx.EXPAND | wx.ALL)
         self.sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
         self.sizer.Add(btnmode_sizer, flag=wx.ALIGN_CENTER)
         self.SetSizer(self.sizer)
         self.Layout()
-        
+
         self.mainpanel.set_object_limit(numdigits)
         self.mainpanel.NPROCS = nprocs
         if statefile and os.path.exists(statefile):
@@ -802,7 +857,9 @@ class MainFrame(wx.Frame):
             self.mainpanel.activate_page(int(dlg.GetValue()))
         except:
             traceback.print_exc()
-            wx.MessageDialog(self, style=wx.OK, message="Invalid page entered!").ShowModal()
+            wx.MessageDialog(self, style=wx.OK,
+                             message="Invalid page entered!").ShowModal()
+
     def onButton_deactivate(self, evt):
         dlg = wx.TextEntryDialog(self, message="Which page to deactivate?")
         status = dlg.ShowModal()
@@ -812,22 +869,28 @@ class MainFrame(wx.Frame):
             self.mainpanel.deactivate_page(int(dlg.GetValue()))
         except:
             traceback.print_exc()
-            wx.MessageDialog(self, style=wx.OK, message="Invalid page entered!").ShowModal()
+            wx.MessageDialog(self, style=wx.OK,
+                             message="Invalid page entered!").ShowModal()
+
     def onButton_pageup(self, evt):
         pass
+
     def onButton_pagedown(self, evt):
         pass
+
     def onButton_zoomin(self, evt):
         self.mainpanel.zoomin()
+
     def onButton_zoomout(self, evt):
         self.mainpanel.zoomout()
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--imgsdir", help="Directory of images to \
 display. Overrides the '--k' option.")
 
-    parser.add_argument("--limit", type=int, 
+    parser.add_argument("--limit", type=int,
                         help="Upper limit of images to process.")
 
     parser.add_argument("--rows_page", type=int, metavar="N", default=3,
@@ -850,9 +913,11 @@ display. Overrides the '--k' option.")
                         help="Specify statefile to use.")
     return parser.parse_args()
 
+
 def main():
     args = parse_args()
     print args.no_prefetch
+
     def load_imgpaths(imgsdir, limit):
         imgpaths = []
         for dirpath, dirnames, filenames in os.walk(imgsdir):

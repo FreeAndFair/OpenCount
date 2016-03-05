@@ -2,6 +2,7 @@ import optparse
 import doExtract
 from os.path import join as pathjoin
 
+
 def main():
     usage = 'python my_extract.py csvpath templatepath samplesdir outdir'
     parser = optparse.OptionParser(usage=usage)

@@ -1,4 +1,7 @@
-import os, sys, pdb, re
+import os
+import sys
+import pdb
+import re
 from os.path import join as pathjoin
 try:
     import cPickle as pickle
@@ -21,7 +24,8 @@ import util
 import config
 from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate, DevVendor
 
-BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold", "Single Template (generic)", "DevVendor")
+BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold",
+                  "Single Template (generic)", "DevVendor")
 VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
                   "sequoia": Sequoia.SequoiaVendor,
                   "single template (generic)": SingleTemplate.SingleTemplateVendor,
@@ -33,10 +37,13 @@ SEPARATE_MODE_ALTERNATING = 43
 SEPARATE_MODE_REGEX_SIMPLE = 44
 SEPARATE_MODE_REGEX_CTR = 45
 
+
 class ConfigPanel(wx.Panel):
+
     def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
-        
+        wx.Panel.__init__(
+            self, parent, style=wx.SIMPLE_BORDER, *args, **kwargs)
+
         # Instance vars
         self.parent = parent
         self.project = None
@@ -44,14 +51,19 @@ class ConfigPanel(wx.Panel):
 
         # HOOKFN: Just a callback function to pass to Project.closehooks
         self._hookfn = None
-        
+
         # Set up widgets
         self.box_samples = wx.StaticBox(self, label="Samples")
-        self.box_samples.sizer = wx.StaticBoxSizer(self.box_samples, orient=wx.VERTICAL)
-        self.box_samples.txt = wx.StaticText(self, label="Please choose the directory where the sample images reside.")
-        self.box_samples.btn = wx.Button(self, label="Choose voted ballot directory...")
-        self.box_samples.btn.Bind(wx.EVT_BUTTON, self.onButton_choosesamplesdir)
-        self.box_samples.txt2 = wx.StaticText(self, label="Voted ballot directory:")
+        self.box_samples.sizer = wx.StaticBoxSizer(
+            self.box_samples, orient=wx.VERTICAL)
+        self.box_samples.txt = wx.StaticText(
+            self, label="Please choose the directory where the sample images reside.")
+        self.box_samples.btn = wx.Button(
+            self, label="Choose voted ballot directory...")
+        self.box_samples.btn.Bind(
+            wx.EVT_BUTTON, self.onButton_choosesamplesdir)
+        self.box_samples.txt2 = wx.StaticText(
+            self, label="Voted ballot directory:")
         self.box_samples.txt_samplespath = wx.StaticText(self)
         self.box_samples.sizer.Add(self.box_samples.txt)
         self.box_samples.sizer.Add((0, 20))
@@ -61,7 +73,7 @@ class ConfigPanel(wx.Panel):
         self.box_samples.sizer.Add(self.box_samples.txt_samplespath)
         self.box_samples.sizer.Add((0, 20))
 
-        #self.lower_scroll = wx.ListBox(self) # Voted Skipped ListBox
+        # self.lower_scroll = wx.ListBox(self) # Voted Skipped ListBox
         #self.lower_scroll.box = wx.StaticBox(self, label="For the voted ballots, the following files were skipped:")
         #sboxsizer0 = wx.StaticBoxSizer(self.lower_scroll.box, orient=wx.VERTICAL)
         #sboxsizer0.Add(self.lower_scroll, 1, flag=wx.EXPAND)
@@ -70,55 +82,70 @@ class ConfigPanel(wx.Panel):
         sizer0.Add(self.box_samples.sizer, proportion=1, flag=wx.EXPAND)
         sizer0.Add((50, 0))
         #sizer0.Add(sboxsizer0, proportion=1, flag=wx.EXPAND)
-        
+
         txt_numpages = wx.StaticText(self, label="Number of pages: ")
         self.numpages_txtctrl = wx.TextCtrl(self, value="2")
-        self.varnumpages_chkbox = wx.CheckBox(self, label="Variable Number of Pages")
-        self.varnumpages_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_varnumpages)
+        self.varnumpages_chkbox = wx.CheckBox(
+            self, label="Variable Number of Pages")
+        self.varnumpages_chkbox.Bind(
+            wx.EVT_CHECKBOX, self.onCheckBox_varnumpages)
         sizer_numpages = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_numpages.AddMany([(txt_numpages,), ((10,0),), (self.numpages_txtctrl,),
-                                ((10,0),), (self.varnumpages_chkbox,)])
-        
-        sbox_ballotgroup = wx.StaticBox(self, label="Ballot Grouping/Pairing Configuration")
-        ssizer_ballotgroup = wx.StaticBoxSizer(sbox_ballotgroup, orient=wx.VERTICAL)
+        sizer_numpages.AddMany([(txt_numpages,), ((10, 0),), (self.numpages_txtctrl,),
+                                ((10, 0),), (self.varnumpages_chkbox,)])
 
-        txt_regex_shr = wx.StaticText(self, label="Enter a regex to match on the shared filename part.")
-        self.regexShr_txtctrl = wx.TextCtrl(self, value=r"(.*_.*_.*_).*_.*\.[a-zA-Z]*", size=(300,-1))
-        txt_regex_diff = wx.StaticText(self, label="Enter a regex to match on the distinguishing filename part.")
-        self.regexDiff_txtctrl = wx.TextCtrl(self, value=r".*_.*_.*_(.*_.*)\.[a-zA-Z]*", size=(300,-1))
+        sbox_ballotgroup = wx.StaticBox(
+            self, label="Ballot Grouping/Pairing Configuration")
+        ssizer_ballotgroup = wx.StaticBoxSizer(
+            sbox_ballotgroup, orient=wx.VERTICAL)
+
+        txt_regex_shr = wx.StaticText(
+            self, label="Enter a regex to match on the shared filename part.")
+        self.regexShr_txtctrl = wx.TextCtrl(
+            self, value=r"(.*_.*_.*_).*_.*\.[a-zA-Z]*", size=(300, -1))
+        txt_regex_diff = wx.StaticText(
+            self, label="Enter a regex to match on the distinguishing filename part.")
+        self.regexDiff_txtctrl = wx.TextCtrl(
+            self, value=r".*_.*_.*_(.*_.*)\.[a-zA-Z]*", size=(300, -1))
         sizer_regexShr = wx.BoxSizer(wx.HORIZONTAL)
         sizer_regexDiff = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_regexShr.AddMany([(txt_regex_shr,), ((10,0),), (self.regexShr_txtctrl,)])
-        sizer_regexDiff.AddMany([(txt_regex_diff,), ((10,0),), (self.regexDiff_txtctrl,)])
+        sizer_regexShr.AddMany(
+            [(txt_regex_shr,), ((10, 0),), (self.regexShr_txtctrl,)])
+        sizer_regexDiff.AddMany(
+            [(txt_regex_diff,), ((10, 0),), (self.regexDiff_txtctrl,)])
         self.regex_ctr_chkbox = wx.CheckBox(self, label="Do the filenames end in \
 incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.regex_ctr_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_regexCtr)
         self.sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_regex1.AddMany([((0, 10),), (sizer_regexShr,), ((0,10),), (sizer_regexDiff,)])
+        self.sizer_regex1.AddMany(
+            [((0, 10),), (sizer_regexShr,), ((0, 10),), (sizer_regexDiff,)])
         self.sizer_regex1.AddMany([((0, 10),), (self.regex_ctr_chkbox)])
 
         self.txt_or = wx.StaticText(self, label="- Or -")
         self.txt_regex_shr = txt_regex_shr
         self.txt_regex_diff = txt_regex_diff
 
-        self.alternate_chkbox = wx.CheckBox(self, label="Ballots alternate front and back")
+        self.alternate_chkbox = wx.CheckBox(
+            self, label="Ballots alternate front and back")
         self.alternate_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_alternate)
         self.alternate_chkbox.SetValue(True)
 
         ssizer_ballotgroup.Add(self.alternate_chkbox, border=10, flag=wx.ALL)
-        ssizer_ballotgroup.AddMany([((0,10),), (self.txt_or,0,wx.ALIGN_CENTER, 10, wx.ALL), ((0,10),), (self.sizer_regex1, 0, wx.ALL, 10)])
+        ssizer_ballotgroup.AddMany([((0, 10),), (self.txt_or, 0, wx.ALIGN_CENTER, 10, wx.ALL), ((
+            0, 10),), (self.sizer_regex1, 0, wx.ALL, 10)])
         self.txt_or.Hide()
         self.regexShr_txtctrl.Hide()
         self.regexDiff_txtctrl.Hide()
         self.regex_ctr_chkbox.Hide()
         self.txt_regex_shr.Hide()
         self.txt_regex_diff.Hide()
-        
-        self.is_straightened = wx.CheckBox(self, -1, label="Ballots already straightened.")
+
+        self.is_straightened = wx.CheckBox(
+            self, -1, label="Ballots already straightened.")
         self.is_straightened.Hide()
-        
+
         txt_vendor = wx.StaticText(self, label="What is the ballot vendor?")
-        self.vendor_dropdown = wx.ComboBox(self, style=wx.CB_READONLY, choices=BALLOT_VENDORS)
+        self.vendor_dropdown = wx.ComboBox(
+            self, style=wx.CB_READONLY, choices=BALLOT_VENDORS)
         sizer_vendor = wx.BoxSizer(wx.HORIZONTAL)
         sizer_vendor.AddMany([(txt_vendor,), (self.vendor_dropdown,)])
 
@@ -126,7 +153,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         #self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_runsanitycheck)
         #self.btn_run.box = wx.StaticBox(self)
         #sboxsizer1 = wx.StaticBoxSizer(self.btn_run.box, orient=wx.VERTICAL)
-        #sboxsizer1.Add(self.btn_run)
+        # sboxsizer1.Add(self.btn_run)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(sizer0)
@@ -139,8 +166,8 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.sizer.Add((0, 25))
         self.sizer.Add(sizer_vendor)
         self.sizer.Add((0, 25))
-        #self.sizer.Add(sboxsizer1)
-        
+        # self.sizer.Add(sboxsizer1)
+
         self.SetSizer(self.sizer)
         self.Layout()
 
@@ -152,7 +179,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         """
         self.project = project
         self.stateP = stateP
-        self._hookfn = lambda : self.save_session(stateP)
+        self._hookfn = lambda: self.save_session(stateP)
         self.project.addCloseEvent(self._hookfn)
         if self.restore_session(stateP=stateP):
             return
@@ -162,15 +189,17 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.save_session(stateP=self.stateP)
         self.project.removeCloseEvent(self._hookfn)
         self.export_results()
-        
+
     def export_results(self):
         """ Create and store the ballot_to_images and image_to_ballot
         data structures. Also, set the proj.voteddir, proj.imgsize,
         proj.is_multipage, proj.num_pages, and proj.vendor_obj properties.
         """
-        # BALLOT_TO_IMAGES: maps {int ballotID: [imgpath_side0, imgpath_side1, ...]}
+        # BALLOT_TO_IMAGES: maps {int ballotID: [imgpath_side0, imgpath_side1,
+        # ...]}
         ballot_to_images = {}
-        image_to_ballot = {} # maps {imgpath: int ballotID}
+        image_to_ballot = {}  # maps {imgpath: int ballotID}
+
         def get_separate_mode():
             if self.alternate_chkbox.GetValue():
                 return SEPARATE_MODE_ALTERNATING
@@ -187,7 +216,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
                                    regexDiff=self.regexDiff_txtctrl.GetValue())
         curballotid = 0
         weirdballots = []
-        stats_numpages = {} # maps {int numpages: int cnt}
+        stats_numpages = {}  # maps {int numpages: int cnt}
         for i, imgpaths in enumerate(by_ballots):
             _numpages = len(imgpaths)
             if _numpages not in stats_numpages:
@@ -224,12 +253,16 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
                         len(weirdballots),
                         self.numpages_txtctrl.GetValue()))
 
-        pickle.dump(weirdballots, open(pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
-        pickle.dump(ballot_to_images, open(self.project.ballot_to_images, 'wb'), pickle.HIGHEST_PROTOCOL)
-        pickle.dump(image_to_ballot, open(self.project.image_to_ballot, 'wb'), pickle.HIGHEST_PROTOCOL)
+        pickle.dump(weirdballots, open(
+            pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
+        pickle.dump(ballot_to_images, open(
+            self.project.ballot_to_images, 'wb'), pickle.HIGHEST_PROTOCOL)
+        pickle.dump(image_to_ballot, open(
+            self.project.image_to_ballot, 'wb'), pickle.HIGHEST_PROTOCOL)
         # 2.) Set project.voteddir
         self.project.voteddir = self.voteddir
-        # 3.) Set project.imgsize, assuming that all image dimensions are the same
+        # 3.) Set project.imgsize, assuming that all image dimensions are the
+        # same
         if len(image_to_ballot) == 0:
             ff_warn(self,
                     "Fatal Error: OpenCount couldn't \
@@ -280,8 +313,9 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         # 6.) Set project.is_varnum_pages
         self.project.is_varnum_pages = self.varnumpages_chkbox.GetValue()
         # 6.) Set project.vendor_obj
-        self.project.vendor_obj = VENDOR_CLASSES[self.vendor_dropdown.GetStringSelection().lower()](self.project)
-        
+        self.project.vendor_obj = VENDOR_CLASSES[
+            self.vendor_dropdown.GetStringSelection().lower()](self.project)
+
     def restore_session(self, stateP=None):
         try:
             state = pickle.load(open(stateP, 'rb'))
@@ -316,6 +350,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         except:
             return False
         return True
+
     def save_session(self, stateP=None):
         state = {'voteddir': self.voteddir,
                  'is_straightened': self.is_straightened.GetValue(),
@@ -330,8 +365,8 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
 
     def wrap(self, text):
         res = ""
-        for i in range(0,len(text),50):
-            res += text[i:i+50]+"\n"
+        for i in range(0, len(text), 50):
+            res += text[i:i + 50] + "\n"
         return res
 
     def set_samplepath(self, path):
@@ -339,9 +374,10 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.box_samples.txt_samplespath.SetLabel(self.wrap(self.voteddir))
         self.project.raw_samplesdir = self.voteddir
         pub.sendMessage("processing.register", data=self.project)
+
     def get_samplepath(self):
         return self.box_samples.txt_samplespath.GetLabelText().replace("\n", "")
-        
+
     def onSanityCheck(self, evt):
         """
         Triggered when either the templates or samples sanity check
@@ -359,14 +395,15 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
             # Assume that we first process the templates, then the samples last
             self.parent.Enable()
 
-    #### Event Handlers
+    # Event Handlers
     def onButton_choosesamplesdir(self, evt):
-        dlg = wx.DirDialog(self, "Select Directory", defaultPath=os.getcwd(), style=wx.DD_DEFAULT_STYLE)
+        dlg = wx.DirDialog(self, "Select Directory",
+                           defaultPath=os.getcwd(), style=wx.DD_DEFAULT_STYLE)
         result = dlg.ShowModal()
         if result == wx.ID_OK:
             dirpath = dlg.GetPath()
             self.set_samplepath(dirpath)
-                
+
     def onButton_runsanitycheck(self, evt):
         self.upper_scroll.Clear()
         self.lower_scroll.Clear()
@@ -374,7 +411,8 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         for dirpath, dirnames, filenames in os.walk(self.voteddir):
             num_files += len(filenames)
         self.parent.Disable()
-        pgauge = util_widgets.ProgressGauge(self, num_files, msg="Checking files...")
+        pgauge = util_widgets.ProgressGauge(
+            self, num_files, msg="Checking files...")
         pgauge.Show()
         thread = threading.Thread(target=sanity_check.sanity_check,
                                   args=(self.voteddir, self))
@@ -410,10 +448,13 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         else:
             self.numpages_txtctrl.Enable()
 
+
 class DoubleSideDialog(wx.Dialog):
+
     def __init__(self, parent, *args, **kwargs):
-        wx.Dialog.__init__(self, parent, title="Set Double Sided Properties", *args, **kwargs)
-        
+        wx.Dialog.__init__(
+            self, parent, title="Set Double Sided Properties", *args, **kwargs)
+
         self.num_pages = None
         self.regex = None
         self.is_alternating = None
@@ -421,14 +462,16 @@ class DoubleSideDialog(wx.Dialog):
         txt0 = wx.StaticText(self, label="Number of pages:")
         self.numpages_txtctrl = wx.TextCtrl(self, value="2")
         sizer0 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer0.AddMany([(txt0,), ((10,0),), (self.numpages_txtctrl,)])
+        sizer0.AddMany([(txt0,), ((10, 0),), (self.numpages_txtctrl,)])
 
-        txt1 = wx.StaticText(self, label="Enter a regex to match on the file name.")
+        txt1 = wx.StaticText(
+            self, label="Enter a regex to match on the file name.")
         self.regex_txtctrl = wx.TextCtrl(self, value=r".*-(.*)")
         sizer1 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer1.AddMany([(txt1,), ((10,0),), (self.regex_txtctrl,)])
+        sizer1.AddMany([(txt1,), ((10, 0),), (self.regex_txtctrl,)])
 
-        self.alternate_chkbox = wx.CheckBox(self, label="Ballots alternate front and back")
+        self.alternate_chkbox = wx.CheckBox(
+            self, label="Ballots alternate front and back")
 
         btn_done = wx.Button(self, label="Ok")
         btn_done.Bind(wx.EVT_BUTTON, self.onButton_done)
@@ -442,14 +485,16 @@ class DoubleSideDialog(wx.Dialog):
                        (btn_sizer, 0, wx.ALIGN_CENTER)])
         self.SetSizer(sizer)
         self.Layout()
-        
+
     def onButton_done(self, evt):
         self.num_pages = int(self.numpages_txtctrl.GetValue())
         self.regex = self.regex_txtctrl.GetValue()
         self.is_alternating = self.alternate_chkbox.GetValue()
         self.EndModal(wx.ID_OK)
+
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
+
 
 def separate_imgs(voteddir, num_pages, MODE,
                   regexShr=None, regexDiff=None):
@@ -472,6 +517,7 @@ def separate_imgs(voteddir, num_pages, MODE,
         error("Fatal Error: Unrecognized separate_imgs mode: '{0}'", MODE)
         raise Exception("Bad mode: '{0}'".format(MODE))
 
+
 def separate_singlesided(voteddir):
     ballots = []
     for dirpath, dirnames, filenames in os.walk(voteddir):
@@ -480,6 +526,7 @@ def separate_singlesided(voteddir):
             imgpath = pathjoin(dirpath, imgname)
             ballots.append([imgpath])
     return ballots
+
 
 def separate_alternating(voteddir, num_pages):
     ballots = []
@@ -503,13 +550,14 @@ def separate_alternating(voteddir, num_pages):
             ballots.append(curballot)
     return ballots
 
+
 def separate_regex_simple(voteddir, regexShr, regexDiff):
     ballots = []
     for dirpath, dirnames, filenames in os.walk(voteddir):
         imgnames = [f for f in filenames if util.is_image_ext(f)]
         shrPat = re.compile(regexShr)
         diffPat = re.compile(regexDiff)
-        curmats = {} # maps {str sim_pat: [(str imgpath, str diff_pat), ...]}
+        curmats = {}  # maps {str sim_pat: [(str imgpath, str diff_pat), ...]}
         for imgname in imgnames:
             imgpath = pathjoin(dirpath, imgname)
             sim_match = shrPat.match(imgname)
@@ -529,6 +577,7 @@ def separate_regex_simple(voteddir, regexShr, regexDiff):
             ballots.append(imgpaths_sorted)
     return ballots
 
+
 def separate_regex_ctr(voteddir, regexShr):
     """ Separates ballots whose filenames start with a shared prefix
     REGEXSHR, but then contain two incrementing counters (very-much
@@ -545,7 +594,8 @@ def separate_regex_ctr(voteddir, regexShr):
     shrPat = re.compile(regexShr)
     for dirpath, dirnames, filenames in os.walk(voteddir):
         imgnames = [f for f in filenames if util.is_image_ext(f)]
-        curmats = {} # maps {str sim_pat: [(str imgpath, tuple ctr_vals), ...]}
+        # maps {str sim_pat: [(str imgpath, tuple ctr_vals), ...]}
+        curmats = {}
         for imgname in imgnames:
             imgpath = pathjoin(dirpath, imgname)
             sim_match = shrPat.match(imgname)
@@ -555,7 +605,8 @@ def separate_regex_ctr(voteddir, regexShr):
                 continue
             sim_part = sim_match.groups()[0]
             # Assumes filename is := <SIM_PART>_N1_N2.png
-            ctr_vals = [int(n) for n in os.path.splitext(imgname)[0][len(sim_part):].split("_")]
+            ctr_vals = [int(n) for n in os.path.splitext(
+                imgname)[0][len(sim_part):].split("_")]
             curmats.setdefault(sim_part, []).append((imgpath, ctr_vals))
         for sim_pat, tuples in curmats.iteritems():
             # tuple TUPLES := [(str imgpath, (int N1, int N2)), ...]
@@ -563,6 +614,7 @@ def separate_regex_ctr(voteddir, regexShr):
             for imgpaths in consecs:
                 ballots.append(imgpaths)
     return ballots
+
 
 def get_consecutives(tuples):
     """
@@ -576,12 +628,12 @@ def get_consecutives(tuples):
     # a single ballot, and drops down for
     # sort by images with consecutive ctr_vals
     tuples_sorted = sorted(tuples, key=lambda t: t[1][0])
-    imgpath_groups = [] # [tuple IMGPATHS0, ...]
+    imgpath_groups = []  # [tuple IMGPATHS0, ...]
     cur_group = []
     prev_N1, prev_N2 = None, None
 
     for (imgpath, (N1, N2)) in tuples_sorted:
-        if prev_N1 == None: # first iteration
+        if prev_N1 == None:  # first iteration
             prev_N1, prev_N2 = N1, N2
             cur_group.append(imgpath)
         elif N1 != prev_N1 + 1:
@@ -602,6 +654,7 @@ def get_consecutives(tuples):
     if cur_group:
         imgpath_groups.append(cur_group)
     return imgpath_groups
+
 
 def test_get_consecutives():
     test0 = (('329_1447_74_5_1.png', (5, 1)),
