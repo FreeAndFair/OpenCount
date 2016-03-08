@@ -7,7 +7,7 @@ except:
 from os.path import join as pathjoin
 
 
-from ffwx import *
+import ffwx
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -265,29 +265,29 @@ class ToolBar(wx.Panel):
         self.init_ui()
 
     def init_ui(self):
-        btn_addattr = FFButton(
+        btn_addattr = ffwx.Button(
             self, label="Add Attribute", on_click=self.onButton_addattr
         )
-        btn_modify = FFButton(
+        btn_modify = ffwx.Button(
             self, label="Modify", on_click=self.onButton_modify
         )
-        btn_zoomin = FFButton(
+        btn_zoomin = ffwx.Button(
             self, label="Zoom In", on_click=self.onButton_zoomin
         )
-        btn_zoomout = FFButton(
+        btn_zoomout = ffwx.Button(
             self, label="Zoom Out", on_click=self.onButton_zoomout
         )
-        btn_addcustomattr = FFButton(
+        btn_addcustomattr = ffwx.Button(
             self,
             label="Advanced: Add Custom Attribute",
             on_click=self.onButton_addcustomattr,
         )
-        btn_viewcustomattrs = FFButton(
+        btn_viewcustomattrs = ffwx.Button(
             self,
             label="Advanced: View Custom Attributes",
             on_click=self.onButton_viewcustomattrs,
         )
-        btn_sizer = ff_hbox(
+        btn_sizer = ffwx.hbox(
             btn_addattr,
             btn_modify,
             btn_addcustomattr,
@@ -297,7 +297,7 @@ class ToolBar(wx.Panel):
             btn_zoomout,
         )
 
-        self.sizer = ff_vbox(btn_sizer)
+        self.sizer = ffwx.vbox(btn_sizer)
 
         self.SetSizer(self.sizer)
         self.Layout()
@@ -577,7 +577,7 @@ class DefineAttributeDialog(wx.Dialog):
         caption_txt = wx.StaticText(self, label=message)
         self.sizer.Add(caption_txt, border=10, flag=wx.ALL)
         gridsizer = wx.GridSizer(rows=0, cols=2, hgap=5, vgap=3)
-        btn_add = FFButton(
+        btn_add = ffwx.Button(
             self,
             label="+",
             on_click=self.onButton_add,
@@ -647,9 +647,9 @@ class DefineAttributeDialog(wx.Dialog):
             self._panel_btn = None
         panel_btn = wx.Panel(self)
         self._panel_btn = panel_btn
-        btn_ok = FFButton(panel_btn, id=wx.ID_OK, on_click=self.onButton_ok)
+        btn_ok = ffwx.Button(panel_btn, id=wx.ID_OK, on_click=self.onButton_ok)
         self.btn_ok = btn_ok
-        btn_cancel = FFButton(
+        btn_cancel = ffwx.Button(
             panel_btn, id=wx.ID_CANCEL, on_click=self.onButton_cancel
         )
         panel_btn.sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -712,7 +712,7 @@ class SpreadSheetAttrDialog(DefineAttributeDialog):
         txt = wx.StaticText(self, label="Spreadsheet File:")
         file_inputctrl = wx.TextCtrl(self, style=wx.TE_READONLY)
         self.file_inputctrl = file_inputctrl
-        btn_select = FFButton(
+        btn_select = ffwx.Button(
             self, label="Select...", on_click=self.onButton_selectfile
         )
 
@@ -806,11 +806,11 @@ regex that will match the attribute value.")
 for Tabulation Only?")
         sizer.Add(self.is_tabulationonly_chkbox)
 
-        btn_ok = FFButton(self, label="Ok", on_click=self.onButton_ok)
-        btn_cancel = FFButton(
+        btn_ok = ffwx.Button(self, label="Ok", on_click=self.onButton_ok)
+        btn_cancel = ffwx.Button(
             self, label="Cancel", on_click=self.onButton_cancel
         )
-        btn_sizer = ff_hbox(btn_ok, btn_cancel)
+        btn_sizer = ffwx.hbox(btn_ok, btn_cancel)
 
         sizer.Add(btn_sizer, flag=wx.ALIGN_CENTER)
         self.SetSizer(sizer)

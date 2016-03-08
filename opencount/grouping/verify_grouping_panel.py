@@ -85,7 +85,7 @@ class VerifyGroupingMainPanel(wx.Panel):
                                     verifypanelClass=VerifyBallotAttributesPanel)
         else:
             debug("No img/digit-based attrs required to verify.")
-            ff_warn(self, "It is not necessary to verify any groups. "
+            ffwx.warn(self, "It is not necessary to verify any groups. "
                           "Please move onto the next step.")
 
         self.Layout()
@@ -594,13 +594,13 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
         if len(self.verify_results_cat) == len(self.cat2page):
             debug("We're done verifying all categories!")
             self.Disable()
-            ff_warn(self, "You've finished verifying all categories.\n\n\ "
+            ffwx.warn(self, "You've finished verifying all categories.\n\n\ "
                           "You may proceed to the next task.")
             if self.ondone:
                 self.ondone(self.verify_results_cat,
                             self.quarantine_results_cat)
         else:
-            ff_warn(self,
+            ffwx.warn(self,
                     "You've finished verifying category '{0}'.\n\n"
                     "You may move onto the next category.".format(curcat))
 

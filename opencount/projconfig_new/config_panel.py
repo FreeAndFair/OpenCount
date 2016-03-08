@@ -15,7 +15,7 @@ except:
     pub = Publisher()
 import cv
 
-from ffwx import *
+import ffwx
 from util import debug, warn, error
 
 sys.path.append('..')
@@ -38,7 +38,7 @@ SEPARATE_MODE_REGEX_SIMPLE = 44
 SEPARATE_MODE_REGEX_CTR = 45
 
 
-class ConfigPanel(wx.Panel):
+class ConfigPanel(ffwx.Panel):
 
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(
@@ -243,7 +243,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         debug("Detected {0} weird ballots with too many/few sides.",
               len(weirdballots))
         if weirdballots:
-            ff_warn(self,
+            ffwx.warn(self,
                     "Warning: OpenCount detected {0} ballots \
                     \that had too many/few sides. The project \
                     \specified that there are {1} sides for \
@@ -264,7 +264,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         # 3.) Set project.imgsize, assuming that all image dimensions are the
         # same
         if len(image_to_ballot) == 0:
-            ff_warn(self,
+            ffwx.warn(self,
                     "Fatal Error: OpenCount couldn't \
                     \find any valid ballots in the \
                     \directory:\n\n {0}\n\n \
@@ -289,7 +289,7 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
             except IOError as e:
                 pass
         if w == None:
-            ff_warn(self, "Fatal Error: OpenCount couldn't open any of \
+            ffwx.warn(self, "Fatal Error: OpenCount couldn't open any of \
                           \the ballot images in {0}. Processing can not \
                           \continue. If you believe the images are in \
                           \fact not corrupt, you could try converting \

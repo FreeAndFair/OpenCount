@@ -2194,7 +2194,6 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
                     # Split wasn't possible
                     print "Split not successful."
                     traceback.print_exc()
-                    pass
             else:
                 pass
             self.Refresh()

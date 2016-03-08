@@ -29,6 +29,7 @@ from specify_voting_targets import util_gui
 from pixel_reg import shared
 from grouping import common, verify_overlays_new, partask
 from panel_opencount import OpenCountPanel
+import ffwx
 
 """
 Assumes extracted_dir looks like:
@@ -194,7 +195,7 @@ digits present, in increasing order.".format(cnt_bad, num_digits),
                     0, None)
 
 
-class DigitMainPanel(wx.Panel):
+class DigitMainPanel(ffwx.Panel):
     """A ScrolledPanel that contains both the DigitLabelPanel, and a
     simple button tool bar.
     """

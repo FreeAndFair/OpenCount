@@ -10,7 +10,39 @@ import wx
 from wx.lib.pubsub import pub
 
 
-class FFProgressBar(wx.Dialog):
+class Panel(wx.Panel):
+    '''
+    A wrapper that all visible panels should inherit from.
+    '''
+
+    def start(self, project=None, projdir=None, size=None):
+        '''
+        Set up the correct state for the tab
+        '''
+        raise NotImplentedError()
+
+    def stop(self):
+        '''
+        Leave the relevant tab
+        '''
+        raise NotImplentedError()
+
+    def can_move_on(self):
+        '''
+        Returns a boolean indicating whether the tasks associated
+        with this panel have been completed, as well as a message
+        to be used in the case that something is left to do.
+        '''
+        return self.run_sanity_checks(), '[ATTENTION NEEDED]'
+
+    def run_sanity_checks(self):
+        '''
+        Return True if everything is fine
+        '''
+        return True
+
+
+class ProgressBar(wx.Dialog):
     '''
     This is a disgusting hack.
 
@@ -54,9 +86,9 @@ class FFProgressBar(wx.Dialog):
         self.t_task = wx.StaticText(panel, label='')
         self.gauge = wx.Gauge(panel, size=(200, 25))
 
-        panel.sizer = ff_vbox(t_msg,
-                              self.t_task,
-                              self.gauge)
+        panel.sizer = vbox(t_msg,
+                           self.t_task,
+                           self.gauge)
         panel.SetSizer(panel.sizer)
         panel.Fit()
         self.Fit()
@@ -190,7 +222,7 @@ class FFProgressBar(wx.Dialog):
         return self
 
 
-class FFStatLabel(wx.BoxSizer):
+class StatLabel(wx.BoxSizer):
     '''
     A set of labels designed to show key-value pairs. By
     default, the value is empty, but it can be supplied
@@ -214,7 +246,7 @@ class FFStatLabel(wx.BoxSizer):
         return self
 
 
-def ff_vbox(*contents, **kwargs):
+def vbox(*contents, **kwargs):
     '''
     A wrapper function for creating and populating a
     vertical BoxSizer.
@@ -224,7 +256,7 @@ def ff_vbox(*contents, **kwargs):
     return sizer
 
 
-def ff_hbox(*contents, **kwargs):
+def hbox(*contents, **kwargs):
     '''
     A wrapper function for creating and populating a
     horizontal BoxSizer.
@@ -234,7 +266,7 @@ def ff_hbox(*contents, **kwargs):
     return sizer
 
 
-def ff_static_wrap(parent, msg, length, *args, **kwargs):
+def static_wrap(parent, msg, length, *args, **kwargs):
     '''
     A wrapper function for creating a simple text-wrapped
     label.
@@ -246,7 +278,7 @@ def ff_static_wrap(parent, msg, length, *args, **kwargs):
     return text
 
 
-class FFButton(wx.Button):
+class Button(wx.Button):
     '''
     A wrapper for the WXWidgets button that makes supplying button
     actions simpler.
@@ -276,7 +308,7 @@ class FFButton(wx.Button):
         return self
 
 
-class FFCheckBox(wx.CheckBox):
+class CheckBox(wx.CheckBox):
     '''
     A wx.CheckBox wrapper.
     '''
@@ -287,7 +319,7 @@ class FFCheckBox(wx.CheckBox):
         self.SetValue(default)
 
 
-def ff_modal(parent, message, show=True, prefix=''):
+def modal(parent, message, show=True, prefix=''):
     '''
     Create a new warning dialog and show it. Wrapper over
     commonly-used wx.MessageDialog code.
@@ -306,21 +338,21 @@ def ff_modal(parent, message, show=True, prefix=''):
     return dialog
 
 
-def ff_warn(parent, message, show=True):
+def warn(parent, message, show=True):
     '''
     Toss up a warning dialogue.
     '''
-    return ff_modal(parent, message, show=show, prefix='Warning')
+    return modal(parent, message, show=show, prefix='Warning')
 
 
-def ff_error(parent, message, show=True):
+def error(parent, message, show=True):
     '''
     Toss up an error dialogue
     '''
-    return ff_modal(parent, message, show=show, prefix='Error')
+    return modal(parent, message, show=show, prefix='Error')
 
 
-def ff_yesno(parent, message):
+def yesno(parent, message):
     '''
     Toss up a yes/no dialogue, returning the corresponding
     boolean value.

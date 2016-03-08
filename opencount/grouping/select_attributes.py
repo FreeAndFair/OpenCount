@@ -7,7 +7,7 @@ import random
 import cv
 import Image
 import wx
-from ffwx import *
+import ffwx
 
 try:
     import cPickle as pickle
@@ -398,25 +398,25 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
     def init_ui(self):
         util_widgets.MosaicPanel.init_ui(self)
         self.btn_sizer.Add((50, 0))
-        self.btn_nextattr = FFButton(
+        self.btn_nextattr = ffwx.Button(
             self,
             label='Next Attribute',
             on_click=lambda evt: self.GetParent().GetParent().next_attribute(),
         )
-        self.btn_prevtattr = FFButton(
+        self.btn_prevtattr = ffwx.Button(
             self,
             label='Previous Attribute',
             on_click=lambda evt: self.GetParent().GetParent().prev_attribute(),
         )
-        self.attrtype = FFStatLabel(self, 'Current Attribute', '(0/0)')
+        self.attrtype = ffwx.StatLabel(self, 'Current Attribute', '(0/0)')
         # txt0 = wx.StaticText(self, label="Current Attribute: ")
         # self.txt_attrtype = wx.StaticText(self, label="Foo (0/0).")
-        btn_opts = FFButton(self, label="Options...",
+        btn_opts = ffwx.Button(self, label="Options...",
                             on_click=self.onButton_opts)
-        btn_hide = FFButton(
+        btn_hide = ffwx.Button(
             self, label="Hide Labeled Patches", on_click=self.onButton_hide
         )
-        btn_show = FFButton(
+        btn_show = ffwx.Button(
             self, label="Show Labeled Patches", on_click=self.onButton_show
         )
         self.btn_sizer.AddMany([(self.btn_nextattr,), (self.btn_prevattr,),
@@ -455,10 +455,10 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
                 sizer0 = wx.BoxSizer(wx.HORIZONTAL)
                 sizer0.AddMany([(txt0,), (self.txtin_tmthresh,)])
 
-                btn_ok = FFButton(
+                btn_ok = ffwx.Button(
                     self, label="Ok", on_click=self.onButton_ok
                 )
-                btn_cancel = FFButton(
+                btn_cancel = ffwx.Button(
                     self, label="Cancel", on_click=self.onButton_cancel
                 )
                 btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -680,11 +680,11 @@ class AttrValueDialog(wx.Dialog):
         sizer_in.Add(txt0)
         sizer_in.Add(self.attrval_in)
 
-        btn_ok = FFButton(self, label="Ok", on_click=self.onButton_ok)
-        btn_cancel = FFButton(
+        btn_ok = ffwx.Button(self, label="Ok", on_click=self.onButton_ok)
+        btn_cancel = ffwx.Button(
             self, label="Cancel", on_click=lambda e: self.EndModal(wx.ID_CANCEL)
         )
-        btn_sizer = ff_hbox(btn_ok, btn_cancel)
+        btn_sizer = ffwx.hbox(btn_ok, btn_cancel)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.sbitmap, flag=wx.ALIGN_CENTER)

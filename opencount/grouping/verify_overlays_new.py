@@ -17,7 +17,7 @@ from Queue import Empty
 
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
-from ffwx import *
+import ffwx
 
 import cv
 import numpy as np
@@ -150,7 +150,7 @@ class ViewOverlays(ScrolledPanel):
         self.listbox_groups = wx.ListBox(self, size=(200, 300))
         self.listbox_groups.Hide()
         self.listbox_groups.Bind(wx.EVT_LISTBOX, self.onListBox_groups)
-        self.btn_showhidelistbox = FFButton(
+        self.btn_showhidelistbox = ffwx.Button(
             self, label="Show List", on_click=self.onButton_showhidelistbox
         )
         sizer_grplabel = wx.BoxSizer(wx.HORIZONTAL)
@@ -562,26 +562,26 @@ class SplitOverlaysFooter(wx.Panel):
         self.init_ui()
 
     def init_ui(self):
-        self.btn_split = FFButton(
+        self.btn_split = ffwx.Button(
             self, label="Split and continue", on_click=self.onButton_split
         )
-        btn_setsplitmode = FFButton(
+        btn_setsplitmode = ffwx.Button(
             self,
             label="Set Split Mode...",
             on_click=self.onButton_setsplitmode,
         )
         btn_setsplitmode.Hide()  # Not necessary for the user to fuss with
-        sizer_split = ff_vbox(self.btn_split, btn_setsplitmode)
+        sizer_split = ffwx.vbox(self.btn_split, btn_setsplitmode)
 
-        btn_larger = FFButton(
+        btn_larger = ffwx.Button(
             self, label="Show Larger", on_click=self.onButton_showlarger
         )
-        btn_smaller = FFButton(
+        btn_smaller = ffwx.Button(
             self, label="Show Smaller", on_click=self.onButton_showsmaller
         )
-        sizer_scaling = ff_vbox(btn_larger, (10, 10), btn_smaller)
+        sizer_scaling = ffwx.vbox(btn_larger, (10, 10), btn_smaller)
 
-        self.btn_sizer = ff_hbox(sizer_split, (35, 0), sizer_scaling)
+        self.btn_sizer = ffwx.hbox(sizer_split, (35, 0), sizer_scaling)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.btn_sizer, proportion=0, border=10, flag=wx.ALL)
@@ -695,7 +695,7 @@ class VerifyOverlaysFooter(SplitOverlaysFooter):
 
     def init_ui(self):
         SplitOverlaysFooter.init_ui(self)
-        self.btn_matches = FFButton(
+        self.btn_matches = ffwx.Button(
             self, label="Accept all as *", on_click=self.onButton_matches
         )
         self.btn_manual_relabel = wx.Button(self, label="Manually Relabel...")

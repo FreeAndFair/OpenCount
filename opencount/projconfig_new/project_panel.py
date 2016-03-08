@@ -8,13 +8,13 @@ except ImportError:
     import pickle
 import wx
 
-from ffwx import *
+import ffwx
 from util import debug, warn, error
 
 PROJ_FNAME = 'proj.p'
 
 
-class ProjectPanel(wx.Panel):
+class ProjectPanel(ffwx.Panel):
 
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
@@ -36,13 +36,13 @@ class ProjectPanel(wx.Panel):
         ssizer1 = wx.StaticBoxSizer(box1, wx.VERTICAL)
 
         self.listbox_projs = wx.ListBox(self, choices=(), size=(500, 400))
-        btn_create = FFButton(
+        btn_create = ffwx.Button(
             self, label='Create New Project', on_click=self.onButton_create
         )
-        btn_remove = FFButton(
+        btn_remove = ffwx.Button(
             self, label="Delete Selected Project", on_click=self.onButton_remove
         )
-        btnsizer = ff_hbox(btn_create, btn_remove)
+        btnsizer = ffwx.hbox(btn_create, btn_remove)
 
         ssizer1.AddMany([(self.listbox_projs,), (btnsizer,)])
 

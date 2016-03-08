@@ -174,7 +174,6 @@ def main():
         elif "ERR0" in barcodes or "ERR1" in barcodes:
             # continue
             errcount += len(group)
-            pass
         if just_grouping:
             continue
         bcs = '_'.join([thing for thing in barcodes if type(thing) == str])

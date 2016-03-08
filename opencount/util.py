@@ -18,7 +18,6 @@ except:
     from PIL import Image
 
 from specify_voting_targets import util_gui
-from ffwx import *
 
 if sys.stderr.isatty():
     SIGIL_DICT = dict(

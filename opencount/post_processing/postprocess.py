@@ -149,7 +149,6 @@ class ResultsPanel(ScrolledPanel):
                         else:
                             print 'error:', (exmpl_imgP, tbox[5]), 'not in id map'
                             pdb.set_trace()
-                            pass
                 if thismap == {}:
                     # Means that 'template' has no contests/targets on it
                     # (i.e. it's a totally-blank page), so, skip it.

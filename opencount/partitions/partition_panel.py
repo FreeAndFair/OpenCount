@@ -26,7 +26,7 @@ import asize
 from util import debug, warn, error
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
-from ffwx import *
+import ffwx
 
 JOBID_EXPORT_RESULTS = util.GaugeID("PartitioningExportResults")
 
@@ -53,7 +53,7 @@ class Strings:
         "in the previous step."
 
 
-class PartitionMainPanel(wx.Panel):
+class PartitionMainPanel(ffwx.Panel):
     # NUM_EXMPLS: Number of exemplars to grab from each partition
     NUM_EXMPLS = 5
 
@@ -182,7 +182,7 @@ class PartitionMainPanel(wx.Panel):
                  "{0} pages, yet partitioning only discovered {1} pages",
                  self.proj.num_pages,
                  len(set(pages_norm_map.values())))
-            ff_warn(self,
+            ffwx.warn(self,
                     Strings.WRONG_NUM_PAGES.format(
                         self.proj.num_pages,
                         len(set(pages_norm_map.values()))))
@@ -258,7 +258,7 @@ class PartitionMainPanel(wx.Panel):
                     print "    {0} -> Page {1}".format(_imP, pg)
                     print >>_errf, "    {0} -> Page {1}".format(_imP, pg)
             _errf.close()
-            ff_warn(self, message=Strings.UNEVEN_SIDES.format(
+            ffwx.warn(self, message=Strings.UNEVEN_SIDES.format(
                 self.proj.num_pages,
                 len(ballots_unevenpages),
                 _msg))
@@ -346,10 +346,10 @@ class PartitionPanel(ScrolledPanel):
 
     def init_ui(self):
         # statistics panel:
-        self.num_partitions = FFStatLabel(self, 'Number of Partitions')
-        self.part_largest = FFStatLabel(self, 'Largest Partition Size')
-        self.part_smallest = FFStatLabel(self, 'Smallest Partition Size')
-        self.sizer_stats = ff_vbox(
+        self.num_partitions = ffwx.StatLabel(self, 'Number of Partitions')
+        self.part_largest = ffwx.StatLabel(self, 'Largest Partition Size')
+        self.part_smallest = ffwx.StatLabel(self, 'Smallest Partition Size')
+        self.sizer_stats = ffwx.vbox(
             self.num_partitions,
             self.part_largest,
             self.part_smallest,
@@ -357,35 +357,35 @@ class PartitionPanel(ScrolledPanel):
         self.sizer_stats.ShowItems(False)
 
         # run button:
-        self.btn_run = FFButton(
+        self.btn_run = ffwx.Button(
             self,
             label='Run Partitioning',
             on_click=self.onButton_run
         )
-        btn_sizer = ff_hbox(self.btn_run)
+        btn_sizer = ffwx.hbox(self.btn_run)
 
         # 'skip verification' checkbox:
-        txt_skiphelp = ff_static_wrap(
+        txt_skiphelp = ffwx.static_wrap(
             self,
             Strings.BARCODE_OVERLAY_HELP,
             100
         )
-        self.chkbox_skip_verify = FFCheckBox(
+        self.chkbox_skip_verify = ffwx.CheckBox(
             self,
             label='Skip Overlay Verification (Recommended)',
             default=True)
-        sizer_skipVerify = ff_vbox(
+        sizer_skipVerify = ffwx.vbox(
             txt_skiphelp,
             self.chkbox_skip_verify,
         )
 
         # dev button options
-        btn_loadPartialDecoding = FFButton(
+        btn_loadPartialDecoding = ffwx.Button(
             self,
             label="(Dev) Apply previous decoding results, decode remaining images. [only valid with Skip Overlay Verify]",
             on_click=self.onButton_loadPartialDecoding,
         )
-        btn_loadDecoding = FFButton(
+        btn_loadDecoding = ffwx.Button(
             self,
             label="(Dev) Load complete previous decoding results.",
             on_click=self.onButton_loadDecoding,
@@ -394,13 +394,13 @@ class PartitionPanel(ScrolledPanel):
         if not config.IS_DEV:
             btn_loadPartialDecoding.Hide()
             btn_loadDecoding.Hide()
-        sizer_devbuttons = ff_hbox(
+        sizer_devbuttons = ffwx.hbox(
             btn_loadPartialDecoding,
             (10, 0),
             btn_loadDecoding,
         )
 
-        self.sizer = ff_vbox(
+        self.sizer = ffwx.vbox(
             btn_sizer,
             (50, 50),
             sizer_skipVerify,
@@ -626,7 +626,7 @@ class PartitionPanel(ScrolledPanel):
 
         skipVerify = self.chkbox_skip_verify.GetValue()
 
-        progress_bar = FFProgressBar(self)
+        progress_bar = ffwx.ProgressBar(self)
 
         @util.as_process
         def part_thread():
@@ -1100,12 +1100,12 @@ Do not include the left-most and right-most marks.""") + "\n\n")
         self.chkbox_isflip = wx.CheckBox(
             self, label="Is the ballot flipped (upside down)?")
 
-        btn_quarantine_all = FFButton(
+        btn_quarantine_all = ffwx.Button(
             self,
             label='Quarantine REST of images',
             on_click=self.onButton_quarAll,
         )
-        btn_discard_all = FFButton(
+        btn_discard_all = ffwx.Button(
             self,
             label="Discard REST of images",
             on_click=self.onButton_discardAll
@@ -1287,7 +1287,7 @@ class BadPagesDialog(wx.Dialog):
 
         txt = wx.StaticText(self, label=msg)
 
-        btn_treatnormal = FFButton(
+        btn_treatnormal = ffwx.Button(
             self,
             label='Process All',
             on_click=self.onButton_treatNormal,
@@ -1306,7 +1306,7 @@ it were the front-side of a ballot."
         self.cb_pages = wx.ComboBox(
             self, choices=choices, style=wx.CB_READONLY)
 
-        sizer_choose = ff_vbox(txt_choose, self.cb_pages)
+        sizer_choose = ffwx.vbox(txt_choose, self.cb_pages)
 
         txt_others = wx.StaticText(
             self, label="And do the following to the other sides:")
@@ -1314,15 +1314,15 @@ it were the front-side of a ballot."
             self, label="Quarantine the other sides", style=wx.RB_GROUP)
         self.rb_discard = wx.RadioButton(self, label="Discard the other sides")
 
-        sizer_others = ff_vbox(txt_others, self.rb_quarantine, self.rb_discard)
+        sizer_others = ffwx.vbox(txt_others, self.rb_quarantine, self.rb_discard)
 
-        sizer2 = ff_hbox(sizer_choose, sizer_others)
-        btn_ok = FFButton(self, label='Ok', on_click=self.onButton_ok)
+        sizer2 = ffwx.hbox(sizer_choose, sizer_others)
+        btn_ok = ffwx.Button(self, label='Ok', on_click=self.onButton_ok)
         sizer2.Add(btn_ok, flag=wx.ALIGN_CENTER)
 
-        sizer_treatNormal = ff_vbox(btn_treatNormal, txt_treatNormal)
-        btn_sizer = ff_hbox(sizer_treatNormal, (50, 0), sizer2)
-        sizer = ff_vbox(txt, btn_sizer)
+        sizer_treatNormal = ffwx.vbox(btn_treatNormal, txt_treatNormal)
+        btn_sizer = ffwx.hbox(sizer_treatNormal, (50, 0), sizer2)
+        sizer = ffwx.vbox(txt, btn_sizer)
 
         self.SetSizer(sizer)
         self.Fit()
