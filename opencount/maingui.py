@@ -20,30 +20,68 @@ from os.path import join as pathjoin
 
 import wx
 
-sys.path.append('..')
-from opencount.projconfig_new.project_panel import ProjectPanel, Project
-from projconfig_new.config_panel import ConfigPanel
-from partitions.partition_panel import PartitionMainPanel
-from specify_voting_targets.select_targets import SelectTargetsMainPanel
-from labelcontest.labelcontest import LabelContest
-from grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
-from digits_ui.labeldigits import LabelDigitsPanel
-from grouping.run_grouping import RunGroupingMainPanel
-from grouping.verify_grouping_panel import VerifyGroupingMainPanel
-from runtargets.extract_targets_new import TargetExtractPanel
-from threshold.threshold import ThresholdPanel
-from quarantine.quarantinepanel import QuarantinePanel
-from post_processing.postprocess import ResultsPanel
+from projconfig_new.project_panel import Project
+import panels
+# sys.path.append('..')
+# from opencount.projconfig_new.project_panel import ProjectPanel, Project
+# from opencount.projconfig_new.config_panel import ConfigPanel
+# from opencount.partitions.partition_panel import PartitionMainPanel
+# from opencount.specify_voting_targets.select_targets import SelectTargetsMainPanel
+# from opencount.labelcontest.labelcontest import LabelContest
+# from opencount.grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
+# from opencount.digits_ui.labeldigits import LabelDigitsPanel
+# from opencount.grouping.run_grouping import RunGroupingMainPanel
+# from opencount.grouping.verify_grouping_panel import VerifyGroupingMainPanel
+# from opencount.runtargets.extract_targets_new import TargetExtractPanel
+# from opencount.threshold.threshold import ThresholdPanel
+# from opencount.quarantine.quarantinepanel import QuarantinePanel
+# from opencount.post_processing.postprocess import ResultsPanel
 
-from ffwx import *
-from util import debug, warn, error
+import ffwx
+from opencount.util import debug, warn, error
 
-import specify_voting_targets.util_gui as util_gui
+import opencount.specify_voting_targets.util_gui as util_gui
 import config
-import util
+import opencount.util as util
 
 PROJROOTDIR = 'projects_new'
 
+class Steps:
+    PROJECT = 0
+    CONFIG = 1
+    PARTITION = 2
+    BALLOT_ATTRIBUTES = 3
+    LABEL_DIGATTRS = 4
+    RUN_GROUPING = 5
+    CORRECT_GROUPING = 6
+    SELTARGETS = 7
+    LABEL_CONTESTS = 8
+    TARGET_EXTRACT = 9
+    SET_THRESHOLD = 10
+    QUARANTINE = 11
+    PROCESS = 12
+
+    _PATH_NAME = [
+        None,
+        '_state_config.p',
+        '_state_partition.p',
+        '_state_ballot_attributes.p',
+        None,
+        '_state_run_grouping.p',
+        '_state_correct_grouping.p',
+        '_state_selecttargetsMain.p',
+        None,
+        None,
+        None,
+    ]
+
+    @classmethod
+    def path_for(proj, step):
+        name = Steps._PATH_NAME[step]
+        if name:
+            return [pathjoin(proj.projdir_path, name)]
+        else:
+            return []
 
 class MainFrame(wx.Frame):
     '''
@@ -84,40 +122,57 @@ class MainFrame(wx.Frame):
         self.Maximize()
 
     def setup_pages(self):
-        self.panel_projects = ProjectPanel(self.notebook)
-        self.panel_config = ConfigPanel(self.notebook)
-        self.panel_partition = PartitionMainPanel(self.notebook)
-        self.panel_ballot_attributes = BallotAttributesPanel(self.notebook)
-        self.panel_label_digitattrs = LabelDigitsPanel(self.notebook)
-        self.panel_run_grouping = RunGroupingMainPanel(self.notebook)
-        self.panel_correct_grouping = VerifyGroupingMainPanel(self.notebook)
-        self.panel_seltargets = SelectTargetsMainPanel(self.notebook)
-        self.panel_label_contests = LabelContest(self.notebook, self.GetSize())
-        self.panel_target_extract = TargetExtractPanel(self.notebook)
-        self.panel_set_threshold = ThresholdPanel(
-            self.notebook, self.GetSize())
-        self.panel_quarantine = QuarantinePanel(self.notebook)
-        self.panel_process = ResultsPanel(self.notebook)
         self.pages = [
-            (self.panel_projects, "Projects", "Projects"),
-            (self.panel_config, "Import Files", "Import"),
-            (self.panel_partition, "Partition Ballots", "Partition"),
-            (self.panel_ballot_attributes, "Ballot Attributes", "Attrs"),
-            (self.panel_label_digitattrs,
+            (panels.ProjectPanel(self.notebook),
+             "Projects",
+             "Projects"),
+            (panels.ConfigPanel(self.notebook),
+             "Import Files",
+             "Import"),
+            (panels.PartitionMainPanel(self.notebook),
+             "Partition Ballots",
+             "Partition"),
+            (panels.BallotAttributesPanel(self.notebook),
+             "Ballot Attributes",
+             "Attrs"),
+            (panels.LabelDigitsPanel(self.notebook),
              "Label Digit-Based Attributes",
              "Label Digit Attrs"),
-            (self.panel_run_grouping, "Run Grouping", "Group"),
-            (self.panel_correct_grouping, "Correct Grouping", "Correct Grouping"),
-            (self.panel_seltargets, "Select Voting Targets", "Targets"),
-            (self.panel_label_contests, "Label Contests", "Contests"),
-            (self.panel_target_extract, "Extract Targets", "Extract"),
-            (self.panel_set_threshold, "Set Threshold", "Threshold"),
-            (self.panel_quarantine, "Process Quarantine", "Quarantine"),
-            (self.panel_process, "Results", "Results")]
+            (panels.RunGroupingMainPanel(self.notebook),
+             "Run Grouping",
+             "Group"),
+            (panels.VerifyGroupingMainPanel(self.notebook),
+             "Correct Grouping",
+             "Correct Grounping"),
+            (panels.SelectTargetsMainPanel(self.notebook),
+             "Select Voting Targets",
+             "Targets"),
+            (panels.LabelContest(self.notebook, self.GetSize()),
+             "Label Contests",
+             "Contests"),
+            (panels.TargetExtractPanel(self.notebook),
+             "Extract Targets",
+             "Extract"),
+            (panels.ThresholdPanel(self.notebook, self.GetSize()),
+             "Set Threshold",
+             "Threshold"),
+            (panels.QuarantinePanel(self.notebook),
+             "Process Quarantine",
+             "Quarantine"),
+            (panels.ResultsPanel(self.notebook),
+             "Results",
+             "Results"),
+        ]
+        self.panels = list((panel for (panel, _, _) in self.pages))
+
         self.titles = {}
         for panel, fullname, shortname in self.pages:
             self.notebook.AddPage(panel, shortname)
             self.titles[panel] = (fullname, shortname)
+
+    def set_project(self, proj):
+        self.project = proj
+        self.SetTitle('OpenCount: "{0}"'.format(proj.name))
 
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
@@ -126,72 +181,41 @@ class MainFrame(wx.Frame):
             # Don't know why these events are sometimes triggered...
             return
 
-        if old == MainFrame.PROJECT:
-            status, msg = self.panel_projects.can_move_on()
-            if status:
-                self.project = self.panel_projects.get_project()
-                self.SetTitle(
-                    "OpenCount -- Project {0}".format(self.project.name))
-            else:
-                ff_modal(self, msg)
-                evt.Veto()
-            return
+        status, msg = self.notebook.GetPage(old).can_move_on()
+        if not status:
+            ffwx.modal(self, msg)
+            evt.Veto()
 
-        curpanel = self.notebook.GetPage(old)
-        if hasattr(curpanel, 'can_move_on'):
-            if not curpanel.can_move_on():
-                ff_error(self,
-                         'You cannot proceed. Please address the '
-                         'prior warnings first.')
-                evt.Veto()
-                return
-        else:
-            warn("Class {0} has no can_move_on method", curpanel)
+        if old == Steps.PROJECT:
+            self.set_project(self.notebook.GetPage(old).get_project())
 
-        if old == MainFrame.CONFIG:
-            self.panel_config.stop()
-        elif old == MainFrame.PARTITION:
-            self.panel_partition.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_Total")
-        elif old == MainFrame.BALLOT_ATTRIBUTES:
-            self.panel_ballot_attributes.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("BallotAttributes_Total")
-        elif old == MainFrame.LABEL_DIGATTRS:
-            self.panel_label_digitattrs.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("LabelDigitAttrs_Total")
-        elif old == MainFrame.RUN_GROUPING:
-            self.panel_run_grouping.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("RunGrouping_Total")
-        elif old == MainFrame.CORRECT_GROUPING:
-            self.panel_correct_grouping.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("CorrectGrouping_Total")
-        elif old == MainFrame.SELTARGETS:
-            self.panel_seltargets.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("SelectTargets_Total")
-        elif old == MainFrame.LABEL_CONTESTS:
-            self.panel_label_contests.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("LabelContests_Total")
-        elif old == MainFrame.TARGET_EXTRACT:
-            self.panel_target_extract.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("TargetExtract_Total")
-        elif old == MainFrame.SET_THRESHOLD:
-            self.panel_set_threshold.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("SetThreshold_Total")
-        elif old == MainFrame.QUARANTINE:
-            self.panel_quarantine.stop()
-            if config.TIMER:
-                config.TIMER.stop_task("Quarantine_Total")
-        elif old == MainFrame.PROCESS:
-            pass
+        if old >= 1:
+            self.panels[old].stop()
+
+        # if old == MainFrame.PROJECT:
+        #     status, msg = self.panel_projects.can_move_on()
+        #     if status:
+        #         self.project = self.panel_projects.get_project()
+        #         self.SetTitle(
+        #             "OpenCount -- Project {0}".format(self.project.name))
+        #     else:
+        #         ffwx.modal(self, msg)
+        #         evt.Veto()
+        #     return
+
+        # curpanel = self.notebook.GetPage(old)
+        # if hasattr(curpanel, 'can_move_on'):
+        #     if not curpanel.can_move_on():
+        #         ffwx.error(self,
+        #                  'You cannot proceed. Please address the '
+        #                  'prior warnings first.')
+        #         evt.Veto()
+        #         return
+        # else:
+        #     warn("Class {0} has no can_move_on method", curpanel)
+
+        # if old >= 1:
+        #     self.panels[old].stop()
 
     def onPageChange(self, evt):
         old = evt.GetOldSelection()
@@ -209,115 +233,45 @@ class MainFrame(wx.Frame):
         self.notebook.SetPageText(new, self.titles[newpanel][0])
 
         if new >= MainFrame.SELTARGETS:
-            if not os.path.exists(pathjoin(self.project.projdir_path,
-                                           self.project.group_to_ballots)):
+            if not self.project.is_grouped():
                 # Grouping wasn't performed, which means that we should
                 # simply use the partitions as the groups, since the user
                 # 'knows' that the partitions also specify a grouping.
-                if not os.path.exists(pathjoin(self.project.projdir_path,
-                                               self.project.partitions_map)):
+                if self.project.is_partitioned():
+                    debug("No Attributes Exists, so, using Partitioning as the Grouping.")
+                    self.project.use_partitions_as_grouping()
+                else:
                     debug("Couldn't find {0}. Was decoding not performed?",
-                          pathjoin(self.project.projdir_path,
-                                   self.project.partitions_map))
-                    ff_warn(self, 'You must first run decoding (partitioning) \
-                                  \before proceeding to this step. OpenCount will \
-                                  \tak you there now.')
-                    dlg.ShowModal()
+                          self.project.partition_path())
+                    ffwx.warn(self, 'You must first run decoding (partitioning) '
+                              'before proceeding to this step. OpenCount will '
+                              'take you there now.')
                     self.notebook.ChangeSelection(self.PARTITION)
                     self.notebook.SendPageChangedEvent(
                         self.SELTARGETS, self.PARTITION)
                     return
 
-                debug("No Attributes Exists, so, using Partitioning as the Grouping.")
-                partitions_map = pickle.load(
-                    open(pathjoin(self.project.projdir_path,
-                                  self.project.partitions_map), 'rb'))
-                partitions_invmap = pickle.load(
-                    open(pathjoin(self.project.projdir_path,
-                                  self.project.partitions_invmap), 'rb'))
-                partition_exmpls = pickle.load(
-                    open(pathjoin(self.project.projdir_path,
-                                  self.project.partition_exmpls), 'rb'))
-
-                # The GRP_INFOMAP should just contain partitionid info.
-                grp_infomap = {}  # maps {int groupID: {str prop: str val}}
-                grp2bals = {}
-                bal2grp = {}
-                grpexmpls = {}
-                curgroupid = 0
-                for (partitionid, ballotids) in sorted(partitions_map.iteritems()):
-                    if not ballotids:
-                        continue
-                    propdict = {'pid': partitionid}
-                    grp_infomap[curgroupid] = propdict
-                    grp2bals.setdefault(curgroupid, []).extend(ballotids)
-                    for ballotid in ballotids:
-                        bal2grp[ballotid] = curgroupid
-                    curgroupid += 1
-                curgroupid = 0
-                for (partitionid, ballotids) in sorted(partition_exmpls.iteritems()):
-                    if not ballotids:
-                        continue
-                    grpexmpls[curgroupid] = ballotids
-                    curgroupid += 1
-
-                # Also, export to proj.group_results.csv, for integration with
-                # quarantine/post-processing panels.
-                fields = ('ballotid', 'groupid')
-                csvfile = open(self.project.grouping_results, 'wb')
-                dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
-                try:
-                    dictwriter.writeheader()
-                except:
-                    util_gui._dictwriter_writeheader(csvfile, fields)
-                rows = []
-                for ballotid, groupid in bal2grp.iteritems():
-                    rows.append({'ballotid': ballotid, 'groupid': groupid})
-                dictwriter.writerows(rows)
-                csvfile.close()
-
-                pickle.dump(grp2bals,
-                            open(pathjoin(self.project.projdir_path,
-                                          self.project.group_to_ballots), 'wb'),
-                            pickle.HIGHEST_PROTOCOL)
-                pickle.dump(bal2grp,
-                            open(pathjoin(self.project.projdir_path,
-                                          self.project.ballot_to_group), 'wb'),
-                            pickle.HIGHEST_PROTOCOL)
-                pickle.dump(grpexmpls,
-                            open(pathjoin(self.project.projdir_path,
-                                          self.project.group_exmpls), 'wb'),
-                            pickle.HIGHEST_PROTOCOL)
-                pickle.dump(grp_infomap,
-                            open(pathjoin(self.project.projdir_path,
-                                          self.project.group_infomap), 'wb'),
-                            pickle.HIGHEST_PROTOCOL)
-
         if new == MainFrame.PROJECT:
-            self.panel_projects.start(PROJROOTDIR)
+            self.panels[new].start(PROJROOTDIR)
         elif new == MainFrame.CONFIG:
-            self.panel_config.start(self.project, pathjoin(self.project.projdir_path,
-                                                           '_state_config.p'))
+            self.panels[new].start(
+                self.project,
+                self.project.path('_state_config.p'))
         elif new == MainFrame.PARTITION:
-            if config.TIMER:
-                config.TIMER.start_task("TOTALTIME")
-            if config.TIMER:
-                config.TIMER.start_task("Partition_Total")
-            self.panel_partition.start(self.project, pathjoin(self.project.projdir_path,
-                                                              '_state_partition.p'))
+            self.panels[new].start(
+                self.project,
+                self.project.path('_state_partition.p'))
         elif new == MainFrame.BALLOT_ATTRIBUTES:
             # A (crude) way of detecting if the user started working on
             # ballot attributes already
-            is_attrs_started = os.path.exists(pathjoin(self.project.projdir_path,
-                                                       '_state_ballot_attributes.p'))
-            if not is_attrs_started:
-                resp = ff_yesno(self,
+            if not self.project.path_exists('_state_ballot_attributes.p'):
+                resp = ffwx.yesno(self,
                                 'Do you wish to define any Ballot Attributes? \n\n'
                                 'If you intend to define ballot attributes '
                                 '(precinct number, tally group, etc.), then '
                                 'click \'Yes\'.\n\nOtherwise, click \'No\'.')
                 if resp == wx.ID_NO:
-                    ff_modal(self,
+                    ffwx.modal(self,
                              'You indicated that you do not want to define '
                              'any ballot attributes.\n\n '
                              'You will now be taken to the ballot annotation '
@@ -327,29 +281,24 @@ class MainFrame(wx.Frame):
                                                        self.SELTARGETS)
                     return
 
-            if config.TIMER:
-                config.TIMER.start_task("BallotAttributes_Total")
-            self.panel_ballot_attributes.start(self.project, pathjoin(
-                self.project.projdir_path,
-                '_state_ballot_attributes.p'))
+            self.panels[new].start(
+                self.project,
+                self.project.path('_state_ballot_attributes.p'))
         elif new == MainFrame.LABEL_DIGATTRS:
-            if config.TIMER:
-                config.TIMER.start_task("LabelDigitAttrs_Total")
             # Skip if there are no digit-based attributes
             if not exists_digitbasedattr(self.project):
-                ff_modal(self,
+                ffwx.modal(self,
                          'There are no Digit-Based Attributes in this '
                          'election -- skipping to the next page.')
                 self.notebook.ChangeSelection(self.RUN_GROUPING)
                 self.notebook.SendPageChangedEvent(
                     self.LABEL_DIGATTRS, self.RUN_GROUPING)
             else:
-                self.panel_label_digitattrs.start(self.project)
+                self.panels[new].start(self.project)
         elif new == MainFrame.RUN_GROUPING:
-            if config.TIMER:
-                config.TIMER.start_task("RunGrouping_Total")
-            if not exists_imgattr(self.project) and not exists_digitbasedattr(self.project):
-                ff_modal(self,
+            if not exists_imgattr(self.project) \
+               and not exists_digitbasedattr(self.project):
+                ffwx.modal(self,
                          'There are no attributes to group in this election '
                          '-- skipping to the next page.')
                 if not exists_custattr(self.project):
@@ -359,65 +308,45 @@ class MainFrame(wx.Frame):
                 self.notebook.ChangeSelection(dst_page)
                 self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
             else:
-                self.panel_run_grouping.start(self.project, pathjoin(self.project.projdir_path,
-                                                                     '_state_run_grouping.p'))
+                self.panels[new].start(
+                    self.project,
+                    self.project.path('_state_run_grouping.p'))
         elif new == MainFrame.CORRECT_GROUPING:
-            if config.TIMER:
-                config.TIMER.start_task("CorrectGrouping_Total")
             if not exists_imgattr(self.project) and \
                not exists_digitbasedattr(self.project) and \
                not exists_custattr(self.project):
-                ff_modal(self,
+                ffwx.modal(self,
                          'There are no attributes to verify grouping for '
                          'in this election -- skipping to the next page.')
                 self.notebook.ChangeSelection(self.SELTARGETS)
                 self.notebook.SendPageChangedEvent(
                     self.CORRECT_GROUPING, self.SELTARGETS)
             else:
-                self.panel_correct_grouping.start(
+                self.panels[new].start(
                     self.project,
                     pathjoin(self.project.projdir_path, '_state_correct_grouping.p'))
         elif new == MainFrame.SELTARGETS:
-            if config.TIMER:
-                config.TIMER.start_task("SelectTargets_Total")
-            self.panel_seltargets.start(self.project, pathjoin(self.project.projdir_path,
-                                                               '_state_selecttargetsMain.p'),
-                                        self.project.ocr_tmp_dir)
+            self.panels[new].start(self.project,
+                                   self.project.path('_state_selecttargetsMain.p'),
+                                   self.project.ocr_tmp_dir)
         elif new == MainFrame.LABEL_CONTESTS:
             """ Requires:
                 proj.target_locs_dir -- Location of targets
                 proj.patch_loc_dir -- For language, and *something* else.
             """
-            if config.TIMER:
-                config.TIMER.start_task("LabelContests_Total")
-            self.panel_label_contests.proj = self.project
-            img2flip = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                 self.project.image_to_flip), 'rb'))
-            sz = self.GetSize()
-            self.panel_label_contests.start(sz)
+            self.panels[new].proj = self.project
+            self.panels[new].start(self.GetSize())
             self.SendSizeEvent()
         elif new == MainFrame.TARGET_EXTRACT:
-            if config.TIMER:
-                config.TIMER.start_task("TargetExtract_Total")
-            self.panel_target_extract.start(self.project)
+            self.panels[new].start(self.project)
         elif new == MainFrame.SET_THRESHOLD:
-            if config.TIMER:
-                config.TIMER.start_task("SetThreshold_Total")
             sz = self.GetSize()
-            self.panel_set_threshold.start(self.project, size=sz)
+            self.panels[new].start(self.project, size=sz)
             self.SendSizeEvent()
         elif new == MainFrame.QUARANTINE:
-            if config.TIMER:
-                config.TIMER.start_task("Quarantine_Total")
-            self.panel_quarantine.start(self.project, self.GetSize())
+            self.panels[new].start(self.project, self.GetSize())
         elif new == MainFrame.PROCESS:
-            if config.TIMER:
-                config.TIMER.start_task("GenerateResults_Total")
-            self.panel_process.start(self.project)
-            if config.TIMER:
-                config.TIMER.stop_task("GenerateResults_Total")
-                config.TIMER.stop_task("TOTALTIME")
-                config.TIMER.dump()
+            self.panels[new].start(self.project)
 
     def onClose(self, evt):
         """

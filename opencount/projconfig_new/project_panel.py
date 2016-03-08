@@ -1,7 +1,8 @@
 import os
+from os import path
 import re
 import shutil
-from os.path import join as pathjoin
+import csv
 try:
     import cPickle as pickle
 except ImportError:
@@ -90,7 +91,7 @@ class ProjectPanel(ffwx.Panel):
         return projname in [proj.name for proj in self.projects]
 
     def create_new_project(self, name):
-        proj = create_project(name, pathjoin(self.projdir, name))
+        proj = create_project(name, path.join(self.projdir, name))
         self.add_project(proj)
 
     def onButton_create(self, evt):
@@ -184,42 +185,42 @@ class Project(object):
                      'group_targets_map': 'group_targets_map.p',
                      'infer_bounding_boxes': False,
                      'targetextract_quarantined': 'targetextract_quarantined.p',
-                     'ocr_tmp_dir': pathjoin(projdir_path, 'ocr_tmp_dir'),
-                     'contest_id': pathjoin(projdir_path, 'contest_id.csv'),
-                     'contest_text': pathjoin(projdir_path, 'contest_text.csv'),
-                     'contest_internal': pathjoin(projdir_path, 'contest_internal.p'),
-                     'contest_grouping_data': pathjoin(projdir_path, 'contest_grouping_data.p'),
-                     'target_locs_dir': pathjoin(projdir_path, 'target_locations'),
-                     'tmp': pathjoin(projdir_path, 'tmp'),
-                     'extracted_dir': pathjoin(projdir_path, 'extracted'),
-                     'extracted_metadata': pathjoin(projdir_path, 'extracted_metadata'),
-                     'ballot_metadata': pathjoin(projdir_path, 'ballot_metadata'),
-                     'classified': pathjoin(projdir_path, 'classified'),
-                     'timing_runtarget': pathjoin(projdir_path, 'timing_runtarget'),
-                     'threshold_internal': pathjoin(projdir_path, 'threshold_internal.p'),
-                     'sample_flipped': pathjoin(projdir_path, 'sample_flipped'),
-                     'extractedfile': pathjoin(projdir_path, 'extractedfile'),
+                     'ocr_tmp_dir': path.join(projdir_path, 'ocr_tmp_dir'),
+                     'contest_id': path.join(projdir_path, 'contest_id.csv'),
+                     'contest_text': path.join(projdir_path, 'contest_text.csv'),
+                     'contest_internal': path.join(projdir_path, 'contest_internal.p'),
+                     'contest_grouping_data': path.join(projdir_path, 'contest_grouping_data.p'),
+                     'target_locs_dir': path.join(projdir_path, 'target_locations'),
+                     'tmp': path.join(projdir_path, 'tmp'),
+                     'extracted_dir': path.join(projdir_path, 'extracted'),
+                     'extracted_metadata': path.join(projdir_path, 'extracted_metadata'),
+                     'ballot_metadata': path.join(projdir_path, 'ballot_metadata'),
+                     'classified': path.join(projdir_path, 'classified'),
+                     'timing_runtarget': path.join(projdir_path, 'timing_runtarget'),
+                     'threshold_internal': path.join(projdir_path, 'threshold_internal.p'),
+                     'sample_flipped': path.join(projdir_path, 'sample_flipped'),
+                     'extractedfile': path.join(projdir_path, 'extractedfile'),
                      'ballot_to_targets': 'ballot_to_targets.p',
-                     'targets_result': pathjoin(projdir_path, 'targets_result.csv'),
-                     'ballot_to_images': pathjoin(projdir_path, 'ballot_to_images.p'),
-                     'image_to_ballot': pathjoin(projdir_path, 'image_to_ballot.p'),
-                     'election_results': pathjoin(projdir_path, 'election_results.txt'),
-                     'election_results_batches': pathjoin(projdir_path, 'election_results_batches.txt'),
-                     'cvr_csv': pathjoin(projdir_path, 'cvr.csv'),
-                     'cvr_dir': pathjoin(projdir_path, 'cvr'),
-                     'quarantined': pathjoin(projdir_path, 'quarantined.csv'),
-                     'quarantined_manual': pathjoin(projdir_path, 'quarantined_manual.csv'),
-                     'quarantine_res': pathjoin(projdir_path, 'quarantine_res.csv'),
-                     'quarantine_attributes': pathjoin(projdir_path, 'quarantine_attributes.csv'),
-                     'quarantine_internal': pathjoin(projdir_path, 'quarantine_internal.p'),
-                     'extracted_precinct_dir': pathjoin(projdir_path, 'extracted_precincts'),
-                     'ballot_grouping_metadata': pathjoin(projdir_path, 'ballot_grouping_metadata'),
-                     'patch_loc_dir': pathjoin(projdir_path, 'precinct_locations'),
-                     'attr_internal': pathjoin(projdir_path, 'attr_internal.p'),
-                     'grouping_results': pathjoin(projdir_path, 'grouping_results.csv'),
-                     'ballot_attributesfile': pathjoin(projdir_path, 'ballot_attributes.p'),
+                     'targets_result': path.join(projdir_path, 'targets_result.csv'),
+                     'ballot_to_images': path.join(projdir_path, 'ballot_to_images.p'),
+                     'image_to_ballot': path.join(projdir_path, 'image_to_ballot.p'),
+                     'election_results': path.join(projdir_path, 'election_results.txt'),
+                     'election_results_batches': path.join(projdir_path, 'election_results_batches.txt'),
+                     'cvr_csv': path.join(projdir_path, 'cvr.csv'),
+                     'cvr_dir': path.join(projdir_path, 'cvr'),
+                     'quarantined': path.join(projdir_path, 'quarantined.csv'),
+                     'quarantined_manual': path.join(projdir_path, 'quarantined_manual.csv'),
+                     'quarantine_res': path.join(projdir_path, 'quarantine_res.csv'),
+                     'quarantine_attributes': path.join(projdir_path, 'quarantine_attributes.csv'),
+                     'quarantine_internal': path.join(projdir_path, 'quarantine_internal.p'),
+                     'extracted_precinct_dir': path.join(projdir_path, 'extracted_precincts'),
+                     'ballot_grouping_metadata': path.join(projdir_path, 'ballot_grouping_metadata'),
+                     'patch_loc_dir': path.join(projdir_path, 'precinct_locations'),
+                     'attr_internal': path.join(projdir_path, 'attr_internal.p'),
+                     'grouping_results': path.join(projdir_path, 'grouping_results.csv'),
+                     'ballot_attributesfile': path.join(projdir_path, 'ballot_attributes.p'),
                      'imgsize': (0, 0),
-                     'frontback_map': pathjoin(projdir_path, 'frontback_map.p'),
+                     'frontback_map': path.join(projdir_path, 'frontback_map.p'),
                      'extracted_digitpatch_dir': 'extracted_digitpatches',
                      'digit_exemplars_outdir': 'digit_exemplars',
                      'digit_exemplars_map': 'digit_exemplars_map.p',
@@ -264,7 +265,99 @@ class Project(object):
         for k, v in self.vals.items():
             setattr(self, k, v)
 
+    def path(self, field):
+        '''
+        Find the path to the saved part of this project
+        '''
+        return path.join(self.projdir_path, field)
+
+    def path_exists(self, field):
+        '''
+        Find out whether a part of the project has yet been saved
+        '''
+        return path.exists(path.join(self.projdir_path, field))
+
+    # ----
+
+    def is_grouped(self):
+        '''
+        Returns True if the ballots have been sorted into groups
+        '''
+        return self.path_exists(self.group_to_ballots)
+
+    def is_partitioned(self):
+        '''
+        Returns True if the ballots have been properly partitioned
+        '''
+        return self.path_exists(self.partitions_map)
+
+    def use_partitions_as_grouping(self):
+        '''
+        In the case that we have partitions but no groups, we can use
+        the ballot partitioning as our grouping.
+        '''
+        partitions_map = self.load_field(self.partitions_map)
+        partitions_invmap = self.load_field(self.partitions_invmap)
+        partitions_exmpls = self.load_field(self.partition_exmpls)
+
+        group_infomap = {}
+        group_to_ballots = {}
+        ballot_to_group = {}
+        group_examples = {}
+
+        for (group_id, (part_id, ballots)) in \
+            enumerate(sorted(partitions_map.items())):
+            if not ballots:
+                continue
+
+            group_infomap[group_id] = { 'pid': part_id }
+            group_to_ballots.setdefault(group_id, []).extend(ballots)
+
+            for b_id in ballots:
+                ballot_to_group[b_id] = group_id
+
+        for (group_id, (part_id, ballots)) in \
+            enumerate(sorted(partitions_exmpls.items())):
+            if not ballots:
+                continue
+
+            group_examples[group_id] = ballots
+
+        with open(self.grouping_results, 'wb') as csvfile:
+            dictwriter = csv.DictWriter(csvfile,
+                                        fieldnames=('ballotid', 'groupid'))
+            dictwriter.writeheader()
+            dictwriter.writerows((
+                {'ballotid': b_id, 'groupid': g_id }
+                for (b_id, g_id) in ballot_to_group.items()
+            ))
+
+        self.save_field(group_to_ballots, self.group_to_ballots)
+        self.save_field(ballot_to_group, self.ballot_to_group)
+        self.save_field(group_examples, self.group_exmpls)
+        self.save_field(group_infomap, self.group_infomap)
+
+    # ----
+
+    def load_field(self, field):
+        '''
+        Load the named field from the disk. This assumes it exists,
+        and if it does not, it will raise a FileNotFound exception.
+        '''
+        with open(self.path(field), 'rb') as f:
+            return pickle.load(f)
+
+    def save_field(self, value, field):
+        '''
+        Save the value to disk as the named field.
+        '''
+        with open(self.path(field), 'wb') as f:
+            pickle.dump(value, f, pickle.HIGHEST_PROTOCOL)
+
     def save(self):
+        '''
+        Save the entire project to disk.
+        '''
         debug('saving project: {0}', self)
         write_project(self)
 
@@ -289,10 +382,10 @@ def load_projects(projdir):
         pass
 
     for subfolder in os.listdir(projdir):
-        if os.path.isdir(pathjoin(projdir, subfolder)):
-            for f in os.listdir(pathjoin(projdir, subfolder)):
+        if os.path.isdir(path.join(projdir, subfolder)):
+            for f in os.listdir(path.join(projdir, subfolder)):
                 if f == PROJ_FNAME:
-                    fullpath = pathjoin(projdir, pathjoin(subfolder, f))
+                    fullpath = path.join(projdir, path.join(subfolder, f))
                     try:
                         proj = pickle.load(open(fullpath, 'rb'))
                         # Add in any new Project properties to PROJ
@@ -310,7 +403,7 @@ def load_projects(projdir):
 
 def create_project(name, projrootdir):
     proj = Project(name, projrootdir)
-    projoutpath = pathjoin(projrootdir, PROJ_FNAME)
+    projoutpath = path.join(projrootdir, PROJ_FNAME)
     try:
         os.makedirs(projrootdir)
     except:
@@ -320,6 +413,6 @@ def create_project(name, projrootdir):
 
 
 def write_project(project):
-    projoutpath = pathjoin(project.projdir_path, PROJ_FNAME)
+    projoutpath = path.join(project.projdir_path, PROJ_FNAME)
     pickle.dump(project, open(projoutpath, 'wb'))
     return project
