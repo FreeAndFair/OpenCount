@@ -21,7 +21,7 @@ import scipy.misc
 
 import pixel_reg.shared as shared
 import util
-import specify_voting_targets.util_gui as util_gui
+import util_gui
 
 from asize import asizeof
 from panel_opencount import OpenCountPanel

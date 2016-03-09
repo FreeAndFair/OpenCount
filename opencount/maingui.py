@@ -129,7 +129,7 @@ class MainFrame(wx.Frame):
              "Group"),
             (panels.VerifyGroupingMainPanel(self.notebook),
              "Correct Grouping",
-             "Correct Grounping"),
+             "Correct Grouping"),
             (panels.SelectTargetsMainPanel(self.notebook),
              "Select Voting Targets",
              "Targets"),
@@ -177,31 +177,6 @@ class MainFrame(wx.Frame):
 
         if old >= 1:
             self.panels[old].stop()
-
-        # if old == MainFrame.PROJECT:
-        #     status, msg = self.panel_projects.can_move_on()
-        #     if status:
-        #         self.project = self.panel_projects.get_project()
-        #         self.SetTitle(
-        #             "OpenCount -- Project {0}".format(self.project.name))
-        #     else:
-        #         ffwx.modal(self, msg)
-        #         evt.Veto()
-        #     return
-
-        # curpanel = self.notebook.GetPage(old)
-        # if hasattr(curpanel, 'can_move_on'):
-        #     if not curpanel.can_move_on():
-        #         ffwx.error(self,
-        #                  'You cannot proceed. Please address the '
-        #                  'prior warnings first.')
-        #         evt.Veto()
-        #         return
-        # else:
-        #     warn("Class {0} has no can_move_on method", curpanel)
-
-        # if old >= 1:
-        #     self.panels[old].stop()
 
     def switch_to(self, tgt):
         self.notebook.ChangeSelection(tgt)

@@ -33,10 +33,12 @@ import util
 import graphcolour
 import config
 import grouping.tempmatch as tempmatch
-import labelcontest.group_contests as group_contests
+import s09_label_contests.group_contests as group_contests
 import pixel_reg.shared as shared
 import pixel_reg.imagesAlign as imagesAlign
 import global_align.global_align as global_align
+
+from util import debug, warn, error
 
 JOBID_TEMPMATCH_TARGETS = util.GaugeID("TemplateMatchTargets")
 
@@ -129,13 +131,14 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 self.tlisten = tlisten
 
             def run(self):
-                print '...Globally-aligning a subset of each partition...'
-                t = time.time()
-                groups_align_map = do_align_partitions(self.groups, self.img2flip,
-                                                       self.align_outdir, self.manager, self.queue,
-                                                       N=None)
-                dur = time.time() - t
-                print '...Finished globally-aligning a subset of each partition ({0:.4f} s)'.format(dur)
+                debug('globally aligning a subset of each partition')
+                groups_align_map = do_align_partitions(
+                    self.groups,
+                    self.img2flip,
+                    self.align_outdir,
+                    self.manager,
+                    self.queue,
+                    N=None)
                 self.jobid.done()
                 wx.CallAfter(self.callback, groups_align_map, self.ocrtmpdir)
                 self.tlisten.stop()
@@ -259,11 +262,13 @@ class SelectTargetsMainPanel(OpenCountPanel):
             for balid in balids:
                 balids_quar.add(balid)
 
-        print "(SelectTargets) Quarantining {0} flagged groups ({1} ballots total)".format(len(groups_quar), len(balids_quar))
+        debug("Quarantining {0} flagged groups ({1} ballots total)",
+              len(groups_quar),
+              len(balids_quar))
         pickle.dump(balids_quar, open(
             pathjoin(self.proj.projdir_path, 'quarantinedbals_seltargets.p'), 'wb'))
         # Also, temporarily export the quarantined groups.
-        print "(SelectTargets) Exporting 'quarantinedgroups_seltarets.p' as well, just in case."
+        debug('Exporting \'quarantinedgroups_seltarets.p\' as well, just in case.')
         pickle.dump(groups_quar, open(
             pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p'), 'wb'))
         del grp2bals
@@ -368,7 +373,9 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 *self.seltargets_panel.target_roi)
         else:
             outstr = "None"
-        print "(SelectTargets) Wrote '{0}' to: {1}".format(outstr, pathjoin(self.proj.projdir_path, 'target_roi'))
+        debug("Wrote '{0}' to: {1}",
+              outstr,
+              pathjoin(self.proj.projdir_path, 'target_roi'))
         print >>f_target_roi, outstr
         f_target_roi.close()
         # Warn User about lonely targets.
@@ -379,17 +386,20 @@ class SelectTargetsMainPanel(OpenCountPanel):
         for i, targs_sidesMap in lonely_targets_map.iteritems():
             for side, targets in targs_sidesMap.iteritems():
                 if targets:
-                    print "...On Partition {0}, side {1}, there were {2} \
-Lonely Targets - please check them out, or else they'll get ignored by \
-LabelContests.".format(i, side, len(targets))
+                    debug("...On Partition {0}, side {1}, there were {2} "
+                          "Lonely Targets - please check them out, or else "
+                          "they'll get ignored by LabelContests.",
+                          i,
+                          side,
+                          len(targets))
                     _lst.append("Partition={0} Side={1}".format(i, side))
                     cnt += len(targets)
         if _lst:
-            dlg = wx.MessageDialog(self, message="Warning - there were {0} \
-targets that were not enclosed in a contest. Please check them out, otherwise \
-they'll get ignored by LabelContests. They are: {1}".format(cnt, str(_lst)),
-                                   style=wx.OK)
-            dlg.ShowModal()
+            ffwx.modal(self,
+                       "Warning - there were {0} targets that were "
+                       "not enclosed in a contest. Please check them "
+                       "out, otherwise they'll get ignored by "
+                       "LabelContests. They are: {1}".format(cnt, str(_lst)))
 
     def invoke_sanity_checks(self, *args, **kwargs):
         """ Code that actually calls each sanity-check with application
@@ -864,7 +874,7 @@ voting target on this ballot.")
             imgpaths = sum(
                 [t for t in sum(self.partitions[self.cur_i:], [])], [])
             imgpaths = imgpaths[self.cur_page:]  # Don't run on prior pages
-        print "...Running template matching on {0} images...".format(len(imgpaths))
+        debug("Running template matching on {0} images", len(imgpaths))
         queue = Queue.Queue()
         thread = TM_Thread(queue, JOBID_TEMPMATCH_TARGETS, patch, img,
                            imgpaths, self.tm_param, self.win_ballot, self.win_target,
@@ -930,12 +940,13 @@ voting target on this ballot.")
                         boxB.y2 = boxB.y1 + self.boxsize[1]
                     self.boxes.setdefault(partition_idx, [])[page].append(boxB)
                     _cnt_added += 1
-        print 'Added {0} new boxes from this tempmatch run.'.format(_cnt_added)
-        print 'Num boxes in current partition:', len(self.boxes[self.cur_i][self.cur_page])
+        debug('Added {0} new boxes from this tempmatch run.', _cnt_added)
+        debug('Num boxes in current partition: {0}',
+              len(self.boxes[self.cur_i][self.cur_page]))
         self.imagepanel.set_boxes(self.boxes[self.cur_i][self.cur_page])
         self.Refresh()
         self.Enable()
-        print "...Finished adding results from tempmatch run."
+        debug("Finished adding results from tempmatch run.")
 
     def display_image(self, i, j, page, autofit=False):
         """ Displays the J-th image in partition I. Also handles
@@ -950,10 +961,10 @@ voting target on this ballot.")
             Returns the (I,J,PAGE) we decided to display, if successful.
         """
         if i < 0 or i >= len(self.partitions):
-            print "Invalid partition idx:", i
+            error("Invalid partition idx: {0}", i)
             pdb.set_trace()
         elif j < 0 or j >= len(self.partitions[i]):
-            print "Invalid image idx {0} into partition {1}".format(j, i)
+            error("Invalid image idx {0} into partition {1}", j, i)
             pdb.set_trace()
         # 0.) Save boxes of old image
         '''
@@ -996,10 +1007,8 @@ voting target on this ballot.")
         self.Refresh()
 
         if self.cur_i in self.flagged_idxs:
-            print "(SelectTargets) Idx {0} was flagged by user!".format(self.cur_i)
-            dlg = wx.MessageDialog(self, style=wx.OK,
-                                   message="This 'partition' was flagged by the user.")
-            dlg.ShowModal()
+            debug("Idx {0} was flagged by user!", self.cur_i)
+            ffwx.modal(self, "This 'partition' was flagged by the user.")
 
         return (self.cur_i, self.cur_j, self.cur_page)
 
@@ -1008,12 +1017,12 @@ voting target on this ballot.")
         X1_DEL, Y1_DEL, X2_DEL, Y2_DEL.
         """
         if not self.boxsize:
-            print "Can't call resize_targets() when no targets exist."
+            warn("Can't call resize_targets() when no targets exist.")
             return
         w_new = self.boxsize[0] - x1_del + x2_del
         h_new = self.boxsize[1] - y1_del + y2_del
         if w_new <= 1 or h_new <= 1:
-            print "New dimensions are degenerate: w,h=({0},{1})".format(w_new, h_new)
+            debug("New dimensions are degenerate: w,h=({0},{1})", w_new, h_new)
             return
         self.boxsize = w_new, h_new
         for partition_idx, pages_tpl in self.boxes.iteritems():
@@ -1086,7 +1095,8 @@ voting target on this ballot.")
             if prev_i < 0:
                 return
             if not self.partitions[prev_i]:
-                print "(Error) There appears to be an empty partition at i={0}".format(prev_i)
+                error("There appears to be an empty partition at i={0}",
+                      prev_i)
                 return
             numpages = len(self.partitions[prev_i][0])
             self.display_image(prev_i, 0, numpages - 1)
@@ -1110,7 +1120,7 @@ voting target on this ballot.")
         self.display_prevpage()
 
     def onButton_flagpartition(self, evt):
-        print "(SelectTargets) Flagging partition '{0}' as quarantined.".format(self.cur_i)
+        debug( "Flagging partition '{0}' as quarantined.", self.cur_i)
         self.flagged_idxs.add(self.cur_i)
 
     def zoomin(self, amt=0.1):
@@ -1128,10 +1138,10 @@ voting target on this ballot.")
         try:
             idx = int(dlg.GetValue()) - 1
         except:
-            print "Invalid index:", idx
+            error("Invalid index: {0}", idx)
             return
         if idx < 0 or idx >= len(self.partitions):
-            print "Invalid group index:", idx
+            error("Invalid group index: {0}", idx)
             return
         self.txt_totalballots.SetLabel(str(len(self.partitions[idx])))
         self.txt_totalpages.SetLabel(str(len(self.partitions[idx][0])))
@@ -1146,10 +1156,10 @@ voting target on this ballot.")
         try:
             idx = int(dlg.GetValue()) - 1
         except:
-            print "Invalid index:", idx
+            error("Invalid index: {0}", idx)
             return
         if idx < 0 or idx >= len(self.partitions[self.cur_i]):
-            print "Invalid ballot index:", idx
+            error("Invalid ballot index: {0}", idx)
             return
         self.txt_totalpages.SetLabel(
             str(len(self.partitions[self.cur_i][idx])))
@@ -1163,10 +1173,10 @@ voting target on this ballot.")
             self.display_image(idx, 0, v)
 
     def onButton_selectIref(self, evt):
-        print self.cur_j
+        debug("{0}", self.cur_j)
         S = self.parent.seltargets_panel
         cur_groupid = self.parent.i2groupid[S.cur_i]
-        print cur_groupid
+        debug("{0}", cur_groupid)
         self.parent.group_to_Iref[cur_groupid] = self.cur_j
 
     def onButton_jump_page(self, evt):
@@ -1178,10 +1188,10 @@ voting target on this ballot.")
         try:
             idx = int(dlg.GetValue()) - 1
         except:
-            print "Invalid index:", idx
+            error("Invalid index: {0}", idx)
             return
         if idx < 0 or idx >= len(self.partitions[self.cur_i][self.cur_j]):
-            print "Invalid page index:", idx
+            error("Invalid page index: {0}", idx)
             return
         self.display_image(self.cur_i, self.cur_j, idx)
 
@@ -1448,7 +1458,14 @@ Then, you may resize the voting targets here.").ShowModal()
 
                 #observe("exists", tuple([sum([intersect(x,y) for y in contests]) == 1 for x in targets]), (pid,i))
                 if not all([sum([intersect(x, y) for y in contests]) == 1 for x in targets]):
-                    print "OH NO THIS IS BAD", pid + 1, i, [x[1] for x in zip([sum([intersect(x, y) for y in contests]) == 1 for x in targets], targets) if x[0] == False]
+                    error("OH NO THIS IS BAD: {0}",
+                          (pid + 1,
+                           i,
+                           [x[1] for x
+                            in zip([sum([intersect(x, y) for y in contests]) == 1
+                                    for x in targets],
+                                   targets)
+                            if x[0] == False]))
 
                 observe("contest width", (max((x.x2 - x.x1) / 50 for x in contests),
                                           min((x.x2 - x.x1) / 50 for x in contests)), (pid, i))
@@ -1471,7 +1488,7 @@ Then, you may resize the voting targets here.").ShowModal()
                 expanded = [k for k, v in obs.items() for _ in range(v)]
                 average = np.mean(expanded)
                 std = np.std(expanded)
-                print average, std
+                debug("{0} {1}", average, std)
                 for what, c in obs.items():
                     for ballot in lookup[evtname][what]:
                         if what > average:
@@ -1481,15 +1498,13 @@ Then, you may resize the voting targets here.").ShowModal()
         self.parent.next_errors = [x[0] for x in sorted(
             votes_for_errors.items(), key=lambda x: -x[1])]
         for (ballot, side), votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
-            print ballot + 1, side, votes, stats_by_ballot[ballot, side]
-        print events
+            debug("{0}", (ballot + 1, side, votes, stats_by_ballot[ballot, side]))
+        debug("{0}", events)
 
     def onButton_settargetroi(self, evt):
         if not self.GetParent().boxsize:
-            dlg = wx.MessageDialog(self, style=wx.OK,
-                                   message="Please select at least one voting \
-target first.")
-            dlg.ShowModal()
+            ffwx.modal(self,
+                       "Please select at least one voting target first.")
             return
         imgpath = self.GetParent().partitions[0][0][0]
         # boxes: {int i: [[Box_iFront, ...], ...]}
@@ -1507,7 +1522,7 @@ target first.")
         # tuple ROI: (int x1, y1, x2, y2)
         roi = dlg.roi
 
-        print "(SelectTargets) Set target_roi from {0} to: {1}".format(self.GetParent().target_roi, roi)
+        debug("Set target_roi from {0} to: {1}", self.GetParent().target_roi, roi)
         self.GetParent().set_target_roi(roi)
 
 
@@ -1921,7 +1936,7 @@ class BoxDrawPanel(ImagePanel):
         """ Starts creating a box at (x,y). """
         if boxtype == None:
             boxtype = self.boxtype
-        print "...Creating Box: {0}, {1}".format((x, y), boxtype)
+        debug("creating box: {0}, {1}", (x, y), boxtype)
         self.isCreate = True
         self.box_create = boxtype(x, y, x + 1, y + 1)
         # Map Box coords to Image coords, not UI coords.
@@ -1929,7 +1944,7 @@ class BoxDrawPanel(ImagePanel):
 
     def finishBox(self, x, y):
         """ Finishes box creation at (x,y). """
-        print "...Finished Creating Box:", (x, y)
+        debug("Finished Creating Box: {0}", (x, y))
         self.isCreate = False
         # 0.) Canonicalize box coords s.t. order is: UpperLeft, LowerRight.
         self.box_create.canonicalize()
@@ -2064,7 +2079,7 @@ class BoxDrawPanel(ImagePanel):
             return
 
         if self.mode_m == BoxDrawPanel.M_CREATE:
-            print "...Creating Target box."
+            debug("Creating Target box.")
             self.clear_selected()
             self.startBox(x, y)
             self.update_cursor()
@@ -2097,7 +2112,7 @@ class BoxDrawPanel(ImagePanel):
         elif self.mode_m == BoxDrawPanel.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
             boxes = get_boxes_within(self.boxes, box)
-            print "...Selecting {0} boxes.".format(len(boxes))
+            debug("Selecting {0} boxes.", len(boxes))
             self.select_boxes(*boxes)
             self.update_cursor()
 
@@ -2182,8 +2197,6 @@ class BoxDrawPanel(ImagePanel):
             resize_box_can = self.box_resize.copy().canonicalize()
             self.drawBox(resize_box_can, dc)
         total_dur = time.time() - total_t
-        # print "Total Time: {0:.5f}s  (drawBoxes: {1:.5f}s,
-        # {2:.4f}%)".format(total_dur, dur, 100*float(dur / total_dur))
         return dc
 
     def drawBoxes(self, boxes, dc):
@@ -2370,22 +2383,6 @@ class BoxDrawPanel(ImagePanel):
 
         total_dur = time.time() - total_t
 
-        '''
-        print "== drawBox Total {0:.6f}s (wxbmp2np: {1:.6f}s {2:.3f}%) \
-(_img2bmp: {3:.6f}s {4:.3f}%) (memdc.blit {5:.3f}s {6:.3f}%) \
-(drawrect: {7:.6f}s {8:.3f}%) (drawgrabbers {9:.6f} {10:.3f}%)".format(total_dur,
-                                                                      dur_wxbmp2np,
-                                                                      100*(dur_wxbmp2np / total_dur),
-                                                                      dur_img2bmp,
-                                                                      100*(dur_img2bmp / total_dur),
-                                                                      dur_memdcBlit,
-                                                                      100*(dur_memdcBlit / total_dur),
-                                                                      dur_drawrect,
-                                                                      100*(dur_drawrect / total_dur),
-                                                                      dur_drawgrabbers,
-                                                                      100*(dur_drawgrabbers / total_dur))
-        '''
-
 
 class TemplateMatchDrawPanel(BoxDrawPanel):
     """ Like a BoxDrawPanel, but when you create a Target box, it runs
@@ -2403,7 +2400,7 @@ class TemplateMatchDrawPanel(BoxDrawPanel):
         if self.mode_m == BoxDrawPanel.M_CREATE and self.isCreate:
             x_img, y_img = self.c2img(x, y)
             if (abs(self.box_create.x1 - x_img) <= MIN_LEN) or (abs(self.box_create.y1 - y_img) <= MIN_LEN):
-                print "...User drew a too-small box..."
+                warn("User drew a too-small box")
                 dlg = wx.MessageDialog(self, style=wx.YES_NO | wx.NO_DEFAULT,
                                        message="You drew a box that \
 was a bit small. \n\n\
@@ -2429,7 +2426,7 @@ create a better box around a voting target, then choose the 'No' button.")
                     targetimg_prefit, padx=2, pady=2)
                 if self.GetParent().boxsize == None:
                     # First time user drew a box
-                    print "(SelectTargets) First target selected."
+                    debug("First target selected.")
                     targetimg_crop_np = np.array(targetimg_crop)
                     dlg = DrawROIDialog(self, targetimg_crop_np)
                     status = dlg.ShowModal()
@@ -2437,7 +2434,9 @@ create a better box around a voting target, then choose the 'No' button.")
                         return
                     # tuple ROI: (int x1, y1, x2, y2)
                     roi = dlg.roi
-                    print "(SelectTargets) Set target_roi from {0} to: {1}".format(self.GetParent().target_roi, roi)
+                    debug("Set target_roi from {0} to: {1}",
+                          self.GetParent().target_roi,
+                          roi)
                     self.GetParent().set_target_roi(roi)
 
                 self.tempmatch_fn(box, imgpil, patch=targetimg_crop)
@@ -2475,7 +2474,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             return
 
         if self.mode_m == self.M_FORCEADD_TARGET:
-            print "...Creating Forced Target."
+            debug("Creating Forced Target.")
             self.clear_selected()
             self.startBox(x, y)
             self.Refresh()
@@ -2740,27 +2739,18 @@ class TM_Thread(threading.Thread):
         self.callback = callback
 
     def run(self):
-        print "...running template matching..."
-        t = time.time()
-        #patch_str = self.patch.tobytes()
-        w, h = cv.GetSize(self.patch)
-        # results: {str imgpath: [(x,y,score_i), ...]}
-        # results = partask.do_partask(do_find_matches, self.imgpaths,
-        #                             _args=(patch_str, w, h, self.tm_param, self.win_ballot),
-        #                             combfn='dict', singleproc=False)
-        xwinB, ywinB = self.win_ballot
-        xwinT, ywinT = self.win_target
-        # results: {str imgpath: [(x1,y1,x2,y2,score_i), ...]}
-        # Note: self.patch is already smooth'd.
+        with util.time_operation("running template matching"):
+            w, h = cv.GetSize(self.patch)
+            xwinB, ywinB = self.win_ballot
+            xwinT, ywinT = self.win_target
 
-        results = tempmatch.get_tempmatches_par(self.patch, self.imgpaths,
-                                                do_smooth=tempmatch.SMOOTH_IMG_BRD,
-                                                T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
-                                                xwinI=xwinB, ywinI=ywinB,
-                                                jobid=self.job_id)
+            results = tempmatch.get_tempmatches_par(
+                self.patch, self.imgpaths,
+                do_smooth=tempmatch.SMOOTH_IMG_BRD,
+                T=self.tm_param, xwinA=xwinT, ywinA=ywinT,
+                xwinI=xwinB, ywinI=ywinB,
+                jobid=self.job_id)
 
-        dur = time.time() - t
-        print "...finished running template matching ({0} s).".format(dur)
         wx.CallAfter(self.callback, results, w, h)
 
 
@@ -3050,7 +3040,7 @@ def recolour_contests(contests):
     colouring = graphcolour.fivecolour_planar(
         graph, colours=ContestBox.shading_clr_cycle)
     if not colouring:
-        print "Graph isn't planar, that's odd! Running general colouring algo..."
+        warn("Graph isn't planar---running general colouring algo...")
         colouring = graphcolour.graphcolour(
             graph, colours=ContestBox.shading_clr_cycle)
     for node, colour in colouring.iteritems():
@@ -3106,7 +3096,10 @@ def test_recolour_contests():
     contests = [A, B, C, D]
     recolour_contests(contests)
     for contest in contests:
-        print "Contest ({0},{1}) Colour: {2}".format(contest.x1, contest.y1, contest.colour)
+        debug("Contest ({0},{1}) Colour: {2}",
+              contest.x1,
+              contest.y1,
+              contest.colour)
     pdb.set_trace()
 
 """
@@ -3318,7 +3311,10 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
     # the entire image. Works better than working on the entire image.
     partitions_align = {}  # maps {partitionID: [[imgpath_i, ...], ...]}
     t = time.time()
-    print "...this process is aligning {0} ballots...".format(sum(map(lambda t: len(t[1]), partitions), 0))
+    debug("...this process is aligning {0} ballots...",
+          sum(map(lambda t: len(t[1]),
+                  partitions),
+              0))
     try:
         for idx, (partitionid, ballots) in enumerate(partitions):
             outdir = pathjoin(outrootdir, 'partition_{0}'.format(partitionid))
@@ -3402,7 +3398,7 @@ def do_align_partitions(partitions, img2flip, outrootdir, manager, queue, N=None
         partitions_align = {}
         while cnt < num_tasks:
             subresult = result_queue.get()
-            print '...got result {0}...'.format(cnt)
+            debug('got result {0}', cnt)
             partitions_align = dict(
                 partitions_align.items() + subresult.items())
             cnt += 1
@@ -3464,12 +3460,13 @@ def wxBitmap2np(wxBmp, is_rgb=True):
     dur_wximg2np = time.time() - t
 
     total_dur = time.time() - total_t
-    print "==== wxBitmap2np: {0:.6f}s (bmp2wximg: {1:.5f}s {2:.3f}%) \
-(wximg2np: {3:.5f}s {4:.3f}%)".format(total_dur,
-                                      dur_bmp2wximg,
-                                      100 * (dur_bmp2wximg / total_dur),
-                                      dur_wximg2np,
-                                      100 * (dur_wximg2np / total_dur))
+    debug("==== wxBitmap2np: {0:.6f}s (bmp2wximg: {1:.5f}s {2:.3f}%) "
+          "(wximg2np: {3:.5f}s {4:.3f}%)",
+          total_dur,
+          dur_bmp2wximg,
+          100 * (dur_bmp2wximg / total_dur),
+          dur_wximg2np,
+          100 * (dur_wximg2np / total_dur))
     return npimg
 
 
@@ -3484,7 +3481,6 @@ def wxBitmap2np_v2(wxBmp, is_rgb=True):
     npimg = npimg.reshape(h, w, 3)
 
     total_dur = time.time() - total_t
-    # print "==== wxBitmap2np_v2: {0:.6f}s".format(total_dur)
     return npimg
 
 

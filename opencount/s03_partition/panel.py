@@ -72,8 +72,8 @@ class PartitionMainPanel(ffwx.Panel):
         self.Layout()
 
     def start(self, project=None, root=None):
-        stateP = proj.path('_state_partition.p')
-        self.proj = proj
+        stateP = project.path('_state_partition.p')
+        self.proj = project
         self.partitionpanel.start(self.proj, self.proj.voteddir, stateP)
         self.proj.addCloseEvent(self.partitionpanel.save_session)
 

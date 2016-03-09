@@ -23,7 +23,7 @@ import grouping.tempmatch
 import grouping.group_attrs
 import grouping.common
 import config
-import specify_voting_targets.select_targets as select_targets
+import s08_select_targets.panel as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
 from grouping.verify_overlays_new import CheckImageEqualsFrame, CheckImageEquals

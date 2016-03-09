@@ -21,7 +21,7 @@ try:
 except ImportError:
     import pickle
 
-from specify_voting_targets import util_gui
+import util_gui
 
 if sys.stderr.isatty():
     SIGIL_DICT = dict(

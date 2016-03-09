@@ -178,9 +178,9 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         """
         self.project = project
         self.stateP = self.project.path('_state_config.p')
-        self._hookfn = lambda: self.save_session(stateP)
+        self._hookfn = lambda: self.save_session(self.stateP)
         self.project.addCloseEvent(self._hookfn)
-        if self.restore_session(stateP=stateP):
+        if self.restore_session(stateP=self.stateP):
             return
         self.voteddir = ''
 

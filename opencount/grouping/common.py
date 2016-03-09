@@ -20,10 +20,10 @@ sys.path.append('../pixel_reg/')
 import pixel_reg.shared as sh
 import pixel_reg.part_match as part_match
 
-from specify_voting_targets.imageviewer import WorldState as WorldState
-from specify_voting_targets.imageviewer import BoundingBox as BoundingBox
+from imageviewer import WorldState as WorldState
+from imageviewer import BoundingBox as BoundingBox
 from util import encodepath
-import specify_voting_targets.util_gui as util_gui
+import util_gui
 import cust_attrs
 import cluster_imgs
 import partask

@@ -27,10 +27,10 @@ sys.path.append('..')
 
 import util
 import config
-import threshold.imageFile as imageFile
+import image_file as imageFile
 import pixel_reg.doExtract as doExtract
-import quarantine.quarantinepanel as quarantinepanel
-import grouping.run_grouping as run_grouping
+import s12_quarantine.panel as quarantinepanel
+import s06_run_grouping.panel as run_grouping
 
 
 class TargetExtractPanel(wx.Panel):

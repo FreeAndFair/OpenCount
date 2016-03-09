@@ -10,8 +10,8 @@ except:
 import csv
 from os.path import join as pathjoin
 import util
-from quarantine.quarantinepanel import get_quarantined_ballots, get_discarded_ballots
-from grouping.run_grouping import get_ioerr_bals
+from s12_quarantine.panel import get_quarantined_ballots, get_discarded_ballots
+from s06_run_grouping.panel import get_ioerr_bals
 
 
 class ResultsPanel(ScrolledPanel):

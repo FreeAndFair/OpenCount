@@ -6,6 +6,7 @@ import wx
 
 import ffwx
 from util import debug, warn, error
+import project
 from project import load_projects
 
 
@@ -85,7 +86,7 @@ class ProjectPanel(ffwx.Panel):
         return projname in [proj.name for proj in self.projects]
 
     def create_new_project(self, name):
-        proj = create_project(name, path.join(self.projdir, name))
+        proj = project.create_project(name, path.join(self.projdir, name))
         self.add_project(proj)
 
     def onButton_create(self, evt):
@@ -102,7 +103,7 @@ class ProjectPanel(ffwx.Panel):
                 dlg.ShowModal()
                 return
             else:
-                if not is_valid_projectname(project_name):
+                if not project.is_valid_projectname(project_name):
                     warn = wx.MessageDialog(self,
                                             message='{0} is not a valid \
 project name. Please only use letters, numbers, and punctuation.'.format(project_name),

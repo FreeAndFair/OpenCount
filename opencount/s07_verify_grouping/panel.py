@@ -16,7 +16,7 @@ from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlag
 import grouping.digit_group_new
 import grouping.cust_attrs
 sys.path.append('..')
-import specify_voting_targets.util_gui as util_gui
+import util_gui
 import config
 
 

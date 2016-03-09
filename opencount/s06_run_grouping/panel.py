@@ -18,7 +18,7 @@ from util import MyGauge
 import pixel_reg.doGrouping as doGrouping
 import pixel_reg.part_match as part_match
 import grouping.digit_group_new as digit_group_new
-import specify_voting_targets.util_gui as util_gui
+import util_gui
 import config
 
 from util import debug, warn, error

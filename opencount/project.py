@@ -7,6 +7,7 @@ instead of scattered throughout the codebase.
 import csv
 import os
 from os import path
+import re
 
 PROJ_FNAME = 'proj.p'
 

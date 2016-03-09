@@ -21,7 +21,8 @@ import util
 import wx
 import numpy as np
 from scipy.optimize import fmin
-import specify_voting_targets.select_targets
+import s08_select_targets.panel #as select_targets XXXX
+
 
 
 def pdb_on_crash(f):
