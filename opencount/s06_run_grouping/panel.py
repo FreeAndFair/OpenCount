@@ -79,9 +79,9 @@ class RunGroupingMainPanel(wx.Panel):
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, proj, stateP):
-        self.proj = proj
-        self.stateP = stateP
+    def start(self, project=None, projroot=None):
+        self.proj = project
+        self.stateP = project.path('_state_run_grouping.p')
         self.proj.addCloseEvent(self.save_session)
         if not self.restore_session():
             pass

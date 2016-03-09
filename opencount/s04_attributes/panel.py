@@ -19,9 +19,9 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
 import util
-import tempmatch
-import group_attrs
-import common
+import grouping.tempmatch
+import grouping.group_attrs
+import grouping.common
 import config
 import specify_voting_targets.select_targets as select_targets
 import grouping.cust_attrs as cust_attrs
@@ -111,9 +111,10 @@ class BallotAttributesPanel(OpenCountPanel):
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, proj, stateP, *args, **kwargs):
-        self.proj = proj
-        self.attr_panel.start(proj, stateP)
+    def start(self, project=None, projdir=None):
+        self.proj = project
+        stateP = project.path('_state_ballot_attributes.p')
+        self.attr_panel.start(project, stateP)
         self.proj.addCloseEvent(self.attr_panel.save_session)
 
     def stop(self):

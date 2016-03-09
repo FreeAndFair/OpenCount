@@ -16,6 +16,10 @@ try:
     import Image
 except:
     from PIL import Image
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from specify_voting_targets import util_gui
 

@@ -2,6 +2,7 @@
 The main entry function for OpenCount, including the main panel which
 contains all the other panels.
 '''
+
 import argparse
 import csv
 import datetime
@@ -20,27 +21,12 @@ from os.path import join as pathjoin
 
 import wx
 
-from projconfig_new.project_panel import Project
+from project import Project
 import panels
-# sys.path.append('..')
-# from opencount.projconfig_new.project_panel import ProjectPanel, Project
-# from opencount.projconfig_new.config_panel import ConfigPanel
-# from opencount.partitions.partition_panel import PartitionMainPanel
-# from opencount.specify_voting_targets.select_targets import SelectTargetsMainPanel
-# from opencount.labelcontest.labelcontest import LabelContest
-# from opencount.grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
-# from opencount.digits_ui.labeldigits import LabelDigitsPanel
-# from opencount.grouping.run_grouping import RunGroupingMainPanel
-# from opencount.grouping.verify_grouping_panel import VerifyGroupingMainPanel
-# from opencount.runtargets.extract_targets_new import TargetExtractPanel
-# from opencount.threshold.threshold import ThresholdPanel
-# from opencount.quarantine.quarantinepanel import QuarantinePanel
-# from opencount.post_processing.postprocess import ResultsPanel
 
 import ffwx
 from opencount.util import debug, warn, error
 
-import opencount.specify_voting_targets.util_gui as util_gui
 import config
 import opencount.util as util
 
@@ -217,6 +203,10 @@ class MainFrame(wx.Frame):
         # if old >= 1:
         #     self.panels[old].stop()
 
+    def switch_to(self, tgt):
+        self.notebook.ChangeSelection(tgt)
+        self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES, tgt)
+
     def onPageChange(self, evt):
         old = evt.GetOldSelection()
         new = evt.GetSelection()
@@ -246,25 +236,19 @@ class MainFrame(wx.Frame):
                     ffwx.warn(self, 'You must first run decoding (partitioning) '
                               'before proceeding to this step. OpenCount will '
                               'take you there now.')
-                    self.notebook.ChangeSelection(self.PARTITION)
-                    self.notebook.SendPageChangedEvent(
-                        self.SELTARGETS, self.PARTITION)
+                    self.switch_to(self.PARTITION)
                     return
 
         if new == MainFrame.PROJECT:
-            self.panels[new].start(PROJROOTDIR)
+            self.panels[new].start(projdir=PROJROOTDIR)
         elif new == MainFrame.CONFIG:
-            self.panels[new].start(
-                self.project,
-                self.project.path('_state_config.p'))
+            self.panels[new].start(project=self.project)
         elif new == MainFrame.PARTITION:
-            self.panels[new].start(
-                self.project,
-                self.project.path('_state_partition.p'))
+            self.panels[new].start(project=self.project)
         elif new == MainFrame.BALLOT_ATTRIBUTES:
             # A (crude) way of detecting if the user started working on
             # ballot attributes already
-            if not self.project.path_exists('_state_ballot_attributes.p'):
+            if not self.project.has_attribute_data():
                 resp = ffwx.yesno(self,
                                 'Do you wish to define any Ballot Attributes? \n\n'
                                 'If you intend to define ballot attributes '
@@ -276,20 +260,17 @@ class MainFrame(wx.Frame):
                              'any ballot attributes.\n\n '
                              'You will now be taken to the ballot annotation '
                              'stage.')
-                    self.notebook.ChangeSelection(self.SELTARGETS)
-                    self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES,
-                                                       self.SELTARGETS)
+                    self.switch_to(self.SELTARGETS)
                     return
 
-            self.panels[new].start(
-                self.project,
-                self.project.path('_state_ballot_attributes.p'))
+            self.panels[new].start(project=self.project)
         elif new == MainFrame.LABEL_DIGATTRS:
             # Skip if there are no digit-based attributes
             if not exists_digitbasedattr(self.project):
                 ffwx.modal(self,
                          'There are no Digit-Based Attributes in this '
                          'election -- skipping to the next page.')
+                self.switch_to(self.RUN_GROUPING)
                 self.notebook.ChangeSelection(self.RUN_GROUPING)
                 self.notebook.SendPageChangedEvent(
                     self.LABEL_DIGATTRS, self.RUN_GROUPING)
@@ -308,9 +289,7 @@ class MainFrame(wx.Frame):
                 self.notebook.ChangeSelection(dst_page)
                 self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
             else:
-                self.panels[new].start(
-                    self.project,
-                    self.project.path('_state_run_grouping.p'))
+                self.panels[new].start(project=self.project)
         elif new == MainFrame.CORRECT_GROUPING:
             if not exists_imgattr(self.project) and \
                not exists_digitbasedattr(self.project) and \
@@ -428,8 +407,8 @@ def main():
     if args.time:
         prefix = args.time
         now = datetime.datetime.now()
-        date_suffix = "{0}_{1}_{2}_{3}_{4}".format(now.year, now.month, now.day,
-                                                   now.hour, now.minute)
+        date_suffix = "{0}_{1}_{2}_{3}_{4}".format(
+            now.year, now.month, now.day, now.hour, now.minute)
         # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
         timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
         config.TIMER = util.MyTimer(timing_filepath)

@@ -8,7 +8,7 @@ from os.path import join as pathjoin
 from PIL import Image, ImageDraw
 
 from time import time
-import imageFile
+import image_file
 import array
 try:
     import cPickle as pickle

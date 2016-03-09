@@ -171,14 +171,13 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, project, stateP):
+    def start(self, project=None, root=None):
         """
         Input:
             obj PROJECT:
-            str STATEP: Path of the state file.
         """
         self.project = project
-        self.stateP = stateP
+        self.stateP = self.project.path('_state_config.p')
         self._hookfn = lambda: self.save_session(stateP)
         self.project.addCloseEvent(self._hookfn)
         if self.restore_session(stateP=stateP):
