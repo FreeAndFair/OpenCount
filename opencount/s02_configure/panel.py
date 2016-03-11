@@ -24,13 +24,22 @@ import util
 import config
 from vendors import Hart, ES_S, Sequoia, Diebold, SingleTemplate, DevVendor
 
-BALLOT_VENDORS = ("Hart", "es_s", "Sequoia", "Diebold",
-                  "Single Template (generic)", "DevVendor")
-VENDOR_CLASSES = {'hart': Hart.HartVendor, 'es_s': ES_S.ESSVendor,
-                  "sequoia": Sequoia.SequoiaVendor,
-                  "single template (generic)": SingleTemplate.SingleTemplateVendor,
-                  "diebold": Diebold.DieboldVendor,
-                  "devvendor": DevVendor.DevVendor}
+BALLOT_VENDORS = (
+    "Hart",
+    "es_s",
+    "Sequoia",
+    "Diebold",
+    "Single Template (generic)",
+    "DevVendor",
+)
+VENDOR_CLASSES = {
+    'hart': Hart.HartVendor,
+    'es_s': ES_S.ESSVendor,
+    "sequoia": Sequoia.SequoiaVendor,
+    "single template (generic)": SingleTemplate.SingleTemplateVendor,
+    "diebold": Diebold.DieboldVendor,
+    "devvendor": DevVendor.DevVendor,
+}
 
 SEPARATE_MODE_SINGLE_SIDED = 42
 SEPARATE_MODE_ALTERNATING = 43
@@ -52,86 +61,108 @@ class ConfigPanel(ffwx.Panel):
         # HOOKFN: Just a callback function to pass to Project.closehooks
         self._hookfn = None
 
+        ff = ffwx.FFBuilder(self)
+
         # Set up widgets
-        self.box_samples = wx.StaticBox(self, label="Samples")
-        self.box_samples.sizer = wx.StaticBoxSizer(
-            self.box_samples, orient=wx.VERTICAL)
-        self.box_samples.txt = wx.StaticText(
-            self, label="Please choose the directory where the sample images reside.")
-        self.box_samples.btn = wx.Button(
-            self, label="Choose voted ballot directory...")
-        self.box_samples.btn.Bind(
-            wx.EVT_BUTTON, self.onButton_choosesamplesdir)
-        self.box_samples.txt2 = wx.StaticText(
-            self, label="Voted ballot directory:")
-        self.box_samples.txt_samplespath = wx.StaticText(self)
-        self.box_samples.sizer.Add(self.box_samples.txt)
-        self.box_samples.sizer.Add((0, 20))
-        self.box_samples.sizer.Add(self.box_samples.btn)
-        self.box_samples.sizer.Add((0, 20))
-        self.box_samples.sizer.Add(self.box_samples.txt2)
-        self.box_samples.sizer.Add(self.box_samples.txt_samplespath)
-        self.box_samples.sizer.Add((0, 20))
+        self.box_samples = ff.static_vbox(label='Samples') \
+            .add(ff.text('Please choose the directory where the '
+                         'sample images reside')) \
+            .add((0, 20)) \
+            .add(ff.button(label='Choose voted ballot directory',
+                           on_click=self.onButton_choosesamplesdir)) \
+            .add(ff.text('Voted ballot directory: ')) \
+            .add(ff.text('/'), name='txt_samplespath') \
+            .add((0, 20))
 
-        # self.lower_scroll = wx.ListBox(self) # Voted Skipped ListBox
-        #self.lower_scroll.box = wx.StaticBox(self, label="For the voted ballots, the following files were skipped:")
-        #sboxsizer0 = wx.StaticBoxSizer(self.lower_scroll.box, orient=wx.VERTICAL)
-        #sboxsizer0.Add(self.lower_scroll, 1, flag=wx.EXPAND)
+        # self.box_samples = wx.StaticBox(self, label="Samples")
+        # self.box_samples.sizer = wx.StaticBoxSizer(
+        #     self.box_samples, orient=wx.VERTICAL)
+        # self.box_samples.txt = wx.StaticText(
+        #     self, label="Please choose the directory where the sample images reside.")
+        # self.box_samples.btn = wx.Button(
+        #     self, label="Choose voted ballot directory...")
+        # self.box_samples.btn.Bind(
+        #     wx.EVT_BUTTON, self.onButton_choosesamplesdir)
+        # self.box_samples.txt2 = wx.StaticText(
+        #     self, label="Voted ballot directory:")
+        # self.box_samples.txt_samplespath = wx.StaticText(self)
+        # # self.box_samples.sizer.Add(self.box_samples.txt)
+        # #self.box_samples.sizer.Add((0, 20))
+        # self.box_samples.sizer.Add(self.box_samples.btn)
+        # self.box_samples.sizer.Add((0, 20))
+        # self.box_samples.sizer.Add(self.box_samples.txt2)
+        # self.box_samples.sizer.Add(self.box_samples.txt_samplespath)
+        # self.box_samples.sizer.Add((0, 20))
 
-        sizer0 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer0.Add(self.box_samples.sizer, proportion=1, flag=wx.EXPAND)
-        sizer0.Add((50, 0))
-        #sizer0.Add(sboxsizer0, proportion=1, flag=wx.EXPAND)
+        sizer0 = ff.hbox() \
+            .add(self.box_samples, proportion=1, flag=wx.EXPAND) \
+            .add((50, 0))
 
-        txt_numpages = wx.StaticText(self, label="Number of pages: ")
-        self.numpages_txtctrl = wx.TextCtrl(self, value="2")
-        self.varnumpages_chkbox = wx.CheckBox(
-            self, label="Variable Number of Pages")
-        self.varnumpages_chkbox.Bind(
-            wx.EVT_CHECKBOX, self.onCheckBox_varnumpages)
-        sizer_numpages = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_numpages.AddMany([(txt_numpages,), ((10, 0),), (self.numpages_txtctrl,),
-                                ((10, 0),), (self.varnumpages_chkbox,)])
+        txt_numpages = ff.text("Number of pages: ")
+        self.numpages_txtctrl = ff.text_ctrl("2")
+        self.varnumpages_chkbox = ff.check_box(
+            label="Variable Number of Pages", default=False) \
+            .on_check(self.onCheckBox_varnumpages)
+        sizer_numpages = ff.hbox(
+            txt_numpages,
+            (10, 0),
+            self.numpages_txtctrl,
+            (10, 0),
+            self.varnumpages_chkbox,
+        )
 
-        sbox_ballotgroup = wx.StaticBox(
-            self, label="Ballot Grouping/Pairing Configuration")
-        ssizer_ballotgroup = wx.StaticBoxSizer(
-            sbox_ballotgroup, orient=wx.VERTICAL)
+        ssizer_ballotgroup = ff.static_vbox(
+            label='Ballot Grouping/Pairing Configuration')
 
-        txt_regex_shr = wx.StaticText(
-            self, label="Enter a regex to match on the shared filename part.")
-        self.regexShr_txtctrl = wx.TextCtrl(
-            self, value=r"(.*_.*_.*_).*_.*\.[a-zA-Z]*", size=(300, -1))
-        txt_regex_diff = wx.StaticText(
-            self, label="Enter a regex to match on the distinguishing filename part.")
-        self.regexDiff_txtctrl = wx.TextCtrl(
-            self, value=r".*_.*_.*_(.*_.*)\.[a-zA-Z]*", size=(300, -1))
-        sizer_regexShr = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_regexDiff = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_regexShr.AddMany(
-            [(txt_regex_shr,), ((10, 0),), (self.regexShr_txtctrl,)])
-        sizer_regexDiff.AddMany(
-            [(txt_regex_diff,), ((10, 0),), (self.regexDiff_txtctrl,)])
-        self.regex_ctr_chkbox = wx.CheckBox(self, label="Do the filenames end in \
-incrementing counters? (Typically 'Yes' for Hart ballots)")
-        self.regex_ctr_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_regexCtr)
-        self.sizer_regex1 = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_regex1.AddMany(
-            [((0, 10),), (sizer_regexShr,), ((0, 10),), (sizer_regexDiff,)])
-        self.sizer_regex1.AddMany([((0, 10),), (self.regex_ctr_chkbox)])
+        txt_regex_shr = ff.text(
+            'Enter a regex to match on the shared filename part.')
+        self.regexShr_txtctrl = ff.text_ctrl(
+            r"(.*_.*_.*_).*_.*\.[a-zA-Z]*",
+            size=(300, -1))
+        txt_regex_diff = ff.text(
+            "Enter a regex to match on the distinguishing filename part.")
+        self.regexDiff_txtctrl = ff.text_ctrl(
+            r".*_.*_.*_(.*_.*)\.[a-zA-Z]*",
+            size=(300, -1))
+        sizer_regexShr = ff.hbox(
+            txt_regex_shr,
+            (10, 0),
+            self.regexShr_txtctrl)
+        sizer_regexDiff = ff.hbox(
+            txt_regex_diff,
+            (10, 0),
+            self.regexDiff_txtctrl)
 
-        self.txt_or = wx.StaticText(self, label="- Or -")
+        self.regex_ctr_chkbox = ff.check_box(
+            label=("Do the filenames end in incrementing counters? "
+                   "(Typically 'Yes' for Hart ballots)"),
+            default=True) \
+            .on_check(self.onCheckBox_regexCtr)
+
+        self.sizer_regex1 = ff.vbox(
+            (0, 10),
+            sizer_regexShr,
+            (0, 10),
+            sizer_regexDiff,
+            (0, 10),
+            self.regex_ctr_chkbox,
+        )
+
+        self.txt_or = ff.text(label="- Or -")
         self.txt_regex_shr = txt_regex_shr
         self.txt_regex_diff = txt_regex_diff
 
-        self.alternate_chkbox = wx.CheckBox(
-            self, label="Ballots alternate front and back")
-        self.alternate_chkbox.Bind(wx.EVT_CHECKBOX, self.onCheckBox_alternate)
+        self.alternate_chkbox = ff.check_box(
+            label="Ballots alternate front and back",
+            default=True) \
+            .on_check(self.onCheckBox_alternate)
         self.alternate_chkbox.SetValue(True)
 
-        ssizer_ballotgroup.Add(self.alternate_chkbox, border=10, flag=wx.ALL)
-        ssizer_ballotgroup.AddMany([((0, 10),), (self.txt_or, 0, wx.ALIGN_CENTER, 10, wx.ALL), ((
-            0, 10),), (self.sizer_regex1, 0, wx.ALL, 10)])
+        ssizer_ballotgroup.add(self.alternate_chkbox, border=10, flag=wx.ALL) \
+            .add((0, 10)) \
+            .add(self.txt_or, 0, wx.ALIGN_CENTER, 10, wx.ALL) \
+            .add((0, 10)) \
+            .add(self.sizer_regex1, 0, wx.ALL, 10)
         self.txt_or.Hide()
         self.regexShr_txtctrl.Hide()
         self.regexDiff_txtctrl.Hide()
@@ -139,36 +170,23 @@ incrementing counters? (Typically 'Yes' for Hart ballots)")
         self.txt_regex_shr.Hide()
         self.txt_regex_diff.Hide()
 
-        self.is_straightened = wx.CheckBox(
-            self, -1, label="Ballots already straightened.")
+        self.is_straightened = ff.check_box(
+            -1, label="Ballots already straightened.")
         self.is_straightened.Hide()
 
-        txt_vendor = wx.StaticText(self, label="What is the ballot vendor?")
-        self.vendor_dropdown = wx.ComboBox(
-            self, style=wx.CB_READONLY, choices=BALLOT_VENDORS)
-        sizer_vendor = wx.BoxSizer(wx.HORIZONTAL)
-        sizer_vendor.AddMany([(txt_vendor,), (self.vendor_dropdown,)])
+        txt_vendor = ff.text("What is the ballot vendor?")
+        self.vendor_dropdown = ff.combo_box(style=wx.CB_READONLY,
+                                            choices=BALLOT_VENDORS)
+        sizer_vendor = ff.hbox(txt_vendor, self.vendor_dropdown)
 
-        #self.btn_run = wx.Button(self, label="Run sanity check")
-        #self.btn_run.Bind(wx.EVT_BUTTON, self.onButton_runsanitycheck)
-        #self.btn_run.box = wx.StaticBox(self)
-        #sboxsizer1 = wx.StaticBoxSizer(self.btn_run.box, orient=wx.VERTICAL)
-        # sboxsizer1.Add(self.btn_run)
+        self.sizer = ff.vbox() \
+            .add(sizer0, 1, wx.EXPAND) \
+            .add(sizer_numpages) \
+            .add(ssizer_ballotgroup) \
+            .add(self.is_straightened) \
+            .add(sizer_vendor)
 
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(sizer0)
-        self.sizer.Add((0, 25))
-        self.sizer.Add(sizer_numpages)
-        self.sizer.Add((0, 25))
-        self.sizer.Add(ssizer_ballotgroup)
-        self.sizer.Add((0, 25))
-        self.sizer.Add(self.is_straightened)
-        self.sizer.Add((0, 25))
-        self.sizer.Add(sizer_vendor)
-        self.sizer.Add((0, 25))
-        # self.sizer.Add(sboxsizer1)
-
-        self.SetSizer(self.sizer)
+        self.SetSizer(ff.hbox().add(self.sizer))
         self.Layout()
 
     def start(self, project=None, root=None):

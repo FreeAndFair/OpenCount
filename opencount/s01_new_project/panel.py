@@ -30,18 +30,20 @@ class ProjectPanel(ffwx.Panel):
         ff = ffwx.FFBuilder(self)
         self.listbox_projs = ff.list_box(choices=(), size=(500, 400))
 
-        self.sizer = ff.vbox(
-            ff.text('Select an election project to work on:'),
-            ff.static_vbox(
-                self.listbox_projs,
-                ff.hbox(
-                    ff.button(label='Create New Project',
-                              on_click=self.on_button_create),
-                    ff.button(label='Delete Selected Project',
-                              on_click=self.on_button_remove)),
-                label='Election Projects'))
+        self.sizer = ff.vbox() \
+            .add(ff.text('Select an election project to work on:'), 0) \
+            .add(ff.static_vbox(label='Election Projects') \
+                   .add(self.listbox_projs, 1) \
+                   .add(
+                       ff.hbox(
+                           ff.button(label='Create New Project',
+                                     on_click=self.on_button_create),
+                           ff.button(label='Delete Selected Project',
+                                     on_click=self.on_button_remove)),
+                       0),
+                 1)
 
-        self.SetSizer(self.sizer)
+        self.SetSizerAndFit(self.sizer)
         self.Layout()
 
     def start(self, projdir='', **kwargs):
@@ -74,7 +76,7 @@ class ProjectPanel(ffwx.Panel):
         if idx:
             return Project.load_project(self.projdir, idx)
         else:
-            error("NONE SELECTED")
+            error("No project selected.")
             return None
 
     @util.show_exception_as_modal
@@ -96,11 +98,9 @@ class ProjectPanel(ffwx.Panel):
         name = self.listbox_projs.get_selected()
         if name is None:
             raise util.InformativeException("No project selected.")
-        status = ffwx.yesno(self,
-                            "Are you sure you want to delete project "
-                            "'{0}' as well as all of its files?".format(
-                                name))
-        if status:
+        if ffwx.yesno(self,
+                      "Are you sure you want to delete project "
+                      "'{0}' as well as all of its files?".format(name)):
             warn("Deleting project '{0}'".format(name))
             self.listbox_projs.Delete(self.listbox_projs.FindString(name))
             Project.delete_project(self.projdir, name)

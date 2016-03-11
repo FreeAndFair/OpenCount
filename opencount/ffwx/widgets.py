@@ -282,8 +282,71 @@ class StatLabel(wx.BoxSizer):
         self._value.SetLabel(str(val))
         return self
 
+class BoxSizer(wx.BoxSizer):
+    '''
+    A wrapper over wx.BoxSizer that makes it easier to build up
+    boxes of widgets.
+    '''
+    def __init__(self, *args, **kwargs):
+        wx.BoxSizer.__init__(self, *args, **kwargs)
+
+    def add(self,
+            item,
+            proportion=1,
+            flag=wx.ALL | wx.EXPAND,
+            border=8,
+            userData=None,
+            name=None):
+        '''
+        A chaining wrapper of the Add method
+        '''
+        if 'name' is not None:
+            self.__dict__[name] = item
+        self.Add(item, proportion, flag, border, userData)
+        return self
+
+    def add_sizer(self, width, height):
+        '''
+        A chaining wrapper for adding sizers
+        '''
+        self.Add((width, height))
+        return self
+
+class StaticBoxSizer(wx.StaticBoxSizer):
+    '''
+    A wrapper over wx.StaticBoxSizer that makes it easier to build up
+    boxes of widgets.
+    '''
+    def __init__(self, *args, **kwargs):
+        wx.StaticBoxSizer.__init__(self, *args, **kwargs)
+
+    def add(self,
+            item,
+            proportion=1,
+            flag=wx.ALL | wx.EXPAND,
+            border=8,
+            userData=None,
+            name=None):
+        '''
+        A chaining wrapper of the Add method
+        '''
+        if 'name' is not None:
+            self.__dict__[name] = item
+        self.Add(item, proportion, flag, border, userData)
+        return self
+
+    def add_sizer(self, width, height):
+        '''
+        A chaining wrapper for adding sizers
+        '''
+        self.Add((width, height))
+        return self
+
 
 def text(parent, label, **kwargs):
+    '''
+    A wrapper over text labels
+    '''
     return wx.StaticText(parent, label=label, **kwargs)
 
 def vbox(*contents, **kwargs):
@@ -291,8 +354,8 @@ def vbox(*contents, **kwargs):
     A wrapper function for creating and populating a
     vertical BoxSizer.
     '''
-    sizer = wx.BoxSizer(wx.VERTICAL, **kwargs)
-    sizer.AddMany([(x,) for x in contents])
+    sizer = BoxSizer(wx.VERTICAL, **kwargs)
+    sizer.AddMany([(x,0,wx.ALL,8) for x in contents])
     return sizer
 
 
@@ -301,8 +364,8 @@ def hbox(*contents, **kwargs):
     A wrapper function for creating and populating a
     horizontal BoxSizer.
     '''
-    sizer = wx.BoxSizer(wx.HORIZONTAL, **kwargs)
-    sizer.AddMany([(x,) for x in contents])
+    sizer = BoxSizer(wx.HORIZONTAL, **kwargs)
+    sizer.AddMany([(x,0,wx.ALL,8) for x in contents])
     return sizer
 
 
@@ -311,9 +374,9 @@ def static_hbox(parent, *contents, **kwargs):
     A wrapper function for creating and populating a horizontal
     StaticBoxSizer (which contains a text label)
     '''
-    sizer = wx.StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
-                              wx.HORIZONTAL)
-    sizer.AddMany((x,) for x in contents)
+    sizer = StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
+                           wx.HORIZONTAL)
+    sizer.AddMany((x,0,wx.ALL,8) for x in contents)
     return sizer
 
 
@@ -322,9 +385,9 @@ def static_vbox(parent, *contents, **kwargs):
     A wrapper function for creating and populating a vertical
     StaticBoxSizer (which contains a text label)
     '''
-    sizer = wx.StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
-                              wx.VERTICAL)
-    sizer.AddMany((x,) for x in contents)
+    sizer = StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
+                           wx.VERTICAL)
+    sizer.AddMany((x,0,wx.ALL,8) for x in contents)
     return sizer
 
 
@@ -423,6 +486,13 @@ class CheckBox(wx.CheckBox):
         default = kwargs.pop('default')
         wx.CheckBox.__init__(self, *args, **kwargs)
         self.SetValue(default)
+
+    def on_check(self, action):
+        '''
+        Bind a callback for the EVT_CHECKBOX event.
+        '''
+        self.Bind(wx.EVT_CHECKBOX, action)
+        return self
 
 
 def modal(parent, message, show=True, prefix=''):

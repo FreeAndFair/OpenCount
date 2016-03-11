@@ -74,6 +74,7 @@ class FFBuilder(object):
         '''
         Create a checkbox with a specified default value.
         '''
+        kwargs['default'] = kwargs.get('default', False)
         return ff.CheckBox(self.parent, *args, **kwargs)
 
     def list_box(self, *args, **kwargs):
@@ -81,3 +82,16 @@ class FFBuilder(object):
         Create an extended ffwx ListBox
         '''
         return ff.ListBox(self.parent, *args, **kwargs)
+
+    def text_ctrl(self, value='', *args, **kwargs):
+        '''
+        Create a user-editable text control
+        '''
+        kwargs['value'] = value
+        return wx.TextCtrl(self.parent, *args, **kwargs)
+
+    def combo_box(self, *args, **kwargs):
+        '''
+        Create a drop-down list of options
+        '''
+        return wx.ComboBox(self.parent, *args, **kwargs)

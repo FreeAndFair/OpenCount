@@ -105,7 +105,7 @@ class MainFrame(wx.Frame):
     def init_ui(self):
         self.notebook = wx.Notebook(self)
         self.setup_pages()
-        self.Maximize()
+        self.Maximize(True)
 
     def setup_pages(self):
         self.pages = [
@@ -171,6 +171,7 @@ class MainFrame(wx.Frame):
         if not status:
             ffwx.modal(self, msg)
             evt.Veto()
+            return
 
         if old == Steps.PROJECT:
             self.set_project(self.notebook.GetPage(old).get_project())
@@ -392,6 +393,7 @@ def main():
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())
+    #f = MainFrame(None)
     f.Show()
     app.MainLoop()
 
