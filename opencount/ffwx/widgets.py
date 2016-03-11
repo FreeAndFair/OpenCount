@@ -6,6 +6,11 @@ smaller and clearer.
 import multiprocessing
 import Queue
 import textwrap
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 import wx
 from wx.lib.pubsub import pub
 
@@ -14,6 +19,9 @@ class Panel(wx.Panel):
     '''
     A wrapper that all visible panels should inherit from.
     '''
+
+    def __init__(self, parent, *args, **kwargs):
+        wx.Panel.__init__(self, parent, *args, **kwargs)
 
     def start(self, project=None, projdir=None, size=None):
         '''
@@ -41,6 +49,35 @@ class Panel(wx.Panel):
         '''
         return True
 
+    def load_session_with(self, fields=[]):
+        '''
+        Given a list of field names, fill in the locals of this
+        object from the saved versions
+        '''
+        if not self.statefileP:
+            return False
+        try:
+            with open(self.statefileP, 'rb') as f:
+                state = pickle.load(f)
+            for f in fields:
+                self.__dict__[f] = state[f]
+            return True
+        except:
+            return False
+
+    def save_session_with(self, fields=[]):
+        '''
+        Given a list of field names, save all of those to a state file.
+        '''
+        if not self.statefileP:
+            return False
+        try:
+            with open(self.statefileP, 'wb') as f:
+                state = dict((f, self.__dict__[f]) for f in fields)
+                state = pickle.save(state, f, pickle.HIGHEST_PROTOCOL)
+            return True
+        except:
+            return False
 
 class ProgressBar(wx.Dialog):
     '''
@@ -246,6 +283,9 @@ class StatLabel(wx.BoxSizer):
         return self
 
 
+def text(parent, label, **kwargs):
+    return wx.StaticText(parent, label=label, **kwargs)
+
 def vbox(*contents, **kwargs):
     '''
     A wrapper function for creating and populating a
@@ -266,6 +306,32 @@ def hbox(*contents, **kwargs):
     return sizer
 
 
+def static_hbox(parent, *contents, **kwargs):
+    '''
+    A wrapper function for creating and populating a horizontal
+    StaticBoxSizer (which contains a text label)
+    '''
+    sizer = wx.StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
+                              wx.HORIZONTAL)
+    sizer.AddMany((x,) for x in contents)
+    return sizer
+
+
+def static_vbox(parent, *contents, **kwargs):
+    '''
+    A wrapper function for creating and populating a vertical
+    StaticBoxSizer (which contains a text label)
+    '''
+    sizer = wx.StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
+                              wx.VERTICAL)
+    sizer.AddMany((x,) for x in contents)
+    return sizer
+
+
+def label(parent, msg, *args, **kwargs):
+    return wx.StaticText(parent, *args, label=str(msg), **kwargs)
+
+
 def static_wrap(parent, msg, length, *args, **kwargs):
     '''
     A wrapper function for creating a simple text-wrapped
@@ -276,6 +342,46 @@ def static_wrap(parent, msg, length, *args, **kwargs):
                          label=textwrap.fill(msg, length),
                          **kwargs)
     return text
+
+
+class ListBox(wx.ListBox):
+    def __init__(self, *args, **kwargs):
+        wx.ListBox.__init__(self, *args, **kwargs)
+
+    def set_options(self, all_items):
+        '''
+        Given an iterable of things, clear the list box and
+        refresh it with that list of things.
+        '''
+        self.Clear()
+        for item in all_items:
+            self.Append(item)
+
+    def get_selected(self):
+        '''
+        Get the currently selected string, or None if nothing
+        is currently selected.
+        '''
+        if self.GetSelection() == wx.NOT_FOUND:
+            return None
+        else:
+            return self.GetStringSelection()
+
+    def add(self, item):
+        '''
+        Chaining alias for wx.ListBox.Append
+        '''
+        self.Append(item)
+        return self
+
+    def add_focused(self, item):
+        '''
+        Chaining alias for wx.ListBox.Append, focusing on the
+        newly created element
+        '''
+        self.Append(item)
+        self.SetStringSelection(item)
+        return self
 
 
 class Button(wx.Button):
@@ -360,4 +466,21 @@ def yesno(parent, message):
     dialog = wx.MessageDialog(parent,
                               style=wx.YES_NO,
                               message=message)
-    return dialog.ShowModal()
+    return dialog.ShowModal() == wx.ID_YES
+
+
+def text_entry(parent, message="", caption="", default=""):
+    '''
+    Show a text entry field and return the value of the entered
+    text, or None if no text was entered.
+    '''
+    dlg = wx.TextEntryDialog(
+        parent,
+        message=message,
+        caption=caption,
+        defaultValue=default)
+    val = dlg.ShowModal()
+    if val == wx.ID_OK:
+        return dlg.GetValue().strip()
+    else:
+        return None

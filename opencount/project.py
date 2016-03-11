@@ -8,17 +8,12 @@ import csv
 import os
 from os import path
 import re
+import shutil
 
 PROJ_FNAME = 'proj.p'
 
+import util
 from util import debug, warn, error, pickle
-
-def is_valid_projectname(name):
-    """
-    Only allow letters, numbers, and [_, (, )].
-    """
-    pattern = r'(\w|\d|[_\()])+'
-    return ' ' not in name and (not re.match(pattern, name) == None)
 
 class Project(object):
     """
@@ -237,60 +232,144 @@ class Project(object):
         Save the entire project to disk.
         '''
         debug('saving project: {0}', self)
-        write_project(self)
+        self.write_project()
 
     def __repr__(self):
         return 'Project({0})'.format(self.name)
 
+    def exists_attrs(self):
+        '''
+        Returns True if the project has any attributes. Does not
+        take into account custom attributes.
+        '''
+        return (self.path_exists(self.ballot_attributesfile) and
+                self.load_field(self.ballot_attributesfile))
 
-def load_projects(projdir):
-    """ Returns a list of all Project instances contained in PROJDIR.
-    Input:
+    def has_digitbasedattr(self):
+        '''
+        Returns True if any of the project's attributes are digit-based.
+        '''
+        if not self.exists_attrs():
+            return False
+        attrs = self.load_field(self.ballot_attributesfile)
+        return any(a['is_digitbased'] for a in attrs)
+
+    def has_imgattr(self):
+        '''
+        Returns True if any of the project's attributes are image-based.
+        '''
+        if not self.exists_attrs():
+            return False
+        attrs = self.load_field(self.ballot_attributesfile)
+        return any(not a['is_digitbased'] for a in attrs)
+
+    def has_custattr(self):
+        '''
+        Returns True if the project has any custom attributes.
+        '''
+        if not self.exists_attrs():
+            return False
+        attrs = self.load_field(self.attrprops)
+        return len(attrprops[ATTRMODE_CUSTOM])
+
+
+    @staticmethod
+    def load_projects(projdir):
+        """ Returns a list of all Project instances contained in PROJDIR.
+        Input:
         str PROJDIR:
-    Output:
+        Output:
         list PROJECTS.
-    """
-    projects = []
-    dummy_proj = Project()
-    # for dirpath, dirnames, filenames in os.walk(projdir):
-    #    for f in filenames:
-    try:
-        os.makedirs(projdir)
-    except:
-        pass
+        """
+        projects = []
+        dummy_proj = Project()
+        # for dirpath, dirnames, filenames in os.walk(projdir):
+        #    for f in filenames:
+        try:
+            os.makedirs(projdir)
+        except:
+            pass
 
-    for subfolder in os.listdir(projdir):
-        if os.path.isdir(path.join(projdir, subfolder)):
-            for f in os.listdir(path.join(projdir, subfolder)):
-                if f == PROJ_FNAME:
-                    fullpath = path.join(projdir, path.join(subfolder, f))
-                    try:
-                        proj = pickle.load(open(fullpath, 'rb'))
-                        # Add in any new Project properties to PROJ
-                        for prop, propval_default in dummy_proj.vals.iteritems():
-                            if not hasattr(proj, prop):
-                                debug('adding property {0}->{1} to project',
-                                      prop,
-                                      propval_default)
-                                setattr(proj, prop, propval_default)
-                        projects.append(proj)
-                    except:
-                        pass
-    return projects
+        for subfolder in os.listdir(projdir):
+            if os.path.isdir(path.join(projdir, subfolder)):
+                for f in os.listdir(path.join(projdir, subfolder)):
+                    if f == PROJ_FNAME:
+                        fullpath = path.join(projdir, path.join(subfolder, f))
+                        try:
+                            proj = pickle.load(open(fullpath, 'rb'))
+                            # Add in any new Project properties to PROJ
+                            for prop, propval_default in dummy_proj.vals.iteritems():
+                                if not hasattr(proj, prop):
+                                    debug('adding property {0}->{1} to project',
+                                          prop,
+                                          propval_default)
+                                    setattr(proj, prop, propval_default)
+                            projects.append(proj)
+                        except:
+                            pass
+        return projects
+
+    @staticmethod
+    def load_project(projdir, name):
+        proj_path = path.join(projdir, name, PROJ_FNAME)
+        if path.exists(proj_path):
+            with open(proj_path, 'rb') as f:
+                return pickle.load(f)
+        else:
+            raise ProjectLoadException(
+                "The files for project '{0}' cannot be found.".format(name))
+
+    @staticmethod
+    def create_project(name, projrootdir):
+        if not Project.is_valid_projectname(name):
+            raise ProjectCreationException(
+                "'{0}' is not a valid project name. "
+                "Please use only letters, numbers, and "
+                "punctuation.".format(name))
+        if path.exists(path.join(projrootdir, PROJ_FNAME)):
+            raise ProjectCreationException(
+                "The project '{0}' already exists. ".format(name))
+        proj = Project(name, projrootdir)
+        projoutpath = path.join(projrootdir, PROJ_FNAME)
+        try:
+            os.makedirs(projrootdir)
+        except:
+            pass
+        pickle.dump(proj, open(projoutpath, 'wb'))
+        return proj
+
+    @staticmethod
+    def is_valid_projectname(name):
+        """
+        Only allow letters, numbers, and [_, (, )].
+        """
+        pattern = r'(\w|\d|[_\()])+'
+        return ' ' not in name and (not re.match(pattern, name) == None)
+
+    @staticmethod
+    def delete_project(projdir, name):
+        '''
+        Delete all the files for a project from the file system.
+        '''
+        shutil.rmtree(path.join(projdir, name))
+
+    def write_project(self):
+        projoutpath = self.path(PROJ_FNAME) #path.join(project.projdir_path, PROJ_FNAME)
+        pickle.dump(self, open(projoutpath, 'wb'))
+        return self
 
 
-def create_project(name, projrootdir):
-    proj = Project(name, projrootdir)
-    projoutpath = path.join(projrootdir, PROJ_FNAME)
-    try:
-        os.makedirs(projrootdir)
-    except:
-        pass
-    pickle.dump(proj, open(projoutpath, 'wb'))
-    return proj
+class ProjectCreationException(util.InformativeException):
+    '''
+    An informative exception that arises in the course of creating
+    a new project.
+    '''
+    pass
 
 
-def write_project(project):
-    projoutpath = path.join(project.projdir_path, PROJ_FNAME)
-    pickle.dump(project, open(projoutpath, 'wb'))
-    return project
+class ProjectLoadException(util.InformativeException):
+    '''
+    An informative exception that arises in the course of loading
+    an existing project's data.
+    '''
+    pass

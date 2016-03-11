@@ -21,6 +21,7 @@ try:
 except ImportError:
     import pickle
 
+import ffwx
 import util_gui
 
 if sys.stderr.isatty():
@@ -47,11 +48,11 @@ def debug(msg, *args, **kwargs):
 
 
 def warn(str, *args, **kwargs):
-    debug(str, *args, level='warn', **kwargs)
+    debug(str, *args, debug_level='warn', **kwargs)
 
 
 def error(str, *args, **kwargs):
-    debug(str, *args, level='error', **kwargs)
+    debug(str, *args, debug_level='error', **kwargs)
 
 
 class MyGauge(wx.Dialog):
@@ -1177,9 +1178,9 @@ def as_process(func):
     queue = multiprocessing.Queue()
 
     class WrappedFunction(multiprocessing.Process):
-
         def run(self):
             queue.put(func())
+
     WrappedFunction.__name__ = func.__name__
     w = WrappedFunction()
     w.start()
@@ -1198,6 +1199,40 @@ def time_operation(op):
     dur = time.time() - t
     debug('done {0} in {1}s', op, dur)
 
+
+class InformativeException(Exception):
+    '''
+    An exception for problems that convey a message to be used in
+    some kind of modal dialogue.
+    '''
+    def __init__(self, message):
+        self.message = message
+
+    def __repr__(self):
+        return '{0}({1})'.format(
+            self.__class__.__name__,
+            ','.join('{0}={1}'.format(k, repr(v))
+                     for (k, v) in self.__dict__.items()))
+
+
+def show_exception_as_modal(func):
+    '''
+    If any InformativeExceptions appear in the context of the
+    wrapped function, they will be exposed to the user in a
+    modal dialogue, and the function itself will return None.
+
+    This must be used on methods of a WxWidgets widget, because
+    the modal dialogue needs a parent.
+    '''
+    def wrapped_function(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except InformativeException as exn:
+            ffwx.modal(self, exn.message)
+            return None
+
+    wrapped_function.__name__ = func.__name__
+    return wrapped_function
 
 def main():
     app = wx.App(False)

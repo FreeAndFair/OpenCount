@@ -241,7 +241,7 @@ class MainFrame(wx.Frame):
             self.panels[new].start(project=self.project)
         elif new == MainFrame.LABEL_DIGATTRS:
             # Skip if there are no digit-based attributes
-            if not exists_digitbasedattr(self.project):
+            if not self.project.has_digitbasedattr():
                 ffwx.modal(self,
                          'There are no Digit-Based Attributes in this '
                          'election -- skipping to the next page.')
@@ -252,15 +252,15 @@ class MainFrame(wx.Frame):
             else:
                 self.panels[new].start(self.project)
         elif new == MainFrame.RUN_GROUPING:
-            if not exists_imgattr(self.project) \
-               and not exists_digitbasedattr(self.project):
+            if not self.project.has_imgattr() \
+               and not self.project.has_digitbasedattr():
                 ffwx.modal(self,
                          'There are no attributes to group in this election '
                          '-- skipping to the next page.')
-                if not exists_custattr(self.project):
-                    dst_page = self.SELTARGETS
-                else:
+                if self.project.has_custattr():
                     dst_page = self.CORRECT_GROUPING
+                else:
+                    dst_page = self.SELTARGETS
                 self.notebook.ChangeSelection(dst_page)
                 self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
             else:

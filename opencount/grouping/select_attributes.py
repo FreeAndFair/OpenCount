@@ -66,37 +66,34 @@ class SelectAttributesMasterPanel(wx.Panel):
         self.sizer.Add(self.selectattrs, proportion=1, flag=wx.EXPAND)
         self.SetSizer(self.sizer)
 
-    def start(self, proj):
+    def start(self, project=None, projroot=None):
         def exists_imgattr(attrs):
-            for attr in attrs:
-                if not attr['is_digitbased']:
-                    return True
-            return False
+            return any(a['is_digitbased'] for a in attrs)
+
         # First check to see if there even exist any img-based attributes
-        attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-        if not exists_imgattr(attrs):
-            error("No Img-based attributes in this election")
+        if not exists_imgattr(
+                project.load_field(project.ballot_attributesfile)):
+            error("No image-based attributes in this election")
             return
-        self.project = proj
-        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
-                                                  proj.image_to_flip), 'rb'))
-        if self.stop not in proj.closehook:
-            proj.addCloseEvent(self.stop)
-        self.statefileP = pathjoin(proj.projdir_path, '_selectattrs_state.p')
+
+        self.project = project
+        self.img2flip = project.load_field(project.image_to_flip)
+
+        if self.stop not in project.closehook:
+            project.addCloseEvent(self.stop)
+
+        self.statefileP = project.path('_selectattrs_state.p')
         if self.load_session():
             debug("Loaded Select Attributes State")
             self.attridx = 0
         else:
             self.boxes = {}
             self.usersel_exs = {}
-            b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-            img2page = pickle.load(
-                open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
-            partition_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
-                                                         proj.partition_exmpls), 'rb'))
+            b2imgs = project.load_field(project.ballot_to_images)
+            img2page = project.load_file(project.image_to_page)
+            partition_exmpls = project.load(project.partition_exmpls)
             # Randomly choose self.NUM_EXMPLS ballots from the election
-            bal2partition = pickle.load(open(pathjoin(proj.projdir_path,
-                                                      proj.partitions_invmap), 'rb'))
+            bal2partition = project.load(project.partitions_invmap)
             candidate_balids = bal2partition.keys()
             num_ballots = len(candidate_balids)
 
@@ -138,32 +135,43 @@ class SelectAttributesMasterPanel(wx.Panel):
         """ Attempts to restore a previously-stored state. Returns True if
         successful, False otherwise.
         """
-        if self.statefileP == None:
-            return False
-        try:
-            state = pickle.load(open(self.statefileP, 'rb'))
-            self.boxes = state['boxes']
-            self.mapping = state['mapping']
-            self.inv_mapping = state['inv_mapping']
-            self.attrtypes = state['attrtypes']
-            self.usersel_exs = state['usersel_exs']
-        except:
-            return False
-        return True
+        return self.load_session_with(('boxes',
+                                       'mapping',
+                                       'inv_mapping',
+                                       'attrtypes',
+                                       'usersel_exs'))
+        # if self.statefileP is None:
+        #     return False
+        # try:
+        #     state = pickle.load(open(self.statefileP, 'rb'))
+        #     self.boxes = state['boxes']
+        #     self.mapping = state['mapping']
+        #     self.inv_mapping = state['inv_mapping']
+        #     self.attrtypes = state['attrtypes']
+        #     self.usersel_exs = state['usersel_exs']
+        # except:
+        #     return False
+        # return True
 
     def save_session(self):
         """ Saves the current session to a statefile. """
-        if not self.statefileP:
-            return False
-        f = open(self.statefileP, 'wb')
-        state = {"boxes": self.boxes,
-                 "mapping": self.mapping,
-                 "inv_mapping": self.inv_mapping,
-                 "attrtypes": self.attrtypes,
-                 "usersel_exs": self.usersel_exs}
-        pickle.dump(state, f, pickle.HIGHEST_PROTOCOL)
-        debug("saved Select Attributes state")
-        return True
+        debug("saving Select Attributes state")
+        return self.save_session_with(('boxes',
+                                       'mapping',
+                                       'inv_mapping',
+                                       'attrtypes',
+                                       'usersel_exs'))
+        # if not self.statefileP:
+        #     return False
+        # f = open(self.statefileP, 'wb')
+        # state = {"boxes": self.boxes,
+        #          "mapping": self.mapping,
+        #          "inv_mapping": self.inv_mapping,
+        #          "attrtypes": self.attrtypes,
+        #          "usersel_exs": self.usersel_exs}
+        # pickle.dump(state, f, pickle.HIGHEST_PROTOCOL)
+        # debug("saved Select Attributes state")
+        # return True
 
     def export_results(self):
         """ Computes multiple exemplars. Also
@@ -173,14 +181,13 @@ class SelectAttributesMasterPanel(wx.Panel):
             return
         self.save_boxes()
         debug("Exporting Select Attributes Results")
-        img2b = pickle.load(open(self.project.image_to_ballot, 'rb'))
+        img2b = self.project.load_field(self.project.image_to_ballot)
         # maps {int partitionID: [[imgpath, x, y, width, height, attrtype,
         partition_attrmap = {}
         # attrval, page, is_digitbased, is_tabulationonly], ...]
-        partitions_map = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                   self.project.partitions_map), 'rb'))
-        partitions_invmap = pickle.load(open(pathjoin(self.project.projdir_path,
-                                                      self.project.partitions_invmap), 'rb'))
+        partitions_map = self.project.load_field(self.project.partitions_map)
+        partitions_invmap = self.project.load_field(self.project.partitions_invmap)
+
         header = ("imgpath", "id", "x", "y", "width", "height", "attr_type",
                   "attr_val", "side", "is_digitbased", "is_tabulationonly")
         uid = 0
@@ -206,12 +213,11 @@ class SelectAttributesMasterPanel(wx.Panel):
                                    attrside, isdigitbased, istabonly])
                 uid += 1
             partition_attrmap.setdefault(partitionID, []).extend(attrs_list)
-        pickle.dump(partition_attrmap, open(pathjoin(self.project.projdir_path,
-                                                     self.project.partition_attrmap), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
-        outdir = os.path.join(self.project.projdir_path,
-                              self.project.attrexemplars_dir)
-        self.cluster_attr_patches(outdir)
+
+        self.project.save_field(partition_attrmap,
+                                self.project.partition_attrmap)
+        self.cluster_attr_patches(
+            self.project.path(self.project.attrexemplars_dir))
 
     def cluster_attr_patches(self, outdir):
         """ Try to discover multiple exemplars within the blank ballot
