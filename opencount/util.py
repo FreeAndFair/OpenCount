@@ -16,13 +16,25 @@ try:
     import Image
 except:
     from PIL import Image
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 import ffwx
 import util_gui
+
+
+class Steps:
+    PROJECT = 0
+    CONFIG = 1
+    PARTITION = 2
+    BALLOT_ATTRIBUTES = 3
+    LABEL_DIGATTRS = 4
+    RUN_GROUPING = 5
+    CORRECT_GROUPING = 6
+    SELTARGETS = 7
+    LABEL_CONTESTS = 8
+    TARGET_EXTRACT = 9
+    SET_THRESHOLD = 10
+    QUARANTINE = 11
+    PROCESS = 12
 
 if sys.stderr.isatty():
     SIGIL_DICT = dict(
@@ -1178,6 +1190,7 @@ def as_process(func):
     queue = multiprocessing.Queue()
 
     class WrappedFunction(multiprocessing.Process):
+
         def run(self):
             queue.put(func())
 
@@ -1205,6 +1218,7 @@ class InformativeException(Exception):
     An exception for problems that convey a message to be used in
     some kind of modal dialogue.
     '''
+
     def __init__(self, message):
         self.message = message
 
@@ -1224,6 +1238,7 @@ def show_exception_as_modal(func):
     This must be used on methods of a WxWidgets widget, because
     the modal dialogue needs a parent.
     '''
+
     def wrapped_function(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
@@ -1233,6 +1248,7 @@ def show_exception_as_modal(func):
 
     wrapped_function.__name__ = func.__name__
     return wrapped_function
+
 
 def main():
     app = wx.App(False)

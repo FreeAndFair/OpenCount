@@ -189,11 +189,12 @@ class ConfigPanel(ffwx.Panel):
         self.SetSizer(ff.hbox().add(self.sizer))
         self.Layout()
 
-    def start(self, project=None, root=None):
+    def start(self, project=None, projdir=None):
         """
         Input:
             obj PROJECT:
         """
+        print 'got', project
         self.project = project
         self.stateP = self.project.path('_state_config.p')
         self._hookfn = lambda: self.save_session(self.stateP)
@@ -261,14 +262,14 @@ class ConfigPanel(ffwx.Panel):
               len(weirdballots))
         if weirdballots:
             ffwx.warn(self,
-                    "Warning: OpenCount detected {0} ballots \
+                      "Warning: OpenCount detected {0} ballots \
                     \that had too many/few sides. The project \
                     \specified that there are {1} sides for \
                     \each ballot. These ballots will be discarded \
                     \from the election, but stored in \
                     \'_config_weirdballots.p'.".format(
-                        len(weirdballots),
-                        self.numpages_txtctrl.GetValue()))
+                          len(weirdballots),
+                          self.numpages_txtctrl.GetValue()))
 
         pickle.dump(weirdballots, open(
             pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
@@ -282,7 +283,7 @@ class ConfigPanel(ffwx.Panel):
         # same
         if len(image_to_ballot) == 0:
             ffwx.warn(self,
-                    "Fatal Error: OpenCount couldn't \
+                      "Fatal Error: OpenCount couldn't \
                     \find any valid ballots in the \
                     \directory:\n\n {0}\n\n \
                     \Are you sure this is the correct \

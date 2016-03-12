@@ -6,78 +6,10 @@ smaller and clearer.
 import multiprocessing
 import Queue
 import textwrap
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 import wx
 from wx.lib.pubsub import pub
 
-
-class Panel(wx.Panel):
-    '''
-    A wrapper that all visible panels should inherit from.
-    '''
-
-    def __init__(self, parent, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-
-    def start(self, project=None, projdir=None, size=None):
-        '''
-        Set up the correct state for the tab
-        '''
-        raise NotImplentedError()
-
-    def stop(self):
-        '''
-        Leave the relevant tab
-        '''
-        raise NotImplentedError()
-
-    def can_move_on(self):
-        '''
-        Returns a boolean indicating whether the tasks associated
-        with this panel have been completed, as well as a message
-        to be used in the case that something is left to do.
-        '''
-        return self.run_sanity_checks(), '[ATTENTION NEEDED]'
-
-    def run_sanity_checks(self):
-        '''
-        Return True if everything is fine
-        '''
-        return True
-
-    def load_session_with(self, fields=[]):
-        '''
-        Given a list of field names, fill in the locals of this
-        object from the saved versions
-        '''
-        if not self.statefileP:
-            return False
-        try:
-            with open(self.statefileP, 'rb') as f:
-                state = pickle.load(f)
-            for f in fields:
-                self.__dict__[f] = state[f]
-            return True
-        except:
-            return False
-
-    def save_session_with(self, fields=[]):
-        '''
-        Given a list of field names, save all of those to a state file.
-        '''
-        if not self.statefileP:
-            return False
-        try:
-            with open(self.statefileP, 'wb') as f:
-                state = dict((f, self.__dict__[f]) for f in fields)
-                state = pickle.save(state, f, pickle.HIGHEST_PROTOCOL)
-            return True
-        except:
-            return False
 
 class ProgressBar(wx.Dialog):
     '''
@@ -282,11 +214,13 @@ class StatLabel(wx.BoxSizer):
         self._value.SetLabel(str(val))
         return self
 
+
 class BoxSizer(wx.BoxSizer):
     '''
     A wrapper over wx.BoxSizer that makes it easier to build up
     boxes of widgets.
     '''
+
     def __init__(self, *args, **kwargs):
         wx.BoxSizer.__init__(self, *args, **kwargs)
 
@@ -312,11 +246,13 @@ class BoxSizer(wx.BoxSizer):
         self.Add((width, height))
         return self
 
+
 class StaticBoxSizer(wx.StaticBoxSizer):
     '''
     A wrapper over wx.StaticBoxSizer that makes it easier to build up
     boxes of widgets.
     '''
+
     def __init__(self, *args, **kwargs):
         wx.StaticBoxSizer.__init__(self, *args, **kwargs)
 
@@ -349,13 +285,14 @@ def text(parent, label, **kwargs):
     '''
     return wx.StaticText(parent, label=label, **kwargs)
 
+
 def vbox(*contents, **kwargs):
     '''
     A wrapper function for creating and populating a
     vertical BoxSizer.
     '''
     sizer = BoxSizer(wx.VERTICAL, **kwargs)
-    sizer.AddMany([(x,0,wx.ALL,8) for x in contents])
+    sizer.AddMany([(x, 0, wx.ALL, 8) for x in contents])
     return sizer
 
 
@@ -365,7 +302,7 @@ def hbox(*contents, **kwargs):
     horizontal BoxSizer.
     '''
     sizer = BoxSizer(wx.HORIZONTAL, **kwargs)
-    sizer.AddMany([(x,0,wx.ALL,8) for x in contents])
+    sizer.AddMany([(x, 0, wx.ALL, 8) for x in contents])
     return sizer
 
 
@@ -376,7 +313,7 @@ def static_hbox(parent, *contents, **kwargs):
     '''
     sizer = StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
                            wx.HORIZONTAL)
-    sizer.AddMany((x,0,wx.ALL,8) for x in contents)
+    sizer.AddMany((x, 0, wx.ALL, 8) for x in contents)
     return sizer
 
 
@@ -387,7 +324,7 @@ def static_vbox(parent, *contents, **kwargs):
     '''
     sizer = StaticBoxSizer(wx.StaticBox(parent, label=kwargs['label']),
                            wx.VERTICAL)
-    sizer.AddMany((x,0,wx.ALL,8) for x in contents)
+    sizer.AddMany((x, 0, wx.ALL, 8) for x in contents)
     return sizer
 
 
@@ -408,6 +345,11 @@ def static_wrap(parent, msg, length, *args, **kwargs):
 
 
 class ListBox(wx.ListBox):
+    '''
+    A wrapper for the WXWidgets ListBox that makes adding, removing,
+    and setting the set of options easier.
+    '''
+
     def __init__(self, *args, **kwargs):
         wx.ListBox.__init__(self, *args, **kwargs)
 

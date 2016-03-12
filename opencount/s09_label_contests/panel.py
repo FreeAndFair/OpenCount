@@ -185,10 +185,14 @@ class LabelContest(wx.Panel):
 
     firstTime = True
 
-    def start(self, sz=None):
+    def start(self, project=None):
         """
         Set everything up to display.
         """
+
+        self.proj = project
+        sz = self.GetParent().GetParent().GetSize()
+
         if not self.firstTime:
             return
 

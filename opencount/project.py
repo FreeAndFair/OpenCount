@@ -9,11 +9,16 @@ import os
 from os import path
 import re
 import shutil
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 PROJ_FNAME = 'proj.p'
 
 import util
-from util import debug, warn, error, pickle
+from util import debug
+
 
 class Project(object):
     """
@@ -179,18 +184,18 @@ class Project(object):
         group_examples = {}
 
         for (group_id, (part_id, ballots)) in \
-            enumerate(sorted(partitions_map.items())):
+                enumerate(sorted(partitions_map.items())):
             if not ballots:
                 continue
 
-            group_infomap[group_id] = { 'pid': part_id }
+            group_infomap[group_id] = {'pid': part_id}
             group_to_ballots.setdefault(group_id, []).extend(ballots)
 
             for b_id in ballots:
                 ballot_to_group[b_id] = group_id
 
         for (group_id, (part_id, ballots)) in \
-            enumerate(sorted(partitions_exmpls.items())):
+                enumerate(sorted(partitions_exmpls.items())):
             if not ballots:
                 continue
 
@@ -201,7 +206,7 @@ class Project(object):
                                         fieldnames=('ballotid', 'groupid'))
             dictwriter.writeheader()
             dictwriter.writerows((
-                {'ballotid': b_id, 'groupid': g_id }
+                {'ballotid': b_id, 'groupid': g_id}
                 for (b_id, g_id) in ballot_to_group.items()
             ))
 
@@ -272,7 +277,6 @@ class Project(object):
         attrs = self.load_field(self.attrprops)
         return len(attrprops[ATTRMODE_CUSTOM])
 
-
     @staticmethod
     def load_projects(projdir):
         """ Returns a list of all Project instances contained in PROJDIR.
@@ -320,12 +324,13 @@ class Project(object):
                 "The files for project '{0}' cannot be found.".format(name))
 
     @staticmethod
-    def create_project(name, projrootdir):
+    def create_project(name, basedir):
         if not Project.is_valid_projectname(name):
             raise ProjectCreationException(
                 "'{0}' is not a valid project name. "
                 "Please use only letters, numbers, and "
                 "punctuation.".format(name))
+        projrootdir = path.join(basedir, name)
         if path.exists(path.join(projrootdir, PROJ_FNAME)):
             raise ProjectCreationException(
                 "The project '{0}' already exists. ".format(name))
@@ -354,7 +359,8 @@ class Project(object):
         shutil.rmtree(path.join(projdir, name))
 
     def write_project(self):
-        projoutpath = self.path(PROJ_FNAME) #path.join(project.projdir_path, PROJ_FNAME)
+        # path.join(project.projdir_path, PROJ_FNAME)
+        projoutpath = self.path(PROJ_FNAME)
         pickle.dump(self, open(projoutpath, 'wb'))
         return self
 

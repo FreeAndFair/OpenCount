@@ -9,11 +9,6 @@ import datetime
 import os
 import sys
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
 import matplotlib
 matplotlib.use('Agg')
 
@@ -32,42 +27,6 @@ import opencount.util as util
 
 PROJROOTDIR = 'projects_new'
 
-class Steps:
-    PROJECT = 0
-    CONFIG = 1
-    PARTITION = 2
-    BALLOT_ATTRIBUTES = 3
-    LABEL_DIGATTRS = 4
-    RUN_GROUPING = 5
-    CORRECT_GROUPING = 6
-    SELTARGETS = 7
-    LABEL_CONTESTS = 8
-    TARGET_EXTRACT = 9
-    SET_THRESHOLD = 10
-    QUARANTINE = 11
-    PROCESS = 12
-
-    _PATH_NAME = [
-        None,
-        '_state_config.p',
-        '_state_partition.p',
-        '_state_ballot_attributes.p',
-        None,
-        '_state_run_grouping.p',
-        '_state_correct_grouping.p',
-        '_state_selecttargetsMain.p',
-        None,
-        None,
-        None,
-    ]
-
-    @classmethod
-    def path_for(proj, step):
-        name = Steps._PATH_NAME[step]
-        if name:
-            return [pathjoin(proj.projdir_path, name)]
-        else:
-            return []
 
 class MainFrame(wx.Frame):
     '''
@@ -167,21 +126,30 @@ class MainFrame(wx.Frame):
             # Don't know why these events are sometimes triggered...
             return
 
-        status, msg = self.notebook.GetPage(old).can_move_on()
+        try:
+            status = self.notebook.GetPage(old).can_move_on()
+        except ffwx.Panel.StepNotFinished as exn:
+            ffwx.modal(self, exn.message)
+            evt.Veto()
+            return
+
         if not status:
+            warn('can_move_on method for {0} should be switched to '
+                 'new exception-based API',
+                 self.notebook.GetPage(old))
             ffwx.modal(self, msg)
             evt.Veto()
             return
 
-        if old == Steps.PROJECT:
+        if old == util.Steps.PROJECT:
             self.set_project(self.notebook.GetPage(old).get_project())
 
         if old >= 1:
             self.panels[old].stop()
 
-    def switch_to(self, tgt):
+    def switch_to(self, tgt, old):
         self.notebook.ChangeSelection(tgt)
-        self.notebook.SendPageChangedEvent(self.BALLOT_ATTRIBUTES, tgt)
+        self.notebook.SendPageChangedEvent(old, tgt)
 
     def onPageChange(self, evt):
         old = evt.GetOldSelection()
@@ -194,9 +162,10 @@ class MainFrame(wx.Frame):
 
         if old != -1:
             curpanel = self.notebook.GetPage(old)
-            self.notebook.SetPageText(old, self.titles[curpanel][1])
+            #self.notebook.SetPageText(old, self.titles[curpanel][1])
+
         newpanel = self.notebook.GetPage(new)
-        self.notebook.SetPageText(new, self.titles[newpanel][0])
+        #self.notebook.SetPageText(new, self.titles[newpanel][0])
 
         if new >= MainFrame.SELTARGETS:
             if not self.project.is_grouped():
@@ -204,104 +173,71 @@ class MainFrame(wx.Frame):
                 # simply use the partitions as the groups, since the user
                 # 'knows' that the partitions also specify a grouping.
                 if self.project.is_partitioned():
-                    debug("No Attributes Exists, so, using Partitioning as the Grouping.")
+                    debug('No Attributes Exists, so, using Partitioning '
+                          'as the Grouping.')
                     self.project.use_partitions_as_grouping()
                 else:
                     debug("Couldn't find {0}. Was decoding not performed?",
                           self.project.partition_path())
-                    ffwx.warn(self, 'You must first run decoding (partitioning) '
+                    ffwx.warn(self,
+                              'You must first run decoding (partitioning) '
                               'before proceeding to this step. OpenCount will '
                               'take you there now.')
-                    self.switch_to(self.PARTITION)
+                    self.switch_to(self.PARTITION, old)
                     return
 
-        if new == MainFrame.PROJECT:
-            self.panels[new].start(projdir=PROJROOTDIR)
-        elif new == MainFrame.CONFIG:
-            self.panels[new].start(project=self.project)
-        elif new == MainFrame.PARTITION:
-            self.panels[new].start(project=self.project)
-        elif new == MainFrame.BALLOT_ATTRIBUTES:
-            # A (crude) way of detecting if the user started working on
-            # ballot attributes already
-            if not self.project.has_attribute_data():
-                resp = ffwx.yesno(self,
-                                'Do you wish to define any Ballot Attributes? \n\n'
-                                'If you intend to define ballot attributes '
-                                '(precinct number, tally group, etc.), then '
-                                'click \'Yes\'.\n\nOtherwise, click \'No\'.')
-                if resp == wx.ID_NO:
-                    ffwx.modal(self,
-                             'You indicated that you do not want to define '
-                             'any ballot attributes.\n\n '
-                             'You will now be taken to the ballot annotation '
-                             'stage.')
-                    self.switch_to(self.SELTARGETS)
-                    return
-
-            self.panels[new].start(project=self.project)
-        elif new == MainFrame.LABEL_DIGATTRS:
+        if new == MainFrame.LABEL_DIGATTRS:
             # Skip if there are no digit-based attributes
             if not self.project.has_digitbasedattr():
                 ffwx.modal(self,
-                         'There are no Digit-Based Attributes in this '
-                         'election -- skipping to the next page.')
-                self.switch_to(self.RUN_GROUPING)
+                           'There are no Digit-Based Attributes in this '
+                           'election -- skipping to the next page.')
+                # self.switch_to(self.RUN_GROUPING, old)
                 self.notebook.ChangeSelection(self.RUN_GROUPING)
                 self.notebook.SendPageChangedEvent(
                     self.LABEL_DIGATTRS, self.RUN_GROUPING)
-            else:
-                self.panels[new].start(self.project)
         elif new == MainFrame.RUN_GROUPING:
             if not self.project.has_imgattr() \
                and not self.project.has_digitbasedattr():
                 ffwx.modal(self,
-                         'There are no attributes to group in this election '
-                         '-- skipping to the next page.')
+                           'There are no attributes to group in this election '
+                           '-- skipping to the next page.')
                 if self.project.has_custattr():
                     dst_page = self.CORRECT_GROUPING
                 else:
                     dst_page = self.SELTARGETS
                 self.notebook.ChangeSelection(dst_page)
                 self.notebook.SendPageChangedEvent(self.RUN_GROUPING, dst_page)
-            else:
-                self.panels[new].start(project=self.project)
         elif new == MainFrame.CORRECT_GROUPING:
-            if not exists_imgattr(self.project) and \
-               not exists_digitbasedattr(self.project) and \
-               not exists_custattr(self.project):
+            if not self.project.has_imgattr() and \
+               not self.project.has_digitbasedattr() and \
+               not self.project.has_custattr():
                 ffwx.modal(self,
-                         'There are no attributes to verify grouping for '
-                         'in this election -- skipping to the next page.')
+                           'There are no attributes to verify grouping for '
+                           'in this election -- skipping to the next page.')
                 self.notebook.ChangeSelection(self.SELTARGETS)
                 self.notebook.SendPageChangedEvent(
                     self.CORRECT_GROUPING, self.SELTARGETS)
-            else:
-                self.panels[new].start(
-                    self.project,
-                    pathjoin(self.project.projdir_path, '_state_correct_grouping.p'))
-        elif new == MainFrame.SELTARGETS:
-            self.panels[new].start(self.project,
-                                   self.project.path('_state_selecttargetsMain.p'),
-                                   self.project.ocr_tmp_dir)
-        elif new == MainFrame.LABEL_CONTESTS:
-            """ Requires:
-                proj.target_locs_dir -- Location of targets
-                proj.patch_loc_dir -- For language, and *something* else.
-            """
-            self.panels[new].proj = self.project
-            self.panels[new].start(self.GetSize())
+
+        # Each panel has a 'start' method adhering to the same interface,
+        # but it might throw an exception. If that exception is a SkipToStep
+        # exception, then we toss up a message (if we have one) and then
+        # return to that step. If that exception is a StepNotFinished
+        # exception, we just veto the change.
+        try:
+            self.panels[new].start(project=self.project,
+                                   projdir=PROJROOTDIR)
             self.SendSizeEvent()
-        elif new == MainFrame.TARGET_EXTRACT:
-            self.panels[new].start(self.project)
-        elif new == MainFrame.SET_THRESHOLD:
-            sz = self.GetSize()
-            self.panels[new].start(self.project, size=sz)
-            self.SendSizeEvent()
-        elif new == MainFrame.QUARANTINE:
-            self.panels[new].start(self.project, self.GetSize())
-        elif new == MainFrame.PROCESS:
-            self.panels[new].start(self.project)
+        except ffwx.Panel.SkipToStep as exn:
+            if exn.message:
+                ffwx.modal(self, exn.message)
+            debug("Skipping from step {0} to step {1}",
+                  new,
+                  exn.target_step)
+            self.switch_to(exn.target_step, new)
+        except ffwx.Panel.StepNotFinished as exn:
+            ffwx.modal(self, exn.message)
+            evt.Veto()
 
     def onClose(self, evt):
         """
@@ -315,45 +251,6 @@ class MainFrame(wx.Frame):
         for fn in Project.closehook:
             fn()
         evt.Skip()
-
-
-def exists_digitbasedattr(proj):
-    if not exists_attrs(proj):
-        return False
-    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    for attr in attrs:
-        if attr['is_digitbased']:
-            return True
-    return False
-
-
-def exists_imgattr(proj):
-    if not exists_attrs(proj):
-        return False
-    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    for attr in attrs:
-        if not attr['is_digitbased']:
-            return True
-    return False
-
-
-def exists_custattr(proj):
-    if not exists_attrs(proj):
-        return False
-    attrprops = pickle.load(
-        open(pathjoin(proj.projdir_path, proj.attrprops), 'rb'))
-    return len(attrprops[ATTRMODE_CUSTOM]) != 0
-
-
-def exists_attrs(proj):
-    """ Doesn't account for custom attrs. """
-    if not os.path.exists(proj.ballot_attributesfile):
-        return False
-    ballot_attributesfile = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    if not ballot_attributesfile:
-        return False
-    else:
-        return True
 
 
 def parse_args():

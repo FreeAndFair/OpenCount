@@ -3,9 +3,6 @@ The panel which lists all available projects, allows the user to
 create new ones, and to delete older ones.
 '''
 
-from os import path
-import wx
-
 import ffwx
 import util
 from util import warn, error
@@ -16,6 +13,7 @@ class ProjectPanel(ffwx.Panel):
     '''
     The project-picker panel.
     '''
+
     def __init__(self, parent, *args, **kwargs):
         ffwx.Panel.__init__(self, parent, *args, **kwargs)
         # PROJDIR: Root directory of all projects
@@ -32,8 +30,8 @@ class ProjectPanel(ffwx.Panel):
 
         self.sizer = ff.vbox() \
             .add(ff.text('Select an election project to work on:'), 0) \
-            .add(ff.static_vbox(label='Election Projects') \
-                   .add(self.listbox_projs, 1) \
+            .add(ff.static_vbox(label='Election Projects')
+                   .add(self.listbox_projs, 1)
                    .add(
                        ff.hbox(
                            ff.button(label='Create New Project',
@@ -52,20 +50,19 @@ class ProjectPanel(ffwx.Panel):
             str PROJDIR: Root directory where all projects reside.
         """
         self.projdir = projdir
-        projects = sorted(Project.load_projects(projdir),
-                          key=lambda proj: proj.name)
-        self.listbox_projs.Clear()
-        for proj in projects:
-            self.listbox_projs.Append(proj.name)
+        self.listbox_projs.set_options(
+            proj.name for proj in sorted(Project.load_projects(projdir),
+                                         key=lambda proj: proj.name))
 
     def can_move_on(self):
         '''
         Allow the user to move on only if a project is selected.
         '''
         if not self.get_project():
-            return False, "Please select a project before moving on."
+            raise ffwx.Panel.StepNotFinished(
+                'Please select a project before moving on.')
         else:
-            return True, None
+            return True
 
     @util.show_exception_as_modal
     def get_project(self):
@@ -86,7 +83,7 @@ class ProjectPanel(ffwx.Panel):
         '''
         name = ffwx.text_entry(self, "New Project Name:", "New Project")
         if name is not None:
-            Project.create_project(name, path.join(self.projdir, name))
+            Project.create_project(name, self.projdir)
             self.listbox_projs.add_focused(name)
 
     @util.show_exception_as_modal

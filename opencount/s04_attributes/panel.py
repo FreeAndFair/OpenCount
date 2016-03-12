@@ -2,9 +2,6 @@ import os
 import sys
 import threading
 import multiprocessing
-import shutil
-import pdb
-import time
 import random
 try:
     import cPickle as pickle
@@ -19,16 +16,14 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 sys.path.append('..')
 import util
-import grouping.tempmatch
-import grouping.group_attrs
-import grouping.common
 import config
 import s08_select_targets.panel as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
 from grouping.verify_overlays_new import CheckImageEqualsFrame, CheckImageEquals
 
-from util import debug, warn, error
+import ffwx
+from util import debug
 
 """
 A widget that integrates the functionality of 'Define Attributes' and
@@ -112,9 +107,21 @@ class BallotAttributesPanel(OpenCountPanel):
         self.Layout()
 
     def start(self, project=None, projdir=None):
+        if not project.has_attribute_data():
+            resp = ffwx.yesno(
+                self,
+                'Do you wish to define any Ballot Attributes?\n\n'
+                'If you intend to define ballot attributes (precinct '
+                'number, tally group, etc.) then click \'Yes\'.\n\n'
+                'Otherwise, click \'No\'.')
+            if not resp:
+                raise ffwx.Panel.SkipToStep(
+                    'You will now be taken to the ballot annotation '
+                    'stage.',
+                    util.Steps.SELTARGETS)
+
         self.proj = project
-        stateP = project.path('_state_ballot_attributes.p')
-        self.attr_panel.start(project, stateP)
+        self.attr_panel.start(project=project)
         self.proj.addCloseEvent(self.attr_panel.save_session)
 
     def stop(self):
@@ -206,19 +213,26 @@ class DefineAttributesPanel(ScrolledPanel):
         self.Layout()
         self.SetupScrolling()
 
-    def start(self, proj, stateP):
-        self.proj = proj
-        self.stateP = stateP
-        self.img2page = pickle.load(open(pathjoin(proj.projdir_path,
-                                                  proj.image_to_page), 'rb'))
-        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
-                                                  proj.image_to_flip), 'rb'))
-        self.bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-        self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
-        self.part2bals = pickle.load(open(pathjoin(proj.projdir_path,
-                                                   proj.partitions_map), 'rb'))
-        self.bal2part = pickle.load(open(pathjoin(proj.projdir_path,
-                                                  proj.partitions_invmap), 'rb'))
+    def start(self, project=None, projdir=None):
+        self.proj = project
+
+        self.stateP = project.path('_state_ballot_attributes.p')
+        self.img2page = project.load_field(project.image_to_page)
+        self.img2flip = project.load_field(project.image_to_flip)
+        self.bal2imgs = project.load_field(project.ballot_to_images)
+        self.img2bal = project.load_field(project.image_to_ballot)
+        self.part2bals = project.load_field(project.partitions_map)
+        self.bal2part = project.load_field(project.partitions_invmap)
+        # self.img2page = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                           proj.image_to_page), 'rb'))
+        # self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                           proj.image_to_flip), 'rb'))
+        # self.bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        # self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
+        # self.part2bals = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                            proj.partitions_map), 'rb'))
+        # self.bal2part = pickle.load(open(pathjoin(proj.projdir_path,
+        # proj.partitions_invmap), 'rb'))
 
         if not self.restore_session():
             self.ballots_todo = []

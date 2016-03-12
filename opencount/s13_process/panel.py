@@ -27,11 +27,11 @@ class ResultsPanel(ScrolledPanel):
         self.SetSizer(self.sizer)
         self.Fit()
 
-    def start(self, proj):
-        self.proj = proj
+    def start(self, project=None, projdir=None):
+        self.proj = project
         # 0.) Grab all quarantined ballots
-        self.qballotids = sorted(get_quarantined_ballots(proj))
-        bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        self.qballotids = sorted(get_quarantined_ballots(project))
+        bal2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
 
         self.qvotedpaths = []
         for ballotid in self.qballotids:

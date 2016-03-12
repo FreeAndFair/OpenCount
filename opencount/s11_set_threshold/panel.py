@@ -8,8 +8,6 @@ from os.path import join as pathjoin
 from PIL import Image, ImageDraw
 
 from time import time
-import image_file
-import array
 try:
     import cPickle as pickle
 except:
@@ -24,8 +22,7 @@ import wx.lib.dialogs
 sys.path.append('..')
 import util
 import config
-from util import is_image_ext, pil2wxb, MyGauge
-import ViewOverlays
+from util import pil2wxb, MyGauge
 
 
 class OverlayGrid(wx.Frame):
@@ -1016,8 +1013,9 @@ class ThresholdPanel(wx.Panel):
 
     first = True
 
-    def start(self, proj, size=None):
-        self.proj = proj
+    def start(self, project=None, projdir=None):
+        size = self.GetParent().GetParent().GetSize()
+        self.proj = project
 
         if not self.first:
             return

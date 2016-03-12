@@ -35,10 +35,10 @@ import config
 import grouping.tempmatch as tempmatch
 import s09_label_contests.group_contests as group_contests
 import pixel_reg.shared as shared
-import pixel_reg.imagesAlign as imagesAlign
 import global_align.global_align as global_align
 
 from util import debug, warn, error
+import ffwx
 
 JOBID_TEMPMATCH_TARGETS = util.GaugeID("TemplateMatchTargets")
 
@@ -77,24 +77,27 @@ class SelectTargetsMainPanel(OpenCountPanel):
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, proj, stateP, ocrtmpdir):
-        self.proj = proj
-        self.stateP = stateP
+    def start(self, project=None, projdir=None):
+
+        ocrtmpdir = project.ocr_tmp_dir
+        self.proj = project
+        self.stateP = project.path('_state_selecttargetsMain.p')
 
         # Maps group to reference image. Used if a different image
         # is needed to be used for alignment purposes.
         self.group_to_Iref = {}
 
-        # GROUP2BALLOT: dict {int groupID: [int ballotID_i, ...]}
-        group2ballot = pickle.load(open(pathjoin(proj.projdir_path,
-                                                 proj.group_to_ballots), 'rb'))
-        group_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
-                                                 proj.group_exmpls), 'rb'))
-        b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-        img2page = pickle.load(open(pathjoin(proj.projdir_path,
-                                             proj.image_to_page), 'rb'))
-        self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
-                                                  proj.image_to_flip), 'rb'))
+        group_exmpls = project.load_field(project.group_exmpls)
+        # group_exmpls = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                         proj.group_exmpls), 'rb'))
+        b2imgs = project.load_field(project.ballot_to_images)
+        # b2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
+        img2page = project.load_field(project.image_to_page)
+        # img2page = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                      proj.image_to_page), 'rb'))
+        self.img2flip = project.load_field(project.image_to_flip)
+        # self.img2flip = pickle.load(open(pathjoin(proj.projdir_path,
+        #                                           proj.image_to_flip), 'rb'))
         # 0.) Munge GROUP2BALLOT to list of lists of lists
         groups = []
         numtasks = 0
@@ -113,7 +116,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
 
         self.proj.addCloseEvent(self.save_session)
         self.proj.addCloseEvent(self.seltargets_panel.save_session)
-        align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
+        align_outdir = project.path('groupsAlign_seltargs')
+        # align_outdir = pathjoin(proj.projdir_path, 'groupsAlign_seltargs')
 
         class GlobalAlignThread(threading.Thread):
 
@@ -220,7 +224,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             state = pickle.load(open(self.stateP, 'rb'))
             i2groupid = state['i2groupid']
             displayed_imgpaths = state['displayed_imgpaths']
-            #self.group_to_Iref = state['group_to_Iref']
+            # self.group_to_Iref = state['group_to_Iref']
             self.i2groupid = i2groupid
             self.displayed_imgpaths = displayed_imgpaths
         except:
@@ -407,7 +411,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
         """
         lst_statuses = check_all_images_have_targets(
             self.seltargets_panel.boxes, self.seltargets_panel.flagged_idxs)
-        #lst_statuses = check_all_images_have_targets(self.seltargets_panel.boxes, set())
+        # lst_statuses =
+        # check_all_images_have_targets(self.seltargets_panel.boxes, set())
         return lst_statuses
 
     def onButton_getimgpath(self, evt):
@@ -418,7 +423,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                                style=wx.OK)
         dlg.ShowModal()
 
-    """ 
+    """
     ===============================================
     ==== SanityCheck callback handling methods ====
     ===============================================
@@ -446,23 +451,23 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 button says via this argument.
             tuple BTN_FNS: (func FN_0, ..., func FN_N)
                 The function to invoke when the user clicks button N
-                after image i is shown. Each function accepts to 
+                after image i is shown. Each function accepts to
                 arguments: int i          - the index we are at in GRPS
                            lst grps       - the input GRPS.
                            dict grps_data - data for each group GRP.
                 It should return one of three outputs:
-                    bool True: 
+                    bool True:
                         Stop the rail-guided tour, and signal that the
                         user /can/ move on
-                    bool False: 
-                        Stop the rail-guided tour, and signal that the 
+                    bool False:
+                        Stop the rail-guided tour, and signal that the
                         user /can't/ move on
                     tuple 'next':
                         Display the next image.
-            bool retval_end: 
+            bool retval_end:
                 Value to return if the user reaches the end of the list
                 of images. True if the user can move on, False o.w.
-            func TITLE_FN: 
+            func TITLE_FN:
             func MSG_FN:
         """
         grps_data = grps_data if grps_data != None else {}
@@ -706,8 +711,8 @@ voting target on this ballot.")
         btn_flag_partition.Bind(wx.EVT_BUTTON, self.onButton_flagpartition)
 
         sizer_btn_jump = wx.BoxSizer(wx.HORIZONTAL)
-        #sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
-        #sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
+        # sizer_btn_jump.Add(btn_jump_partition, border=10, flag=wx.ALL)
+        # sizer_btn_jump.Add(btn_jump_ballot, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_jump_error, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_selectIref, border=10, flag=wx.ALL)
         sizer_btn_jump.Add(btn_flag_partition, border=10, flag=wx.ALL)
@@ -856,11 +861,12 @@ voting target on this ballot.")
         xwin, ywin = self.win_target
         cv.Smooth(patchB, patchB, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
         # 2.a.) Copy the smooth'd PATCHB back into PATCH
-        #patch_cv = cv.GetSubRect(patchB, (BRD/2, BRD/2, patch_cv.width, patch_cv.height))
+        # patch_cv = cv.GetSubRect(patchB, (BRD/2, BRD/2, patch_cv.width,
+        # patch_cv.height))
         cv.SetImageROI(patchB, (BRD / 2, BRD / 2,
                                 patch_cv.width, patch_cv.height))
         patch = patchB
-        #patch = iplimage2pil(patchB)
+        # patch = iplimage2pil(patchB)
         # patch.save("_patch.png")
         cv.SaveImage("_patch.png", patch)
         # 3.) Run template matching across all images in self.IMGPATHS,
@@ -888,7 +894,7 @@ voting target on this ballot.")
         JOBID_TEMPMATCH_TARGETS.next_job(num_tasks)
 
     def on_tempmatch_done(self, results, w, h):
-        """ Invoked after template matching computation is complete. 
+        """ Invoked after template matching computation is complete.
         Input:
             dict RESULTS: maps {str imgpath: [(x1,y1,x2,y2,score_i), ...}. The matches
                 that template matching discovered.
@@ -1053,7 +1059,7 @@ voting target on this ballot.")
 
     def display_nextimg(self):
         """ Displays the next image in the current partition. If the end
-        of the list is reached, returns None, and does nothing. Else, 
+        of the list is reached, returns None, and does nothing. Else,
         returns the new image index.
         """
         next_idx = self.cur_j + 1
@@ -1120,7 +1126,7 @@ voting target on this ballot.")
         self.display_prevpage()
 
     def onButton_flagpartition(self, evt):
-        debug( "Flagging partition '{0}' as quarantined.", self.cur_i)
+        debug("Flagging partition '{0}' as quarantined.", self.cur_i)
         self.flagged_idxs.add(self.cur_i)
 
     def zoomin(self, amt=0.1):
@@ -1411,8 +1417,9 @@ Then, you may resize the voting targets here.").ShowModal()
                 stats_by_ballot[uid] = {}
             stats_by_ballot[uid][e] = obs
 
-        #self.parent.boxes = dict((k,[[z for z in y if z.y1 > 400 or z.y2 > 400] for y in v]) for k,v in self.parent.boxes.items())
-        #self.parent.boxes = dict((k,[[z for z in y] for y in v]) for k,v in self.parent.boxes.items())
+        # self.parent.boxes = dict((k,[[z for z in y if z.y1 > 400 or z.y2 > 400] for y in v]) for k,v in self.parent.boxes.items())
+        # self.parent.boxes = dict((k,[[z for z in y] for y in v]) for k,v in
+        # self.parent.boxes.items())
 
         set_events([("exists", "entropy"),
                     ("target count", "entropy"),
@@ -1456,7 +1463,8 @@ Then, you may resize the voting targets here.").ShowModal()
                 if len(contests) == 0:
                     continue
 
-                #observe("exists", tuple([sum([intersect(x,y) for y in contests]) == 1 for x in targets]), (pid,i))
+                # observe("exists", tuple([sum([intersect(x,y) for y in
+                # contests]) == 1 for x in targets]), (pid,i))
                 if not all([sum([intersect(x, y) for y in contests]) == 1 for x in targets]):
                     error("OH NO THIS IS BAD: {0}",
                           (pid + 1,
@@ -1473,10 +1481,10 @@ Then, you may resize the voting targets here.").ShowModal()
                 observe("contest count", len(contests), (pid, i))
                 observe("contests by column", tuple(
                     map(len, group(sorted([x.x1 for x in contests])))), (pid, i))
-                #spread = 10*sum([1-scipy.stats.linregress(range(len(col)),col)[2]**2 for col in cols[:-1]])
+                # spread = 10*sum([1-scipy.stats.linregress(range(len(col)),col)[2]**2 for col in cols[:-1]])
                 # print spread
                 # print scipy.stats.linregress(range(len(cols[0])),cols[0])
-                #observe("colspread", spread, (pid,i))
+                # observe("colspread", spread, (pid,i))
         for evtname, obs in events.items():
             evttype = kinds[evtname]
             count = sum(obs.values())
@@ -1498,7 +1506,8 @@ Then, you may resize the voting targets here.").ShowModal()
         self.parent.next_errors = [x[0] for x in sorted(
             votes_for_errors.items(), key=lambda x: -x[1])]
         for (ballot, side), votes in sorted(votes_for_errors.items(), key=lambda x: -x[1]):
-            debug("{0}", (ballot + 1, side, votes, stats_by_ballot[ballot, side]))
+            debug("{0}", (ballot + 1, side, votes,
+                          stats_by_ballot[ballot, side]))
         debug("{0}", events)
 
     def onButton_settargetroi(self, evt):
@@ -1522,7 +1531,8 @@ Then, you may resize the voting targets here.").ShowModal()
         # tuple ROI: (int x1, y1, x2, y2)
         roi = dlg.roi
 
-        debug("Set target_roi from {0} to: {1}", self.GetParent().target_roi, roi)
+        debug("Set target_roi from {0} to: {1}",
+              self.GetParent().target_roi, roi)
         self.GetParent().set_target_roi(roi)
 
 
@@ -2336,7 +2346,7 @@ class BoxDrawPanel(ImagePanel):
             sub_bitmap = self.imgbitmap.GetSubBitmap(
                 (_x1, _y1, _x2 - _x1, _y2 - _y1))
             # I don't think I need to do a .copy() here...
-            #np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True).copy()
+            # np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True).copy()
             np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True)
             np_rect[:, :] = np_rect[:, :] * 0.7
             np_rect[:, :] = np_rect[:, :] + transparent_color * 0.3
@@ -3299,7 +3309,7 @@ def bestmatch(A, B):
 
 
 def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queue=None):
-    """ 
+    """
     Input:
         list PARTITIONS: [[partitionID, [Ballot_i, ...]], [partitionID, [Ballot_i, ...]], ...]
         str OUTROOTDIR: Rootdir to save aligned images to.
@@ -3368,7 +3378,7 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
 def do_align_partitions(partitions, img2flip, outrootdir, manager, queue, N=None):
     """
     Input:
-        list PARTITIONS[i][j][k] := i-th partition, j-th ballot, k-th side. 
+        list PARTITIONS[i][j][k] := i-th partition, j-th ballot, k-th side.
         dict IMG2FLIP: maps {str imgpath: bool isflipped}
     Output:
         dict PARTITIONS_ALIGN. maps {int partitionID: [[imgpath_i, ...], ...]}
@@ -3410,7 +3420,7 @@ def do_align_partitions(partitions, img2flip, outrootdir, manager, queue, N=None
 
 def divy_lists(lst, N):
     """ Given a list of sublists (where each sublist may be of unequal
-    size), output N lists of list of sublists, where the size of each 
+    size), output N lists of list of sublists, where the size of each
     list of sublists is maximized (i.e. ensuring an equal distribution
     of sublist sizes).
     Input:

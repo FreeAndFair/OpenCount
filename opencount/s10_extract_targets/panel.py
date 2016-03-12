@@ -68,8 +68,8 @@ Extraction, but you just want to create the Image File:")
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, proj):
-        self.proj = proj
+    def start(self, project=None, projdir=None):
+        self.proj = project
 
     def stop(self):
         pass

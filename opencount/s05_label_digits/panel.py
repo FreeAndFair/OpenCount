@@ -120,10 +120,9 @@ class LabelDigitsPanel(OpenCountPanel):
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, proj, *args, **kwargs):
+    def start(self, proj):
         self.proj = proj
-        self.statefile = pathjoin(
-            self.proj.projdir_path, '_state_labeldigits.p')
+        self.statefile = self.proj.path('_state_labeldigits.p')
         self.proj.addCloseEvent(self.save_session)
 
         if os.path.exists(self.statefile):
@@ -132,10 +131,7 @@ class LabelDigitsPanel(OpenCountPanel):
 
         extracted_digitpatches_fulldir = pathjoin(proj.projdir_path,
                                                   proj.extracted_digitpatch_dir)
-        digit_ex_fulldir = pathjoin(
-            proj.projdir_path, proj.digit_exemplars_outdir)
-        precinctnums_fullpath = pathjoin(
-            proj.projdir_path, proj.precinctnums_outpath)
+
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
             t = time.time()

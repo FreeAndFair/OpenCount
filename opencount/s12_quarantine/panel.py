@@ -22,13 +22,14 @@ class QuarantinePanel(wx.Panel):
         self.parent = parent
         self.quarantinepanel = None
 
-    def start(self, proj, sz):
-        self.proj = proj
+    def start(self, project=None, projdir=None):
+        sz = self.GetParent().GetParent().GetSize()
+        self.proj = project
         if not self.firstTime:
             return
         self.firstTime = False
 
-        qballotids = get_quarantined_ballots(proj)
+        qballotids = get_quarantined_ballots(project)
         top = TopPanel(self)
         self.quarantinepanel = MainPanel(self, qballotids, self.proj, sz)
         top.start(self.quarantinepanel)

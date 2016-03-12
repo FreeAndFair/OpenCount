@@ -13,11 +13,11 @@ from os.path import join as pathjoin
 import wx
 
 from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
-import grouping.digit_group_new
-import grouping.cust_attrs
 sys.path.append('..')
 import util_gui
 import config
+import ffwx
+from util import debug, error
 
 
 class VerifyGroupingMainPanel(wx.Panel):
@@ -49,8 +49,9 @@ class VerifyGroupingMainPanel(wx.Panel):
 
         self.Layout()
 
-    def start(self, proj, stateP):
-        self.proj = proj
+    def start(self, project=None, projdir=None):
+        self.proj = project
+        stateP = project.path('_state_correct_grouping.p')
         self.proj.addCloseEvent(self.save_session)
         self.stateP = stateP
 
@@ -58,9 +59,9 @@ class VerifyGroupingMainPanel(wx.Panel):
             config.TIMER.start_task("VerifyGrouping_Verify_H")
 
         if not self.restore_session():
-            self.group_exemplars = get_group_exemplars(proj)
-            self.imgpath_groups = create_groups(proj)
-            self.rlist_map = get_rlist_map(proj)
+            self.group_exemplars = get_group_exemplars(project)
+            self.imgpath_groups = create_groups(project)
+            self.rlist_map = get_rlist_map(project)
 
         if os.path.exists(pathjoin(self.proj.projdir_path,
                                    self.proj.imgpatch2imgpath)):
@@ -75,9 +76,6 @@ class VerifyGroupingMainPanel(wx.Panel):
         else:
             digpatch2imgpath = {}
 
-        verifyoverlays_stateP = pathjoin(
-            proj.projdir_path, '_state_verifyoverlays.p')
-
         if self.imgpath_groups:
             self.verify_panel.start(self.proj, self.imgpath_groups, self.group_exemplars,
                                     patch2imgpath, digpatch2imgpath,
@@ -86,7 +84,7 @@ class VerifyGroupingMainPanel(wx.Panel):
         else:
             debug("No img/digit-based attrs required to verify.")
             ffwx.warn(self, "It is not necessary to verify any groups. "
-                          "Please move onto the next step.")
+                      "Please move onto the next step.")
 
         self.Layout()
 
@@ -595,14 +593,14 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
             debug("We're done verifying all categories!")
             self.Disable()
             ffwx.warn(self, "You've finished verifying all categories.\n\n\ "
-                          "You may proceed to the next task.")
+                      "You may proceed to the next task.")
             if self.ondone:
                 self.ondone(self.verify_results_cat,
                             self.quarantine_results_cat)
         else:
             ffwx.warn(self,
-                    "You've finished verifying category '{0}'.\n\n"
-                    "You may move onto the next category.".format(curcat))
+                      "You've finished verifying category '{0}'.\n\n"
+                      "You may move onto the next category.".format(curcat))
 
 
 def exists_imgattr(proj):

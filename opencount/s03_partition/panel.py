@@ -1,7 +1,6 @@
 import os
 import multiprocessing
 import Queue
-import pdb
 import shutil
 import sys
 import textwrap
@@ -22,7 +21,6 @@ sys.path.append('..')
 import extract_patches
 import util
 import config
-import asize
 from util import debug, warn, error
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
@@ -71,7 +69,7 @@ class PartitionMainPanel(ffwx.Panel):
         self.SetSizer(self.sizer)
         self.Layout()
 
-    def start(self, project=None, root=None):
+    def start(self, project=None, projdir=None):
         stateP = project.path('_state_partition.p')
         self.proj = project
         self.partitionpanel.start(self.proj, self.proj.voteddir, stateP)
@@ -184,9 +182,9 @@ class PartitionMainPanel(ffwx.Panel):
                  self.proj.num_pages,
                  len(set(pages_norm_map.values())))
             ffwx.warn(self,
-                    Strings.WRONG_NUM_PAGES.format(
-                        self.proj.num_pages,
-                        len(set(pages_norm_map.values()))))
+                      Strings.WRONG_NUM_PAGES.format(
+                          self.proj.num_pages,
+                          len(set(pages_norm_map.values()))))
             return
 
         # END Sanity Checks
@@ -1315,7 +1313,8 @@ it were the front-side of a ballot."
             self, label="Quarantine the other sides", style=wx.RB_GROUP)
         self.rb_discard = wx.RadioButton(self, label="Discard the other sides")
 
-        sizer_others = ffwx.vbox(txt_others, self.rb_quarantine, self.rb_discard)
+        sizer_others = ffwx.vbox(
+            txt_others, self.rb_quarantine, self.rb_discard)
 
         sizer2 = ffwx.hbox(sizer_choose, sizer_others)
         btn_ok = ffwx.Button(self, label='Ok', on_click=self.onButton_ok)
