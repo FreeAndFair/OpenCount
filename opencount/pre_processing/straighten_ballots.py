@@ -4,7 +4,7 @@ import threading
 import multiprocessing
 import math
 import traceback
-sys.path.append('../')
+
 import wx
 
 IMPORT_STRAIGHTENER_FAIL = False

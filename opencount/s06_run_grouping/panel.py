@@ -12,7 +12,7 @@ except:
 from os.path import join as pathjoin
 import wx
 
-sys.path.append('..')
+
 
 from util import MyGauge
 import pixel_reg.doGrouping as doGrouping

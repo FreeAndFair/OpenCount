@@ -12,7 +12,7 @@ import scipy.misc
 import scipy.ndimage
 import cv
 
-sys.path.append('..')
+
 from projconfig_new.project_panel import Project
 
 """

@@ -18,7 +18,7 @@ import cv
 import ffwx
 from util import debug, warn, error
 
-sys.path.append('..')
+
 
 import util
 import config

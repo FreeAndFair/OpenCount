@@ -7,7 +7,7 @@ import random
 import pdb
 from os.path import join as pathjoin
 
-sys.path.append('..')
+
 
 import scipy.misc
 import cv

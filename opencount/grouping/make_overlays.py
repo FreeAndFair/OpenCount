@@ -8,7 +8,7 @@ import cv
 import sys
 import random
 
-sys.path.append('..')
+
 import grouping.partask as partask
 from pixel_reg.imagesAlign import imagesAlign
 

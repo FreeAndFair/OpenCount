@@ -15,8 +15,8 @@ import numpy as np
 import scipy.cluster.vq
 from scipy import misc
 
-sys.path.append('../')
-sys.path.append('../pixel_reg/')
+
+
 import pixel_reg.shared as sh
 import pixel_reg.part_match as part_match
 

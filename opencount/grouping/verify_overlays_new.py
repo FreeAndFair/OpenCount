@@ -28,7 +28,7 @@ import make_overlays
 import cluster_imgs
 from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_GRAYSCALE
 
-sys.path.append('..')
+
 import util
 from util import debug, warn, error
 

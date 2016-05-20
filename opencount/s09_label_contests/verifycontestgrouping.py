@@ -3,7 +3,7 @@ import sys
 import os
 import pdb
 
-sys.path.append("..")
+
 from util import pdb_on_crash
 import grouping.common
 import pixel_reg.imagesAlign as imagesAlign

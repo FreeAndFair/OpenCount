@@ -19,7 +19,7 @@ import numpy as np
 import wx.lib
 import wx.lib.dialogs
 
-sys.path.append('..')
+
 import util
 import config
 from util import pil2wxb, MyGauge

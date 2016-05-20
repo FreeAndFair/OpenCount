@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 import scipy.misc
-sys.path.append('..')
+
 
 import shared
 import imagesAlign

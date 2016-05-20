@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import scipy.misc
 
-sys.path.append('..')
+
 
 from pixel_reg.imagesAlign import imagesAlign, imtransform
 import pixel_reg.shared as shared

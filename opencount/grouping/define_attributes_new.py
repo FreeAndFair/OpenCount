@@ -13,7 +13,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 from util import debug, warn, error
 
-sys.path.append('..')
+
 import specify_voting_targets.select_targets as select_targets
 import grouping.common as common
 import grouping.cust_attrs as cust_attrs

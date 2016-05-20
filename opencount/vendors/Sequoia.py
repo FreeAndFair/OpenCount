@@ -9,7 +9,7 @@ except ImportError:
 
 import cv
 
-sys.path.append('..')
+
 
 import barcode.sequoia as sequoia
 import grouping.partask as partask

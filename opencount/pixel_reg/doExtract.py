@@ -15,7 +15,7 @@ import array
 
 from matplotlib.pyplot import show, imshow, figure, title
 
-sys.path.append('..')
+
 import global_align.global_align as global_align
 
 # Consider only the middle of the "Fill in the Arrow" voting targets

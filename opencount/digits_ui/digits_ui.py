@@ -23,7 +23,7 @@ import wx.lib.scrolledpanel
 import numpy as np
 from os.path import join as pathjoin
 
-sys.path.append('..')
+
 import util
 from specify_voting_targets import util_gui
 from pixel_reg import shared

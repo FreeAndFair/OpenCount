@@ -13,7 +13,7 @@ import hart
 import diebold
 import sequoia
 
-sys.path.append('..')
+
 import grouping.partask as partask
 import grouping.make_overlays as make_overlays
 import pixel_reg.imagesAlign as imagesAlign

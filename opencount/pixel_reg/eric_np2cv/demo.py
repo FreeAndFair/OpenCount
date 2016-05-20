@@ -1,5 +1,5 @@
 import sys
-sys.path.append('..')
+
 import cv
 import numpy as np
 

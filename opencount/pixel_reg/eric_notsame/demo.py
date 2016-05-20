@@ -2,7 +2,7 @@ import sys
 import scipy
 import scipy.misc
 
-sys.path.append('..')
+
 import shared
 
 imgA = 'mail-04_party.png'

@@ -3,7 +3,7 @@ import sys
 import pdb
 
 import wx
-sys.path.append('..')
+
 
 from select_targets import *
 

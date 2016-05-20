@@ -29,7 +29,7 @@ from grouping import verify_overlays_new, partask
 
 from smartscroll import SmartScrolledGridPanel, CREATE, IDLE, npgray2rgb
 
-sys.path.append('..')
+
 
 """
 TODO:

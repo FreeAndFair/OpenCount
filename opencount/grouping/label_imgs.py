@@ -7,7 +7,7 @@ except:
     import pickle
 import wx
 import wx.lib.scrolledpanel
-sys.path.append('..')
+
 
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):

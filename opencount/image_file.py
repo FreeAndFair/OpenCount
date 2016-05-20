@@ -17,7 +17,7 @@ import time
 
 import extsort
 
-sys.path.append("..")
+
 import util
 
 

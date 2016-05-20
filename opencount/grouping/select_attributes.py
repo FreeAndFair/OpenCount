@@ -16,7 +16,7 @@ except ImportError:
 
 from os.path import join as pathjoin
 
-sys.path.append('..')
+
 
 import tempmatch
 import util

@@ -14,7 +14,7 @@ import wx
 import cv
 from wx.lib.scrolledpanel import ScrolledPanel
 
-sys.path.append('..')
+
 import util
 import config
 import s08_select_targets.panel as select_targets

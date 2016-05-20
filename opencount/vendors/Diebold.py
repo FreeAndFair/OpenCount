@@ -11,7 +11,7 @@ from os.path import join as pathjoin
 import cv
 import diebold_raw
 
-sys.path.append('..')
+
 import grouping.partask as partask
 
 from Vendor import Vendor

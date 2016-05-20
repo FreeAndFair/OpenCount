@@ -16,7 +16,7 @@ from os.path import join as pathjoin
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
-sys.path.append('..')
+
 
 import extract_patches
 import util

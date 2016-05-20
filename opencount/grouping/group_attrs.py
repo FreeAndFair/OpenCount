@@ -11,7 +11,7 @@ import scipy.misc
 import numpy as np
 import cv
 
-sys.path.append('../')
+
 import common
 import partask
 from pixel_reg import shared

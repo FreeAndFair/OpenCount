@@ -5,7 +5,7 @@ import numpy as np
 import scipy.misc as misc
 import cv
 
-sys.path.append('..')
+
 import pixel_reg.imagesAlign as imagesAlign
 
 

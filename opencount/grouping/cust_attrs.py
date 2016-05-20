@@ -2,7 +2,7 @@ import sys
 import os
 import pickle
 from os.path import join as pathjoin
-sys.path.append('..')
+
 
 """
 Functions that handle the Custom Attributes extension. 

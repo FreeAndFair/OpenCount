@@ -10,7 +10,7 @@ import numpy as np
 import scipy.stats
 
 import scan_bars
-sys.path.append('..')
+
 import grouping.tempmatch as tempmatch
 from grouping.verify_overlays_new import iplimage2np
 

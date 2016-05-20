@@ -2,7 +2,7 @@ import sys
 import pickle
 import scipy
 import scipy.misc
-sys.path.append('..')
+
 import imagesAlign
 
 errdict = 'err_dict_0'

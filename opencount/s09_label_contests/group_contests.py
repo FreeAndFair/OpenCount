@@ -5,7 +5,7 @@ import pdb
 import traceback
 import time
 import random
-sys.path.append('..')
+
 try:
     from collections import Counter
 except ImportError as e:

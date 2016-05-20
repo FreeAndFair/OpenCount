@@ -3,7 +3,7 @@ import sys
 import multiprocessing
 import thread
 import cv
-sys.path.append('..')
+
 import grouping.partask as partask
 
 

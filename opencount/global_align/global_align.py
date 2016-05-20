@@ -14,7 +14,7 @@ import scipy.misc
 import scipy.linalg
 import numpy as np
 
-sys.path.append('..')
+
 import pixel_reg.imagesAlign as imagesAlign
 import pixel_reg.shared as sh
 

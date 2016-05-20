@@ -5,7 +5,7 @@ from os.path import join as pathjoin
 
 import cv
 
-sys.path.append('..')
+
 import grouping.tempmatch as tempmatch
 
 """

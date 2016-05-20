@@ -4,7 +4,7 @@ import time
 import pdb
 import cv
 
-sys.path.append('..')
+
 import grouping.make_overlays as make_overlays
 
 """

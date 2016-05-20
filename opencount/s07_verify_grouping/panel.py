@@ -13,7 +13,7 @@ from os.path import join as pathjoin
 import wx
 
 from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
-sys.path.append('..')
+
 import util_gui
 import config
 import ffwx

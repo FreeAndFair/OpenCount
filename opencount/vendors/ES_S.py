@@ -12,7 +12,7 @@ try:
 except:
     import pickle
 
-sys.path.append('..')
+
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where

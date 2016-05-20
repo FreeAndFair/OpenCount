@@ -7,7 +7,7 @@ import sys
 import distance_transform
 import wx
 
-sys.path.append('..')
+
 
 from util import GaugeID
 

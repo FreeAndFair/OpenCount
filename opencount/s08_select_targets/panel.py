@@ -17,7 +17,7 @@ except ImportError:
 
 from os.path import join as pathjoin
 
-sys.path.append('..')
+
 
 import wx
 import cv

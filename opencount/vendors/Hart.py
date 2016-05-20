@@ -13,7 +13,7 @@ import cv
 
 from Vendor import Vendor
 
-sys.path.append('..')
+
 
 import barcode.hart as hart
 import asize

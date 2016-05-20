@@ -1,7 +1,7 @@
 import sys
 from matplotlib.pyplot import show, imshow
 
-sys.path.append('../')
+
 
 import shared
 

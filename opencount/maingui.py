@@ -20,10 +20,9 @@ from project import Project
 import panels
 
 import ffwx
-from opencount.util import debug, warn, error
+from util import debug, warn, error
 
 import config
-import opencount.util as util
 
 PROJROOTDIR = 'projects_new'
 

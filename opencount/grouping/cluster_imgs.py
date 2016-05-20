@@ -2,7 +2,7 @@ import sys
 import os
 import time
 import pdb
-sys.path.append('..')
+
 from os.path import join as pathjoin
 import numpy as np
 import scipy.cluster.vq

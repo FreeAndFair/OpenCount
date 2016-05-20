@@ -2,7 +2,7 @@ import threading
 import sys
 import os
 import math
-sys.path.append('..')
+
 import grouping.common as common
 import wx
 import util_gui

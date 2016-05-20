@@ -23,7 +23,7 @@ except:
     from wx.lib.pubsub import Publisher
     pub = Publisher()
 
-sys.path.append('..')
+
 
 import util
 import config
