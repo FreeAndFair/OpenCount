@@ -1,7 +1,3 @@
-import sys
-import pdb
-import traceback
-
 from Vendor import Vendor
 
 

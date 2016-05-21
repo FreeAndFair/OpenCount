@@ -2,7 +2,6 @@ import os
 import time
 import math
 from optparse import OptionParser
-import Image
 import cv
 import wx
 try:

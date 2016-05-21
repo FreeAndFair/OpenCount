@@ -4,25 +4,19 @@ contains all the other panels.
 '''
 
 import argparse
-import csv
 import datetime
-import os
-import sys
+import wx
 
 import matplotlib
 matplotlib.use('Agg')
 
-from os.path import join as pathjoin
-
-import wx
-
 from project import Project
 import panels
-
 import ffwx
-from util import debug, warn, error
+from util import debug, warn
 
 import config
+
 
 PROJROOTDIR = 'projects_new'
 

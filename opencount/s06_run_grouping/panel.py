@@ -1,9 +1,7 @@
-import sys
 import time
 import threading
 import shutil
 import os
-import pdb
 try:
     import cPickle as pickle
 except:
@@ -13,7 +11,6 @@ from os.path import join as pathjoin
 import wx
 
 
-
 from util import MyGauge
 import pixel_reg.doGrouping as doGrouping
 import pixel_reg.part_match as part_match
@@ -21,7 +18,7 @@ import grouping.digit_group_new as digit_group_new
 import util_gui
 import config
 
-from util import debug, warn, error
+from util import debug, error
 
 GRP_PER_BALLOT = 0
 GRP_PER_PARTITION = 1

@@ -1,18 +1,8 @@
-import cProfile
 from imagesAlign1_cy import imagesAlign1
 import numpy as np
-import scipy.misc as misc
 import math
-import traceback
-import pdb
-try:
-    import cPickle as pickle
-except ImportError as e:
-    import pickle
 import time
-import cv
 import shared as sh
-from scipy.ndimage import gaussian_filter
 
 
 def imagesAlign(I, Iref, fillval=np.nan, trfm_type='similarity',

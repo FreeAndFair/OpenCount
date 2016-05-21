@@ -1,4 +1,3 @@
-import sys
 import os
 import cPickle as pickle
 from Vendor import Vendor

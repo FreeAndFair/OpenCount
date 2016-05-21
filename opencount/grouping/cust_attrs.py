@@ -1,11 +1,10 @@
-import sys
 import os
 import pickle
 from os.path import join as pathjoin
 
 
 """
-Functions that handle the Custom Attributes extension. 
+Functions that handle the Custom Attributes extension.
 
 For SpreadSheet-based CustomAttributes, OpenCount assumes that the input
 spreadsheetpaths are .csv-like files of the form:

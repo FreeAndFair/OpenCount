@@ -1,7 +1,11 @@
 import os
+import pickle
 import pdb
 import shutil
 import tempfile
+import time
+import traceback
+
 from PIL import Image
 try:
     from wx.lib.pubsub import pub
@@ -10,14 +14,8 @@ except:
     pub = Publisher()
 import wx
 import numpy as np
-import sys
-import traceback
-import pickle
-import time
 
 import extsort
-
-
 import util
 
 

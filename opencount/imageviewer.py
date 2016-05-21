@@ -1,13 +1,8 @@
 import os
 import sys
-import math
 import csv
-import copy
-import pdb
 import traceback
-import time
 import util_gui
-from wx.lib.scrolledpanel import ScrolledPanel
 
 """
 Contains two main widgets:
@@ -22,7 +17,6 @@ Contains two main widgets:
 import wx
 import wx.animate
 from PIL import Image
-import cv2
 import numpy as np
 import wx.lib.inspection
 try:

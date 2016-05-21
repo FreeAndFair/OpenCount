@@ -1,11 +1,8 @@
-import sys
 import pickle
 import pdb
-import wx
 import time
 import copy
 import random
-from os.path import join as pathjoin
 import scipy
 import scipy.misc
 import numpy as np

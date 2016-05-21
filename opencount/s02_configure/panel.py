@@ -1,5 +1,4 @@
 import os
-import sys
 import pdb
 import re
 from os.path import join as pathjoin
@@ -17,7 +16,6 @@ import cv
 
 import ffwx
 from util import debug, warn, error
-
 
 
 import util

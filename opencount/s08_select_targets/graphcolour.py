@@ -2,9 +2,6 @@
 A module to perform Graph Colouring.
 """
 from collections import deque
-import sys
-import pdb
-import traceback
 
 
 class Graph(object):

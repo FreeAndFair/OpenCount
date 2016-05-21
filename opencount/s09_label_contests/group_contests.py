@@ -1,8 +1,6 @@
 from PIL import Image, ImageDraw
 import os
 import sys
-import pdb
-import traceback
 import time
 import random
 
@@ -13,16 +11,12 @@ except ImportError as e:
 import multiprocessing as mp
 import cPickle as pickle
 import itertools
-import time
 from grouping.partask import do_partask
 from vendors import Vendor
-import threading
 import util
-import wx
 import numpy as np
 from scipy.optimize import fmin
-import s08_select_targets.panel #as select_targets XXXX
-
+import s08_select_targets.panel  # as select_targets XXXX
 
 
 def pdb_on_crash(f):

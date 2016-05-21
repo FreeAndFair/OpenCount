@@ -1,10 +1,8 @@
-import sys
-import os
-import pdb
 import argparse
-import numpy as np
 import cv2
 import cv
+import numpy as np
+import os
 import time
 
 from os.path import join as pathjoin
@@ -12,7 +10,6 @@ from os.path import join as pathjoin
 import scipy
 import scipy.misc
 import scipy.linalg
-import numpy as np
 
 
 import pixel_reg.imagesAlign as imagesAlign

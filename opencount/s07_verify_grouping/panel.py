@@ -1,5 +1,4 @@
 import os
-import sys
 import pdb
 import csv
 import re
@@ -12,7 +11,8 @@ from os.path import join as pathjoin
 
 import wx
 
-from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
+from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, \
+    VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
 
 import util_gui
 import config

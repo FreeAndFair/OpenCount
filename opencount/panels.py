@@ -15,16 +15,18 @@ from s11_set_threshold.panel import ThresholdPanel
 from s12_quarantine.panel import QuarantinePanel
 from s13_process.panel import ResultsPanel
 
-# from projconfig_new.project_panel import ProjectPanel
-# from projconfig_new.config_panel import ConfigPanel
-# from partitions.partition_panel import PartitionMainPanel
-# from grouping.ballot_attributes import BallotAttributesPanel, ATTRMODE_CUSTOM
-# from digits_ui.labeldigits import LabelDigitsPanel
-# from grouping.run_grouping import RunGroupingMainPanel
-# from grouping.verify_grouping_panel import VerifyGroupingMainPanel
-# from specify_voting_targets.select_targets import SelectTargetsMainPanel
-# from labelcontest.labelcontest import LabelContest
-# from runtargets.extract_targets_new import TargetExtractPanel
-# from threshold.threshold import ThresholdPanel
-# from quarantine.quarantinepanel import QuarantinePanel
-# from post_processing.postprocess import ResultsPanel
+PANEL_CLASSES = [
+    ProjectPanel,
+    ConfigPanel,
+    PartitionMainPanel,
+    BallotAttributesPanel,
+    LabelDigitsPanel,
+    RunGroupingMainPanel,
+    VerifyGroupingMainPanel,
+    SelectTargetsMainPanel,
+    LabelContest,
+    TargetExtractPanel,
+    ThresholdPanel,
+    QuarantinePanel,
+    ResultsPanel
+]

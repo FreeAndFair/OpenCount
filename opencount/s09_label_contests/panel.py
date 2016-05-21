@@ -18,7 +18,8 @@ import numpy as np
 import scipy.misc
 from collections import Counter
 
-from group_contests import final_grouping, extend_multibox, intersect, group_given_contests, get_target_to_contest
+from group_contests import final_grouping, extend_multibox, \
+    intersect, group_given_contests, get_target_to_contest
 from verifycontestgrouping import VerifyContestGrouping
 
 

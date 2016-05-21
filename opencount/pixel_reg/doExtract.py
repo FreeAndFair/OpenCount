@@ -1,4 +1,3 @@
-import sys
 import pdb
 from os.path import join as pathjoin
 import shared as sh
@@ -12,8 +11,6 @@ from util import create_dirs
 import pickle
 import shutil
 import array
-
-from matplotlib.pyplot import show, imshow, figure, title
 
 
 import global_align.global_align as global_align

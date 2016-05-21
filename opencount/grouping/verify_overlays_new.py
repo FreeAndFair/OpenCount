@@ -1,8 +1,5 @@
 import os
-import sys
 import traceback
-import time
-import pdb
 import threading
 import multiprocessing
 import math
@@ -26,7 +23,7 @@ import scipy.misc
 from PIL import Image
 import make_overlays
 import cluster_imgs
-from image_cache import ImageCache, IM_FORMAT_OPENCV, IM_FORMAT_SCIPY, IM_MODE_GRAYSCALE
+from image_cache import ImageCache, IM_FORMAT_SCIPY, IM_MODE_GRAYSCALE
 
 
 import util

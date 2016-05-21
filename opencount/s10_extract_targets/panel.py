@@ -3,11 +3,9 @@ import os
 import threading
 import multiprocessing
 import math
-import array
 import time
 import shutil
 import cProfile
-import pdb
 try:
     import cPickle as pickle
 except ImportError:
@@ -22,7 +20,6 @@ try:
 except:
     from wx.lib.pubsub import Publisher
     pub = Publisher()
-
 
 
 import util

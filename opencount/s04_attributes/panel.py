@@ -1,5 +1,4 @@
 import os
-import sys
 import threading
 import multiprocessing
 import random
@@ -20,7 +19,8 @@ import config
 import s08_select_targets.panel as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
-from grouping.verify_overlays_new import CheckImageEqualsFrame, CheckImageEquals
+from grouping.verify_overlays_new import CheckImageEqualsFrame, \
+    CheckImageEquals
 
 import ffwx
 from util import debug

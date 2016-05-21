@@ -1,5 +1,4 @@
 import multiprocessing
-import time
 from PIL import Image, ImageChops, ImageOps
 from time import clock
 import numpy as np

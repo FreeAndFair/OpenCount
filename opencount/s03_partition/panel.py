@@ -2,7 +2,6 @@ import os
 import multiprocessing
 import Queue
 import shutil
-import sys
 import textwrap
 import time
 import threading
@@ -17,8 +16,6 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
 
-
-import extract_patches
 import util
 import config
 from util import debug, warn, error

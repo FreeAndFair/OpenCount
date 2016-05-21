@@ -2,7 +2,6 @@ import sys
 import os
 import time
 import pdb
-import traceback
 from collections import deque
 import cv
 import scipy.misc

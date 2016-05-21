@@ -1,12 +1,9 @@
 import multiprocessing as mp
 import numpy as np
-import imagesAlign as lk
 import shared as sh
 import time
-import sys
 import distance_transform
 import wx
-
 
 
 from util import GaugeID

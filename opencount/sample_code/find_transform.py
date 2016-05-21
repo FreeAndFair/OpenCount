@@ -1,10 +1,5 @@
-import os
-import sys
-import pdb
-import traceback
 import cv
 import numpy as np
-import scipy.misc
 
 """
 A quick-and-dirty demo script that, given three cooresponding points

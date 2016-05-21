@@ -1,6 +1,5 @@
 import pdb
 import traceback
-import sys
 import wx
 import os
 from os.path import join as pathjoin

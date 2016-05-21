@@ -1,4 +1,3 @@
-import sys
 import pdb
 import traceback
 
@@ -8,7 +7,6 @@ except ImportError:
     import pickle
 
 import cv
-
 
 
 import barcode.sequoia as sequoia

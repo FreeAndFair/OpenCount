@@ -1,7 +1,5 @@
 import os
 import sys
-import traceback
-import pdb
 try:
     import cPickle as pickle
 except:
@@ -17,8 +15,8 @@ import grouping.partask as partask
 from Vendor import Vendor
 
 from diebold_raw import get_checksum, get_precinct, get_cardnum, get_seqnum, \
-    get_startbit, get_day, get_month, get_year, get_electiontype, get_endercode, \
-    get_page
+    get_startbit, get_day, get_month, get_year, get_electiontype, \
+    get_endercode, get_page
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where

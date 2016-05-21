@@ -1,7 +1,5 @@
 import wx
-import sys
 import os
-import pdb
 
 
 from util import pdb_on_crash

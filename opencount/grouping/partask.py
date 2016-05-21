@@ -2,7 +2,7 @@ import multiprocessing
 import random
 import math
 
-from util import debug, warn, error
+from util import debug
 
 """
 A utility script/tool that handles performing an embarassingly

@@ -1,4 +1,3 @@
-import sys
 import os
 import pdb
 import time
@@ -16,14 +15,11 @@ import scipy.cluster.vq
 from scipy import misc
 
 
-
 import pixel_reg.shared as sh
 import pixel_reg.part_match as part_match
 
 from imageviewer import WorldState as WorldState
 from imageviewer import BoundingBox as BoundingBox
-from util import encodepath
-import util_gui
 import cust_attrs
 import cluster_imgs
 import partask

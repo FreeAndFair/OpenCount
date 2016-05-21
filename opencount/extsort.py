@@ -1,4 +1,4 @@
-from heapq import heapify, heappop, heappush
+from heapq import heappop, heappush
 from itertools import islice, cycle
 from tempfile import gettempdir
 import os

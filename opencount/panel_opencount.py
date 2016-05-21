@@ -1,5 +1,4 @@
 import wx
-import pdb
 
 """
 The interface for all OpenCount UI components.

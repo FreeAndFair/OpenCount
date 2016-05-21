@@ -13,55 +13,10 @@ import scipy.misc
 import imageviewer
 from os.path import join as pathjoin
 
-####
-# Import 3rd party libraries
-####
-'''
-wget http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.3.1/OpenCV-2.3.1a.tar.bz2/download
-tar -xvf download
-'''
-
-try:
-    import wx
-    import wx.animate
-except ImportError:
-    print """Error importing wxPython (wx) -- to install wxPython (a Python GUI \
-library), do (if you're on Linux):
-    sudo apt-get install python-wxgtk2.8
-Or go to: 
-    http://www.wxpython.org/download.php
-For OS-specific installation instructions."""
-    exit(1)
-try:
-    from PIL import Image
-except ImportError:
-    print """Error importing Python Imaging Library (Image) -- to install \
-PIL (a Python image-processing library), go to: 
-    http://www.pythonware.com/products/pil/"""
-    exit(1)
-try:
-    import cv2
-except ImportError:
-    print """Error importing OpenCV w/ Python bindings (cv2) -- to install \
-OpenCV w/ Python bindings (a Python computer vision library), go to:
-    http://opencv.willowgarage.com/wiki/
-Note that documentation for installing OpenCV is pretty shaky in my \
-experience. A README section on installing OpenCV will be created soon.
-On Windows, to get the Python bindings, copy/paste the contents of:
-    opencv/build/python/2.7 (or 2.6)
-to the site-packages directory of your Python installation, i.e.:
-    C:/Python27/Lib/site-packages/
-For me, this means that you'll be adding two new files to that directory:
-    C:/Python27/Lib/site-packages/cv.py
-    C:/Python27/Lib/site-packages/cv2.pyd"""
-    exit(1)
-try:
-    import numpy as np
-except ImportError:
-    print """Error importing Numpy (numpy) -- to install Numpy, go to:
-    http://numpy.scipy.org/
-You'll probably want to install both scipy and numpy."""
-    exit(1)
+import wx
+import wx.animate
+from PIL import Image
+import numpy as np
 
 # Threshold pixel proximity for util_gui.is_close_to(2)
 CONSTANT_CLOSE_TO = 5.0

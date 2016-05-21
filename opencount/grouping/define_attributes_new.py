@@ -1,4 +1,3 @@
-import sys
 try:
     import cPickle as pickle
 except:
@@ -11,7 +10,7 @@ import ffwx
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 
-from util import debug, warn, error
+from util import debug, warn
 
 
 import specify_voting_targets.select_targets as select_targets

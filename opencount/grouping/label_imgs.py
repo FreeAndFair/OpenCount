@@ -1,5 +1,4 @@
 import os
-import sys
 import pdb
 try:
     import cPickle as pickle
@@ -7,7 +6,6 @@ except:
     import pickle
 import wx
 import wx.lib.scrolledpanel
-
 
 
 class LabelPanel(wx.lib.scrolledpanel.ScrolledPanel):

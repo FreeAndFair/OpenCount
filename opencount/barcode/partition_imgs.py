@@ -10,8 +10,6 @@ import cv
 from os.path import join as pathjoin
 
 import hart
-import diebold
-import sequoia
 
 
 import grouping.partask as partask

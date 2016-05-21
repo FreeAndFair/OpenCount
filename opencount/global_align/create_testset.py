@@ -1,19 +1,14 @@
 import sys
 import os
-import pdb
 import time
 import cPickle as pickle
 import argparse
-import math
 from os.path import join as pathjoin
 
 import numpy as np
 import scipy.misc
 import scipy.ndimage
 import cv
-
-
-from projconfig_new.project_panel import Project
 
 """
 A script that generates a synthetic testset to evaluate alignment

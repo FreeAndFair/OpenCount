@@ -3,17 +3,8 @@ import numpy as np
 import scipy.misc as misc
 import math
 import traceback
-import pdb
-try:
-    import cPickle as pickle
-except ImportError as e:
-    import pickle
-import time
-import cv
-import cv2
 import shared as sh
 from scipy.ndimage import gaussian_filter
-import matplotlib.pyplot as plt
 
 #@profile
 

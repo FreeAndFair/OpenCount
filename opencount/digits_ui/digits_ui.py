@@ -1,4 +1,3 @@
-import sys
 import os
 import pdb
 import Queue
@@ -7,7 +6,6 @@ import time
 import traceback
 import random
 import argparse
-import math
 try:
     import cPickle as pickle
 except ImportError as e:
@@ -16,7 +14,6 @@ except ImportError as e:
 import wx
 import cv
 import scipy
-import Image
 import wx.lib.colourchooser
 import wx.lib.scrolledpanel
 

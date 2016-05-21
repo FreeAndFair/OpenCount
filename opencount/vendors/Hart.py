@@ -14,12 +14,11 @@ import cv
 from Vendor import Vendor
 
 
-
 import barcode.hart as hart
 import asize
 from grouping import partask
 
-from util import debug, warn, error
+from util import debug, error
 
 # Get this script's directory. Necessary to know this information
 # since the current working directory may not be the same as where

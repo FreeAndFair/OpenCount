@@ -1,20 +1,18 @@
-import sys
 import os
 import pdb
 import time
 import cPickle as pickle
 import math
-import traceback
 import argparse
 import random
 import numpy as np
 import scipy.misc
-import cv2
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import cv
 import scipy.stats
 import global_align
+
 """
 A script that evaluates alignment methods against a synthetic test set
 (generated from eval_create_testset.py).

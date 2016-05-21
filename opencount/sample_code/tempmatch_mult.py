@@ -1,10 +1,6 @@
-import os
 import sys
-import time
-import pdb
 import cv
 import numpy as np
-import scipy.misc
 
 
 def find_matches(imgpaths, patch, C=0.8):
@@ -42,7 +38,6 @@ def find_matches(imgpaths, patch, C=0.8):
 
 
 def main():
-    args = sys.argv[1:]
     imgpaths = ['contest_oc.png']
     T = cv.LoadImage('target_oc.png', cv.CV_LOAD_IMAGE_GRAYSCALE)
     T_smooth = cv.CreateImage((T.width, T.height), T.depth, T.channels)

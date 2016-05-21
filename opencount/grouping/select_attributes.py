@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import pdb
 import threading
 import random
@@ -15,7 +14,6 @@ except ImportError:
     import pickle
 
 from os.path import join as pathjoin
-
 
 
 import tempmatch
@@ -186,7 +184,8 @@ class SelectAttributesMasterPanel(wx.Panel):
         partition_attrmap = {}
         # attrval, page, is_digitbased, is_tabulationonly], ...]
         partitions_map = self.project.load_field(self.project.partitions_map)
-        partitions_invmap = self.project.load_field(self.project.partitions_invmap)
+        partitions_invmap = self.project.load_field(
+            self.project.partitions_invmap)
 
         header = ("imgpath", "id", "x", "y", "width", "height", "attr_type",
                   "attr_val", "side", "is_digitbased", "is_tabulationonly")
@@ -418,7 +417,7 @@ class MosaicPanel_sub(util_widgets.MosaicPanel):
         # txt0 = wx.StaticText(self, label="Current Attribute: ")
         # self.txt_attrtype = wx.StaticText(self, label="Foo (0/0).")
         btn_opts = ffwx.Button(self, label="Options...",
-                            on_click=self.onButton_opts)
+                               on_click=self.onButton_opts)
         btn_hide = ffwx.Button(
             self, label="Hide Labeled Patches", on_click=self.onButton_hide
         )
