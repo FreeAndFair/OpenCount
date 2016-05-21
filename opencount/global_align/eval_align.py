@@ -109,7 +109,7 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     # correctly flipped
     src2flip = pickle.load(open(os.path.join(testsetdir, 'src2flip.p')))
 
-    FLAG_EXP_VARY_CONTRAST = CONTRAST_NUM == None and CONTRAST_ALPHA != None
+    FLAG_EXP_VARY_CONTRAST = CONTRAST_NUM is None and CONTRAST_ALPHA is not None
 
     errs = []
     errs_x, errs_y, errs_theta = [], [], []
@@ -119,16 +119,16 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     t_start = time.time()
 
     def load_img(imP, dtype='float32', normalize=True):
-        if alt_refimgpath != None:
+        if alt_refimgpath is not None:
             imP = alt_refimgpath
         I = CACHE_IMG.get(imP, None) if CACHE_IMG else None
-        if I == None:
+        if I is None:
             I = standardImread_v2(
                 imP, flatten=True, dtype=dtype, normalize=normalize)
-            if CACHE_IMG != None:
+            if CACHE_IMG is not None:
                 CACHE_IMG[imP] = I
         return I
-    if NUM_BALLOTS == None:
+    if NUM_BALLOTS is None:
         N = len(src2dsts) * len(src2dsts[src2dsts.keys()[0]])
     else:
         N = NUM_BALLOTS * len(src2dsts[src2dsts.keys()[0]])
@@ -173,7 +173,7 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
         return fig
 
     for refimgpath, dst_tpls in sorted(src2dsts.iteritems()):
-        if N != None and i >= N:
+        if N is not None and i >= N:
             break
         if align_strat == STRAT_LK:
             Iref_orig = load_img(refimgpath, dtype='float32', normalize=True)
@@ -181,15 +181,15 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
             Iref_orig = load_img(refimgpath, dtype='uint8', normalize=False)
         if src2flip and src2flip.get(refimgpath, False):
             Iref_orig = fastFlip(Iref_orig)
-        if CONTRAST_BBOXES != None:
+        if CONTRAST_BBOXES is not None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
             Iref, num_pixels = apply_varyContrast_patches(
                 Iref_orig, None, None, None, CONTRAST_ALPHA, maxPixVal=maxPixVal, BBOXES=CONTRAST_BBOXES)
-        elif CONTRAST_NUM != None:
+        elif CONTRAST_NUM is not None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
             Iref, num_pixels = apply_varyContrast_patches(
                 Iref_orig, CONTRAST_NUM, CONTRAST_W, CONTRAST_H, CONTRAST_ALPHA, maxPixVal=maxPixVal)
-        elif CONTRAST_ALPHA != None:
+        elif CONTRAST_ALPHA is not None:
             maxPixVal = 255.0 if Iref_orig.dtype == 'uint8' else 1.0
             Iref = varyContrast(Iref_orig, CONTRAST_ALPHA, maxPixVal=maxPixVal)
         else:
@@ -205,7 +205,7 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 if did_update:
                     t_prev = time.time()
             if align_strat == STRAT_CV:
-                if dstimgpath != None:
+                if dstimgpath is not None:
                     I = standardImread_v2(
                         dstimgpath, dtype='uint8', normalize=False, flatten=True)
                 else:
@@ -226,7 +226,7 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 y_err = y_ - y
                 theta_err = theta_ - theta
             elif align_strat == STRAT_LK:
-                if dstimgpath != None:
+                if dstimgpath is not None:
                     I = standardImread_v2(
                         dstimgpath, dtype='float32', normalize=True, flatten=True)
                 else:
@@ -379,14 +379,14 @@ def warp_img(I, x, y, theta, bright_amt):
     if theta != 0.0:
         # scipy.ndimage.rotate: Counter-clockwise rotation for positive theta
         Iout = scipy.ndimage.rotate(Iout, theta, reshape=False)
-    if bright_amt != None:
+    if bright_amt is not None:
         Iout += bright_amt
     return Iout
 
 
 def plot_hist(data, plot, width=None, **kwargs):
     hist, bins = np.histogram(data, bins=50)
-    if width == None:
+    if width is None:
         width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
     b = plot.bar(center, hist, align='center', width=width, **kwargs)
@@ -439,12 +439,12 @@ def experiment_vary_crop(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
     num_ballots, num_alignments = get_nums()
 
-    if args.crop_box == None:
+    if args.crop_box is None:
         cropX, cropXSTEP, cropY, cropYSTEP = args.crop
     else:
         cropX, cropXSTEP = args.crop_box
@@ -474,7 +474,7 @@ def experiment_vary_crop(args):
             num_rel_params = 0
             for i, p_star_i in enumerate(P_expected):
                 p_i = P_found[i]
-                if p_star_i == None or p_i == None:
+                if p_star_i is None or p_i is None:
                     continue
                 err_out += (p_star_i - p_i)**2.0
                 num_rel_params += 1
@@ -594,7 +594,7 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
     t_total = time.time()
     for cropx in cropXs:
         for cropy in cropYs:
-            if args.crop_box != None and cropy != cropx:
+            if args.crop_box is not None and cropy != cropx:
                 continue
             for rszfac in rszfacs:
                 print "(Iter {0}/{1}) Doing cropx={2:.3f} cropy={3:.3f} rszfac={4:.3f}...".format(iter_i, len(cropXs), cropx, cropy, rszfac)
@@ -626,7 +626,7 @@ def experiment_compare_align_strats(args):
 
     def get_crop_params():
         """ Ignores the STEP params. """
-        if args.crop_box != None:
+        if args.crop_box is not None:
             return args.crop_box[0], args.crop_box[0]
         else:
             return args.crop[0], args.crop[2]
@@ -681,7 +681,7 @@ def experiment_compare_align_strats(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
 
@@ -853,7 +853,7 @@ def experiment_vary_contrast(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
 
@@ -961,7 +961,7 @@ def experiment_vary_contrast_patches(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
 
@@ -1037,7 +1037,7 @@ def experiment_alt_refimg(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
 
@@ -1122,7 +1122,7 @@ def experiment_vary_minarea(args):
     debug = args.debug
     N = args.n
 
-    if args.minarea != None:
+    if args.minarea is not None:
         k_low, k_high, k_step = args.minarea
         refimgpath = None
     else:
@@ -1155,7 +1155,7 @@ def experiment_vary_minarea(args):
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
-        num_ballots = args.n if args.n != None else len(src2dsts)
+        num_ballots = args.n if args.n is not None else len(src2dsts)
         num_alignments = num_ballots * len(src2dsts[src2dsts.keys()[0]])
         return num_ballots, num_alignments
     num_ballots, num_alignments = get_nums()
@@ -1214,7 +1214,7 @@ def plot_stacked_hists(x2data, plot, labels=None):
         plot.axvline(x=bins[0], color=COLOR)
         plot.axvline(x=bins[-1], color=COLOR)
         bars.append((x, bar))
-    if labels != None:
+    if labels is not None:
         plot.legend([tup[1][0] for tup in bars], [labels[x]
                                                   for (x, bar) in bars])
     return plot
@@ -1307,15 +1307,15 @@ def main():
     if align_strat == TRY_ALL_STRATS:
         return experiment_compare_align_strats(args)
 
-    if args.crop[1] != 0 or args.crop_box != None:
+    if args.crop[1] != 0 or args.crop_box is not None:
         return experiment_vary_crop(args)
-    elif args.vary_contrast_patches != None:
+    elif args.vary_contrast_patches is not None:
         return experiment_vary_contrast_patches(args)
-    elif args.vary_contrast != None:
+    elif args.vary_contrast is not None:
         return experiment_vary_contrast(args)
-    elif args.alt_refimg != None:
+    elif args.alt_refimg is not None:
         return experiment_alt_refimg(args)
-    elif args.minarea != None or args.minarea_refimg != None:
+    elif args.minarea is not None or args.minarea_refimg is not None:
         return experiment_vary_minarea(args)
     elif not args.restore:
         print "...Evaluating the testset at: {0} (with align_strat={1})".format(testsetdir, align_strat)

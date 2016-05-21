@@ -48,11 +48,11 @@ def do_partask(fn, jobs, _args=None, blocking=True,
         moreargs = ()
         if pass_idx:
             moreargs += (0,)
-        if pass_queue != None:
+        if pass_queue is not None:
             moreargs += (pass_queue,)
         return fn(jobs, _args, *moreargs)
 
-    if manager == None:
+    if manager is None:
         debug("creating new multiprocessing.Manager")
         manager = multiprocessing.Manager()
     else:
@@ -64,7 +64,7 @@ def do_partask(fn, jobs, _args=None, blocking=True,
     p.start()
 
     num_jobs = len(jobs)
-    if combfn == None:
+    if combfn is None:
         combfn = combfn_lst
         init = []
     elif combfn == 'dict':
@@ -117,7 +117,7 @@ def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=N
         queue.put(result)
 
     pool = multiprocessing.Pool()
-    if N == None:
+    if N is None:
         n_procs = multiprocessing.cpu_count()
     else:
         n_procs = N
@@ -127,7 +127,7 @@ def spawn_jobs(queue, fn, jobs, _args=None, pass_idx=False, pass_queue=None, N=N
         debug("Process {0} got {1} tasks.", i, num_tasks)
 
         the_args = (job,)
-        if _args != None:
+        if _args is not None:
             the_args += (_args,)
         if pass_idx == True:
             the_args += (cnt,)

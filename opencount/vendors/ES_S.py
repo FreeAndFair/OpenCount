@@ -128,7 +128,7 @@ class ESSVendor(Vendor):
             imginfo_map[imgpath] = imginfo
             tag = decoding  # TODO: change once we know meaning of barcode
             partitionid = attrs2partitionID.get(tag, None)
-            if partitionid == None:
+            if partitionid is None:
                 partitionid = curPartitionID
                 attrs2partitionID[tag] = curPartitionID
                 curPartitionID += 1

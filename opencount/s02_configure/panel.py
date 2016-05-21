@@ -246,7 +246,7 @@ class ConfigPanel(ffwx.Panel):
                       len(imgpaths),
                       int(self.numpages_txtctrl.GetValue()))
                 weirdballots.append(imgpaths)
-            elif config.BALLOT_LIMIT != None and i >= config.BALLOT_LIMIT:
+            elif config.BALLOT_LIMIT is not None and i >= config.BALLOT_LIMIT:
                 break
             else:
                 ballot_to_images[curballotid] = imgpaths
@@ -297,14 +297,14 @@ class ConfigPanel(ffwx.Panel):
             return
         w, h = None, None
         for imgpath in image_to_ballot.keys():
-            if w != None:
+            if w is not None:
                 break
             try:
                 I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
                 w, h = cv.GetSize(I)
             except IOError as e:
                 pass
-        if w == None:
+        if w is None:
             ffwx.warn(self, "Fatal Error: OpenCount couldn't open any of \
                           \the ballot images in {0}. Processing can not \
                           \continue. If you believe the images are in \
@@ -578,7 +578,7 @@ def separate_regex_simple(voteddir, regexShr, regexDiff):
             imgpath = pathjoin(dirpath, imgname)
             sim_match = shrPat.match(imgname)
             diff_match = diffPat.match(imgname)
-            if sim_match == None or diff_match == None:
+            if sim_match is None or diff_match is None:
                 warn("Ballot {0} was skipped because it didn't \
                      \match the regular expressions.",
                      imgpath)
@@ -615,7 +615,7 @@ def separate_regex_ctr(voteddir, regexShr):
         for imgname in imgnames:
             imgpath = pathjoin(dirpath, imgname)
             sim_match = shrPat.match(imgname)
-            if sim_match == None:
+            if sim_match is None:
                 warn("Ballot {0} was skipped because it didn't \
                      \match the regular expressions.", imgpath)
                 continue
@@ -649,7 +649,7 @@ def get_consecutives(tuples):
     prev_N1, prev_N2 = None, None
 
     for (imgpath, (N1, N2)) in tuples_sorted:
-        if prev_N1 == None:  # first iteration
+        if prev_N1 is None:  # first iteration
             prev_N1, prev_N2 = N1, N2
             cur_group.append(imgpath)
         elif N1 != prev_N1 + 1:

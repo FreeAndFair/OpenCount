@@ -55,7 +55,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
     bc_height = BC_14_HEIGHT if n == 14 else BC_12_HEIGHT
     bc_loc = find_barcode_loc_tm(img, bc_height, TOP_GUARD, BOT_GUARD,
                                  TOP_WHITE_PAD, BOT_WHITE_PAD, imgP=imgP)
-    if bc_loc == None:
+    if bc_loc is None:
         if len(topbot_pairs) == 1:
             return None, [0, 0, 1, 1], None
         return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols, debug=debug)
@@ -79,7 +79,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
     dstr_out, bbloc_out, bbstripes_out = get_most_popular(decodings, w_bc)
     cv.SetImageROI(img, roi_precrop)
 
-    if dstr_out == None:
+    if dstr_out is None:
         if len(topbot_pairs) == 1:
             # We tried our best, give up.
             return dstr_out, bbloc_out, bbstripes_out
@@ -96,8 +96,8 @@ def get_most_popular(decodings, w_bc):
     none_bc_loc = None
     for decoded_str, bc_loc, bbstripes in decodings:
         bc_loc = tuple(bc_loc)
-        if decoded_str == None:
-            if bc_loc != None:
+        if decoded_str is None:
+            if bc_loc is not None:
                 none_bc_loc = bc_loc
             continue
         if decoded_str not in votes:
@@ -250,7 +250,7 @@ def decode_barcode(img, n, bc_loc, xoff=0, debug=False, imgP=None):
             # 6.) Interpret BARS.
             decs_blk = bars_to_symbols(bars_blk_noguard)
             decs_wht = bars_to_symbols(bars_wht_noguard)
-            if decs_blk == None or decs_wht == None:
+            if decs_blk is None or decs_wht is None:
                 continue
             decoded = ''.join(sum(map(None, decs_blk, decs_wht), ()))
             if len(decoded) != n:
@@ -292,7 +292,7 @@ def bars_to_symbols(bars, debug=False):
     symbols = []
     for i, bars_sym in enumerate(gen_by_n(bars, 5)):
         sym = get_i2of5_val(bars_sym)
-        if sym == None:
+        if sym is None:
             # print "...Invalid symbol:", bars_sym
             if debug:
                 pdb.set_trace()

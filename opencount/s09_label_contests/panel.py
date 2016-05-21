@@ -506,7 +506,7 @@ class LabelContest(wx.Panel):
         for groupid, infodict in group2info.iteritems():
             found_language = get_language(infodict)
             cur_language = lang2tesseract.get(found_language, None)
-            if cur_language != None:
+            if cur_language is not None:
                 ballotids = grp2bals[groupid]
                 for ballotid in ballotids:
                     imgpaths = bal2imgs[ballotid]
@@ -1294,7 +1294,7 @@ class LabelContest(wx.Panel):
                 # once
                 mine[u:d, l:r] = mine[u:d, l:r] * .85
                 mine[u:d, l:r] = mine[u:d, l:r] + np.array([250, 250, 0]) * .15
-                if where != None:
+                if where is not None:
                     # Extract the coords, ignore the IDs
                     l, u, r, d = where[2:]
                     mine[u:d, l:r] = mine[u:d, l:r] - \
@@ -1347,7 +1347,7 @@ class LabelContest(wx.Panel):
             possible = []
             for template in range(len(self.dirList)):
                 order = self.contest_order[template]
-                if prev == None:
+                if prev is None:
                     if len(order) == 0:
                         continue
                     if any([(template, order[0]) in x for x in self.multiboxcontests]):
@@ -1463,7 +1463,7 @@ rotation doesn't currently work for multibox contests.")
 
     def changeFocusImage(self, move=False, applyfn=None):
         it = self.imgo
-        if applyfn != None:
+        if applyfn is not None:
             it = applyfn(it)
         if not move:
             restore = self.imagebox.center, self.imagebox.scale

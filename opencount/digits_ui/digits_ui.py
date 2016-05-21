@@ -366,7 +366,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         can't restore the state, then returns False. If this happens,
         you should call set.start(). Otherwise, returns True.
         """
-        if statefile == None:
+        if statefile is None:
             statefile = DigitLabelPanel.STATE_FILE
         if not os.path.exists(statefile):
             return False
@@ -409,7 +409,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def save_session(self, statefile=None):
         """ Saves the current session state. """
-        if statefile == None:
+        if statefile is None:
             statefile = DigitLabelPanel.STATE_FILE
         f = open(statefile, 'wb')
         state = {}
@@ -482,9 +482,9 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
             w, h = npimg.shape[1], npimg.shape[0]
             c = float(w) / self.MAX_WIDTH
             w_scaled, h_scaled = int(self.MAX_WIDTH), int(round(h / c))
-            if self.cellh == None:
+            if self.cellh is None:
                 self.cellh = h_scaled
-            if self.rszFac == None:
+            if self.rszFac is None:
                 self.rszFac = c
             npimg_rsz = fastResize(npimg, w_scaled)
             b = util.np2wxBitmap(npimg_rsz)
@@ -524,7 +524,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         if retstat == wx.ID_CANCEL:
             return
         digitval = dlg.results["Digit?:"]
-        if digitval == None or digitval == '':
+        if digitval is None or digitval == '':
             d = wx.MessageDialog(self, message="You must enter in the \
 digit.")
             self.Disable()
@@ -947,7 +947,7 @@ matching. Saving to: _errtmp_npimg.png"
             # Let's try not cropping, since it might help with digit
             # recognition.
             npimg_crop = npimg
-            if npimg_crop == None:
+            if npimg_crop is None:
                 print "autocrop failed. saving to: _errtmp_npimg_failcrop.png"
                 scipy.misc.imsave("_errtmp_npimg_failcrop.png", npimg)
                 return
@@ -1242,7 +1242,7 @@ def get_common_area(bb1, bb2):
     segh_b = y1b, y1b + h_b
     cseg_w = common_segment(segw_a, segw_b)
     cseg_h = common_segment(segh_a, segh_b)
-    if cseg_w == None or cseg_h == None:
+    if cseg_w is None or cseg_h is None:
         return 0.0
     else:
         return abs(cseg_w[0] - cseg_w[1]) * abs(cseg_h[0] - cseg_h[1])

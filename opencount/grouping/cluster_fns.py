@@ -44,7 +44,7 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
             bestidx, mindist = None, None
             for idx, mean in enumerate(means):
                 dist = distfn(data[i, :], mean)
-                if bestidx == None or dist < mindist:
+                if bestidx is None or dist < mindist:
                     bestidx = idx
                     mindist = dist
             assigns[i] = bestidx
@@ -71,7 +71,7 @@ def kmeans(data, initial=None, K=2, distfn_method='L2', centroidfn_method='mean'
     else:
         centroidfn = np.mean
 
-    if initial == None:
+    if initial is None:
         initial_idxs = []
         _len = range(len(data))
         for _ in xrange(K):
@@ -130,7 +130,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
                 if dist == np.nan:
                     error("Uhoh, nan dist.")
                     pdb.set_trace()
-                if bestidx == None or dist < mindist:
+                if bestidx is None or dist < mindist:
                     if dist == mindist:
                         # To prevent cycles, always tie-break via smallest
                         # index.
@@ -168,7 +168,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         return initial_idxs
 
     distfn = _get_distfn(distfn_method)
-    if initial == None:
+    if initial is None:
         means = data[init_means(data)]
     else:
         means = initial
@@ -190,7 +190,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
         # 2.) Halt if assignments don't change
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
-        elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
+        elif prevprev_assigns is not None and np.all(np.equal(prevprev_assigns, assigns)):
             warn("len-2 Cycle detected, restarting")
             means = update_means(data, assigns, means)
             iters += 1
@@ -245,11 +245,11 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                 dist = distmat[row, idx]
                 try:
                     foo = dist < mindist
-                    bar = mindist == None
+                    bar = mindist is None
                     baz = foo or bar
                 except:
                     pdb.set_trace()
-                if mindist == None or dist < mindist:
+                if mindist is None or dist < mindist:
                     mindist = dist
                     bestidx = idx
             assigns[row] = bestidx
@@ -270,12 +270,12 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
                     if elem_idx1 == elem_idx2:
                         continue
                     cost += distmat[elem_idx1, elem_idx2]
-                if mincost == None or cost < mincost:
+                if mincost is None or cost < mincost:
                     debug("swapped mediod: cost {0} -> {1}", mincost, cost)
                     mincost = cost
                     minidx = elem_idx1
             # 2.) Update the mediod of M.
-            if minidx == None:
+            if minidx is None:
                 error("Uhoh, problem.")
                 pdb.set_trace()
             mediods[i] = minidx
@@ -285,7 +285,7 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
     distmat = compute_distmat(data, distfn)
     debug("Finished computing distance matrix.")
 
-    if initial == None:
+    if initial is None:
         initial_idxs = []
         _len = range(data.shape[0])
         for _ in xrange(K):
@@ -314,7 +314,7 @@ def kmediods_2D(data, initial=None, K=2, distfn_method='L2',
         # 2.) Halt if assignments don't change
         if np.all(np.equal(prev_assigns, assigns)):
             done = True
-        elif prevprev_assigns != None and np.all(np.equal(prevprev_assigns, assigns)):
+        elif prevprev_assigns is not None and np.all(np.equal(prevprev_assigns, assigns)):
             debug("len-2 Cycle detected, aborting.")
             done = True
         else:
@@ -478,7 +478,7 @@ def _mindist(I, C, distfn, debug=False):
     mindist = None
     for I2 in C:
         dist = distfn(I, I2, debug)
-        if mindist == None or dist < mindist:
+        if mindist is None or dist < mindist:
             mindist = dist
     return mindist
 
@@ -487,7 +487,7 @@ def _maxdist(I, C, distfn, debug=False):
     maxdist = None
     for I2 in C:
         dist = distfn(I, I2, debug)
-        if maxdist == None or dist > maxdist:
+        if maxdist is None or dist > maxdist:
             maxdist = dist
     return maxdist
 
@@ -536,7 +536,7 @@ def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE
                 if i == j:
                     continue
                 dist = clusterdist(c1, c2, data, memo, distfn)
-                if mindist == None or dist < mindist:
+                if mindist is None or dist < mindist:
                     c1_min = c1
                     c2_min = c2
                     mindist = dist
@@ -562,12 +562,12 @@ def single_linkage(c1, c2, data, memo, distfn):
             if i == j:
                 continue
             dist = memo.get((i, j), None)
-            if dist == None:
+            if dist is None:
                 dist = memo.get((j, i), None)
-            if dist == None:
+            if dist is None:
                 dist = distfn(data[i], data[j])
                 memo[(i, j)] = dist
-            if mindist == None or dist < mindist:
+            if mindist is None or dist < mindist:
                 mindist = dist
     return mindist
 
@@ -582,12 +582,12 @@ def complete_linkage(c1, c2, data, memo, distfn):
             if i == j:
                 continue
             dist = memo.get((i, j), None)
-            if dist == None:
+            if dist is None:
                 dist = memo.get((j, i), None)
-            if dist == None:
+            if dist is None:
                 dist = distfn(data[i], data[j])
                 memo[(i, j)] = dist
-            if maxdist == None or dist > maxdist:
+            if maxdist is None or dist > maxdist:
                 maxdist = dist
     return maxdist
 

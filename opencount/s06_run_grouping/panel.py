@@ -275,7 +275,7 @@ class RunGroupingMainPanel(wx.Panel):
         if config.TIMER:
             config.TIMER.stop_task("Grouping_DigitBased_CPU")
         digitgrouping_results, digit_dist = digitgrouping_results_tpl
-        if digit_dist != None:
+        if digit_dist is not None:
             self.digitdist = digit_dist
         self._dur_digitgrp = time.time() - self._t_digitgrp
         debug("Finished DigitGrouping ({0:.4f}s)", self._dur_digitgrp)
@@ -500,7 +500,7 @@ def run_grouping_digitbased(proj, digitdist):
           {GRP_PER_PARTITION: 'GRP_PER_PARTITION',
            GRP_PER_BALLOT: 'GRP_PER_BALLOT'}[MODE])
     voteddir_root = proj.voteddir
-    if digitdist == None:
+    if digitdist is None:
         digitdist = compute_median_dist(proj)
     for attr in attrs:
         if attr['is_digitbased']:

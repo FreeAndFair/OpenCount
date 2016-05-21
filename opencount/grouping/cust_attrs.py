@@ -77,9 +77,9 @@ class Filename_Attr(CustomAttribute):
 
 def dump_custom_attrs(proj, custattrs=None):
     """ Stores the custom_attributes into the correct output location. """
-    if custattrs == None:
+    if custattrs is None:
         custattrs = load_custom_attrs(proj)
-    if custattrs == None:
+    if custattrs is None:
         custattrs = []
     marshalled = [marshall_cust_attr(cattr) for cattr in custattrs]
     pickle.dump(marshalled, open(
@@ -105,7 +105,7 @@ def custattr_get(custom_attrs, attrname):
     """ Returns the CustomAttribute if it exists in custom_attrs,
     or None otherwise.
     """
-    if custom_attrs == None:
+    if custom_attrs is None:
         return None
     for cattr in custom_attrs:
         if cattr.attrname == attrname:
@@ -116,6 +116,6 @@ def custattr_get(custom_attrs, attrname):
 def custattr_exists(proj, attrname):
     """ Returns True if attrname is a custom_attribute. """
     custom_attrs = load_custom_attrs(proj)
-    if custom_attrs != None:
-        return custattr_get(custom_attrs, attrname) != None
+    if custom_attrs is not None:
+        return custattr_get(custom_attrs, attrname) is not None
     return False

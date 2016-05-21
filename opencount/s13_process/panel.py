@@ -239,7 +239,7 @@ class ResultsPanel(ScrolledPanel):
                 # first group exemplar, whereas TEMPLATE could be any of the GROUP_EXMPLS,
                 # if the user chooses a Representative Ballot in 'Select
                 # Targets'.
-                if group2refidx == None:
+                if group2refidx is None:
                     # Easy case: the TEMPLATE path here will always match
                     # TEMPLATEMAP
                     template = meta['template']
@@ -399,7 +399,7 @@ class ResultsPanel(ScrolledPanel):
                 total[cid] += 1
 
         s = ""
-        if name != None:
+        if name is not None:
             s += "------------------\n" + name + "\n------------------\n"
         for cid, votes in res.items():
             votelist = [a + ": " + str(b) for a, b in votes.items()]
@@ -439,7 +439,7 @@ class ResultsPanel(ScrolledPanel):
         quar = self.qvotedpaths
         result = ""
         result += self.final_tally(cvr, name="TOTAL")
-        if ballot_attributes != None:
+        if ballot_attributes is not None:
             def groupby(lst, attrtype, ballot_attributes, img2bal, bal2grp, quar):
                 """
                 Input:

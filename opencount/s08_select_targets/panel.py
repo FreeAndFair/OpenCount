@@ -306,7 +306,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
                     side, []).extend(lonely_targets)
                 # For now, just grab one exemplar image from this group
                 imgpath = self.seltargets_panel.partitions[i][0][side]
-                if imgsize == None:
+                if imgsize is None:
                     imgsize = cv.GetSize(cv.LoadImage(imgpath))
                 rows_contests = []
                 rows_targets = []
@@ -470,7 +470,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             func TITLE_FN:
             func MSG_FN:
         """
-        grps_data = grps_data if grps_data != None else {}
+        grps_data = grps_data if grps_data is not None else {}
         panel = self.seltargets_panel
         btn_ids = range(len(btn_labels))
         for i, (grp_idx, side) in enumerate(grps):
@@ -845,7 +845,7 @@ voting target on this ballot.")
         self.Disable()
         if config.TIMER:
             config.TIMER.start_task("SelectTargets_TempMatch_CPU")
-        if patch == None:
+        if patch is None:
             # 1.) Do an autofit.
             patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
             patch = util_gui.fit_image(patch_prefit, padx=2, pady=2)
@@ -939,7 +939,7 @@ voting target on this ballot.")
                 if do_add:
                     # 1.b.) Enforce constraint that all voting targets
                     #       are the same size.
-                    if self.boxsize == None:
+                    if self.boxsize is None:
                         self.boxsize = (w, h)
                     else:
                         boxB.x2 = boxB.x1 + self.boxsize[0]
@@ -974,7 +974,7 @@ voting target on this ballot.")
             pdb.set_trace()
         # 0.) Save boxes of old image
         '''
-        if self.cur_i != None:
+        if self.cur_i is not None:
             self.boxes.setdefault(self.cur_i, []).extend(self.imagepanel.boxes)
         '''
         self.cur_i, self.cur_j, self.cur_page = i, j, page
@@ -1091,12 +1091,12 @@ voting target on this ballot.")
 
     def onButton_nextimage(self, evt):
         """ Take the user to the next page or partition. """
-        if self.display_nextpage() == None:
+        if self.display_nextpage() is None:
             self.display_nextpartition()
 
     def onButton_previmage(self, evt):
         """ Take the user to the previous page or partition. """
-        if self.display_prevpage() == None:
+        if self.display_prevpage() is None:
             prev_i = self.cur_i - 1
             if prev_i < 0:
                 return
@@ -1918,7 +1918,7 @@ class BoxDrawPanel(ImagePanel):
         Returns the wx.Cursor that it decides to set.
         To force the mouse cursor, pass in a wx.Cursor as FORCE_CURSOR.
         """
-        if force_cursor != None:
+        if force_cursor is not None:
             self.SetCursor(force_cursor)
             return force_cursor
         if self.mode_m == BoxDrawPanel.M_CREATE:
@@ -1944,7 +1944,7 @@ class BoxDrawPanel(ImagePanel):
 
     def startBox(self, x, y, boxtype=None):
         """ Starts creating a box at (x,y). """
-        if boxtype == None:
+        if boxtype is None:
             boxtype = self.boxtype
         debug("creating box: {0}, {1}", (x, y), boxtype)
         self.isCreate = True
@@ -2266,7 +2266,7 @@ class BoxDrawPanel(ImagePanel):
             else:
                 transparent_color = np.array(
                     contestbox.colour) if contestbox.colour else None
-            if transparent_color != None:
+            if transparent_color is not None:
                 t = time.time()
                 _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
                 _x2, _y2 = self.img2c(contestbox.x2, contestbox.y2)
@@ -2287,7 +2287,7 @@ class BoxDrawPanel(ImagePanel):
             else:
                 transparent_color = np.array(
                     targetbox.shading_clr) if targetbox.shading_clr else None
-            if transparent_color != None:
+            if transparent_color is not None:
                 t = time.time()
                 _x1, _y1 = self.img2c(targetbox.x1, targetbox.y1)
                 _x2, _y2 = self.img2c(targetbox.x2, targetbox.y2)
@@ -2434,7 +2434,7 @@ create a better box around a voting target, then choose the 'No' button.")
                     (box.x1, box.y1, box.x2, box.y2))
                 targetimg_crop = util_gui.fit_image(
                     targetimg_prefit, padx=2, pady=2)
-                if self.GetParent().boxsize == None:
+                if self.GetParent().boxsize is None:
                     # First time user drew a box
                     debug("First target selected.")
                     targetimg_crop_np = np.array(targetimg_crop)
@@ -2503,7 +2503,7 @@ class TargetFindPanel(TemplateMatchDrawPanel):
             # If this is the first-created box B, then make sure that
             # subsequent-created boxes match the dimensions of B
             box = self.finishBox(x, y)
-            if self.GetParent().boxsize == None:
+            if self.GetParent().boxsize is None:
                 self.GetParent().boxsize = (box.width, box.height)
             else:
                 w, h = self.GetParent().boxsize
@@ -2966,7 +2966,7 @@ def expand_box(box, factor, bounds=None):
     b = box.copy()
     b.x1 = int(round(max(0, box.x1 - (box.width * factor))))
     b.y1 = int(round(max(0, box.y1 - (box.height * factor))))
-    if bounds != None:
+    if bounds is not None:
         b.x2 = int(round(min(bounds[0] - 1, box.x2 + (box.width * factor))))
         b.y2 = int(round(min(bounds[1] - 1, box.y2 + (box.height * factor))))
     else:
@@ -3013,7 +3013,7 @@ def compute_box_ids(boxes):
 
     for t in targets:
         id, c = containing_box(t, contests)
-        if id == None:
+        if id is None:
             # print "Warning", t, "is not contained in any box."
             lonely_targets.append(t)
         elif id in assocs:
@@ -3384,7 +3384,7 @@ def do_align_partitions(partitions, img2flip, outrootdir, manager, queue, N=None
         dict PARTITIONS_ALIGN. maps {int partitionID: [[imgpath_i, ...], ...]}
     """
     try:
-        if N == None:
+        if N is None:
             N = min(multiprocessing.cpu_count(), len(partitions))
         # Evenly-distribute partitions by partition size.
         partitions_evenly = divy_lists(partitions, N)
@@ -3437,7 +3437,7 @@ def divy_lists(lst, N):
     for i, lst_idx in enumerate(lstlens_argsort):
         sublist = lst[lst_idx]
         out_idx = i % N
-        if outlst[out_idx] == None:
+        if outlst[out_idx] is None:
             outlst[out_idx] = [[lst_idx, sublist]]
         else:
             outlst[out_idx].append([lst_idx, sublist])

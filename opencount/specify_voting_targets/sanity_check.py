@@ -70,7 +70,7 @@ def collect_stats(dir):
 
             # Try to open the file as an image
             img = safe_open(imgpath)
-            if img != None:
+            if img is not None:
                 images += 1
 
                 # Bin the image sizes by 10kb

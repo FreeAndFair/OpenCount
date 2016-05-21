@@ -149,7 +149,7 @@ def ext_mergesort(datafpaths, idxfpaths, reverse_mapping, outpath, radixdigit, i
         int NUM_ENTRIES.
     The number of sorted entries. If this fails, returns -1.
     """
-    if tempdir == None:
+    if tempdir is None:
         tempdir = tempfile.gettempdir()
     num_entries = 0
     idxfpath2names = {}  # maps {str idxfpath: str names}

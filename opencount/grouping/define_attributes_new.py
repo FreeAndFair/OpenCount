@@ -324,7 +324,7 @@ class ToolBar(wx.Panel):
         if status == wx.ID_CANCEL:
             return
         choice = choice_dlg.result
-        if choice == None:
+        if choice is None:
             return
         elif choice == SPREADSHEET:
             attrtypes = self.GetParent().get_attrtypes()
@@ -366,12 +366,12 @@ spreadsheet path.")
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
                 return
-            if dlg.regex == None:
+            if dlg.regex is None:
                 d = wx.MessageDialog(self, message="You must choose \
 an input regex.")
                 d.ShowModal()
                 return
-            elif dlg.attrname == None:
+            elif dlg.attrname is None:
                 d = wx.MessageDialog(self, message="You must choose \
 an Attribute Name.")
                 d.ShowModal()

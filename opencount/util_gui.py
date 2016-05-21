@@ -436,7 +436,7 @@ threshold = otsu( im )
         inter_class_variance = sum(
             left) * sum(right) * (histogram_mean(left) - histogram_mean(right, len(left)))**2
         # print "%s, %5.5f" % (t, inter_class_variance)
-        if best == None or inter_class_variance > best[1]:
+        if best is None or inter_class_variance > best[1]:
             best = (t, inter_class_variance)
     if not best:
         # This is a totally-degenerate case, i.e. an image where there
@@ -465,7 +465,7 @@ def otsu_numpy(gray_im):
             continue
         inter_class_variance = a * \
             (histogram_mean(left) - histogram_mean(right, len(left))) ** 2.0
-        if best == None or inter_class_variance > best[1]:
+        if best is None or inter_class_variance > best[1]:
             best = (t, inter_class_variance)
     if not best:
         # This is a totally-degenerate case, i.e. an image where there

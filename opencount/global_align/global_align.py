@@ -76,7 +76,7 @@ def align_image(I, Iref, crop=True, verbose=False,
     where H is the transformation matrix, IREG is the result of aligning
     I to IREF, and ERR is the alignment error (a float from [0.0, 1.0]).
     """
-    if MINAREA == None:
+    if MINAREA is None:
         MINAREA = np.power(2, 16)
     if crop and type(CROPX) in (list, tuple):
         return _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR)
@@ -114,7 +114,7 @@ def _align_image_mult(I, Iref, CROPX, CROPY, ERR_REL_THR):
         err_rel = err_galign / err_orig if err_orig != 0.0 else 0.0
         if err_rel <= ERR_REL_THR:
             return H, Ireg, err_galign
-        elif best_H == None or err_galign < best_err:
+        elif best_H is None or err_galign < best_err:
             best_H, best_Ireg, best_err = H, Ireg, err_galign
     return best_H, best_Ireg, best_err
 
@@ -153,11 +153,11 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     minimizes the error.
     CURRENTLY NOT USED.
     """
-    if crop_I != None:
+    if crop_I is not None:
         Icrop = cropout_stuff(I, crop_I[0], crop_I[1], crop_I[2], crop_I[3])
     else:
         Icrop = I
-    if crop_Iref != None:
+    if crop_Iref is not None:
         Iref_crop = cropout_stuff(Iref, crop_Iref[0], crop_Iref[
                                   1], crop_Iref[2], crop_Iref[3])
     else:
@@ -167,7 +167,7 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
     for scale in scales:
         H, Ireg, err = imagesAlign.imagesAlign(
             Icrop, Iref_crop, fillval=1, trfm_type='rigid', rszFac=scale)
-        if err_best == None or err < err_best:
+        if err_best is None or err < err_best:
             H_best = H
             Ireg_best = Ireg
             err_best = err
@@ -308,7 +308,7 @@ def calc_rszFac(imgsize, maxdim, mindim):
     if imgsize[0] <= maxdim and imgsize[1] <= maxdim:
         return 1.0
     C = float(maxdim) / max(imgsize)
-    if mindim != None and min(C * imgsize[0], C * imgsize[1]) < mindim:
+    if mindim is not None and min(C * imgsize[0], C * imgsize[1]) < mindim:
         C = float(mindim) / min(imgsize)
     return C
 
@@ -361,7 +361,7 @@ def main():
         _cnt = 0
         for dirpath, dirnames, filenames in os.walk(imgsdir):
             for imgname in [f for f in filenames if f.lower().endswith('.png')]:
-                if N != None and _cnt >= N:
+                if N is not None and _cnt >= N:
                     return imgpaths
                 imgpath = pathjoin(dirpath, imgname)
                 imgpaths.append(imgpath)

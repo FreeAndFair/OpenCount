@@ -146,9 +146,9 @@ class HartVendor(Vendor):
         Output:
             (dict PARTITIONS, dict IMG2DECODING, dict IMGINFO_MAP)
         """
-        if verified_results == None:
+        if verified_results is None:
             verified_results = {}
-        if manual_labeled == None:
+        if manual_labeled is None:
             manual_labeled = ()
 
         partitions = {}  # maps {partitionID: [int ballotID, ...]}
@@ -181,7 +181,7 @@ class HartVendor(Vendor):
             imginfo = hart.get_info(decoding)
 
             imginfo_prev = bal2info.get(ballotid, None)
-            if imginfo_prev == None:
+            if imginfo_prev is None:
                 bal2info[ballotid] = imginfo
             else:
                 # Ensure that the 'tag' portion is consistent within a ballot
@@ -221,7 +221,7 @@ class HartVendor(Vendor):
             pages = tuple(sorted(pages))
             tag = info['precinct'], info['language'], info['party'], pages
             partid = tag2partid.get(tag, None)
-            if partid == None:
+            if partid is None:
                 tag2partid[tag] = curpartid
                 partid = curpartid
                 curpartid += 1
@@ -315,13 +315,13 @@ def main():
         filepath = args.fromfile
         if filepath.endswith(".p"):
             balids = pickle.load(open(filepath, 'rb'))
-            if args.n != None:
+            if args.n is not None:
                 balids = balids[:args.n]
         else:
             f = open(filepath, 'r')
             balids = []
             for line in f.readlines():
-                if args.n != None and len(balids) >= args.n:
+                if args.n is not None and len(balids) >= args.n:
                     break
                 if not line:
                     continue
@@ -339,7 +339,7 @@ def main():
     bal2imgs = pickle.load(open(os.path.join(projdir, 'ballot_to_images.p')))
     if not balids:
         balids = []
-        if args.n != None:
+        if args.n is not None:
             balids = list(sorted(bal2imgs.keys())[:args.n])
         else:
             balids = tuple(sorted(bal2imgs.keys()))

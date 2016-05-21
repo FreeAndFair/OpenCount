@@ -39,7 +39,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
     """
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
     '''
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
     else:
@@ -58,7 +58,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
         # img = util_gui.autothreshold_numpy(img, method="otsu")
 
         bb = bb_map.get(imgpath, None)
-        if bb == None:
+        if bb is None:
             patch = resize_mat(img, (h_big, w_big))
         else:
             # Must make sure that all patches are the same shape.
@@ -92,7 +92,7 @@ def cluster_imgs_pca_kmeans(imgpaths, bb_map=None, k=2, N=3, do_align=True):
         best_dist, best_j = None, None
         for j, clustercenter in enumerate(cluster_centers):
             dist = np.linalg.norm(imgarray - clustercenter)
-            if best_dist == None or dist < best_dist:
+            if best_dist is None or dist < best_dist:
                 best_dist = dist
                 best_j = j
         clustering.setdefault(best_j, []).append(imgpaths[i])
@@ -131,7 +131,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
           data.nbytes, data.nbytes / 1e6)
     dur_imgs2mat = time.time() - t
     '''
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
     else:
@@ -144,7 +144,7 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         bb = bb_map.get(imgpath, None)
-        if bb == None:
+        if bb is None:
             patch = resize_mat(img, (h_big, w_big))
         else:
             # Must make sure that all patches are the same shape.
@@ -282,18 +282,18 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     Two different resize modes: RSZFAC, and the (MIN_DIM, MAX_DIM).
     """
     def load_image(imgpath):
-        if imgCache == None:
+        if imgCache is None:
             return scipy.misc.imread(imgpath, flatten=True)
-        elif bindataP != None:
+        elif bindataP is not None:
             (Inp, tag), isHit = imgCache.load_binarydat(imgpath, dataP=bindataP)
             return Inp
         else:
             (Inp, imgpath), isHit = imgCache.load(imgpath)
             return Inp
 
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
-        if bindataP != None:
+        if bindataP is not None:
             w_big, h_big = imgCache.binarydats_map[bindataP][1]
         else:
             h_big, w_big = get_largest_img_dims(imgpaths)
@@ -303,9 +303,9 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
         w_big = int(abs(bb_big[2] - bb_big[3]))
     # 0.) First, convert images into MxN array, where M is the number
     #     of images, and N is the number of pixels of each image.
-    if rszFac != None:
+    if rszFac is not None:
         w_out, h_out = int(round(rszFac * w_big)), int(round(rszFac * h_big))
-    elif MIN_DIM != None and MAX_DIM != None:
+    elif MIN_DIM is not None and MAX_DIM is not None:
         if h_big <= MIN_DIM or w_big <= MIN_DIM:
             rszFac = 1.0
         else:
@@ -328,13 +328,13 @@ def imgpaths_to_mat(imgpaths, bb_map=None, do_align=False, return_align_errs=Fal
     for row, imgpath in enumerate(imgpaths):
         img = load_image(imgpath)
         bb = bb_map.get(imgpath, None)
-        if bb == None:
+        if bb is None:
             patch = resize_mat(img, (h_out, w_out), rszFac=rszFac)
         else:
             # Must make sure that all patches are the same shape.
             patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]],
                                (h_out, w_out), rszFac=rszFac)
-        if do_align and Iref == None:
+        if do_align and Iref is None:
             Iref = patch
         elif do_align:
             # Looks like imagesAlign requires input images to be of dtype
@@ -373,7 +373,7 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
         int BORDER: How many pixels to remove from the borders of the
             image.
     """
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
         h_big, w_big = get_largest_img_dims(imgpaths)
     else:
@@ -391,14 +391,14 @@ def imgpaths_to_mat2D(imgpaths, bb_map=None, do_align=False, return_align_errs=F
     for row, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         bb = bb_map.get(imgpath, None)
-        if bb == None:
+        if bb is None:
             patch = resize_mat(img, (h_big, w_big))
         else:
             # Must make sure that all patches are the same shape.
             patch = resize_mat(img[bb[0]:bb[1], bb[2]:bb[3]], (h_big, w_big))
         if do_edgedetect:
             patch = edgedetect(patch)
-        if do_align and Iref == None:
+        if do_align and Iref is None:
             Iref = patch
         elif do_align:
             H, patch, err = imagesAlign.imagesAlign(patch, Iref)
@@ -447,9 +447,9 @@ def get_largest_img_dims(imgpaths):
     for imgpath in imgpaths:
         w_img, h_img = cv.GetSize(cv.LoadImage(
             imgpath, cv.CV_LOAD_IMAGE_UNCHANGED))
-        if h == None or h_img > h:
+        if h is None or h_img > h:
             h = h_img
-        if w == None or w_img > w:
+        if w is None or w_img > w:
             w = w_img
     return (h, w)
 
@@ -479,7 +479,7 @@ def resize_mat(mat, shape, rszFac=None):
         An hxw sized array.
     """
     h, w = mat.shape
-    if rszFac != None:
+    if rszFac is not None:
         w_new, h_new = int(round(rszFac * w)), int(round(rszFac * h))
         if w_new != w or h_new != h:
             Icv = cv.fromarray(mat)

@@ -103,7 +103,7 @@ class MyGauge(wx.Dialog):
 
         self.thethread = thread
         self.ondone = ondone
-        if funs != None:
+        if funs is not None:
             self.funs = funs
         else:
             self.funs = [None] * numtasks
@@ -239,7 +239,7 @@ class MyGauge(wx.Dialog):
             print "Likely that there were more tasks than functions given."
             return
         fnc = self.funs[self.ontask - 1]
-        if fnc != None:
+        if fnc is not None:
             self.val = fnc()
             self.gauge.SetValue(self.val)
 
@@ -712,7 +712,7 @@ class ImageManipulate(wx.Panel):
             tuple center: A tuple (x,y). If not given, then default to
                           the center of the img.
         """
-        if img == None:
+        if img is None:
             img = np.ones((300, 300))
             img *= 200
         if type(img) != type(np.array(1)):

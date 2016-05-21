@@ -291,7 +291,7 @@ class GridShow(wx.ScrolledWindow):
         return img
 
     def markQuarantine(self, i, ballotpath=None):
-        if ballotpath == None:
+        if ballotpath is None:
             targetpath = self.lookupFullList(i)[0]
             ballotpath = self.target_to_sample(targetpath)
         if ballotpath not in self.quarantined:
@@ -380,10 +380,10 @@ class GridShow(wx.ScrolledWindow):
             i_vis = self.index_to_visible[i]
             imgIdx = i_vis - (i_vis % self.numcols)
             pilimg = imgIdx2pilimg.get(imgIdx, None)
-            if pilimg == None:
+            if pilimg is None:
                 pilimg = self.basejpgs[imgIdx]
                 imgIdx2pilimg[imgIdx] = pilimg
-            if w_jpg == None:
+            if w_jpg is None:
                 w_jpg, h_jpg = pilimg.size[0], pilimg.size[1]
             imgIdx2idxs.setdefault(imgIdx, []).append(i_vis)
 
@@ -404,7 +404,7 @@ class GridShow(wx.ScrolledWindow):
 
     def markWrong(self, which, evt=None):
         # Input which is the wrong mark in visible coordinates.
-        if evt == None:
+        if evt is None:
             imgIdx = which - (which % self.numcols)
         else:
             imgIdx = which
@@ -434,7 +434,7 @@ class GridShow(wx.ScrolledWindow):
                 if each / self.numcols == converted_id / self.numcols:
                     idxs_wrong_todraw.append(each)
             self.drawWrongMarks(idxs_wrong_todraw)
-            if self.threshold != None:
+            if self.threshold is not None:
                 self.drawThreshold()
         self.Refresh()
 
@@ -466,7 +466,7 @@ class GridShow(wx.ScrolledWindow):
         self.Refresh()
 
     def setLine(self, which, evt=None):
-        if evt == None:
+        if evt is None:
             if which not in self.index_to_visible:
                 return
             imgIdx = self.index_to_visible[
@@ -484,7 +484,7 @@ class GridShow(wx.ScrolledWindow):
 
         self.somethingHasChanged = True
 
-        if self.threshold != None and self.threshold in self.index_to_visible:
+        if self.threshold is not None and self.threshold in self.index_to_visible:
             lastIdx = self.index_to_visible[
                 self.threshold] - self.index_to_visible[self.threshold] % self.numcols
             if lastIdx in self.images:
@@ -680,7 +680,7 @@ class GridShow(wx.ScrolledWindow):
             return None, None
 
         w, h = get_target_size()
-        if w == None:
+        if w is None:
             raise Exception("Woah, No targets in this election??")
         self.basetargetw, self.basetargeth = w, h
 
@@ -689,7 +689,7 @@ class GridShow(wx.ScrolledWindow):
         self.changeSize(1, False)
 
     def findBoundry(self, usedata=None):
-        if usedata == None:
+        if usedata is None:
             hist = [0] * 256
             gaguge = MyGauge(self, 1)
             for _, v in self.classified_file:
@@ -761,7 +761,7 @@ class GridShow(wx.ScrolledWindow):
 
             self.onScroll(startat)
 
-            if self.threshold != None:
+            if self.threshold is not None:
                 self.drawThreshold()
 
     def setupScrollBars(self):
@@ -869,7 +869,7 @@ class GridShow(wx.ScrolledWindow):
         # print
 
     def onScroll(self, pos=None, evtpos=None):
-        if evtpos != None:
+        if evtpos is not None:
             pos = int(evtpos / self.targeth * self.numcols)
         else:
             pos = pos - pos % self.numcols
@@ -920,12 +920,12 @@ class GridShow(wx.ScrolledWindow):
                     idxs_wrong_todraw.append(each)
         self.drawWrongMarks(idxs_wrong_todraw)
 
-        if self.threshold != None and self.threshold in self.index_to_visible:
+        if self.threshold is not None and self.threshold in self.index_to_visible:
             if self.index_to_visible[self.threshold] / self.numcols * self.numcols in self.jpgs:
                 self.drawThreshold()
 
         # Scroll us to the right place.
-        if evtpos != None:
+        if evtpos is not None:
             self.Scroll(0, evtpos)
         else:
             self.Scroll(0, pos * self.targeth / self.numcols)

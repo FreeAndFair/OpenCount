@@ -140,7 +140,7 @@ class VerifyContestGrouping:
         # print self.equivs
         # print self.processgroups
         res = []
-        if NPROC == None:
+        if NPROC is None:
             NPROC = mp.cpu_count()
         print "(Info) Using {0} processes for merge_and_align".format(NPROC)
         if NPROC == 1:

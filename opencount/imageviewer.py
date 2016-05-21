@@ -686,7 +686,7 @@ unexpected mode given: {0}".format(mode))
         """
         Returns True if a box is in the middle of being created.
         """
-        return self._new_box != None
+        return self._new_box is not None
 
     def set_new_box(self, b):
         """
@@ -695,12 +695,12 @@ unexpected mode given: {0}".format(mode))
         dimensions of the box, but hasn't yet released the left-mouse
         btn.
         """
-        assert self._new_box == None
+        assert self._new_box is None
         self._new_box = b
         self._new_box.is_new = True
 
     def unset_new_box(self):
-        assert self._new_box != None
+        assert self._new_box is not None
         self._new_box.is_new = False
         self._new_box = None
 
@@ -731,7 +731,7 @@ unexpected mode given: {0}".format(mode))
 
     def is_resize_target(self):
         """ Return True if a user is currently resizing a target """
-        return self._resize_target != None
+        return self._resize_target is not None
 
     def delete_target(self, box):
         if box in self.world.get_boxes(self.current_imgpath):
@@ -1178,12 +1178,12 @@ class BoundingBox(object):
         self.is_contest = is_contest
         self.is_new = is_new
         self.is_selected = is_selected
-        if id != None:
+        if id is not None:
             self.id = id
         else:
             self.id = BoundingBox.ctr
             BoundingBox.ctr += 1
-        if contest_id != None:
+        if contest_id is not None:
             self.contest_id = contest_id
         else:
             self.contest_id = BoundingBox.ctr_contest

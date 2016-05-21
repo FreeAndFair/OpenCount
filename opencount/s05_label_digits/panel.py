@@ -200,7 +200,7 @@ class LabelDigitsPanel(OpenCountPanel):
                 temppath, {})[attrstr] = (precinctstr, bb, side)
 
             for box in boxes_sorted:
-                if box[0] == None:
+                if box[0] is None:
                     # This is a manual-labeled cell
                     continue
                 # digitexemplars_map expects the bb to be: [y1, y2, x1, x2]
@@ -308,7 +308,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
             if cellid in self.cellids_manual:
                 continue
             boxes = self.cellid2boxes.get(cellid, [])
-            if self.NUM_OBJECTS == None or (len(boxes) < self.NUM_OBJECTS):
+            if self.NUM_OBJECTS is None or (len(boxes) < self.NUM_OBJECTS):
                 imgpaths_in.append(imgpath)
 
         m = multiprocessing.Manager()
@@ -346,9 +346,9 @@ class TempMatchGrid(SmartScrolledGridPanel):
                     return True
             return False
         print "(TempMatchGrid) on_tempmatch_done: Found {0} matches.".format(len(matches))
-        if t_listen != None:
+        if t_listen is not None:
             t_listen.stop_running.set()
-        if jobid != None:
+        if jobid is not None:
             jobid.done()
 
         imgpaths = []
@@ -359,7 +359,7 @@ class TempMatchGrid(SmartScrolledGridPanel):
                               for coord in (x1, y1, x2, y2)]
             cellid = self.imgpath2cellid[imgpath]
             boxes_cell = self.cellid2boxes.get(cellid, [])
-            if self.NUM_OBJECTS != None and len(boxes_cell) >= self.NUM_OBJECTS:
+            if self.NUM_OBJECTS is not None and len(boxes_cell) >= self.NUM_OBJECTS:
                 continue
             if are_any_too_close((x1, y1, x2, y2), boxes_cell):
                 continue
@@ -440,7 +440,7 @@ def get_common_area(bb1, bb2):
     segh_b = y1b - h_b, y1b
     cseg_w = common_segment(segw_a, segw_b)
     cseg_h = common_segment(segh_a, segh_b)
-    if cseg_w == None or cseg_h == None:
+    if cseg_w is None or cseg_h is None:
         return 0.0
     else:
         return abs(cseg_w[0] - cseg_w[1]) * abs(cseg_h[0] - cseg_h[1])
@@ -606,7 +606,7 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
     Output: (callback)
         list MATCHES: MATCHES: [(imgath, score1, score2, str matchpatchpath, i1, i2, j1, j2, rszFac), ...]
     """
-    if NPROCS == None:
+    if NPROCS is None:
         NPROCS = multiprocessing.cpu_count()
 
     class ThreadDoTempMatch(threading.Thread):
@@ -638,7 +638,7 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
             else:
                 print "(ThreadDoTempMatch): Using {0} processes. (TM_THRESHOLD={1})".format(NPROCS, self.THRESHOLD)
                 procs = []  # [(Process p, int numimgs), ...]
-                if progress_queue != None:
+                if progress_queue is not None:
                     manager = multiprocessing.Manager()
                 else:
                     manager = progress_queue._manager
@@ -916,7 +916,7 @@ def main():
         imgpaths = []
         for dirpath, dirnames, filenames in os.walk(imgsdir):
             for imgname in [f for f in filenames if f.lower().endswith(".png")]:
-                if limit != None and len(imgpaths) >= limit:
+                if limit is not None and len(imgpaths) >= limit:
                     return imgpaths
                 imgpaths.append(os.path.join(dirpath, imgname))
         return imgpaths

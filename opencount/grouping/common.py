@@ -294,7 +294,7 @@ def get_attrtypes_all(project):
     """
     attrtypes = list(get_attrtypes(project))
     cattrs = cust_attrs.load_custom_attrs(project)
-    if cattrs != None:
+    if cattrs is not None:
         for cattr in cattrs:
             attrtypes.append(cattr.attrname)
     return set(attrtypes)
@@ -387,7 +387,7 @@ def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
         traceback.print_exc()
         pdb.set_trace()
 
-    if gl_record == None:
+    if gl_record is None:
         gl_record = load_grouplabel_record(project)
     grouplabel = gl_record[gl_idx]
     attrtype, attrval = None, None
@@ -458,7 +458,7 @@ def is_digit_grouplabel(gl_idx, project, gl_record=None):
         traceback.print_exc()
         pdb.set_trace()
 
-    if gl_record == None:
+    if gl_record is None:
         gl_record = load_grouplabel_record(project)
     grouplabel = gl_record[gl_idx]
     attrtype = None
@@ -560,14 +560,14 @@ def get_propval(gl_idx, property, proj, gl_record=None):
     >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
     >>> get_propval(grouplabel, 'precinct')
     380400
-    >>> get_propval(grouplabel, 'foo') == None
+    >>> get_propval(grouplabel, 'foo') is None
     True
     """
     if type(gl_idx) != int:
         error("expected int index, got {0} instead.", type(gl_idx))
         traceback.print_exc()
         pdb.set_trace()
-    if gl_record == None:
+    if gl_record is None:
         gl_record = load_grouplabel_record(proj)
     for k, v in gl_record[gl_idx]:
         if k == property:
@@ -582,7 +582,7 @@ def str_grouplabel(gl_idx, proj, gl_record=None):
         traceback.print_exc()
         pdb.set_trace()
 
-    if gl_record == None:
+    if gl_record is None:
         gl_record = load_grouplabel_record(proj)
     grouplabel = gl_record[gl_idx]
     kv_pairs = tuple(grouplabel)
@@ -617,7 +617,7 @@ def get_avglightest_img(imgpaths):
     for i, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
-        if bestpath == None or score > bestscore:
+        if bestpath is None or score > bestscore:
             bestpath = imgpath
             bestscore = score
             idx = i
@@ -632,7 +632,7 @@ def get_avgdarkest_img(imgpaths):
     for i, imgpath in enumerate(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
-        if bestpath == None or score < bestscore:
+        if bestpath is None or score < bestscore:
             bestpath = imgpath
             bestscore = score
             idx = i
@@ -717,14 +717,14 @@ class GroupClass(object):
         label = None
         g_type = None
         for group in groups:
-            if g_type == None:
+            if g_type is None:
                 g_type = type(group)
             elif type(group) != g_type:
                 error("Can't merge groups with different types.")
                 pdb.set_trace()
                 return None
 
-            if label == None:
+            if label is None:
                 label = group.label
             elif group.label != label:
                 error("Can't merge groups with different labels.")
@@ -1172,14 +1172,14 @@ def _generate_overlays(elements):
     for element in elements:
         path = element[2]
         img = misc.imread(path, flatten=1)
-        if (overlayMin == None):
+        if (overlayMin is None):
             overlayMin = img
         else:
             if overlayMin.shape != img.shape:
                 h, w = overlayMin.shape
                 img = resize_img_norescale(img, (w, h))
             overlayMin = np.fmin(overlayMin, img)
-        if (overlayMax == None):
+        if (overlayMax is None):
             overlayMax = img
         else:
             if overlayMax.shape != img.shape:
@@ -1199,14 +1199,14 @@ def _my_combfn_overlays(result, subresult):
     """
     imgmin, imgmax = result
     imgmin_sub, imgmax_sub = subresult
-    if imgmin == None:
+    if imgmin is None:
         imgmin = imgmin_sub
     else:
         if imgmin.shape != imgmin_sub.shape:
             h, w = imgmin.shape
             imgmin_sub = resize_img_norescale(imgmin_sub, (w, h))
         imgmin = np.fmin(imgmin, imgmin_sub)
-    if imgmax == None:
+    if imgmax is None:
         imgmax = imgmax_sub
     else:
         if imgmax.shape != imgmax_sub.shape:

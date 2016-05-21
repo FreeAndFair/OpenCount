@@ -489,7 +489,7 @@ class TopPanel(wx.Panel):
             path.SetLabel("Path: " + main.qfiles[0])
 
         def do(x, jumpto=None):
-            if jumpto != None:
+            if jumpto is not None:
                 v = jumpto
             else:
                 v = int(curnum.GetLabel().split(" ")[0]) + x

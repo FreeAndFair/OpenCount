@@ -215,7 +215,7 @@ class ViewOverlays(ScrolledPanel):
 
     def update_grouptag_txt(self):
         """ Updates the UI text about which group is currently-displayed. """
-        if self.idx == None:
+        if self.idx is None:
             return
         group = self.get_current_group()
         try:
@@ -226,7 +226,7 @@ class ViewOverlays(ScrolledPanel):
 
     def update_groupsize_txt(self):
         """ Updates the UI text about how large the current group is. """
-        if self.idx == None:
+        if self.idx is None:
             return
         group = self.get_current_group()
         self.txtctrl_num_elements.SetLabel(str(len(group.imgpaths)))
@@ -268,7 +268,7 @@ class ViewOverlays(ScrolledPanel):
                     bbs_map_v2[imgpath] = (x1, y1, x2, y2)
         else:
             bbs_map_v2 = {}
-        if group.overlay_min == None or group.overlay_max == None:
+        if group.overlay_min is None or group.overlay_max is None:
             self.disable_ui()
             manager = multiprocessing.Manager()
             queue_mygauge = manager.Queue()
@@ -352,9 +352,9 @@ class ViewOverlays(ScrolledPanel):
             return 'vertical', min(max(c_out, MIN_RSZ_FAC), MAX_RSZ_FAC)
 
     def apply_img_layout(self, orientation, rszfac):
-        if orientation != None:
+        if orientation is not None:
             self.set_patch_layout(orientation)
-        if rszfac != None:
+        if rszfac is not None:
             self.rescale_images(rszfac)
 
     def show_larger(self, amt=0.2, MIN_W=5, MIN_H=5):
@@ -466,7 +466,7 @@ class ViewOverlays(ScrolledPanel):
         if not self.restore_session():
             self.groups = []
             self.grouptags = set()
-            self.bbs_map = bbs_map if bbs_map != None else {}
+            self.bbs_map = bbs_map if bbs_map is not None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = Group(imgpaths, tag=tag, do_align=do_align)
                 self.add_group(group)
@@ -617,7 +617,7 @@ class SplitOverlays(ViewOverlays):
         if not self.restore_session():
             self.groups = []
             self.grouptags = set()
-            self.bbs_map = bbs_map if bbs_map != None else {}
+            self.bbs_map = bbs_map if bbs_map is not None else {}
             for (tag, imgpaths) in imgpath_groups.iteritems():
                 group = SplitGroup(imgpaths, tag=tag, do_align=do_align)
                 trimmed_groups = trim_group(group, GLOB_MAX_GROUP_SIZE)
@@ -630,7 +630,7 @@ class SplitOverlays(ViewOverlays):
         disable the 'Split' button.
         """
         idx = ViewOverlays.select_group(self, *args, **kwargs)
-        if idx == None:
+        if idx is None:
             return idx
 
         if self.get_current_group() and len(self.get_current_group().imgpaths) <= 1:
@@ -805,7 +805,7 @@ class VerifyOverlays(SplitOverlays):
             self.exemplar_imgpaths = group_exemplars
             self.groups = []
             self.grouptags = set()
-            self.bbs_map = bbs_map if bbs_map != None else {}
+            self.bbs_map = bbs_map if bbs_map is not None else {}
             self.possible_tags = set()
             self.rankedlist_map = rlist_map
             self.finished_groups = {}
@@ -905,7 +905,7 @@ class VerifyOverlays(SplitOverlays):
         group = self.groups[idx]
         self.select_exmpl_group(group.tag, group.exmpl_idx)
         curidx = SplitOverlays.select_group(self, idx)
-        if curidx == None:
+        if curidx is None:
             # Say, if IDX is invalid (maybe no more groups?)
             return None
 
@@ -1188,7 +1188,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         bool DO_ALIGN:
             If True, then this will align all imgpatches when overlaying.
         """
-        if verifypanelClass == None:
+        if verifypanelClass is None:
             verifypanelClass = VerifyOverlaysPanel
         categories = tuple(set(imgpath_cats.keys()))
         self.imgpath_cats = imgpath_cats
@@ -1643,7 +1643,7 @@ class Group(object):
         Output:
             IplImage minimg, IplImage maximg.
         """
-        if self.overlay_min == None or force:
+        if self.overlay_min is None or force:
             debug("...Computing Min/Max Overlays for {0} images...",
                   len(self.imgpaths))
             with util.time_operation('computing min/max overlays'):
@@ -1763,7 +1763,7 @@ class SplitGroup(Group):
 
     def split(self, mode=None, MAX_GROUP_SIZE=None, imgCache=None):
         """ Assume that MAX_GROUP_SIZE > 2 """
-        if mode == None:
+        if mode is None:
             mode == 'kmeans'
         if len(self.imgpaths) == 1:
             return [self]
@@ -1773,7 +1773,7 @@ class SplitGroup(Group):
 
         # If necessary, first trim myself into tractable-sized groups
         input_groups = [self]
-        if MAX_GROUP_SIZE != None:
+        if MAX_GROUP_SIZE is not None:
             grps_toobig = []
             i = 0
             while i < len(input_groups):
@@ -1830,7 +1830,7 @@ class VerifyGroup(SplitGroup):
         self.exmpl_idx = exmpl_idx
 
     def split(self, mode=None, MAX_GROUP_SIZE=None, imgCache=None):
-        if mode == None:
+        if mode is None:
             mode = 'rankedlist'
         if mode == 'rankedlist':
             return [self]
@@ -1892,7 +1892,7 @@ def trim_group(group, max_group_size):
     no larger than max_group_size.
     """
     out_groups = []
-    if max_group_size == None:
+    if max_group_size is None:
         return [group]
     i = 0
     while i < len(group.imgpaths):
@@ -1915,7 +1915,7 @@ def trim_groups_by_mem(groups, max_mem_usage):
     Output:
         list OUT_GROUPS.
     """
-    if max_mem_usage == None:
+    if max_mem_usage is None:
         return groups
     out_groups = []
     mem_limit_kbytes = max_mem_usage * 1000
@@ -2018,7 +2018,7 @@ class ChooseSplitModeDialog(wx.Dialog):
     def __init__(self, parent, disable=None, *args, **kwargs):
         """ disable is a list of ID's (ID_RANKEDLIST, etc.) to disable. """
         wx.Dialog.__init__(self, parent, *args, **kwargs)
-        if disable == None:
+        if disable is None:
             disable = []
         sizer = wx.BoxSizer(wx.VERTICAL)
         txt = wx.StaticText(
@@ -2340,7 +2340,7 @@ def test_separateimages(imgsdir, altimg=None):
             self.sizer.Add(self.separateimages, proportion=1, flag=wx.EXPAND)
             self.SetSizer(self.sizer)
             self.Layout()
-            realign_callback = self.realign if altimg != None else None
+            realign_callback = self.realign if altimg is not None else None
             self.separateimages.start(imggroups, ondone=self.ondone, auto_ondone=True,
                                       realign_callback=realign_callback)
 

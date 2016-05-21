@@ -92,7 +92,7 @@ def create_testset(imgpaths, outdir, args,
             I = scipy.misc.imread(imgpath, flatten=True)
         else:
             I = np.zeros((2 * (Y + 1), 2 * (X + 1)), dtype='uint8')
-        if I != None and img2flip != None and img2flip[imgpath]:
+        if I is not None and img2flip is not None and img2flip[imgpath]:
             I = fastFlip(I)
         for x in range(-X, X, STEP_TRANS_X):
             Ix = np.zeros(I.shape, dtype=I.dtype)
@@ -116,10 +116,10 @@ def create_testset(imgpaths, outdir, args,
                     else:
                         Ixyt = Ixy
                     brightamt_iter = np.linspace(-BRIGHT_AMT, BRIGHT_AMT, num=(
-                        2 * BRIGHT_AMT / BRIGHT_STEP), endpoint=True) if BRIGHT_AMT != None else [0]
+                        2 * BRIGHT_AMT / BRIGHT_STEP), endpoint=True) if BRIGHT_AMT is not None else [0]
                     for bright_amt in brightamt_iter:
                         Ixytb = Ixyt + bright_amt
-                        if MEAN != None and STD != None:
+                        if MEAN is not None and STD is not None:
                             noise = np.random.normal(
                                 MEAN, STD, size=(Ixytb.shape))
                             Ixytb += noise
@@ -237,7 +237,7 @@ def main():
         for i, (grpid, balids) in enumerate(grp2bals_items):
             if LIMIT_GRP != -1 and n_grps >= LIMIT_GRP:
                 break
-            if args.side != None and not has_targets(grpid, args.side):
+            if args.side is not None and not has_targets(grpid, args.side):
                 continue  # Avoid empty groups counting towards N_GRPS
             for j, balid in enumerate(balids):
                 if LIMIT_BAL != -1 and j >= LIMIT_BAL:
@@ -246,13 +246,13 @@ def main():
                     bal2imgs[balid], key=lambda imP: img2page[imP])
                 if not alt_voteddir:
                     for side, imgpath in enumerate(bal_imgpaths):
-                        if (args.side != None and args.side != side) or not has_targets(grpid, side):
+                        if (args.side is not None and args.side != side) or not has_targets(grpid, side):
                             continue  # This isn't a side we care about
                         imgpaths.append(imgpath)
                         img2flip_[imgpath] = img2flip_proj[imgpath]
                 else:
                     for side, imgpath_old in enumerate(bal_imgpaths):
-                        if (args.side != None and args.side != side) or not has_targets(grpid, side):
+                        if (args.side is not None and args.side != side) or not has_targets(grpid, side):
                             continue  # This isn't a side we care about
                         rp = os.path.relpath(os.path.abspath(
                             imgpath_old), os.path.abspath(voteddir_root))

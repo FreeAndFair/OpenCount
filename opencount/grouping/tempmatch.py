@@ -67,7 +67,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
             Iorig = I
-        if bb != None:
+        if bb is not None:
             new_roi = tuple(
                 map(int, (bb[0], bb[1], bb[2] - bb[0], bb[3] - bb[1])))
             cv.SetImageROI(I, new_roi)
@@ -85,7 +85,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
             matchmat[_y1:_y2, _x1:_x2] = -1.0
         minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(matchmat)
         x, y = maxLoc[0], maxLoc[1]
-        if bb != None:
+        if bb is not None:
             x += bb[0]
             y += bb[1]
         results[imgpath] = (x, y, maxResp)
@@ -102,7 +102,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
                 cv.SaveImage(outpath, Iorig)
         if jobid and wx.App.IsMainLoopRunning():
             jobid.tick()
-        if queue_mygauge != None:
+        if queue_mygauge is not None:
             queue_mygauge.put(True)
 
     return results
@@ -194,7 +194,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             I = smooth(I, xwinI, ywinI)
         if img2flip and img2flip[imgpath]:
             cv.Flip(I, I, flipMode=-1)
-        if bb != None:
+        if bb is not None:
             new_roi = tuple(
                 map(int, (bb[0], bb[1], bb[2] - bb[0], bb[3] - bb[1])))
             cv.SetImageROI(I, new_roi)
@@ -217,7 +217,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             M_idx = np.argmax(M_np)
             i = int(M_idx / M.cols)
             j = M_idx % M.cols
-            if bb != None:
+            if bb is not None:
                 i += bb[1]
                 j += bb[0]
 
@@ -238,7 +238,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             M_idx = np.argmax(M_np)
             i = int(M_idx / M.cols)
             j = M_idx % M.cols
-            if bb != None:
+            if bb is not None:
                 i += bb[1]
                 j += bb[0]
             score = M_np[i, j]
@@ -249,7 +249,7 @@ def get_tempmatches(A, imgpaths, img2flip=None, T=0.8, bb=None,
             # is living in a separate process, which can't communicate
             # to the wx App instance living in the original host process
             jobid.tick()
-        if jobid and queue_mygauge != None and wx.App.IsMainLoopRunning():
+        if jobid and queue_mygauge is not None and wx.App.IsMainLoopRunning():
             queue_mygauge.put(True)
     return results
 
@@ -296,7 +296,7 @@ def get_tempmatches_par(A, imgpaths, img2flip=None, T=0.8,
     A_str = A.tostring()
     w, h = cv.GetSize(A)
 
-    if jobid != None:
+    if jobid is not None:
         manager = multiprocessing.Manager()
         queue_mygauge = manager.Queue()
         tick_thread = ThreadTicker(queue_mygauge, jobid)

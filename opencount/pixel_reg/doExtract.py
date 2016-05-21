@@ -639,7 +639,7 @@ def convertImagesWorkerMAP(job):
         t0 = time.clock()
 
         for side, tplImg in enumerate(tplImgs):
-            if tplImg == None:
+            if tplImg is None:
                 # This group didn't have its 'template' images pre-loaded
                 if method_galign == GALIGN_NORMAL:
                     tplImg = sh.standardImread_v2(
@@ -706,7 +706,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
     create_dirs(targetMetaDir)
     create_dirs(imageMetaDir)
 
-    if nProc == None:
+    if nProc is None:
         nProc = sh.numProcs()
     # nProc = 1
     num_jobs = len(jobs)
@@ -780,7 +780,7 @@ def fix_ballot_order(balL, proj=None, bal2page=None):
         [side0_path, side1_path, ...]
     """
     assert issubclass(type(balL), list)
-    if bal2page == None:
+    if bal2page is None:
         bal2page = pickle.load(open(os.path.join(proj.projdir_path,
                                                  proj.ballot_to_page),
                                     'rb'))
@@ -855,7 +855,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             bbs_sides.append(bbs)
         return bbs_sides
 
-    if stopped == None:
+    if stopped is None:
         stopped = lambda: False
     targetDiffDir = targetDir + '_diffs'
     # JOBS: [[blankpaths_i, bbs_i, votedpaths_i, targetDir, targetDiffDir,

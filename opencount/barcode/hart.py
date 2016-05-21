@@ -259,7 +259,7 @@ def main():
             if None in bcs:
                 errs.append(imgpath)
                 continue
-            if args.draw_bbs != None:
+            if args.draw_bbs is not None:
                 outdir = args.draw_bbs
                 imgname = os.path.splitext(os.path.split(imgpath)[1])[0]
                 outrootdir = os.path.join(outdir, imgname)

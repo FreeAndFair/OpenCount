@@ -137,7 +137,7 @@ class SequoiaVendor(Vendor):
             # Only the front-page has barcode information
             decoding = img2decoding[imgpaths_ordered[0]]
             partitionid = decoding2partition.get(decoding, None)
-            if partitionid == None:
+            if partitionid is None:
                 decoding2partition[decoding] = curPartitionID
                 partitionid = curPartitionID
                 curPartitionID += 1
@@ -280,7 +280,7 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                     I0, IsymA, IsymB, IsymC, IsymD, IsymE)
                 side1, isflip1 = sequoia.get_side(
                     I1, IsymA, IsymB, IsymC, IsymD, IsymE)
-                if side0 == None and side1 == None:
+                if side0 is None and side1 is None:
                     # Something crazy happened, run!
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
@@ -288,9 +288,9 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                         mygauge_tick(N=2)
                     print "Craziness here, run!"
                     continue
-                if side0 != None:
+                if side0 is not None:
                     flipmap[imgpath0] = isflip0
-                if side1 != None:
+                if side1 is not None:
                     flipmap[imgpath1] = isflip1
                 frontside = None
                 if side0 == 0:
@@ -310,24 +310,24 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
                 decodings, mark_locs = sequoia.decode(
                     Ifront, Itemp0, Itemp1, _imgpath=imP_front)
                 cv.ResetImageROI(Ifront)
-                if decodings == None:
+                if decodings is None:
                     # Something crazy happened.
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
                     if queue:
                         mygauge_tick(N=2)
-                    print "Craziness here, decodings == None"
+                    print "Craziness here, decodings is None"
                     continue
                 elif len(decodings[0]) != 8 or len(decodings[1]) != 8:
                     err_imgpaths.add(imgpath0)
                     err_imgpaths.add(imgpath1)
                 else:
                     img2decoding[imP_front] = decodings
-                    if frontside == 0 and side1 == None:
+                    if frontside == 0 and side1 is None:
                         # imgpath1 must be an empty backside.
                         backs.append(imgpath1)
                         flipmap[imgpath1] = False  # Anything is fine
-                    elif frontside == 1 and side0 == None:
+                    elif frontside == 1 and side0 is None:
                         # imgpath 0 must be an empty backside.
                         backs.append(imgpath0)
                         flipmap[imgpath0] = False
@@ -374,7 +374,7 @@ def handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE
 
         side0, isflip0 = sequoia.get_side(
             I0, IsymA, IsymB, IsymC, IsymD, IsymE)
-        if side0 == None or side0 == 1:
+        if side0 is None or side0 == 1:
             # Something crazy happened, run!
             err_imgpaths.add(imgpath)
             if queue:
@@ -390,7 +390,7 @@ def handle_singleside(ballots, Itemp0, Itemp1, IsymA, IsymB, IsymC, IsymD, IsymE
         decodings, mark_locs = sequoia.decode(
             Ifront, Itemp0, Itemp1, _imgpath=imgpath)
         cv.ResetImageROI(Ifront)
-        if decodings == None:
+        if decodings is None:
             # Something crazy happened.
             err_imgpaths.add(imgpath)
             if queue:

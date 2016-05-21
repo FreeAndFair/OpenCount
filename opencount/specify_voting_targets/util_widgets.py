@@ -74,11 +74,11 @@ class MosaicPanel(wx.Panel):
                  *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         self.parent = parent
-        if imgmosaicpanel == None:
+        if imgmosaicpanel is None:
             self.imagemosaic = ImageMosaicPanel(
                 self, CellClass=CellClass, CellBitmapClass=CellBitmapClass)
         else:
-            _init_args = () if _init_args == None else _init_args
+            _init_args = () if _init_args is None else _init_args
             self.imagemosaic = imgmosaicpanel(
                 self, CellClass=CellClass, CellBitmapClass=CellBitmapClass, *_init_args)
 
@@ -238,7 +238,7 @@ class ImageMosaicPanel(ScrolledPanel):
         self.imgpaths = []
         self.cur_page = 0
 
-        self.CellClass = CellClass if CellClass != None else CellPanel
+        self.CellClass = CellClass if CellClass is not None else CellPanel
 
         # A 2-D array containing all CellPanels. self.cells[i][j]
         # is the CellPanel at row i, col j.
@@ -343,7 +343,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 # No more images to display, just display empty panels.
                 cellpanel = self.cells[i][j]
                 cellpanel.is_dummy = True
-                if self.cell_width == None:
+                if self.cell_width is None:
                     # Means only empty pages. Default cell_width to, say, 100.
                     self.cell_width = 100
 
@@ -358,7 +358,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 if img.GetHeight() != self.cell_height:
                     c = img.GetHeight() / float(self.cell_height)
                     new_w = int(round(img.GetWidth() / c))
-                    if self.cell_width == None:
+                    if self.cell_width is None:
                         self.cell_width = new_w
                     img.Rescale(new_w, self.cell_height,
                                 quality=wx.IMAGE_QUALITY_HIGH)
@@ -435,7 +435,7 @@ class CellPanel(wx.Panel):
         self.is_dummy = is_dummy
         self.scale = 1.0
 
-        self.CellBitmapClass = CellBitmapClass if CellBitmapClass != None else CellBitmap
+        self.CellBitmapClass = CellBitmapClass if CellBitmapClass is not None else CellBitmap
 
         # self.is_selected is True/False if this panel is selected.
         # A selected CellPanel will have a yellow border drawn.
@@ -525,7 +525,7 @@ class CellBitmap(wx.Panel):
         else:
             dc = wx.BufferedPaintDC(self)
         dc.DrawBitmap(self.bitmap, 0, 0)
-        if self.parent.imgpath == None:
+        if self.parent.imgpath is None:
             return
         my_boxes = self.parent.parent.get_boxes(self.parent.imgpath)
         self._draw_boxes(dc, my_boxes)
@@ -543,7 +543,7 @@ class CellBitmap(wx.Panel):
             color = box.color
             dc.SetPen(wx.Pen(color, 2))
             x1, y1, x2, y2 = make_canonical(box)
-            if self.parent.parent.transfn != None:
+            if self.parent.parent.transfn is not None:
                 # Oh man, what a hack.
                 x1, y1, x2, y2 = self.parent.parent.transfn(x1, y1, x2, y2)
             x1, y1, x2, y2 = map(lambda n: int(

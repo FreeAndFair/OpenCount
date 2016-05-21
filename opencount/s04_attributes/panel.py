@@ -370,7 +370,7 @@ Would you like to review the ballot annotations?",
     def on_compute_mult_exemplars_done(self, multexemplars_map):
         if config.TIMER:
             config.TIMER.stop_task("BallotAttributes_ComputeMultExemplars_CPU")
-        if multexemplars_map != None:
+        if multexemplars_map is not None:
             pickle.dump(multexemplars_map, open(pathjoin(self.proj.projdir_path,
                                                          self.proj.multexemplars_map), 'wb'))
         wx.MessageDialog(self, style=wx.OK,
@@ -687,7 +687,7 @@ Would you like to review the ballot annotations?",
                 balid, atype, aval = self.patch2bal.pop(patchpath)
             except KeyError:
                 balid, atype, aval = None, None, None
-            if balid != None:
+            if balid is not None:
                 update_bal2patches(balid, patchpath, atype, aval, OP="remove")
 
         self.update_ui_text()
@@ -704,7 +704,7 @@ Would you like to review the ballot annotations?",
 
     def am_i_done(self):
         """ Returns True if the user is done labeling all tasks. """
-        return self.ballots_todo != None and len(self.ballots_todo) == 0
+        return self.ballots_todo is not None and len(self.ballots_todo) == 0
 
     def is_ballot_done(self, ballotid):
         """ The user is finished annotating this ballot if the number of
@@ -770,7 +770,7 @@ labeled - this step is now complete.\n\n\
 Please move to the next step.").ShowModal()
             self.stop()
             return
-        elif next_ballotid == None:
+        elif next_ballotid is None:
             wx.MessageDialog(self, style=wx.OK,
                              message="Unexpected: next_ballotid was None.").ShowModal()
             return
@@ -866,7 +866,7 @@ will the Custom Attribute use?",
         if status == wx.ID_CANCEL:
             return
         choice = choice_dlg.result
-        if choice == None:
+        if choice is None:
             return
         elif choice == SPREADSHEET:
             attrtypes = self.GetParent().get_attrtypes()
@@ -908,12 +908,12 @@ spreadsheet path.")
             status = dlg.ShowModal()
             if status == wx.ID_CANCEL:
                 return
-            if dlg.regex == None:
+            if dlg.regex is None:
                 d = wx.MessageDialog(self, message="You must choose \
 an input regex.")
                 d.ShowModal()
                 return
-            elif dlg.attrname == None:
+            elif dlg.attrname is None:
                 d = wx.MessageDialog(self, message="You must choose \
 an Attribute Name.")
                 d.ShowModal()
@@ -1716,7 +1716,7 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
         debug("attr '{0}': {1} exemplars were found.",
               attrtype, sum(map(len, exemplars.values())))
         attrtype_exemplars[attrtype] = exemplars
-        if queue_mygauge != None:
+        if queue_mygauge is not None:
             queue_mygauge.put(True)
 
     def get_attr_box(attrtype, ballotid):
@@ -1739,7 +1739,7 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
             for i, (patchpath, bb) in enumerate(info):
                 # note: BB is (y1,y2,x1,x2)
                 I = cv.LoadImage(patchpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-                if bb == None:
+                if bb is None:
                     # If BB is None, use the entire image
                     w, h = cv.GetSize(I)
                     bb = (0, h - 1, 0, w - 1)
@@ -1752,7 +1752,7 @@ def compute_mult_exemplars(proj, boxes_map, bal2imgs, img2page, patch2bal, bal2p
                 assert attrtype == atype, "ERROR: patch {0} had attrtype={1}, should be {2}".format(
                     patchpath, atype, attrtype)
                 attrbox = get_attr_box(atype, ballotid)
-                assert attrbox != None, "ERROR: Couldn't find attrbox for atype={0}, ballotid={1}".format(
+                assert attrbox is not None, "ERROR: Couldn't find attrbox for atype={0}, ballotid={1}".format(
                     atype, ballotid)
                 imgpaths = sorted(bal2imgs[ballotid],
                                   key=lambda imP: img2page[imP])

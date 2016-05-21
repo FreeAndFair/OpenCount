@@ -254,7 +254,7 @@ class RunThread(threading.Thread):
             return None, None
 
         w, h = get_target_size()
-        if w == None:
+        if w is None:
             raise Exception("Woah, No targets in this election??")
 
         imageFile.makeOneFile(fulllst,

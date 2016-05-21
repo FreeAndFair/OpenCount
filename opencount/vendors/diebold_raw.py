@@ -59,7 +59,7 @@ def decode(imgpath, markpath, colpath, H_GAP=HORIZ_GAP,
            W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
     decoding, isflip, bbs = decode_robust_v2(imgpath, markpath, colpath, H_GAP=H_GAP,
                                              W_MARK=W_MARK, H_MARK=H_MARK)
-    if decoding != None:
+    if decoding is not None:
         bbs = sorted(bbs, key=lambda t: t[0])
         # Strip off the left/right column marks (always '1')
         decoding = decoding[1:-1]
@@ -116,13 +116,13 @@ def decode_v2_wrapper(imgpath, markpath, Icol, H_GAP=7,
     I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     result = decode_v2(I, markpath, Icol, False, _imgpath=imgpath, H_GAP=H_GAP,
                        W_MARK=W_MARK, H_MARK=H_MARK, idx2tol=idx2tol)
-    if result == None and not DEBUG_SKIP_FLIP:
+    if result is None and not DEBUG_SKIP_FLIP:
         print_dbg("...Trying FLIP...")
         cv.ResetImageROI(I)
         result = decode_v2(I, markpath, Icol, True, _imgpath=imgpath, H_GAP=H_GAP,
                            W_MARK=W_MARK, H_MARK=H_MARK, idx2tol=idx2tol)
 
-    if result == None:
+    if result is None:
         return None, None, None
     else:
         decoding, isflip, bbs_out = result
@@ -170,7 +170,7 @@ def decode_v2(imgpath, markpath, Icol, isflip, _imgpath=None, H_GAP=7,
                    (0.995 * h)))
 
     theta = estimate_ballot_rot(I, Imark, bbs_middle)
-    if theta == None:
+    if theta is None:
         print_dbg("Warning: THETA was None.")
         return None
     else:
@@ -256,9 +256,9 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
         x1_left = find_col_x1(I, Icol, bb_left)
         x1_right = find_col_x1(I, Icol, bb_right)
         print_dbg("== x1_left={0} x1_right={1}".format(x1_left, x1_right))
-        x1_left = x1_left if x1_left != None else 0
+        x1_left = x1_left if x1_left is not None else 0
         x1_right = (min(h - 1, x1_right + w_markfull)
-                    if x1_right != None else w - 1)
+                    if x1_right is not None else w - 1)
     else:
         x1_left, x1_right = 0, w - 1
     bb_thecols = (x1_left, 0, x1_right, h - 1)
@@ -335,7 +335,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                                                                                  2.0), x1 + int((3 * w_rect) / 4.0), (x2 - 1) - int(w_rect * 0.1))
                 x1s = [x for x in x1s if x < w_img]
                 y1s = [find_black(I, x1_cur, y1_start=0) for x1_cur in x1s]
-                y1s = [_y1 for _y1 in y1s if _y1 != None]
+                y1s = [_y1 for _y1 in y1s if _y1 is not None]
                 if not y1s:
                     y1_out = 0  # Default to sensible value
                 else:
@@ -358,7 +358,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
 
                 y1s = [find_black(I, x1_cur, y1_start=_y1) for x1_cur in x1s]
                 # Filter out the bad results
-                y1s = [_y1 for _y1 in y1s if _y1 != None]
+                y1s = [_y1 for _y1 in y1s if _y1 is not None]
 
                 # y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
                 if not y1s:
@@ -401,7 +401,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             pix_on, pix_off = params_["pix_on"], params_["pix_off"]
 
             def is_pixon_pixoff_ok():
-                if PIX_ON_OFF_RATIO != None:
+                if PIX_ON_OFF_RATIO is not None:
                     return (pix_on / pix_off) < PIX_ON_OFF_RATIO
                 else:
                     return True
@@ -413,7 +413,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
 
             if EXP_PARAMS:
                 global GLOB_PARAMS_
-                if GLOB_PARAMS_ == None:
+                if GLOB_PARAMS_ is None:
                     GLOB_PARAMS_ = {"PIX_ON": [], "PIX_OFF": []}
                 GLOB_PARAMS_["PIX_ON"].append(params_['pix_on'])
                 GLOB_PARAMS_["PIX_OFF"].append(params_['pix_off'])
@@ -461,7 +461,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                 candidates.append((decoding, isflip, bbs_out))
         if candidates:
             result = most_popular(candidates, W_MARK=W_MARK, H_MARK=H_MARK)
-        if result != None:
+        if result is not None:
             break
         print_dbg("==== Trying another bb_rough")
     cv.SetImageROI(I, roi_prev)
@@ -482,7 +482,7 @@ def most_popular(candidates, W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
             votes[decoding] += 1
     best_decoding, best_isflip, best_bbs_out, best_votes = None, None, None, None
     for decoding, vote_cnt in votes.iteritems():
-        if best_decoding == None or vote_cnt > best_votes:
+        if best_decoding is None or vote_cnt > best_votes:
             best_decoding = decoding
             best_votes = vote_cnt
     best_outputs = outputs[best_decoding]  # [(isflip_i, bbs_i), ...]
@@ -888,7 +888,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
         h_mark = int(round(HEIGHT_MARK * c))
 
     for imgpath in imgpaths:
-        if N != None and cnt >= N:
+        if N is not None and cnt >= N:
             break
         try:
             decoding, isflip, bbs = decode_robust_v2(imgpath, Imarkfull, Icol, H_GAP=h_gap_cur,
@@ -899,7 +899,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
             traceback.print_exc()
             decoding = None
 
-        if decoding == None:
+        if decoding is None:
             print 'Error:', imgpath
             errs.append(imgpath)
             if do_show:
@@ -922,7 +922,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
 
     total_dur = time.time() - t
     print "...Done ({0:.6f} s).".format(total_dur)
-    if N == None:
+    if N is None:
         print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(len(imgpaths)))
     else:
         print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(N))

@@ -37,7 +37,7 @@ def _extract_patches(imgpatches, (do_threshold, queue_mygauge)):
         if tups and tups[0][1]:
             # Image should be flipped
             cv.Flip(I, I, flipMode=-1)
-        if do_threshold != None:
+        if do_threshold is not None:
             cv.Threshold(I, I, do_threshold, 255.0, cv.CV_THRESH_BINARY)
         for ((x1, y1, x2, y2), isflip, outpath, tag) in tups:
             try:
@@ -48,7 +48,7 @@ def _extract_patches(imgpatches, (do_threshold, queue_mygauge)):
             cv.SaveImage(outpath, I)
             img2patch[(imgpath, tag)] = outpath
             patch2stuff[outpath] = (imgpath, (x1, y1, x2, y2), tag)
-        if queue_mygauge != None:
+        if queue_mygauge is not None:
             # Updates the MyGauge widget
             queue_mygauge.put(True)
     return img2patch, patch2stuff

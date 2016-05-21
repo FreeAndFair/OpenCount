@@ -349,7 +349,7 @@ class Project(object):
         Only allow letters, numbers, and [_, (, )].
         """
         pattern = r'(\w|\d|[_\()])+'
-        return ' ' not in name and (not re.match(pattern, name) == None)
+        return ' ' not in name and (not re.match(pattern, name) is None)
 
     @staticmethod
     def delete_project(projdir, name):

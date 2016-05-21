@@ -72,7 +72,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
         I = imgpath
         imgpath = _imgpath
     decodings, mark_locs = processImg(I, Izero, Ione, imgpath)
-    if decodings == None:
+    if decodings is None:
         print "...sequoia.decode detected badness for {0}...".format(imgpath)
         return None, None, None, None
     # print 'For imgpath {0}: {1}'.format(imgpath, decodings)
@@ -126,23 +126,23 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     cv.SetImageROI(I, (0, 0, w_patch, h_patch))
     # 1.) Check for easy BACK case
     ul = check_a_or_b(I, IsymC, IsymD)
-    if ul != None:
+    if ul is not None:
         return 1, True if ul == 1 else False
     # 2.) Check for easy FRONT case
     cv.SetImageROI(I, (w_img - w_patch, 0, w_patch, h_patch))
     ur = check_a_or_b(I, IsymA, IsymB)
-    if ur != None:
+    if ur is not None:
         return 0, True if ur == 1 else False
     # With high confidence, top is not cutoff, but left/right could be.
     # 3.) Check for FRONT case
     cv.SetImageROI(I, (0, h_img - h_patch, w_patch, h_patch))
     ll = check_a_or_b(I, IsymA, IsymB)
-    if ll != None:
+    if ll is not None:
         return 0, True if ll == 0 else False
     # 4.) Check for BACK case
     cv.SetImageROI(I, (w_img - w_patch, h_img - h_patch, w_patch, h_patch))
     lr = check_a_or_b(I, IsymC, IsymD)
-    if lr != None:
+    if lr is not None:
         return 1, True if lr == 0 else False
     # 5.) Check for FRONT of single-sided ballot
     w_fact, h_fact = 0.20, 0.15
@@ -410,7 +410,7 @@ def main():
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         print "For imgpath {0}:".format(imgpath)
         side, isflip = get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE)
-        if side == None:
+        if side is None:
             print "    ERROR GET_SIDE"
             err_imgpaths.append(imgpath)
             continue
@@ -421,7 +421,7 @@ def main():
         if isflip:
             cv.Flip(I, I, flipMode=-1)
         decodings, marklocs = decode(I, Izero, Ione, _imgpath=imgpath)
-        if decodings == None:
+        if decodings is None:
             print "    ERROR DECODE"
             err_imgpaths.append(imgpath)
             continue

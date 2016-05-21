@@ -61,7 +61,7 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
     for imgpath in imgpaths:
         try:
             barcodes, isflip, bbs = decode(imgpath, topbot_pairs)
-            if queue != None:
+            if queue is not None:
                 queue.put(True)
         except:
             print "Errored on:", imgpath
@@ -145,7 +145,7 @@ def main():
                         {}, {'imgpaths': imgpaths, 'vendor': vendor,
                              'partition_imgs': partition_imgs})
         return
-    if grouping == None:
+    if grouping is None:
         grouping = partask.do_partask(_do_partition_imgs,
                                       imgpaths,
                                       _args=(vendor, None),
@@ -206,7 +206,7 @@ def main():
                 cv.Resize(img, bcBig, interpolation=cv.CV_INTER_CUBIC)
                 cv.SaveImage(outpath, bcBig)
 
-                if Imins[j] == None:
+                if Imins[j] is None:
                     Imins[j] = cv.CloneImage(bcBig)
                     Imaxes[j] = cv.CloneImage(bcBig)
                     if do_align:

@@ -59,7 +59,7 @@ def load_pil(path):
 
 
 def load_num(path="", pilimg=None):
-    if pilimg == None:
+    if pilimg is None:
         pilimg = load_pil(path)
     width, height = pilimg.size
     data = list(pilimg.getdata())
@@ -419,7 +419,7 @@ def to_graph(lines, width, height, minsize, giventargets):
                 _, (l, u, r, d) = full
                 for x in range(l, r):
                     for y in range(u, d):
-                        if table[y][x] != None:
+                        if table[y][x] is not None:
                             equal.append((table[y][x], full))
                         else:
                             table[y][x] = full
@@ -517,7 +517,7 @@ def find_squares(graph, minarea):
 
 
 def area(x):
-    if x == None:
+    if x is None:
         return 0
     return (x[2] - x[0]) * (x[3] - x[1])
 
@@ -603,7 +603,7 @@ def do_extract(name, img, squares, giventargets):
         return False
 
     def height(x):
-        if x == None:
+        if x is None:
             return 0
         return x[3] - x[1]
 
@@ -635,7 +635,7 @@ def do_extract(name, img, squares, giventargets):
                         print 'case 2', b
                         found = b
                         break
-                if found != None:
+                if found is not None:
                     print 'merge'
                     new.append(union(a, found))
                     skip[found] = True
@@ -714,7 +714,7 @@ def remove_contest_overlap(boxes, targets):
     # print 'aaa'
 
     def checkdiff(x):
-        if last[0] != None:
+        if last[0] is not None:
             print np.abs(last[0] - x).sum(),
         last[0] = np.array(x)
 
@@ -915,7 +915,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
         # print "POS", upper, lower
         # print len(cont_area[upper:lower])
         if not os.path.exists(name):
-            if cont_area == None:
+            if cont_area is None:
                 cont_area = load_num(pilimg=num2pil(image).crop(
                     (l + 10, u + 10, r - 10, d - 10)))
             img = num2pil(cont_area[upper:lower])
@@ -1549,7 +1549,7 @@ def extend_multibox(ballots, box1, box2, orders):
     pool.close()
     pool.join()
     print "RESULT", res
-    res = [x for x in res if x != None]
+    res = [x for x in res if x is not None]
     res, newgroup = zip(*res)
     print "RESULT", res
     print "NEWGROUP", newgroup
@@ -1651,7 +1651,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     if not os.path.exists(tmp):
         os.mkdir(tmp)
     # os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
-    if NPROC == None:
+    if NPROC is None:
         NPROC = mp.cpu_count()
     if NPROC == 1:
         print "(Info) Using 1 process for group_given_contests"
@@ -1679,7 +1679,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
 @pdb_on_crash
 def final_grouping(ballots, giventargets, paths, langs, t=None):
     global tmp
-    if t != None:
+    if t is not None:
         tmp = t
     lookup = dict((x, i) for i, x in enumerate(paths))
     if langs:

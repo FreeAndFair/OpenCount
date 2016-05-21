@@ -120,7 +120,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
             setattr(self, name, val)
 
         # Legacy handling
-        if self.cellids_manual == None:
+        if self.cellids_manual is None:
             self.cellids_manual = set()
 
         self.pages_active, self.pages_inactive = set(), set()
@@ -167,7 +167,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
         self.Layout()
 
     def Close(self, evt):
-        if self.t_loadimgs != None:
+        if self.t_loadimgs is not None:
             self.t_loadimgs.stop_me()
         evt.Skip()
 
@@ -261,7 +261,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
 
         dummy_idx = 0
         for i, imgpath in enumerate(imgpaths):
-            if imgpath == None:
+            if imgpath is None:
                 # TODO: Crashes will happen if you mix dummy cells with
                 #       "normal" cells.
                 imgpath = dummy_idx
@@ -476,9 +476,9 @@ class SmartScrolledGridPanel(ScrolledPanel):
         Input:
             int CELLID:
             tuple LABELS: (str label0, label1, ...).
-                Must have same length as self.NUM_OBJECTS, if NUM_OBJECTS != None.
+                Must have same length as self.NUM_OBJECTS, if NUM_OBJECTS is not None.
         """
-        if self.NUM_OBJECTS != None and len(labels) != self.NUM_OBJECTS:
+        if self.NUM_OBJECTS is not None and len(labels) != self.NUM_OBJECTS:
             print "(SmartScroll) mark_cell_manually: Input labels has length {0}, must have length {1}: {2}".format(len(labels), self.NUM_OBJECTS, labels)
             return
         print "(SmartScroll) Marking cell {0} manually w/ label: {1}".format(cellid, labels)
@@ -796,7 +796,7 @@ class ImagePanel(wx.Panel):
         self.boxes_sel, self.is_selecting = [], False
         self.box_regionsel, self.is_regionselecting = None, False
 
-        if self.npimg != None:
+        if self.npimg is not None:
             h, w = self.npimg.shape[0], self.npimg.shape[1]
             if w == self.size[0]:
                 npimg_rsz = self.npimg
@@ -826,7 +826,7 @@ class ImagePanel(wx.Panel):
         self.SetSize(size)
         self.sizer.Clear()
         self.sizer.Add(self.size)
-        if self.npimg != None:
+        if self.npimg is not None:
             h, w = self.npimg.shape[0], self.npimg.shape[1]
             if w == self.size[0]:
                 npimg_rsz = self.npimg
@@ -926,7 +926,7 @@ choose the 'Undo Manual Label' option.")
 
     def onMotion(self, evt):
         x, y = evt.GetPosition()
-        if self._x_prev == None:
+        if self._x_prev is None:
             self._x_prev, self._y_prev = x, y  # Safe default vals
 
         if self.is_creating and evt.LeftIsDown():
@@ -996,7 +996,7 @@ choose the 'Undo Manual Label' option.")
         dc.SetTextForeground("Blue")
 
         for box in self.GetParent().get_cell_boxes(self.cellid):
-            if box[0] == None:
+            if box[0] is None:
                 # Signal for manual-label box
                 continue
             if box in self.boxes_sel:
@@ -1009,7 +1009,7 @@ choose the 'Undo Manual Label' option.")
             w, h = box_canon[2] - box_canon[0], box_canon[3] - box_canon[1]
             dc.DrawRectangle(box_canon[0], box_canon[1], w, h)
             label = box[-1]
-            if label != None:
+            if label is not None:
                 w_txt, h_txt = dc.GetTextExtent(label)
                 x0 = box_canon[0]
                 y0 = box_canon[1] - h_txt
@@ -1022,7 +1022,7 @@ choose the 'Undo Manual Label' option.")
             dc = wx.PaintDC(self)
         else:
             dc = wx.BufferedPaintDC(self)
-        if self.bitmap != None:
+        if self.bitmap is not None:
             brush = wx.Brush(self.color, wx.TRANSPARENT)
             dc.SetBrush(brush)
             dc.DrawBitmap(self.bitmap, 0, 0)
@@ -1032,7 +1032,7 @@ choose the 'Undo Manual Label' option.")
             w, h = self.GetClientSize()
             dc.DrawRectangle(0, 0, w, h)
 
-        if self.text != None:
+        if self.text is not None:
             dc.SetFont(wx.Font(10, wx.FONTFAMILY_ROMAN,
                                wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_NORMAL))
             dc.SetTextForeground("Black")
@@ -1042,7 +1042,7 @@ choose the 'Undo Manual Label' option.")
             dc.SetFont(wx.Font(12, wx.FONTFAMILY_TELETYPE,
                                wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_BOLD))
             dc.SetTextForeground("Blue")
-            if self.text == None:
+            if self.text is None:
                 x0, y0 = 5, 5
             else:
                 w, h = dc.GetTextExtent(self.text)
@@ -1102,7 +1102,7 @@ each letter/digit (i.e. the smallest unit) with a comma. For instance:",
     def onButton_ok(self, evt):
         txt_user = self.txtctrl.GetValue()
         labels = txt_user.split(",")
-        if self.num_labels != None and len(labels) != self.num_labels:
+        if self.num_labels is not None and len(labels) != self.num_labels:
             wx.MessageDialog(self, style=wx.OK | wx.SYSTEM_MENU | wx.RESIZE_BORDER,
                              message="Invalid number of (comma-separated) labels \
 entered. There must be {0} comma-separated labels -- you entered {1} labels.".format(self.num_labels, len(labels))).ShowModal()
@@ -1419,7 +1419,7 @@ def main():
         imgpaths = []
         for dirpath, dirnames, filenames in os.walk(imgsdir):
             for imgname in [f for f in filenames if f.lower().endswith(".png")]:
-                if limit != None and len(imgpaths) >= limit:
+                if limit is not None and len(imgpaths) >= limit:
                     return imgpaths
                 imgpaths.append(os.path.join(dirpath, imgname))
         return imgpaths

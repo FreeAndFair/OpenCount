@@ -118,7 +118,7 @@ values for this caption...")
         if imgpath in self.imagecaptions:
             caption = self.imagecaptions[imgpath]
             labels = self.captionlabels.get(caption, None)
-            if labels == None:
+            if labels is None:
                 self.listbox.SetItems(['No values entered.'])
                 return
             self.listbox.SetItems(list(set(labels)))
@@ -137,7 +137,7 @@ values for this caption...")
         if oldlabel == label:
             return True
         caption = self.imagecaptions.get(imgpath, None)
-        if caption != None:
+        if caption is not None:
             try:
                 self.captionlabels[caption].remove(oldlabel)
             except:
@@ -242,7 +242,7 @@ values for this caption...")
                 user can input (optional).
         """
         self.captions = captions
-        captions = captions if captions != None else {}
+        captions = captions if captions is not None else {}
         self.possibles = possibles
         self.callback = callback
         self.reset()

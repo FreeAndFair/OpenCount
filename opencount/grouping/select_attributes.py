@@ -259,7 +259,7 @@ class SelectAttributesMasterPanel(wx.Panel):
                     patchpath, bb = subpatch_map[subpatchP]
                     blankpath, _ = self.inv_mapping[patchpath]
                     I = cv.LoadImage(subpatchP, cv.CV_LOAD_IMAGE_UNCHANGED)
-                    if bb_none != None:
+                    if bb_none is not None:
                         cv.SetImageROI(I, (bb_none[2], bb_none[0], bb_none[
                                        3] - bb_none[2], bb_none[1] - bb_none[0]))
                     outname = "{0}_{1}.png".format(attrval, i)
@@ -386,8 +386,8 @@ class SelectAttributesPanel(wx.Panel):
         self.patchpaths = patchpaths
         self.img2flip = img2flip
         self.attr = attr
-        self.boxes = boxes if boxes != None else {}
-        if outdir0 != None:
+        self.boxes = boxes if boxes is not None else {}
+        if outdir0 is not None:
             self.outdir0 = outdir0
         self.mosaicpanel.set_images(patchpaths)
         self.Fit()

@@ -114,7 +114,7 @@ class PartitionMainPanel(ffwx.Panel):
             debug("There are {0} images from side {1}",
                   pages_counter[decoderPage],
                   decoderPage)
-            if _prev_count == None:
+            if _prev_count is None:
                 _prev_count = pages_counter[decoderPage]
             if pages_counter[decoderPage] != _prev_count:
                 debug("...Uhoh, detected uneven pages, might be problem...")
@@ -440,7 +440,7 @@ class PartitionPanel(ScrolledPanel):
         cnt = 0
         for imgpath, decoding in img2decoding.iteritems():
             isflip = img2flip.get(imgpath, None)
-            if isflip != None:
+            if isflip is not None:
                 cache[imgpath] = (decoding, isflip)
                 cnt += 1
         debug("(Info) Loaded {0} previous decodings into cache.", cnt)
@@ -498,7 +498,7 @@ class PartitionPanel(ScrolledPanel):
             self.imginfo = imginfo
             self.quarantined_bals = quarantined_bals
             self.discarded_bals = discarded_bals
-            if self.partitioning != None:
+            if self.partitioning is not None:
                 self.display_partition_stats()
         except:
             return False
@@ -775,7 +775,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             dict VERIFYPATCH_BBS: maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
                 Will be None if skipVerify was True.
         """
-        if self.chkbox_skip_verify.GetValue() or verifypatch_bbs == None:
+        if self.chkbox_skip_verify.GetValue() or verifypatch_bbs is None:
             debug("...Skipping Barcode Overlay Verification...")
             wx.CallAfter(self.on_verify_done, None, None, img2decoding,
                          flipmap, verifypatch_bbs, skipVerify=True)
@@ -990,8 +990,8 @@ You may move onto the next step.").ShowModal()
         largest, smallest = None, None
         for partitionid, ballotids in self.partitioning.iteritems():
             n = len(ballotids)
-            largest = (max(largest, n) if largest != None else n)
-            smallest = (min(smallest, n) if smallest != None else n)
+            largest = (max(largest, n) if largest is not None else n)
+            smallest = (min(smallest, n) if smallest is not None else n)
 
         num_partitions = len(self.partitioning)
         self.num_partitions.set_value(num_partitions)
@@ -1419,7 +1419,7 @@ def extract_barcode_patches(verifypatch_bbs, flipmap, outrootdir, voteddir,
     for bc_val, tups in verifypatch_bbs.iteritems():
         for (imgpath, (x1, y1, x2, y2), userdata) in tups:
             i = bc_val_cnt.get(bc_val, None)
-            if i == None:
+            if i is None:
                 bc_val_cnt[bc_val] = 0
                 bc_val_dircnt[bc_val] = 0
                 i = 0

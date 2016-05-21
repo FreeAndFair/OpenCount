@@ -105,11 +105,11 @@ def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
                 i += 1
         tol = MARKTOL
         cur_sym_idx = len(syms)
-        if (LEN != None) and len(syms) == 0:
+        if (LEN is not None) and len(syms) == 0:
             tol = BEGIN_TOL
-        elif (LEN != None) and len(syms) == (LEN - 1):
+        elif (LEN is not None) and len(syms) == (LEN - 1):
             tol = END_TOL
-        elif idx2tol != None and cur_sym_idx in idx2tol:
+        elif idx2tol is not None and cur_sym_idx in idx2tol:
             tol = idx2tol[cur_sym_idx]
         low, high = (w_mark * tol), (w_mark * (1.0 + (1.0 - tol)))
         is_mark = low <= run_len <= high
@@ -128,8 +128,8 @@ def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
     syms = []  # [(str SYM, int x), ...]
     i = 0
     idx_prevmark = None
-    while i < len(data) and ((LEN == None) or (len(syms) < LEN)):
-        if GAMMA != None and idx_prevmark != None and abs(i - (idx_prevmark + w_mark + gap)) > (GAMMA * (w_mark + gap)):
+    while i < len(data) and ((LEN is None) or (len(syms) < LEN)):
+        if GAMMA is not None and idx_prevmark is not None and abs(i - (idx_prevmark + w_mark + gap)) > (GAMMA * (w_mark + gap)):
             # Terminate
             return syms
         val = data[i]

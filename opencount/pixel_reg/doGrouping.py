@@ -331,7 +331,7 @@ def dist2patches(patchTuples, scale, debug=False):
             # TODO: Do I want to maximize, or minimize 'score'?
             score = res[0]  # I'm pretty sure we want to maximize.
             score = res[0] / (patch.shape[0] * patch.shape[1])
-            if bestscore == None or score > bestscore:
+            if bestscore is None or score > bestscore:
                 bestscore = score
                 best_idx_ex = idx_ex
                 bestloc = (res[1][0] / scale, res[1][1] / scale)

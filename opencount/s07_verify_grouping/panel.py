@@ -215,7 +215,7 @@ class VerifyGroupingMainPanel(wx.Panel):
             if cattrprops['type'] == cust_attrs.TYPE_SPREADSHEET:
                 flag_ssAttrExists = True
                 ssdict = ss_dicts.get(attrtype, None)
-                if ssdict == None:
+                if ssdict is None:
                     ss_dicts[attrtype] = read_sscustattr(cattrprops['sspath'])
                     ssdict = ss_dicts[attrtype]
                 for ballotid, ballotprops in ballot_attrvals.iteritems():
@@ -300,7 +300,7 @@ class VerifyGroupingMainPanel(wx.Panel):
                 # /not/ be grouped together. So, add a new criterion to the
                 # ORDERED_PROPS group tag.
                 ordered_props += (getpagenums(ballotid),)
-            if all_attrs_tabulationonly() and b2g_old != None and ballotid in b2g_old:
+            if all_attrs_tabulationonly() and b2g_old is not None and ballotid in b2g_old:
                 # Use the prior group indexing scheme!
                 # NOTE: This code will NOT gracefully handle the case where
                 #       some ballots are found in B2G_OLD, and others are not
@@ -313,7 +313,7 @@ class VerifyGroupingMainPanel(wx.Panel):
                 group_idx_map[ordered_props] = group_idx
             else:
                 group_idx = group_idx_map.get(ordered_props, None)
-                if group_idx == None:
+                if group_idx is None:
                     group_idx = group_cnt
                     group_idx_map[ordered_props] = group_idx
                     group_cnt += 1
@@ -433,10 +433,10 @@ class VerifyGroupingMainPanel(wx.Panel):
         for attrtype, patchpaths in quarantined_results.iteritems():
             for patchpath in patchpaths:
                 imgpath = imgpatch2imgpath.get(patchpath, None)
-                if imgpath == None:
+                if imgpath is None:
                     imgpath, idx = digpatch2imgpath.get(
                         patchpath, (None, None))
-                    if imgpath == None:
+                    if imgpath is None:
                         error("imgpath is None. patchpath: {0}", patchpath)
                         pdb.set_trace()
                 if not attrmap[attrtype]['grp_per_partition']:
@@ -510,10 +510,10 @@ class VerifyBallotAttributes(VerifyOrFlagOverlays):
             removeit = []
             for patchpath in group.imgpaths:
                 imgpath_this = self.patch2imgpath.get(patchpath, None)
-                if imgpath_this == None:
+                if imgpath_this is None:
                     imgpath_this, idx = self.digpatch2imgpath.get(
                         patchpath, (None, None))
-                if imgpath_this == None:
+                if imgpath_this is None:
                     error("imgpath_this was None. patchpath: {0}", patchpath)
                     pdb.set_trace()
                 if imgpath_this == imgpath:
@@ -565,10 +565,10 @@ class VerifyBallotOverlaysMultCats(VerifyOverlaysMultCats):
         pages = range(self.nb.GetPageCount())
         for patchpath in patchpaths:
             imgpath = self.patch2imgpath.get(patchpath, None)
-            if imgpath == None:
+            if imgpath is None:
                 imgpath, idx = self.digpatch2imgpath.get(
                     patchpath, (None, None))
-            if imgpath == None:
+            if imgpath is None:
                 error("imgpath is None. Patchpath: {0}", patchpath)
                 pdb.set_trace()
             # Remove all elements from each group from each verifypanel
@@ -752,7 +752,7 @@ def get_digit_exemplars(proj):
         if attr['is_digitbased']:
             digattrtype = '_'.join(sorted(attr['attrs']))
             break
-    if digattrtype == None:
+    if digattrtype is None:
         # Means there are no digit attributes in this election
         return {}
     elif is_part_consistent(proj, digattrtype):
@@ -828,7 +828,7 @@ def apply_singledigit_fix(verify_results, attrs, digpatch2imgpath):
         if attr['is_digitbased']:
             digitattrtype = '_'.join(sorted(attr['attrs']))
             break
-    assert digitattrtype != None
+    assert digitattrtype is not None
 
     d_map = {}  # maps {imgpath: {int idx: str digit}}
     verify_results_fixed = {}

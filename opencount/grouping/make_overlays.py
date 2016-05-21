@@ -21,7 +21,7 @@ def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
     NOTE: Currently deprecated. We switched back to using a numpy-based
           overlay-generation function, for ease (make_overlay_minmax)
     """
-    if numProcs == None:
+    if numProcs is None:
         numProcs = multiprocessing.cpu_count()
     if numProcs == 1:
         return minmax_cv(imgpaths, do_align=do_align, rszFac=rszFac, trfm_type=type,
@@ -46,7 +46,7 @@ def _minmax_combfn(a, b):
     IminB_str, ImaxB_str, size = b
     IminB = str2iplimage(IminB_str, size)
     ImaxB = str2iplimage(ImaxB_str, size)
-    if IminA_str == None:
+    if IminA_str is None:
         return IminB.tostring(), ImaxB.tostring(), size
     IminA = str2iplimage(IminA_str, size)
     ImaxA = str2iplimage(ImaxA_str, size)
@@ -72,7 +72,7 @@ def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, trfm_type=
     function written for the parallel version (minmax_cv is still fine for
     single-process use).
     """
-    bbs_map = {} if bbs_map == None else bbs_map
+    bbs_map = {} if bbs_map is None else bbs_map
     if do_align:
         Iref = cv.LoadImage(Iref_imP, cv.CV_LOAD_IMAGE_GRAYSCALE)
         bbRef = bbs_map.get(Iref_imP, None)
@@ -125,13 +125,13 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
         cvMat minimg, cvMat maximg.
     """
     def load_image(imgpath):
-        if imgCache == None:
+        if imgCache is None:
             return cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         else:
             ((img, imgpath), isHit) = imgCache.load(imgpath)
             return img
 
-    if bbs_map == None:
+    if bbs_map is None:
         bbs_map = {}
     imgpath = imgpaths[0]
     bb0 = bbs_map.get(imgpath, None)
@@ -257,9 +257,9 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
     """
     # TODO: Implement with bbs_map
     def load_image(imgpath):
-        if imgCache == None:
+        if imgCache is None:
             return misc.imread(imgpath, flatten=True)
-        elif bindataP != None:
+        elif bindataP is not None:
             (img, tag), isHit = imgCache.load_binarydat(imgpath, bindataP)
             return img
         else:
@@ -269,7 +269,7 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
     Iref = None
     for path in imgpaths:
         img = load_image(path)
-        if do_align and Iref == None:
+        if do_align and Iref is None:
             Iref = img
         elif do_align:
             (H, img, err) = imagesAlign(img, Iref, fillval=0, rszFac=rszFac)
@@ -287,7 +287,7 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0, imgCache=None,
                 h, w = overlayMax.shape
                 img = resize_img_norescale(img, (w, h))
             overlayMax = np.fmax(overlayMax, img)
-        if queue_mygauge != None:
+        if queue_mygauge is not None:
             queue_mygauge.put(True)
 
     # HACK: To prevent auto-dynamic-rescaling bugs, where an all-white
@@ -303,18 +303,18 @@ def make_minmax_overlay2(imgs, do_align=False, rszFac=1.0):
     overlayMin, overlayMax = None, None
     Iref = None
     for img in imgs:
-        if do_align and Iref == None:
+        if do_align and Iref is None:
             Iref = img
         elif do_align:
             (H, img, err) = imagesAlign(img, Iref, fillval=0, rszFac=rszFac)
-        if (overlayMin == None):
+        if (overlayMin is None):
             overlayMin = img
         else:
             if overlayMin.shape != img.shape:
                 h, w = overlayMin.shape
                 img = resize_img_norescale(img, (w, h))
             overlayMin = np.fmin(overlayMin, img)
-        if (overlayMax == None):
+        if (overlayMax is None):
             overlayMax = img
         else:
             if overlayMax.shape != img.shape:
@@ -369,8 +369,8 @@ def overlay_im_orig(images):
     min_im = None
     max_im = None
     for im in images:
-        min_im = im if min_im == None else ImageChops.darker(im, min_im)
-        max_im = im if max_im == None else ImageChops.lighter(im, max_im)
+        min_im = im if min_im is None else ImageChops.darker(im, min_im)
+        max_im = im if max_im is None else ImageChops.lighter(im, max_im)
     overlay = Image.new("RGBA", images[0].size, (255, 255, 255, 255))
     overlay.paste(
         Image.new("RGB", images[0].size, COLOR1), None, ImageOps.invert(min_im))
@@ -403,9 +403,9 @@ def overlay_im(images, include_min_max=False):
     max_im = None
     for im in images:
         pil_img = Image.open(im).convert('L')
-        min_im = pil_img if min_im == None else ImageChops.darker(
+        min_im = pil_img if min_im is None else ImageChops.darker(
             pil_img, min_im)
-        max_im = pil_img if max_im == None else ImageChops.lighter(
+        max_im = pil_img if max_im is None else ImageChops.lighter(
             pil_img, max_im)
 
     # represent images as matrices
@@ -483,7 +483,7 @@ def ave(l):
 
 
 def var(l, a=None):
-    a = ave(l) if a == None else a
+    a = ave(l) if a is None else a
     return sum([(i - a)**2 for i in l]) / float(len(l))
 
 
@@ -512,7 +512,7 @@ threshold = otsu( im )
             continue  # skip degenerate cases
         inter_class_variance = sum(
             left) * sum(right) * (histogram_mean(left) - histogram_mean(right, len(left)))**2
-        if best == None or inter_class_variance > best[1]:
+        if best is None or inter_class_variance > best[1]:
             best = (t, inter_class_variance)
     return best[0]
 
@@ -564,7 +564,7 @@ def abs_sum(gray_im, windowsize, searchvalue=None):
     colsum = [0] * gray_im.size[0] * gray_im.size[1]
     totsum = [0] * gray_im.size[0] * gray_im.size[1]
     c1 = clock()
-    if searchvalue != None:
+    if searchvalue is not None:
         # init as 0/1 thresholded image data (vs 0/255)
         data = list(gray_im.point(lambda x: 1 if x ==
                                   searchvalue else 0).getdata())

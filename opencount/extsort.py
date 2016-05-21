@@ -201,7 +201,7 @@ def batch_sort_mod(input, output, imgSize, key=None,
                                   for i in xrange(len(current_chunk))]
                     # First, filter out the quarantined targets
                     sorted_chunk = [(i, tdata) for (i, tdata) in enumerate(
-                        current_chunk) if sort_order[i] != None]
+                        current_chunk) if sort_order[i] is not None]
                     # Second, sort the targets by the sort criterion (avg
                     # intensity)
                     sorted_chunk = sorted(

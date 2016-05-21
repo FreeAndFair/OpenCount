@@ -49,7 +49,7 @@ def main():
     # clusters = cluster_imgs.cluster_imgs_kmeans(imgpaths, bb_map=bb_map)
     # clusters = cluster_imgs.cluster_imgs_pca_kmeans(imgpaths, bb_map=bb_map)
     # clusters = cluster_imgs.cluster_imgs_hag(imgpaths, bb_map=bb_map)
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
     for cluster, imgpaths in clusters.iteritems():
         # overlay, minimg, maximg = make_overlays.overlay_im(imgpaths, include_min_max=True)

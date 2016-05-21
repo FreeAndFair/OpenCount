@@ -142,7 +142,7 @@ def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
     """
     if debug_SKIP:
         return dict(mapping)
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
     exemplars = {}  # maps {str label: [imgpath_i, ...]}
     clustervals = {}  # maps {str label: {str imgpath: float feat}}
@@ -156,7 +156,7 @@ def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
         firstP = imgpaths.pop(random.randrange(0, len(imgpaths)))
         img = scipy.misc.imread(firstP, flatten=True)
         bbFirst = bb_map.get(firstP, None)
-        if bbFirst != None:
+        if bbFirst is not None:
             img = img[bbFirst[0]:bbFirst[1], bbFirst[2]:bbFirst[3]]
         median = np.median(img)
         clusters.append([(firstP, median), ])
@@ -166,7 +166,7 @@ def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
             imgP = imgpaths.pop()
             img = scipy.misc.imread(imgP, flatten=True)
             bb = bb_map.get(imgP, None)
-            if bb != None:
+            if bb is not None:
                 img = img[bb[0]:bb[1], bb[2]:bb[3]]
             median = np.median(img)
             best_idx, best_dist = None, None
@@ -174,12 +174,12 @@ def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
                 exemplarP, exemplarFeat = cluster[0]
                 dist = abs(median - exemplarFeat)
                 if dist <= D:
-                    if best_idx == None or dist < best_dist:
+                    if best_idx is None or dist < best_dist:
                         # a.) Merge I into cluster
                         best_idx = idx
                         best_dist = dist
                         cluster.append((imgP, median))
-            if best_idx == None:
+            if best_idx is None:
                 # b.) Create a new cluster.
                 clusters.append([(imgP, median)])
         # 2.) Emit a single exemplar from each cluster
@@ -204,7 +204,7 @@ def compute_exemplars(mapping, bb_map=None):
         h, w = img.shape
         bb = [0, h, 0, w]
         bb2 = bb_map.get(imgpath2, None)
-        if bb2 != None:
+        if bb2 is not None:
             bbs2 = {imgpath2: bb2}
             matches = shared.find_patch_matchesV1(
                 img, bb, (imgpath2,), bbSearches=bbs2, threshold=0.1)
@@ -218,7 +218,7 @@ def compute_exemplars(mapping, bb_map=None):
         """ L2 norm between img1, img2 """
         img2 = shared.standardImread(imgpath2, flatten=True)
         bb2 = bb_map.get(imgpath2, None)
-        if bb2 != None:
+        if bb2 is not None:
             img2 = img2[bb2[0]:bb2[1], bb2[2]:bb2[3]]
         img2 = common.resize_img_norescale(img2, (img.shape[1], img.shape[0]))
         diff = np.linalg.norm(img - img2)
@@ -229,7 +229,7 @@ def compute_exemplars(mapping, bb_map=None):
         imgCv = cv.fromarray(np.copy(img.astype(np.float32)))
         img2 = shared.standardImread(imgpath2, flatten=True)
         bb2 = bb_map.get(imgpath2, None)
-        if bb2 != None:
+        if bb2 is not None:
             img2 = img2[bb2[0]:bb2[2], bb2[2]:bb2[3]]
         img2Cv = cv.fromarray(np.copy(img2.astype(np.float32)))
         outCv = cv.CreateMat(imgCv.height - img2Cv.height + 1, imgCv.width - img2Cv.width + 1,
@@ -242,17 +242,17 @@ def compute_exemplars(mapping, bb_map=None):
         bestmatch = None
         img = shared.standardImread(imgpath, flatten=True)
         bb = bb_map.get(imgpath, None)
-        if bb != None:
+        if bb is not None:
             img = img[bb[0]:bb[1], bb[2]:bb[3]]
         for label, imgpaths in exemplars.iteritems():
             for imgpathB in imgpaths:
                 dist = distance2(img, imgpathB)
-                if mindist == None or dist < mindist:
+                if mindist is None or dist < mindist:
                     bestmatch = label
                     mindist = dist
         return bestmatch, mindist
     mapping = copy.deepcopy(mapping)
-    if bb_map == None:
+    if bb_map is None:
         bb_map = {}
     exemplars = {}
     for label, imgpaths in mapping.iteritems():
@@ -279,9 +279,9 @@ def compute_exemplars(mapping, bb_map=None):
 def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
                padSearch=0.75, padPatch=0.0):
     bb = list(bb)
-    if bbSearch != None:
+    if bbSearch is not None:
         bbSearch = list(bbSearch)
-    if bbSearches != None:
+    if bbSearches is not None:
         bbSearches = list(bbSearches)
     matchList = []  # (filename, left,right,up,down)
 
@@ -297,19 +297,19 @@ def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
 
     patch = patchFoo[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]]
 
-    if bbSearch != None:
+    if bbSearch is not None:
         bbSearch[0] = bbSearch[0] * rszFac
         bbSearch[1] = bbSearch[1] * rszFac
         bbSearch[2] = bbSearch[2] * rszFac
         bbSearch[3] = bbSearch[3] * rszFac
 
     for cur_i, imP in enumerate(imList):
-        if bbSearches != None:
+        if bbSearches is not None:
             bbSearch = map(lambda c: c * rszFac, bbSearches[cur_i])
         I1 = shared.standardImread(imP, flatten=True)
         I1 = np.round(shared.fastResize(I1, rszFac) * 255.) / 255.
         # crop to region if specified
-        if bbSearch != None:
+        if bbSearch is not None:
             [bbOut1, bbOff1] = shared.expand(bbSearch[0], bbSearch[1],
                                              bbSearch[2], bbSearch[3],
                                              I1.shape[0], I1.shape[1], padSearch)
@@ -340,7 +340,7 @@ def temp_match(I, bb, imList, bbSearch=None, bbSearches=None, rszFac=0.75,
         (err, diff, Ireg) = shared.lkSmallLarge(
             patch, I1, i1, i2, j1, j2, minArea=np.power(2, 17))
         score2 = err / diff.size  # pixel reg score
-        if bbSearch != None:
+        if bbSearch is not None:
             matchList.append((imP, score1, score2, Ireg,
                               i1 + bbOut1[0], i2 + bbOut1[0],
                               j1 + bbOut1[2], j2 + bbOut1[2], rszFac))
@@ -366,7 +366,7 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2):
         # t = time.time()
         # print "Running find_patch_matchesV1..."
-        if bb == None:
+        if bb is None:
             bb = [0, img.shape[0] - 1, 0, img.shape[1] - 1]
             bbs2 = None
         # matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
@@ -394,7 +394,7 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
                 bbs2.append(bb2)
             closestdist, bbOut = get_closest_ncclk(
                 imgpath, img, bb, imgpaths2, bbs2)
-            if bestlabel == None or closestdist < mindist:
+            if bestlabel is None or closestdist < mindist:
                 bestlabel = label
                 mindist = closestdist
                 bbBest = bbOut
@@ -424,7 +424,7 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
             if (init_len_tasks > 10) and taskidx % (init_len_tasks / 10) == 0:
                 print "."
             label, (imgpath, bb) = tasks[taskidx]
-            if MAXCAP != None:
+            if MAXCAP is not None:
                 cur = counter.get(label, 0)
                 if cur >= MAXCAP:
                     taskidx += 1

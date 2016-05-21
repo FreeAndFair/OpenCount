@@ -196,11 +196,11 @@ class ImageCache(object):
         Output:
             ((obj IMG, str IMGPATH), bool isHit)
         """
-        if dataP != None:
+        if dataP is not None:
             imgID = self.imgpath2id.get((imgpath, dataP), None)
         else:
             imgID = self.imgpath2id.get(imgpath, None)
-        if imgID != None:
+        if imgID is not None:
             debug("Cache Hit!")
             return (self.id2data[imgID], True)
         else:
@@ -208,25 +208,25 @@ class ImageCache(object):
             imgID = self._curid
             self._curid += 1
 
-            if dataP != None:
+            if dataP is not None:
                 self.imgpath2id[(imgpath, dataP)] = imgID
             else:
                 self.imgpath2id[imgpath] = imgID
             self.ids.appendleft(imgID)
-            if dataP != None:
+            if dataP is not None:
                 fdata, imgdims = self.binarydats_map[dataP]
                 img = _load_binarydata(imgpath, fdata, imgdims)
             else:
                 img = self._imgload_fn(imgpath, img_mode=self.img_mode)
 
-            if dataP != None:
+            if dataP is not None:
                 self.id2data[imgID] = (img, (imgpath, dataP))
             else:
                 self.id2data[imgID] = (img, imgpath)
 
             self.register_imgsize(img, imgID)
             self.cache_evict()
-            if dataP != None:
+            if dataP is not None:
                 return (img, (imgpath, dataP)), False
             else:
                 return ((img, imgpath), False)
@@ -259,7 +259,7 @@ class ImageCache(object):
         return self.cache_computeSize() < self.sizecap
 
     def cache_computeSize(self):
-        if self._size != None:
+        if self._size is not None:
             return self._size
         self._size = 0
         for imgID, size_bytes in self.cache_imgSizes.iteritems():
@@ -447,7 +447,7 @@ def test_bounded(imgsdir, imgsdir2, sizecap):
 
 def test_binarydata(imgdataP, imgdims, sizecap=None):
     """ Test the binary data loading routines. """
-    if sizecap == None:
+    if sizecap is None:
         sizecap = SIZECAP_UNBOUNDED = -1
 
     w, h = imgdims
@@ -566,10 +566,10 @@ def main():
         sizecap = None
 
     t = time.time()
-    if dataP != None:
+    if dataP is not None:
         debug("Trying ImageCache.sizecap={0}MB, BINARYDATA", sizecap)
         test_binarydata(dataP, (w, h), sizecap=sizecap)
-    elif sizecap != None:
+    elif sizecap is not None:
         debug("Trying ImageCache.sizecap={0}MB", sizecap)
         test_bounded(imgsdir, imgsdir2, sizecap)
     else:

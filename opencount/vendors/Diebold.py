@@ -101,7 +101,7 @@ class DieboldVendor(Vendor):
             decodings_ordered = tuple([img2decoding[imP]
                                        for imP in imgpaths_ordered])
             partitionid = decoding2partition.get(decodings_ordered, None)
-            if partitionid == None:
+            if partitionid is None:
                 decoding2partition[decodings_ordered] = curPartitionID
                 partitionid = curPartitionID
                 curPartitionID += 1
@@ -185,7 +185,7 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
             except IOError as e:
                 ioerr_imgpaths.append(imgpath)
                 continue
-            if decoding == None:
+            if decoding is None:
                 err_imgpaths.append(imgpath)
             else:
                 flipmap[imgpath] = isflip

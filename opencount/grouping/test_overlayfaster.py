@@ -14,19 +14,19 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
     Iref = None
     for path in imgpaths:
         img = misc.imread(path, flatten=1)
-        if do_align and Iref == None:
+        if do_align and Iref is None:
             Iref = img
         elif do_align:
             (H, img, err) = imagesAlign.imagesAlign(
                 img, Iref, fillval=0, rszFac=rszFac)
-        if (overlayMin == None):
+        if (overlayMin is None):
             overlayMin = img
         else:
             if overlayMin.shape != img.shape:
                 h, w = overlayMin.shape
                 img = resize_img_norescale(img, (w, h))
             overlayMin = np.fmin(overlayMin, img)
-        if (overlayMax == None):
+        if (overlayMax is None):
             overlayMax = img
         else:
             if overlayMax.shape != img.shape:

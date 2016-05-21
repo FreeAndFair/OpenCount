@@ -20,7 +20,7 @@ class AdjListGraph(Graph):
     """ Is an undirected graph """
 
     def __init__(self, nodes=None):
-        self.nodes = list(nodes) if nodes != None else []
+        self.nodes = list(nodes) if nodes is not None else []
         # dict self.adjlist: maps {int id: set([id, ...])}
         self.adjlist, self.node2id = self.generate_adj_list(nodes)
 
@@ -104,7 +104,7 @@ class Node(object):
 
     def __init__(self, val, neighbors=None):
         self.val = val
-        self.neighbors = neighbors if neighbors != None else []
+        self.neighbors = neighbors if neighbors is not None else []
 
     def add_neighbor(self, node):
         if node not in self.neighbors:
@@ -148,7 +148,7 @@ def graphcolour(graph, colours=("R", "G", "B", "Y", "M")):
     def expand_state(state):
         """ Only expand out a single unassigned variable at a time. """
         for node, colour in state:
-            if colour == None:
+            if colour is None:
                 out_states = []
                 for new_colour in colours:
                     out_state = []
@@ -175,7 +175,7 @@ def graphcolour(graph, colours=("R", "G", "B", "Y", "M")):
         if is_done(cur_state):
             return make_colouring(cur_state)
         new_states = expand_state(cur_state)
-        if new_states != None:
+        if new_states is not None:
             stack.extendleft(new_states)
     print "Couldn't find solution."
     return None
@@ -202,7 +202,7 @@ def fivecolour_planar(graph, colours=("R", "G", "B", "Y", "M")):
         occupied_clrs = set()
         for neighbor in node.neighbors:
             clr = colouring.get(neighbor, None)
-            if clr != None:
+            if clr is not None:
                 occupied_clrs.add(clr)
         chosen_clr = tuple(set.difference(set(colours), occupied_clrs))[0]
         return chosen_clr

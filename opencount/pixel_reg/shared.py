@@ -305,9 +305,9 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
                          output_Ireg=False, jobid=None, save_patches=False, outdir=None, outid_start=0,
                          progress_queue=None):
     bb = list(bb)
-    if bbSearch != None:
+    if bbSearch is not None:
         bbSearch = list(bbSearch)
-    if bbSearches != None:
+    if bbSearches is not None:
         bbSearches = list(bbSearches)
     matchList = []  # (filename, left,right,up,down)
     if doPrep:
@@ -330,7 +330,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
 
     patch = patchFoo[bbOff[0]:bbOff[1], bbOff[2]:bbOff[3]]
 
-    if bbSearch != None:
+    if bbSearch is not None:
         bbSearch[0] = bbSearch[0] * rszFac
         bbSearch[1] = bbSearch[1] * rszFac
         bbSearch[2] = bbSearch[2] * rszFac
@@ -339,7 +339,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
     bestScore, bestMatch = None, None
 
     for cur_i, imP in enumerate(imList):
-        if bbSearches != None:
+        if bbSearches is not None:
             bbSearch = map(lambda c: c * rszFac, bbSearches[cur_i])
         I1 = standardImread(imP, flatten=True)
         if doPrep:
@@ -347,7 +347,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
         I1 = np.round(fastResize(I1, rszFac) * 255.) / 255.
 
         # crop to region if specified
-        if bbSearch != None:
+        if bbSearch is not None:
             [bbOut1, bbOff1] = expand(bbSearch[0], bbSearch[1],
                                       bbSearch[2], bbSearch[3],
                                       I1.shape[0], I1.shape[1], padSearch)
@@ -381,7 +381,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
                 misc.imsave(outpath, Ireg)
                 Ireg_out = outpath
 
-            if bbSearch != None:
+            if bbSearch is not None:
                 m = (imP, score1, score2, Ireg_out,
                      i1 + bbOut1[0], i2 + bbOut1[0],
                      j1 + bbOut1[2], j2 + bbOut1[2], rszFac)
@@ -390,7 +390,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
                      i1, i2, j1, j2, rszFac)
             matchList.append(m)
 
-            if bestScore == None or score2 < bestScore:
+            if bestScore is None or score2 < bestScore:
                 bestScore = score2
                 bestMatch = m
             # mask out detected region
@@ -400,7 +400,7 @@ def find_patch_matchesV1(I, bb, imList, threshold=.8, rszFac=.75, bbSearch=None,
             j2mask = min(Iout.shape[1], j1 + patch.shape[1] / 3)
             Iout[i1mask:i2mask, j1mask:j2mask] = 0
 
-        if jobid != None and progress_queue != None:
+        if jobid is not None and progress_queue is not None:
             progress_queue.put(True)
 
     if not matchList:
