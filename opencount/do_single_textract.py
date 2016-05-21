@@ -32,7 +32,7 @@ Usage:
 /media/data1/audits2012_straight/yolo/votedballots/yolo_s2_074/yolo_s2_074-020.png bad_out
 
 Or, as a super-simple shortcut, the following is equivalent:
-  
+
     python do_single_textract.py bad_out
 
 This will do target extraction on yolo_s2_074-020.png, and dump it to bad_out/.
@@ -141,7 +141,7 @@ def main():
 
     '''
     res = doExtract.convertImagesSingleMAP(bal2imgs, tpl2imgs, bal2tpl, img2bal,
-                                           csvPattern, 
+                                           csvPattern,
                                            t_imgs, t_meta, b_meta,
                                            pathjoin(projdir, 'quarantined.csv'),
                                            lambda: False,

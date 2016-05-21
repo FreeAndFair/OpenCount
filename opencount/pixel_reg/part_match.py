@@ -73,7 +73,7 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         dict digit_hash: maps {str digit: img digit_exemplar}
         obj I: image to search over (i.e. voted ballot)
         int nDigits: number of digits to find
-        hspace: 
+        hspace:
         hackConstant:
         dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
         dict accepted_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
@@ -87,7 +87,7 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
     t0 = time.clock()
     for key in keys:
         Iout = sh.NCC(I, digit_hash[key])
-        #misc.imsave("_Iout_{0}.png".format(key), Iout)
+        # misc.imsave("_Iout_{0}.png".format(key), Iout)
         # mask out any part if given by param
         if rejected_hash and rejected_hash.has_key(key):
             for (bbMask, side, isflip) in rejected_hash[key]:
@@ -101,7 +101,7 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
                 j1 = max(0, bbMask[2] - (w / 4))
                 j2 = min(Iout.shape[1], bbMask[2] + (w / 4))
                 Iout[i1:i2, j1:j2] = Iout[i1:i2, j1:j2] - reject_penalty
-            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+            # misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
 
         if accepted_hash and accepted_hash.has_key(key):
             for (bbMask, side, isflip) in accepted_hash[key]:
@@ -115,7 +115,7 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
                 j1 = max(0, bbMask[2] - (w / 4))
                 j2 = min(Iout.shape[1], bbMask[2] + (w / 4))
                 Iout[i1:i2, j1:j2] = Iout[i1:i2, j1:j2] + accept_bonus
-            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+            # misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
 
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0], Iout.shape[1], len(keys)))
@@ -131,7 +131,7 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
     # re-scale resp
     unary = hackConstant * np.power(2 - (maxResp + 1), 2)
 
-    #res = dt2(unary)
+    # res = dt2(unary)
     res = distance_transform.dt2(unary)
 
     # cache bottom up
@@ -150,12 +150,12 @@ def pm1(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         # shift
         # t1=time.clock()
         # old
-        #res0 = dt2(prevT+unary)
+        # res0 = dt2(prevT+unary)
         # print 'old DP time:',time.clock()-t1,'(s)'
 
         # new cython implementation
         res = distance_transform.dt2(prevT + unary)
-        #res = dt2(prevT+unary)
+        # res = dt2(prevT+unary)
         # print 'diff = ', np.sum(np.abs(res0[0] - res[0]))
         M[i] = res[0]
         Mx[i] = res[1]
@@ -214,7 +214,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         dict digit_hash: maps {str digit: img digit_exemplar}
         obj I: image to search over (i.e. precinct patch from a voted ballot)
         int nDigits: number of digits to find
-        hspace: 
+        hspace:
         hackConstant:
         dict rejected_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
         dict accepted_hash: maps {str digit: [((y1,y2,x1,x2), str side_i, bool isflip_i), ...]}
@@ -230,7 +230,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         Iout = sh.NCC(I, digit_hash[key])
         symbol = key[0]
         meta = key[1]
-        #misc.imsave("_Iout_{0}.png".format(key), Iout)
+        # misc.imsave("_Iout_{0}.png".format(key), Iout)
         # mask out any part if given by param
         if rejected_hash and rejected_hash.has_key(symbol):
             for (bbMask, side, isflip) in rejected_hash[symbol]:
@@ -244,7 +244,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
                 j1 = max(0, bbMask[2] - (w / 4))
                 j2 = min(Iout.shape[1], bbMask[2] + (w / 4))
                 Iout[i1:i2, j1:j2] = Iout[i1:i2, j1:j2] - reject_penalty
-            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+            # misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
 
         if accepted_hash and accepted_hash.has_key(symbol):
             for (bbMask, side, isflip) in accepted_hash[symbol]:
@@ -258,7 +258,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
                 j1 = max(0, bbMask[2] - (w / 4))
                 j2 = min(Iout.shape[1], bbMask[2] + (w / 4))
                 Iout[i1:i2, j1:j2] = Iout[i1:i2, j1:j2] + accept_bonus
-            #misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
+            # misc.imsave("_Iout_{0}_postmask.png".format(key), Iout)
 
         if len(matchMat) == 0:
             matchMat = np.zeros((Iout.shape[0], Iout.shape[1], len(keys)))
@@ -274,7 +274,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
     # re-scale resp
     unary = hackConstant * np.power(2 - (maxResp + 1), 2)
 
-    #res = dt2(unary)
+    # res = dt2(unary)
     res = distance_transform.dt2(unary)
 
     # cache bottom up
@@ -293,12 +293,12 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         # shift
         # t1=time.clock()
         # old
-        #res0 = dt2(prevT+unary)
+        # res0 = dt2(prevT+unary)
         # print 'old DP time:',time.clock()-t1,'(s)'
 
         # new cython implementation
         res = distance_transform.dt2(prevT + unary)
-        #res = dt2(prevT+unary)
+        # res = dt2(prevT+unary)
         # print 'diff = ', np.sum(np.abs(res0[0] - res[0]))
         M[i] = res[0]
         Mx[i] = res[1]
@@ -339,7 +339,7 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
         ocr_str += key[0]
         i2 = i1 + digit_hash[key].shape[0]
         j2 = j1 + digit_hash[key].shape[1]
-        #P = I[i1:i2,j1:j2]
+        # P = I[i1:i2,j1:j2]
         bbs.append((i1, i2, j1, j2))
         # patches.append(P)
         patches.append(None)
@@ -418,7 +418,7 @@ def process_one(args):
         # matched_keys)
         res = pm2(digit_hash, I1_patch, nDigits, hspace,
                   rejected_hash=rejected_hash, accepted_hash=accepted_hash)
-        #res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
+        # res = pm1(digit_hash,I1,nDigits,hspace,rejected_hash=rejected_hash,accepted_hash=accepted_hash)
         # 1.) Remember to correct for E_i,E_j expansion factor from earlier,
         #     the cropped-out black border (ROWS,COLS), and also to account
         #     for bbSearch offset.
@@ -462,7 +462,7 @@ def digitParse(digit_hash, imList, bbSearch, nDigits, flipmap=None, hspace=20,
     patchExample = digitList[0]
 
     nProc = sh.numProcs()
-    #nProc = 1
+    # nProc = 1
 
     manager = mp.Manager()
     queue_progress = manager.Queue()  # Used for MyGauge updates
@@ -483,7 +483,7 @@ def digitParse(digit_hash, imList, bbSearch, nDigits, flipmap=None, hspace=20,
                 JOBID_GROUPING_DIGITBASED.tick()
     else:
         pool = mp.Pool(processes=nProc)
-        #results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
+        # results = pool.map(process_one, [(x,digit_hash,imList,bbSearch,nDigits, hspace, rejected_hashes,accepted_hashes,flipmap) for x in  imList])
         result_async = pool.map_async(process_one, jobs)
 
         pool.close()

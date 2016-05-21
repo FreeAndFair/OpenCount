@@ -28,7 +28,7 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
     IplImage PATCH:
     tuple MARKSIZE: (int W, int H)
         The dimensions of each barcode mark.
-    int GAP: 
+    int GAP:
         How much space is between each barcode mark.
     int LEN:
         How many marks the barcode is expected to be. Optional - the default
@@ -37,7 +37,7 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
         How much tolerance there should be for the width/height of the
         mark during the search. Lower values help detect cut-off marks.
     float BEGIN_TOL, END_TOL:
-        How much tolerance there should be for the first/last marks. 
+        How much tolerance there should be for the first/last marks.
         Only relevant when LEN is some positive integer.
     int ORIENT:
         Which orientation (VERTICAL, HORIZONTAL) the barcode resides in.
@@ -80,7 +80,7 @@ def parse_patch(patch, marksize, gap=7, LEN=None,
 def scan_line(data, w_mark, pix_on, pix_off, gap, LEN=None,
               MARKTOL=0.5, BEGIN_TOL=0.3, END_TOL=0.3,
               GAMMA=0.5, idx2tol=None):
-    """ Walks DATA, estimating symbols '0'/'1' based on W_MARK and 
+    """ Walks DATA, estimating symbols '0'/'1' based on W_MARK and
     PIX_ON/PIX_OFF.
     Input:
         ...

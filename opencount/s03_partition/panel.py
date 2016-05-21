@@ -123,9 +123,9 @@ class PartitionMainPanel(ffwx.Panel):
             pages_norm_map[decoderPage] = i
             JOBID_EXPORT_RESULTS.tick()
 
-        #######################
-        #### Sanity Checks ####
-        #######################
+        # ## ## ## ## ## ## ## ## ## ## ##
+        # ## # Sanity Checks # ## #
+        # ## ## ## ## ## ## ## ## ## ## ##
 
         # 1.) Perform a few sanity checks if this is a single-sided
         #     election.

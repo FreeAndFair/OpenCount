@@ -301,8 +301,8 @@ def doandgetAvgs(imgnames, rootdir, queue):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
         w, h = cv.GetSize(I)
         result = cv.Sum(I)[0] / float(w * h)
-        #data = shared.standardImread(pathjoin(rootdir, imgname), flatten=True)
-        #result = 256 * (float(sum(map(sum, data)))) / (data.size)
+        # data = shared.standardImread(pathjoin(rootdir, imgname), flatten=True)
+        # result = 256 * (float(sum(map(sum, data)))) / (data.size)
         queue.put((imgname, result))
     return 0
 

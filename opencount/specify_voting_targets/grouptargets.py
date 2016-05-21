@@ -5,7 +5,7 @@ def do_group_hist(targets, epsilon=2.0):
     """
     Groups a set of voting targets into clusters, which in theory
     should correspond to contests.
-    Input: 
+    Input:
         lst targets: Of the form ((x1_i, y1_i, x2_i, y2_i), ...)
     Output:
         lst groups: Of the form (group_i, ...), where each group_i is

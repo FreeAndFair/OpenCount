@@ -38,7 +38,7 @@ def create_testset(imgpaths, outdir, args,
                    THETA, STEP_ROT,
                    MEAN, STD, BRIGHT_AMT, BRIGHT_STEP,
                    img2flip=None):
-    """ Synthetically-perturbs each image I in IMGPATHS, then stores 
+    """ Synthetically-perturbs each image I in IMGPATHS, then stores
     it to OUTDIR.
     """
     def saveimg(I, idx, x, y, theta, bright_amt):

@@ -80,7 +80,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
 
         self.t_loadimgs = None
 
-        #self.Bind(wx.EVT_SCROLLWIN, self.onScroll)
+        # self.Bind(wx.EVT_SCROLLWIN, self.onScroll)
         for evt in (wx.EVT_SCROLLWIN_TOP,
                     wx.EVT_SCROLLWIN_BOTTOM,
                     wx.EVT_SCROLLWIN_LINEUP,
@@ -475,7 +475,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
         template matching search (or as a last-resort).
         Input:
             int CELLID:
-            tuple LABELS: (str label0, label1, ...). 
+            tuple LABELS: (str label0, label1, ...).
                 Must have same length as self.NUM_OBJECTS, if NUM_OBJECTS != None.
         """
         if self.NUM_OBJECTS != None and len(labels) != self.NUM_OBJECTS:
@@ -549,7 +549,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
                 # This is a dummy inactive page -- replace with a resized
                 # spacer
                 try:
-                    #self.sizer.Replace(idx_page, pagesize)
+                    # self.sizer.Replace(idx_page, pagesize)
                     self.sizer.Remove(idx_page)
                     self.sizer.Insert(idx_page, pagesize)
                 except:
@@ -684,7 +684,7 @@ class SmartScrolledGridPanel(ScrolledPanel):
 class ImagePanel(wx.Panel):
 
     def __init__(self, parent, cellid=None, color="red", npimg=None, text=None, size=(100, 50), *args, **kwargs):
-        """ This widget can function either as a panel displaying an image, or as a 
+        """ This widget can function either as a panel displaying an image, or as a
         panel displaying a solid-color background.
         Input:
             int CELLID:
@@ -856,9 +856,9 @@ class ImagePanel(wx.Panel):
         return self.GetParent().mode
 
     def set_mode(self, mode):
-        """ 
+        """
         Input:
-            int MODE: 
+            int MODE:
                 Possible modes are:
                     -- CREATE
                     -- IDLE
@@ -1147,7 +1147,7 @@ class DummyThread(object):
 
 
 class LoadImagesThread(threading.Thread):
-    """ A listener thread that will load in images asynchronously, to 
+    """ A listener thread that will load in images asynchronously, to
     make the UI a bit more responsive.
     """
 
@@ -1203,7 +1203,7 @@ class LoadImagesThread(threading.Thread):
 
 
 def fastResize(I, w, h):
-    """ 
+    """
     Input:
         obj I: numpy img
         int W, H:

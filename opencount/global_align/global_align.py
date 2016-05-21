@@ -25,7 +25,7 @@ Functions that globally-align ballot images together.
 """
 
 USAGE = """Usage:
-    python global_align.py [-h --help -help] [--num N] [--verbose] 
+    python global_align.py [-h --help -help] [--num N] [--verbose]
                            [--method METHOD] [--save_overlays]
                            IMGPATHS REF_IMGPATH OUTDIR
 
@@ -56,9 +56,9 @@ def align_image(I, Iref, crop=True, verbose=False,
     The image that we want to align.
         float CROPX, CROPY, OR tuple CROPX, tuple CROPY
     The amount to crop off the top+bottom and left+right of the image (used
-    with CROP=True). 
+    with CROP=True).
     If CROPX, CROPY are tuples, they must be the same length, and we will
-    try all sequential pairs until we get a relative error that is <= ERR_REL_THR. 
+    try all sequential pairs until we get a relative error that is <= ERR_REL_THR.
     If none are <= ERR_REL_THR, then we output the alignment with smallest error.
         float ERR_REL_THR
     See the docstring for the tuple-version of CROPX, CROPY.
@@ -66,7 +66,7 @@ def align_image(I, Iref, crop=True, verbose=False,
     This parameter dictates how "far down" the pyramid optimization should
     downscale the image. For instance, if MINAREA is K, then a new pyramid
     level will be created by downscaling the image by a factor of 2.0 until
-    the image area is <= K. 
+    the image area is <= K.
     Larger values of MINAREA mean that alignment is done at larger scales,
     which will lead to better accuracy, but may take more time. Smaller
     values of MINAREA incur better speedsup, but potentially at the cost
@@ -92,7 +92,7 @@ def align_image(I, Iref, crop=True, verbose=False,
     if verbose:
         print "Alignment Err: ", err
     Ireg = sh.imtransform(I, H)
-    #Ireg = np.nan_to_num(Ireg)
+    # Ireg = np.nan_to_num(Ireg)
     return H, Ireg, err
 
 
@@ -149,7 +149,7 @@ def align_strong(I, Iref, scales=(0.15, 0.2, 0.25, 0.3),
                  crop_I=(0.05, 0.05, 0.05, 0.05),
                  crop_Iref=None, do_nan_to_num=False):
     """ Alignment strategy: First, crop out 5% from each side of I.
-    Then, try a range of scales, and choose the alignment that 
+    Then, try a range of scales, and choose the alignment that
     minimizes the error.
     CURRENTLY NOT USED.
     """
@@ -233,8 +233,8 @@ def align_cv(I_in, Iref_in, fullAffine=False, resizeDims=None, computeErr=False,
     else:
         I_rsz, Iref_rsz = I, Iref
     if doSmooth:
-        #I_rsz = scipy.ndimage.filters.gaussian_filter(I_rsz, smooth_sigma, mode='nearest')
-        #Iref_rsz = scipy.ndimage.filters.gaussian_filter(Iref_rsz, smooth_sigma, mode='nearest')
+        # I_rsz = scipy.ndimage.filters.gaussian_filter(I_rsz, smooth_sigma, mode='nearest')
+        # Iref_rsz = scipy.ndimage.filters.gaussian_filter(Iref_rsz, smooth_sigma, mode='nearest')
         I_rsz = cv2.GaussianBlur(I_rsz, (0, 0), smooth_sigma)
         Iref_rsz = cv2.GaussianBlur(Iref_rsz, (0, 0), smooth_sigma)
 

@@ -11,15 +11,15 @@ from pixel_reg.imagesAlign import imagesAlign, imtransform
 import pixel_reg.shared as shared
 
 """
-A test script to globally-align an input directoy of ballots, and output a 
-basic overlay for each alignment. 
+A test script to globally-align an input directoy of ballots, and output a
+basic overlay for each alignment.
 
 Usage:
     python test_globalalign.py INPUT_DIR OUTPUT_DIR [IDX]
 
 where INPUT_DIR is a directory containing subdirectories D_i, where
 each D_i should contain ballots with the same layout. (Alternately,
-INPUT_DIR can point to a directory containing only images). 
+INPUT_DIR can point to a directory containing only images).
 For instance, an example such directory is at:
 
     /home/ekim/opencount/test-ballots-ek/oc_badglobalalign/
@@ -27,13 +27,13 @@ For instance, an example such directory is at:
 For instance, oc_badglobalalign/10002940100056/ has three ballots A, B,
 and C. If I run:
 
-    python test_globalalign.py oc_badglobalalign/10002940100056 outdir 
+    python test_globalalign.py oc_badglobalalign/10002940100056 outdir
 
 The script will do the following for every pair of images I0, I1:
 
-    Align I0 to I1 to get I0'. Save overlay(I0', I1) to outdir. 
+    Align I0 to I1 to get I0'. Save overlay(I0', I1) to outdir.
 
-Finally, to run a large-scale 'unit test' (say, every single partition in 
+Finally, to run a large-scale 'unit test' (say, every single partition in
 oc_badglobalalign), you can do:
 
     python test_globalalign.py oc_badglobalalign/ unittest_out
@@ -126,11 +126,11 @@ def do_aligning(imgpaths, outdir, idx):
         # Itrans = scipy.ndimage.interpolation.affine_transform(I, rot_H,
         #                                                      offset=(-trans_H[1], -trans_H[0]),
         #                                                      output_shape=I.shape)
-        #Icv = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        #Icv_trans = cv.CreateMat(Icv.rows, Icv.cols, Icv.type)
-        #H_cv = cv.fromarray(Hc.astype(np.float32)[:2,:])
-        #cv.WarpAffine(Icv, Icv_trans, H_cv)
-        #Itrans = np.asarray(Icv)
+        # Icv = cv.LoadImageM(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
+        # Icv_trans = cv.CreateMat(Icv.rows, Icv.cols, Icv.type)
+        # H_cv = cv.fromarray(Hc.astype(np.float32)[:2,:])
+        # cv.WarpAffine(Icv, Icv_trans, H_cv)
+        # Itrans = np.asarray(Icv)
         Itrans = imtransform(I, H)
         Itrans = np.nan_to_num(Itrans)
 

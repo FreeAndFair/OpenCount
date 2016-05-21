@@ -23,7 +23,7 @@ def decode_patch(img, n, topbot_pairs, cols=4, debug=False, imgP=None):
 
 
 def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerify=True):
-    """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will 
+    """ Given a Hart-style ballot, returns the UPPERLEFT barcode. Will
     try to detect flipped ballots and correct.
     Input:
         str imgpath:
@@ -33,9 +33,9 @@ def decode(imgpath, topbot_pairs, col_sched=(4, 5, 2, 3), debug=False, skipVerif
             Useful if you don't care about this information, as it takes
             up a lot of memory for large datasets.
     Output:
-        (tuple barcodes, bool isflipped, tuple BBS, dict BBSTRIPES_MAP). 
+        (tuple barcodes, bool isflipped, tuple BBS, dict BBSTRIPES_MAP).
         BARCODES is a tuple of one string (UpperLeft).
-        ISFLIPPED is True if we detected the ballot was flipped. 
+        ISFLIPPED is True if we detected the ballot was flipped.
         BBS is a tuple of tuples: [(x1,y1, w, h), ...]
         BBSTRIPES_MAP maps {str label: [(x1,y1,x2,y2), ...]}
         If SKIPVERIFY was True, then BBS/BBSTRIPES_MAP will be None.

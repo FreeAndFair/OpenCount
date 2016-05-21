@@ -21,7 +21,7 @@ in_N, out_N
 Output files:
 
 <projdir>/custom_attrs.p
-  
+
 A list of marshall'd custom_attributes (i.e. dictionaries):
   [m_custattr_i, ... ]
 """
@@ -37,7 +37,7 @@ class CustomAttribute(object):
                  is_tabulationonly=False):
         """
         str attrname:
-        bool is_tabulationonly: 
+        bool is_tabulationonly:
         """
         self.attrname = attrname
         self.is_tabulationonly = is_tabulationonly

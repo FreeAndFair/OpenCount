@@ -155,10 +155,10 @@ class MainFrame(wx.Frame):
 
         if old != -1:
             curpanel = self.notebook.GetPage(old)
-            #self.notebook.SetPageText(old, self.titles[curpanel][1])
+            # self.notebook.SetPageText(old, self.titles[curpanel][1])
 
         newpanel = self.notebook.GetPage(new)
-        #self.notebook.SetPageText(new, self.titles[newpanel][0])
+        # self.notebook.SetPageText(new, self.titles[newpanel][0])
 
         if new >= MainFrame.SELTARGETS:
             if not self.project.is_grouped():
@@ -283,7 +283,7 @@ def main():
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())
-    #f = MainFrame(None)
+    # f = MainFrame(None)
     f.Show()
     app.MainLoop()
 

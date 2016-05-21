@@ -84,7 +84,7 @@ class MosaicPanel(wx.Panel):
 
         self.init_ui()
 
-        #self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+        # self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
     def init_ui(self):
         btn_pageup = wx.Button(self, label="Page Up")
@@ -262,7 +262,7 @@ class ImageMosaicPanel(ScrolledPanel):
 
         self.SetSizer(self.sizer)
 
-        #self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+        # self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
     def OnChildFocus(self, evt):
         # If I don't override this child focus event, then wx will
@@ -272,7 +272,7 @@ class ImageMosaicPanel(ScrolledPanel):
         pass
 
     def get_boxes(self, imgpath):
-        """ Given an imgpath that I contain, return the list of 
+        """ Given an imgpath that I contain, return the list of
         BoundingBoxes that my CellPanels should display (if any).
         Depending on your widget use-case, you will have to implement
         this somehow.
@@ -325,7 +325,7 @@ class ImageMosaicPanel(ScrolledPanel):
 
     def set_transfn(self, transfn):
         """ Sets the transformation function, that maps coords
-        from (x1,y1,x2,y2)->(x1,y1,x2,y2)'. A kludgy hack to 
+        from (x1,y1,x2,y2)->(x1,y1,x2,y2)'. A kludgy hack to
         account for the fact that legacy code has BoundingBoxes in
         [0,1] coordinates.
         """
@@ -334,7 +334,7 @@ class ImageMosaicPanel(ScrolledPanel):
     def display_page(self, pagenum):
         """Sets up UI so that all images on the pagenum are displayed.
         """
-        #assert self.imgpaths
+        # assert self.imgpaths
         start_idx = (self.num_rows * self.num_cols) * pagenum
         assert start_idx <= len(self.imgpaths)
         i, j = 0, 0
@@ -397,7 +397,7 @@ class ImageMosaicPanel(ScrolledPanel):
                 cellpanel.unselect()
 
     def get_cellpanel(self, imgpath):
-        """ Returns the CellPanel instance given by imgpath if it's 
+        """ Returns the CellPanel instance given by imgpath if it's
         currently displayed, or None otherwise.
         """
         pagenum, row, col = self.get_img_info(imgpath)
@@ -408,7 +408,7 @@ class ImageMosaicPanel(ScrolledPanel):
         return cellpanel
 
     def get_img_info(self, imgpath):
-        """ Returns the (pagenum, row, col) of the image. Assumes that 
+        """ Returns the (pagenum, row, col) of the image. Assumes that
         I actually do display imgpath.
         """
         # Assumes that self.display_page populates the grid by rows

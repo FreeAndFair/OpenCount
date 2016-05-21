@@ -198,13 +198,13 @@ def _decode_ballots(ballots, (template_path_zero, template_path_one, sidesym_pat
             multiples of 2 (assuming front/back pairs).
     Output:
         (dict img2decoding, dict flipmap, dict mark_bbs, list err_imgpaths, list ioerr_imgpaths, dict backsmap)
-    Since backsides do not really have barcodes, and I detect the 
+    Since backsides do not really have barcodes, and I detect the
     front/back by the ISIDESYM mark, back sides are handled differently.
     If an image I is found to be a backside, it will be added to the
-    FLIPMAP, but not to the MARK_BBS. 
+    FLIPMAP, but not to the MARK_BBS.
     The SequoiaVendor object will be responsible for recognizing that
     imgpaths not present in the VERIFIED_RESULTS, but present in the
-    FLIPMAP, are back-side images. 
+    FLIPMAP, are back-side images.
     """
     flipmap = {}
     # maps {str "ON"/"OFF": [(imgpath, (x1,y1,x2,y2), userdata), ...]}

@@ -173,7 +173,7 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
     else:
         means = initial
     # TODO: Why infinite loop?
-    #initial_idxs = [np.array([16]), np.array([23])]
+    # initial_idxs = [np.array([16]), np.array([23])]
     debug("...initial means: {0}", means)
     assigns = np.zeros(data.shape[0])
     done = False
@@ -194,9 +194,9 @@ def kmeans_2D(data, initial=None, K=2, distfn_method='L2',
             warn("len-2 Cycle detected, restarting")
             means = update_means(data, assigns, means)
             iters += 1
-            #means = data[init_means(data)]
-            #assigns = np.zeros(data.shape[0])
-            #prevprev_assigns = None
+            # means = data[init_means(data)]
+            # assigns = np.zeros(data.shape[0])
+            # prevprev_assigns = None
         else:
             # 3.) Re-compute clusters from new clusters
             means = update_means(data, assigns, means)
@@ -362,7 +362,7 @@ def _L1(A, B, debug=False):
 
 def vardiff(A, B, debug=False):
     """ Computes the difference between A and B, but with an attempt to
-    account for background color. Basically a 1-D version of 
+    account for background color. Basically a 1-D version of
     shared.variableDiffThr
     """
     A_nonan = A[~np.isnan(A)]
@@ -393,7 +393,7 @@ def vardiff_align(A, B):
 
 
 def imgdistortiondiff(A, B, M=3):
-    """ Returns the diff between A and B, but for each pixel P in A, 
+    """ Returns the diff between A and B, but for each pixel P in A,
     compares P to the P' in B that is most similar, within a window of
     size MxM. Utilizes the 'Image Distortion Model'.
     TODO: This is probably very slow - might have to do this in Cython.
@@ -417,7 +417,7 @@ def imgdistortiondiff(A, B, M=3):
 
 
 def imgdistortion_vardiff(A, B, M=3):
-    """ Just like imgdistortiondiff, but also tries to estimate the 
+    """ Just like imgdistortiondiff, but also tries to estimate the
     background, just like vardiff.
     """
     A_nonan = A[~np.isnan(A)]
@@ -452,7 +452,7 @@ def _get_clusterfn(clusterfn_method):
         clusterfn = _mindist
     return clusterfn
 
-""" 
+"""
 For the following, I is one data pt, C is a cluster of data pts. Used
 in k-mediods to compute the distance between a point and a cluster.
 """
@@ -502,7 +502,7 @@ def mean_nan(A):
 
 def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
     """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
-    a dendrogram (i.e. tree), where the children of a node N is 
+    a dendrogram (i.e. tree), where the children of a node N is
     considered to have been 'merged' into the cluster denoted by N.
     Input:
         array DATA: An NxM array, where N is the number of observations,
@@ -593,7 +593,7 @@ def complete_linkage(c1, c2, data, memo, distfn):
 
 
 def hag_cluster_flatten(data, C=0.8):
-    """ Performs Hierarchichal-Agglomerative Clustering on DATA, and 
+    """ Performs Hierarchichal-Agglomerative Clustering on DATA, and
     through the use of a threshold C, tries to infer the 'natural'
     clustering by returning a clustering of DATA.
     Input:
@@ -720,7 +720,7 @@ def test_hac():
                      [44, 43],
                      [32, 45],
                      [48, 45]])
-    #data = np.random.random((400, 2))
+    # data = np.random.random((400, 2))
     Z = sch.linkage(data)
     T = sch.fcluster(Z, 0.5)
     colors = ('bo', 'go', 'ro', 'co', 'mo', 'yo', 'ko', 'wo')

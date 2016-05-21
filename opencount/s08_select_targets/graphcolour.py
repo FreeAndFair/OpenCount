@@ -189,7 +189,7 @@ def fivecolour_planar(graph, colours=("R", "G", "B", "Y", "M")):
         tuple COLOURS:
             This can be a list/tuple of ANY five elements. To fivecolour,
             ints/strings/objects are valid colours.
-        list REMOVED: 
+        list REMOVED:
             Used for the recursive procedure.
     Output:
         dict COLOURING: maps {Node node: obj COLOUR}
@@ -268,7 +268,7 @@ def check_rule2(graph):
 def degree(node):
     return len(node.neighbors)
 
-#### Graphs for Testing ####
+# ## # Graphs for Testing # ## #
 
 
 def test_graph0():

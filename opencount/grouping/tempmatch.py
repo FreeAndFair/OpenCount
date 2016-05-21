@@ -24,7 +24,7 @@ def bestmatch(A, imgpaths, bb=None, img2flip=None, do_smooth=0, xwinA=3, ywinA=3
               xwinI=3, ywinI=3, prevmatches=None, jobid=None, queue_mygauge=None,
               patch_outpaths=None):
     """ Runs template matching on IMGPATHS, searching for best match
-    for A. 
+    for A.
     Input:
         A: Either a string (path), or an IplImage.
         list IMGPATHS: List of imgpaths to search over
@@ -376,14 +376,14 @@ def smooth_mat(Imat, xwin, ywin, bordertype=None, val=255.0):
     '''
     w, h = Imat.cols, Imat.rows
     if bordertype == 'const':
-        #Ibig = cv.CreateImage((w+2*xwin, h+2*ywin), I.depth, I.channels)
+        # Ibig = cv.CreateImage((w+2*xwin, h+2*ywin), I.depth, I.channels)
         Ibig = cv.CreateMat(h+2*ywin, w+2*xwin, Imat.type)
 
         cv.CopyMakeBorder(Imat, Ibig, (xwin, ywin), 0, value=val)
         cv.SetImageROI(Ibig, (xwin, ywin, w, h))
     else:
         Ibig = Imat
-    #Iout = cv.CreateImage((w,h), I.depth, I.channels)
+    # Iout = cv.CreateImage((w,h), I.depth, I.channels)
     Iout = cv.CreateMat(h, w, I.type)
     cv.Smooth(Ibig, Iout, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     return Iout

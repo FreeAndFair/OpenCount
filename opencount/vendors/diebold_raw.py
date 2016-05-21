@@ -360,7 +360,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
                 # Filter out the bad results
                 y1s = [_y1 for _y1 in y1s if _y1 != None]
 
-                #y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
+                # y1_out = int(round((np.mean(y1s)+np.median(y1s))/2.0))
                 if not y1s:
                     y1_out = 0  # Default to sensible value
                 else:
@@ -423,7 +423,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             # Find a tighter y1 for the black marks
             bbs = tighten_bbs(markbbs_rough, decoding, Icor)
             # Correct for current-offset in sweep
-            #bbs_out = [(t[1], y1_step*step, t[1] + w_markfull, y1_step*step + h_markfull) for t in syms]
+            # bbs_out = [(t[1], y1_step*step, t[1] + w_markfull, y1_step*step + h_markfull) for t in syms]
             bbs_out = [(t[0], t[1] + (y1_step * step), t[2],
                         t[3] + (y1_step * step)) for t in bbs]
             # Undo rotation correction
@@ -432,7 +432,7 @@ def decoder_v2_helper(I, Icol, bbs_rough, w_markfull, h_markfull, isflip, H_GAP,
             bbs_out = [(x1 + j1_blk_cor, y1 + i1_blk_cor, x2 + j1_blk_cor,
                         y2 + i1_blk_cor) for (x1, y1, x2, y2) in bbs_out]
             # Add the compute_border offsets
-            #bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
+            # bbs_out = [(x1+j1_blk, y1+i1_blk, x2+j1_blk, y2+i2_blk) for (x1,y1,x2,y2) in bbs_out]
             bbs_out = [(x1 + j1_blk, y1 + i1_blk, (x1 + W_MARK - 1) + j1_blk,
                         (y1 + H_MARK - 1) + i1_blk) for (x1, y1, x2, y2) in bbs_out]
             if DEBUG_SAVEIMGS:
@@ -504,14 +504,14 @@ def most_popular(candidates, W_MARK=WIDTH_MARK, H_MARK=HEIGHT_MARK):
             y1 = int(round(fn(y1s)))
             x2 = x1 + W_MARK - 1
             y2 = y1 + H_MARK - 1
-            #x2 = int(round(fn(x2s)))
-            #y2 = int(round(fn(y2s)))
+            # x2 = int(round(fn(x2s)))
+            # y2 = int(round(fn(y2s)))
             bbs_out.append((x1, y1, x2, y2))
         return bbs_out
 
     best_isflip = best_outputs[0][0]
     best_bbs_out = extrapolate_bbs([t[1] for t in best_outputs], fn=np.median)
-    #best_isflip, best_bbs_out = best_outputs[int(len(best_outputs)/2.0)]
+    # best_isflip, best_bbs_out = best_outputs[int(len(best_outputs)/2.0)]
     return best_decoding, best_isflip, best_bbs_out
 
 

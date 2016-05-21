@@ -40,7 +40,7 @@ Output files:
 
 <projdir>/digitpatch2temp.p
 
-This keeps track of the mapping from digit patch imgpaths to the 
+This keeps track of the mapping from digit patch imgpaths to the
 associated blank ballot imgpath:
     {str digitpatchpath: (str templatepath, attrstr, bb, int side)}
 
@@ -105,8 +105,8 @@ class LabelDigitsPanel(OpenCountPanel):
         self.project = None
 
     def start(self, project):
-        """ First, extract all digit-patches into 
-        self.project.extracted_digitpatch_dir. Then, run the 
+        """ First, extract all digit-patches into
+        self.project.extracted_digitpatch_dir. Then, run the
         Digit-Labeling UI.
         """
         self.project = project
@@ -321,7 +321,7 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
         self.gridsizer = wx.GridSizer(
             rows=DigitLabelPanel.NUM_ROWS, cols=DigitLabelPanel.NUM_COLS)
-        #self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
+        # self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
         self.sizer.Add(self.gridsizer, proportion=1, flag=wx.EXPAND)
 
         self.cellw, self.cellh = DigitLabelPanel.MAX_WIDTH, None
@@ -431,10 +431,10 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
     def add_img(self, imgbitmap, imgID, npimg, imgpath, rszFac):
         """Adds a new image to this grid. Populates the self.imgID2cell,
-        self.cell2imgID, self.i, self.j, self.cells, and 
+        self.cell2imgID, self.i, self.j, self.cells, and
         self.precinct_txts instance variables.
         """
-        #(x, y) = self._get_cur_loc()
+        # (x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
         assert (self.i, self.j) not in self.cell2imgID
         self.imgID2cell[imgID] = (self.i, self.j)
@@ -464,8 +464,8 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         """Reads in the digit patches (given by self.imgpaths)
         and displays them on a grid.
         """
-        #w, h = self.GetClientSize()
-        #w_suggested = int(round(w / self.NUM_COLS))
+        # w, h = self.GetClientSize()
+        # w_suggested = int(round(w / self.NUM_COLS))
         print self.GetClientSize()
         print self.parent.GetClientSize()
         w_suggested = 400
@@ -543,7 +543,7 @@ digit.")
                              job_id=self.util.Gauges.digit_match)
 
     def on_tempmatchdone(self):
-        """Called when the template-matching thread is finished. 
+        """Called when the template-matching thread is finished.
         TODO: This makes the assumption that a GroupClass representing
         a digit-based attribute will have a grouplabel whose kv-pairs
         has a key 'digit', and its value is a digit ('0','1',etc.).
@@ -647,7 +647,7 @@ digit.")
                 newbox = Box(_x1, _y1, _x2, _y2, digit=dig)
                 added_matches += 1
                 boxes.append(newbox)
-                #self.add_box(newbox, regionpath)
+                # self.add_box(newbox, regionpath)
             self.cells[regionpath].boxes = boxes
             self.update_precinct_txt(regionpath)
         print "Added {0} matches.".format(added_matches)
@@ -943,7 +943,7 @@ Saving npimg as _errtmp_npimg_degenerate.png"
 matching. Saving to: _errtmp_npimg.png"
                 scipy.misc.imsave("_errtmp_npimg.png", npimg)
                 return
-            #npimg_crop = autocrop_img(npimg)
+            # npimg_crop = autocrop_img(npimg)
             # Let's try not cropping, since it might help with digit
             # recognition.
             npimg_crop = npimg
@@ -951,8 +951,8 @@ matching. Saving to: _errtmp_npimg.png"
                 print "autocrop failed. saving to: _errtmp_npimg_failcrop.png"
                 scipy.misc.imsave("_errtmp_npimg_failcrop.png", npimg)
                 return
-            #scipy.misc.imsave('before_crop.png', npimg)
-            #scipy.misc.imsave('after_crop.png', npimg_crop)
+            # scipy.misc.imsave('before_crop.png', npimg)
+            # scipy.misc.imsave('after_crop.png', npimg_crop)
             self.parent.start_tempmatch(npimg_crop, self)
         self.Refresh()
 
@@ -965,8 +965,8 @@ matching. Saving to: _errtmp_npimg.png"
     def extract_region(self, box):
         """Extracts box from the currently-displayed image. """
         coords = Box.make_canonical(box)
-        #pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
-        #npimg = scipy.misc.imread(self.imgpath, flatten=True)
+        # pilimg = util_gui.WxBitmapToPilImage(self.bitmap)
+        # npimg = scipy.misc.imread(self.imgpath, flatten=True)
         npimg = shared.standardImread_v2(self.imgpath, flatten=True)
         x1, y1, x2, y2 = map(lambda n: int(round(n * self.rszFac)), coords)
         return npimg[y1:y2, x1:x2]
@@ -1282,7 +1282,7 @@ def _test_get_common_area():
     bb1 = [1, 3, 1, 3]
     bb2 = [1, 3, 2, 3]
     print get_common_area(bb1, bb2)
-#_test_get_common_area()
+# _test_get_common_area()
 # pdb.set_trace()
 
 

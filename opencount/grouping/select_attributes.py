@@ -513,7 +513,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         return []
 
     def start_tempmatch(self, patch, bb, patchpath):
-        """ Run template matching on all unlabeled self.IMGPATHS, 
+        """ Run template matching on all unlabeled self.IMGPATHS,
         searching for PATCH.
         Input:
             IplImage PATCH:
@@ -575,10 +575,10 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         # 1.) Extract+Save imgs, so that ViewOverlays can access them.
         outpaths = []
         patch2img = {}  # maps {str patchpath: str imgpath}
-        #scores = []
+        # scores = []
         # for _, (_, _, score) in results.iteritems():
         #    scores.append(score)
-        #hist, edges = np.histogram(scores)
+        # hist, edges = np.histogram(scores)
         global CTR
         for regionpath, (x, y, score) in results.iteritems():
             if score < self.TM_THRESHOLD:
@@ -611,7 +611,7 @@ class AttrMosaicPanel(util_widgets.ImageMosaicPanel):
         self._verifyframe.Maximize()
 
     def on_verifydone(self, verify_results, attrval, results, w, h, patch2img):
-        """ 
+        """
         Input:
             list VERIFY_RESULTS: maps {tag: [imgpath_i, ...]}
             str ATTRVAL:

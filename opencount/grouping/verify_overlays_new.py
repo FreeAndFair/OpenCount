@@ -125,7 +125,7 @@ class ViewOverlays(ScrolledPanel):
         self.sizer_overlays_voted.SetOrientation(wx.HORIZONTAL)
 
     def set_patch_layout(self, orient='horizontal'):
-        """ Change the orientation of the images. Either arrange 
+        """ Change the orientation of the images. Either arrange
         'horizontal', or stack 'vertical'.
         """
         if orient == 'horizontal':
@@ -317,15 +317,15 @@ class ViewOverlays(ScrolledPanel):
 
     def compute_img_layout(self, minimg, maximg):
         """ Computes the best layout considering the min and max
-        images. 
+        images.
         Returns (str orientation, float rescale_factor).
         """
         # Determine the best layout+autoscaling for these images.
         w_space, h_space = map(float, self.GetClientSize())
         h_space -= max(1, self.sizer_groups.GetSize()[1])
 
-        #w_min, h_min = cv.GetSize(minimg)
-        #w_max, h_max = cv.GetSize(maximg)
+        # w_min, h_min = cv.GetSize(minimg)
+        # w_max, h_max = cv.GetSize(maximg)
         w_min, h_min = get_imgSize(minimg)
         w_max, h_max = get_imgSize(maximg)
 
@@ -535,7 +535,7 @@ class ViewOverlays(ScrolledPanel):
         self.SetupScrolling()
 
     def onComboBox_grplabel(self, evt):
-        """ Triggered when the user clicks a new group label from the 
+        """ Triggered when the user clicks a new group label from the
         combobox dropdown list.
         """
         evt.Skip()
@@ -627,7 +627,7 @@ class SplitOverlays(ViewOverlays):
 
     def select_group(self, *args, **kwargs):
         """ If the selected-group has only one image in it, then
-        disable the 'Split' button. 
+        disable the 'Split' button.
         """
         idx = ViewOverlays.select_group(self, *args, **kwargs)
         if idx == None:
@@ -926,8 +926,8 @@ class VerifyOverlays(SplitOverlays):
         w_space, h_space = map(float, self.GetClientSize())
         h_space -= max(1, self.sizer_groups.GetSize()[1])
 
-        #w_min, h_min = cv.GetSize(minimg)
-        #w_max, h_max = cv.GetSize(maximg)
+        # w_min, h_min = cv.GetSize(minimg)
+        # w_max, h_max = cv.GetSize(maximg)
         w_min, h_min = get_imgSize(minimg)
         w_max, h_max = get_imgSize(maximg)
         w_exm, h_exm = self.exemplarImg.GetSize()
@@ -1010,7 +1010,7 @@ class VerifyOverlays(SplitOverlays):
 
     def finalize_group(self, group, do_show_next_group=True):
         """ Marks GROUP as being 'accepted' by the user. Updates internal
-        data structures and UI components. 
+        data structures and UI components.
         """
         if group not in self.groups:
             warn("Trying to finalize group not present in self.groups:", group)
@@ -1089,7 +1089,7 @@ class VerifyOrFlagOverlaysFooter(VerifyOverlaysFooter):
 
 class VerifyOrFlagOverlays(VerifyOverlays):
     """ A widget that lets you either verify overlays, or flag a group
-    to set aside (Quarantine). 
+    to set aside (Quarantine).
     """
 
     def __init__(self, parent, *args, **kwargs):
@@ -1111,7 +1111,7 @@ class VerifyOrFlagOverlays(VerifyOverlays):
             quarantined_results = []
             for group in self.quarantined_groups:
                 quarantined_results.extend(group.imgpaths)
-            #self.ondone(verify_results, quarantined_results)
+            # self.ondone(verify_results, quarantined_results)
             wx.CallAfter(self.ondone, verify_results, quarantined_results)
 
     def restore_session(self):
@@ -1181,7 +1181,7 @@ class VerifyOverlaysMultCats(wx.Panel):
         Input:
         dict IMGPATH_CATS: {cat_tag: {grouptag: [imgpath_i, ...]}}
             For each category CAT_TAG, GROUPTAG is an identifier for
-            a set of imgpaths. 
+            a set of imgpaths.
         dict CAT_EXEMPLARS: {cat_tag: {grouptag: [exmplpath_i, ...]}}
             For each category CAT_TAG, GROUPTAG is an identifier for
             a set of exemplar imgpatches.
@@ -1349,7 +1349,7 @@ class CheckImageEquals(VerifyOverlays):
             VerifyOverlays.update_exemplartag_txt(self)
 
     def update_footer(self):
-        """ Override this method to /not/ update the button text as 
+        """ Override this method to /not/ update the button text as
         Accept All as ''.
         """
         pass
@@ -1561,8 +1561,8 @@ class SeparateImages(VerifyOverlays):
         overlay_min, overlay_max = curgroup.get_overlays(
             force=True, imgCache=self.imgCache)
 
-        #minimg_np = iplimage2np(overlay_min)
-        #maximg_np = iplimage2np(overlay_max)
+        # minimg_np = iplimage2np(overlay_min)
+        # maximg_np = iplimage2np(overlay_max)
         minimg_np, maximg_np = overlay_min, overlay_max
 
         min_bitmap = NumpyToWxBitmap(minimg_np)
@@ -1582,7 +1582,7 @@ class SeparateImagesFrame(wx.Frame):
         """
         Input:
             list IMGPATH_GROUPS: List of lists of imgpaths
-            fn CALLBACK: Callback function to call with final results. 
+            fn CALLBACK: Callback function to call with final results.
                 Should accept one argument: List of lists of imgpaths.
             fn REALIGN_CALLBACK: Function to call when the user wishes
                 to realign the images in the current group. Should
@@ -1613,8 +1613,8 @@ class SeparateImagesFrame(wx.Frame):
         self.Layout()
 
     def ondone_verify(self, results):
-        """ 
-        Input: 
+        """
+        Input:
             dict RESULTS: maps {tag: [imgpath_i, ...]}
         """
         out = []

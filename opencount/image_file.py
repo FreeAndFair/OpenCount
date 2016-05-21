@@ -48,7 +48,7 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
             Limits memory usage of this script s.t. if MEM_C * <avail_mem>
             is exceeded, then an external merge-sort is run. Otherwise,
             radix files are sorted in memory.
-        int SORT_METHOD: 
+        int SORT_METHOD:
             Determines which sorting method to use.
     """
     # NOTE: If a ballot B is quarantined after target extraction (i.e.
@@ -202,7 +202,7 @@ def ext_mergesort(datafpaths, idxfpaths, reverse_mapping, outpath, radixdigit, i
 
 
 def makeOneFile_(prefix, src, radix, dst):
-    #pickle.dump((prefix, src, radix, dst), open("f", "w"))
+    # pickle.dump((prefix, src, radix, dst), open("f", "w"))
     # exit(0)
     out = open(dst, "wb")
     tout = open(dst + ".type", "wb")
@@ -215,7 +215,7 @@ def makeOneFile_(prefix, src, radix, dst):
                 util.MyGauge.all_tick()
         # tout.write("X")
         # out.write("a"*(100*50))
-        #open(os.path.join(prefix, each)).read()
+        # open(os.path.join(prefix, each)).read()
         # continue
         # if i%100 == 0:
         #    print i

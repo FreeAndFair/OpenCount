@@ -10,7 +10,7 @@ I = sh.standardImread(os.path.join(
 
 bb = [770, 800, 355, 500]
 patch = I[bb[0]:bb[1], bb[2]:bb[3]]
-#imshow(patch); show()
+# imshow(patch); show()
 
 # generate image list
 imList = []
@@ -22,7 +22,7 @@ for root, dirs, files in os.walk(ballotDir):
         p1 = os.path.join(root, f)
         imList.append(p1)
 
-#results = sh.find_patch_matches(patch,imList,region=bb)
+# results = sh.find_patch_matches(patch,imList,region=bb)
 results = sh.find_patch_matchesV1(I, bb, imList)
 
 minOverlay = []

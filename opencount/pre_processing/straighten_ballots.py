@@ -11,8 +11,8 @@ IMPORT_STRAIGHTENER_FAIL = False
 try:
     import straightener
 except ImportError as e:
-    print """Error importing straightener.py. 
-Perhaps it is not installed. 
+    print """Error importing straightener.py.
+Perhaps it is not installed.
 See installation instructions at:
 http://code.google.com/p/straightener/"""
     print e
@@ -52,7 +52,7 @@ def straighten_images_process(imgpaths, imgsdir, outdir, queue, size):
             util_gui.create_dirs(os.path.split(outpath)[0])
             outpath_png = os.path.splitext(outpath)[0] + '.png'
             straightener.straighten_image(imgpath, outpath_png, imgsize=size)
-            #straightener.straighten_image(imgpath, outpath, imgsize=size)
+            # straightener.straighten_image(imgpath, outpath, imgsize=size)
             queue.put('Done with: {0}'.format(imgpaths))
     except Exception as e:
         print "==== Process died due to exception:", e
@@ -110,7 +110,7 @@ def start_straightening(imgsdir, outdir, num_imgs, queue, size=None):
     spawns child worker processes.
     """
     print "Spawning master process to start straightening images in", imgsdir
-    #logger = multiprocessing.log_to_stderr()
+    # logger = multiprocessing.log_to_stderr()
     # logger.setLevel(logging.INFO)
 
     p = multiprocessing.Process(target=spawn_jobs, args=(

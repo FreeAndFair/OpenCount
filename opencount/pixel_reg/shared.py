@@ -149,10 +149,10 @@ def estimateBg(I):
     Ival[np.isnan(Ival)] = 1
     Ihist = np.histogram(Ival, bins=10)
     return Ihist[1][np.argmax(Ihist[0])]  # background
-    #bucketIdx = np.argmax(Ihist[0])
-    #a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
-    #T = a
-    #T = a + ((b-a)/2.0)
+    # bucketIdx = np.argmax(Ihist[0])
+    # a, b = Ihist[1][bucketIdx], Ihist[1][bucketIdx+1]
+    # T = a
+    # T = a + ((b-a)/2.0)
     # print "found {0}, old was {1}".format(T, Ihist[1][bucketIdx])
     # return T
 
@@ -267,8 +267,8 @@ def lkSmallLarge(patch, I, i1, i2, j1, j2, pixPad=5, minArea=np.power(2, 17)):
     diff = np.abs(Ireg - patch)
     return (err, diff, Ireg)
 
-''' 
-Input: 
+'''
+Input:
   I0: full image
   bb: bounding box of patch (y1,y2,x1,x2)
   imList: list of full filenames for images to search
@@ -485,7 +485,7 @@ def digitParse(digit_hash, imList, bbSearch, nDigits, do_flip=False):
             j2 = YX[1] + digit_hash[sym].shape[1]
 
             patch = digit_hash[sym]
-            #(err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
+            # (err,diff,Ireg)=lkSmallLarge(patch,I1,i1,i2,j1,j2)
             Ireg = I1[i1:i2, j1:j2]
             result_meta.append((i1, i2, j1, j2, sym, Ireg, Iout.max()))
 
@@ -619,7 +619,7 @@ def expandBbsMulti(bbs, iMx, jMx, pFac):
 
 
 def expandBbs(bbs, iMx, jMx, pFac):
-    ''' Assumed that bbs are all the same dim. Padding is relative to the size 
+    ''' Assumed that bbs are all the same dim. Padding is relative to the size
         one bb.
     Input:
         list bbs: List of bounding boxes
@@ -627,7 +627,7 @@ def expandBbs(bbs, iMx, jMx, pFac):
         int jMx: Maximum width
         int pFac: Amount by which to adjust padding.
     Output:
-        list bbsOut: A new list of bounding boxes, but where each bb_i has 
+        list bbsOut: A new list of bounding boxes, but where each bb_i has
                      been (safely) expanded.
         list bbsOff: A list of offsets required to go from coords in BBS
                      to coords in BBSOUT.
@@ -725,7 +725,7 @@ def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
     appropriate scaling factor required to make the largest
     dimension of 'shape' be at most 'c'.
     For instance, if shape is (500, 1000), and c is 800, then this
-    outputs '0.8'. 
+    outputs '0.8'.
     If shape is (500, 1000), and c is 20, then this outputs
     '0.02'.
     Also makes sure that any dimension is at least MIN_DIM large,

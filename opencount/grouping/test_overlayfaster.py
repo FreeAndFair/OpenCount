@@ -35,8 +35,8 @@ def make_minmax_overlay(imgpaths, do_align=False, rszFac=1.0):
             overlayMax = np.fmax(overlayMax, img)
 
     # rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-    # overlayMax = sh.fastResize(overlayMax, rszFac) #/ 255.0
-    # overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
+    # overlayMax = sh.fastResize(overlayMax, rszFac) # / 255.0
+    # overlayMin = sh.fastResize(overlayMin, rszFac) # / 255.0
     return overlayMin, overlayMax
 
 
@@ -76,7 +76,7 @@ def overlay_minmax_cv(imgpaths, do_align=False, rszFac=1.0):
     imgpath = imgpaths[0]
     Imin = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
     Imax = cv.CloneImage(Imin)
-    #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
+    # Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
     Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
     for imgpath in imgpaths[1:]:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)

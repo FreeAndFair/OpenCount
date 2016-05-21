@@ -53,11 +53,11 @@ A widget that integrates the functionality of 'Define Attributes' and
         If A is newly-created, then add all ballots from C to B.   (4)
             If A is not consistent within a partition, then        (4.a)
             add a subset of the ballots from each partition
-            to B (e.g. 1000 ballots). 
-    
+            to B (e.g. 1000 ballots).
+
         Search for instances of A across other ballots in B.       (5)
         The user verifies the matches via overlays.                (6)
-        
+
         Action: User clicks 'Next'
             Remove B_i from B. Add B_i to C.
 
@@ -416,7 +416,7 @@ Would you like to review the ballot annotations?",
     def display_image(self, cur_side, cur_ballotid, autofit=True):
         """ Displays the CUR_SIDE-side of ballot CUR_BALLOTID.
         Input:
-            int CUR_SIDE: 
+            int CUR_SIDE:
             int CUR_BALLOTID:
             bool AUTOFIT
                 If True, then this will autoscale the image such that
@@ -729,12 +729,12 @@ Would you like to review the ballot annotations?",
         self.Refresh()
 
     def mark_image_flipped(self, balid, side):
-        """ Mark an image as flipped -- this will update the UI (if the 
+        """ Mark an image as flipped -- this will update the UI (if the
         image in question is currently displayed), as well as
         update the image_to_flip data structure permanently, for all other
         OpenCount components to see.
         Input:
-            int BALID: 
+            int BALID:
             int SIDE:
         """
         imgpaths_sorted = sorted(
@@ -1121,7 +1121,7 @@ class AttrBox(select_targets.Box):
         Input:
             bool GRP_PER_PARTITION:
                 If True, then this is an attribute that is consistent
-                within a single partition P, where partitions are 
+                within a single partition P, where partitions are
                 defined by the barcode value(s).
         """
         select_targets.Box.__init__(self, x1, y1, x2, y2)
@@ -1515,7 +1515,7 @@ class FilenameAttrDialog(wx.Dialog):
     """
     Dialog that handles the creation of a Filename-based Custom
     Attribute. The user-input will be a regex-like expression in order
-    to extract the 'attribute' from the filename. For instance, to 
+    to extract the 'attribute' from the filename. For instance, to
     extract the last digit '0' from a filename like:
         329_141_250_145_0.png
     The user-input regex would be:

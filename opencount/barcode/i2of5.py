@@ -34,7 +34,7 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
     Input:
         IplImage img:
         int n: Number of digits in the barcode.
-        list TOPBOT_PAIRS: [[IplImage topguard, IplImage botguard], ...]. 
+        list TOPBOT_PAIRS: [[IplImage topguard, IplImage botguard], ...].
         int COLS: Splits the barcode into COLS columns, separately
             runs the decoding on each column, then chooses the most
             popular decoding result.
@@ -61,11 +61,11 @@ def decode_i2of5(img, n, topbot_pairs, orient=VERTICAL, debug=False,
         return decode_i2of5(img, n, topbot_pairs[1:], imgP=imgP, cols=cols, debug=debug)
 
     # 2.) Crop the barcode.
-    #cv.SaveImage("_imgcrop_pre.png", img)
+    # cv.SaveImage("_imgcrop_pre.png", img)
     roi_precrop = cv.GetImageROI(img)
     cv.SetImageROI(img, shiftROI(cv.GetImageROI(img),
                                  bc_loc))
-    #cv.SaveImage("_imgcrop.png", img)
+    # cv.SaveImage("_imgcrop.png", img)
     decodings = []
     w_bc, h_bc = cv.GetSize(img)
     bc_roi = cv.GetImageROI(img)
@@ -121,7 +121,7 @@ def get_most_popular(decodings, w_bc):
 
 
 def decode_barcode(img, n, bc_loc, xoff=0, debug=False, imgP=None):
-    """ Given an image patch IMG that is a tight-bounding box around the 
+    """ Given an image patch IMG that is a tight-bounding box around the
     barcode, return the decoding.
     Input:
         IplImage IMG
@@ -133,8 +133,8 @@ def decode_barcode(img, n, bc_loc, xoff=0, debug=False, imgP=None):
         (str DECODING, list BB, dict BBSTRIPES_OUT)
     """
     img_post = dothreshold(img)
-    #cv.SaveImage("_imgpost.png", img_post)
-    #img_post = img
+    # cv.SaveImage("_imgpost.png", img_post)
+    # img_post = img
     w_imgpost, h_imgpost = cv.GetSize(img_post)
 
     # dict BBSTRIPES: maps {'whiteNarrow': [[x1,y1,w,h], ...], 'whiteWide': [[x1,y1,w,h], ...],
@@ -406,8 +406,8 @@ def infer_narrow_wide(lens):
 
     binsNarrow = bins[:idx0]
     binsWide = bins[idx0:]
-    #narrow_idx = get_median_bucket(binsNarrow)
-    #wide_idx = get_median_bucket(binsWide)
+    # narrow_idx = get_median_bucket(binsNarrow)
+    # wide_idx = get_median_bucket(binsWide)
     narrow_idx = get_mostpop_bucket(binsNarrow)
     wide_idx = min(get_mostpop_bucket(binsWide) + 1, len(binedges))
     narrow = binedges[:idx0][narrow_idx]
@@ -535,9 +535,9 @@ def dothreshold(I):
     # binsizes: [   0.    25.5   51.    76.5  102.   127.5  153.   178.5  204.
     # 229.5  255. ]
     newI = cv.CreateImage(cv.GetSize(I), I.depth, I.channels)
-    #I_mat = iplimage2cvmat(I)
-    #I_np = np.asarray(I_mat)
-    #bins, binsizes = np.histogram(I_np)
+    # I_mat = iplimage2cvmat(I)
+    # I_np = np.asarray(I_mat)
+    # bins, binsizes = np.histogram(I_np)
     cv.Threshold(I, newI, 35, 255.0, cv.CV_THRESH_BINARY)
     return newI
 
@@ -594,7 +594,7 @@ def smooth_constborder(A, xwin=5, ywin=5, val=0):
     Input:
         IplImage A:
     Output:
-        IplImage A_smoothed. 
+        IplImage A_smoothed.
     """
     wA, hA = cv.GetSize(A)
     A_big = cv.CreateImage((wA + 2 * xwin, hA + 2 * ywin), A.depth, A.channels)

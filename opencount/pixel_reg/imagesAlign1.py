@@ -15,7 +15,7 @@ import shared as sh
 from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 
-#@profile
+# @profile
 
 
 def imagesAlign1(I, Iref, H0=np.eye(3, dtype=np.float32),
@@ -26,7 +26,7 @@ def imagesAlign1(I, Iref, H0=np.eye(3, dtype=np.float32),
         nparray Iref:
         nparray H0: Trans. mat.
         str trfm_type: Transformation trfm_type.
-        int minArea: The minimum area that IREF is allowed to be - if 
+        int minArea: The minimum area that IREF is allowed to be - if
             IREF.width*IREF.height is greater than this, then imagesAlign1
             will shrink both I and IREF by 50% until the area < MINAREA.
             Smaller values of MINAREA allow higher tolerance for wider
@@ -142,7 +142,7 @@ def imagesAlign1(I, Iref, H0=np.eye(3, dtype=np.float32),
         if newValidPixels < (origValidPixels / 3.):
             return (np.eye(3), np.inf)
 
-        #=== CODE PRIOR TO REFACTOR ===
+        # === CODE PRIOR TO REFACTOR ===
         '''
         idx=np.nonzero(np.squeeze(Mf))
         D_valid=D[:,idx]
@@ -223,7 +223,7 @@ def ds2H(ds, wts):
 def imagesAlign1_profile(I, Iref, H0=np.eye(3, dtype=np.float32),
                          trfm_type='similarity', verbose=False, minArea=np.power(2, 11)):
     # TODO: fix this!
-    #cProfile.run('(H,err)=imagesAlign1(I,Iref)', 'profile_imagesalign1')
+    # cProfile.run('(H,err)=imagesAlign1(I,Iref)', 'profile_imagesalign1')
     cProfile.runctx('(H,err)=imagesAlign1(I,Iref)', globals(),
                     locals(), filename='profile_imagesalign1')
     return (H, err)

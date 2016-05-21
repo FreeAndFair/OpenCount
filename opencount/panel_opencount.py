@@ -80,7 +80,7 @@ class OpenCountPanel(wx.Panel):
         application to gain control of the UI, and direct the user to
         where the sanity checks failed.
         Input:
-            int ID_FLAG: 
+            int ID_FLAG:
                 The (unique) int identifier of the sanity check
             function FN:
                 The callback function. It should accept a single argument

@@ -12,13 +12,13 @@ def imagesAlign(I, Iref, fillval=np.nan, trfm_type='similarity',
     Input:
         np.array I: Image you want to align. I must be larger than IREF.
         np.array Iref: Image you want to align against.
-        int fillval: 
+        int fillval:
         str trfm_type: What image transformation to solve for. They are (in
             order of complexity): 'translation', 'rigid', 'similarity',
             'affine', and 'projective'. A nice page that describes
-            these are at: 
+            these are at:
                 http://homepages.inf.ed.ac.uk/rbf/HIPR2/affine.htm
-        int vCells, hCells: Params to allow aligning subcells of the 
+        int vCells, hCells: Params to allow aligning subcells of the
             image, followed by stitching. Appears to rarely be used.
         float rszFac: Amount by which to scale the image - for
             performance, you want to scale down (i.e. 0.75).

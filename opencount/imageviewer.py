@@ -10,9 +10,9 @@ Contains two main widgets:
     BallotScreen(ImageViewer)
 """
 
-####
+# ## #
 # Import 3rd party libraries
-####
+# ## #
 
 import wx
 import wx.animate
@@ -36,17 +36,17 @@ except NameError:
     MYDIR = os.path.abspath(sys.path[0])
 
 """
-ImageViewer is a basic widget that is used to allow an image to be 
-read in, and allow zooming in/out, drawing boxes, importing/exporting 
+ImageViewer is a basic widget that is used to allow an image to be
+read in, and allow zooming in/out, drawing boxes, importing/exporting
 box locations.
-You can subclass it to modify behavior (as I will do for BallotScreen), 
+You can subclass it to modify behavior (as I will do for BallotScreen),
 but this widget's default behavior is:
-    
+
     - View an image
     - Draw bounding boxes
     - Import/export bounding box locations
     - Zoom in/out
-    
+
 To modify this behavior, you'll definitely want to modify the mouse-event
 handlers (onLeftDown, onLeftUp, onMotion, etc.) to get exactly the
 behavior you'd like.
@@ -65,7 +65,7 @@ class ImageViewer(wx.ScrolledWindow):
                    out
     STATE_ZOOM_OUT: User left-clicks to zoom-out, right-clicks to zoom
                     int
-    
+
     STATE_RESIZE_TARGET: Activated when the user's mouse is near the
                          LR corner of a box, but not during ZOOM_IN/OUT
     """
@@ -386,7 +386,7 @@ class ImageViewer(wx.ScrolledWindow):
         self.target_height = h
 
     def import_locations(self, csvfilepath):
-        """ 
+        """
         Import locations (both targets and contests) from 'csvfilepath'.
         OUTDATED: Doesn't use self.world yet.
         """
@@ -532,7 +532,7 @@ class ImageViewer(wx.ScrolledWindow):
 
     def get_closest_target(self, mousepos, boxes=None, mode="upper-left"):
         """
-        Given current mouse position, return the closest target w.r.t 
+        Given current mouse position, return the closest target w.r.t
         to the current 'mode'. Works both for voting targets and contests.
         Modes:
             mode="upper-left"
@@ -669,7 +669,7 @@ unexpected mode given: {0}".format(mode))
 
     def enable_dragging(self):
         """
-        Allows the user to click-drag a selected BoundingBox. 
+        Allows the user to click-drag a selected BoundingBox.
         """
         self._can_drag = True
 
@@ -708,11 +708,11 @@ unexpected mode given: {0}".format(mode))
         return self._new_box
 
     def set_resize_target(self, box, corner):
-        """ 
+        """
         Select a box for it to be resized by the user.
         Input:
             obj box: A BoundingBox instance that is being resized
-            str mode: One of 'top', 'bottom', 'left', 'right', 
+            str mode: One of 'top', 'bottom', 'left', 'right',
                         'upperleft', 'upperright', 'lowerleft', or
                         'lowerright', to signify how to resize box.
         """
@@ -742,8 +742,8 @@ unexpected mode given: {0}".format(mode))
             self.unselect_target(box)
 
     def center_viewport(self, virt_pos, client_pos):
-        """ 
-        Centers view onto mousepos, by adjusting the scrollbars. 
+        """
+        Centers view onto mousepos, by adjusting the scrollbars.
         mousepos is a tuple (x,y) that is in client coordinates.
         """
         if self.GetScrollPixelsPerUnit()[0]:
@@ -879,7 +879,7 @@ unexpected mode given: {0}".format(mode))
 
     def onMotion(self, event):
         """
-        Depending on the edit mode, move the voting target box 
+        Depending on the edit mode, move the voting target box
         currently held by the user.
         """
         x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
@@ -1008,7 +1008,7 @@ unexpected mode given: {0}".format(mode))
         #    dc.SetTextForeground("Blue")
         # else:
         #    dc.SetTextForeground("Red")
-        #dc.DrawText(str(box.contest_id), ul_x, ul_y)
+        # dc.DrawText(str(box.contest_id), ul_x, ul_y)
 
     def _draw_resize_rect(self, dc):
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
@@ -1110,7 +1110,7 @@ class WorldState(object):
 
     def mutate(self, worldstate):
         """
-        Change this WorldState to match the input 'worldstate'. 
+        Change this WorldState to match the input 'worldstate'.
         Useful when you want to instantly change the world, i.e. for
         the Undo feature.
         """
@@ -1162,7 +1162,7 @@ class BoundingBox(object):
         bool is_contest: If True, then this is the bounding box for a
                          contest. O.w. this is a voting target.
         obj children: If present, then this BoundingBox is 'tied' to
-                        other BoundingBoxes, such that if this 
+                        other BoundingBoxes, such that if this
                         BoundingBox gets deleted, then all of its
                         children should too.
         bool is_new: True iff this box is in the middle of being
@@ -1772,9 +1772,9 @@ next step.", style=wx.OK)
 
 class BallotScreen(ImageViewer):
     """
-    Window that displays a ballot image, and lets the user create 
+    Window that displays a ballot image, and lets the user create
     voting target 'boxes'.
-    Also, we will allow the user to draw bounding boxes around 
+    Also, we will allow the user to draw bounding boxes around
     contests.
     """
 
@@ -2001,7 +2001,7 @@ class BallotScreen(ImageViewer):
                             self._autodetect_region)
             self.candidate_targets = self.autodetect_targets(
                 self.img_pil, self._autodetect_region)
-            #frame = Autodetect_Confirm(self, self.candidate_targets)
+            # frame = Autodetect_Confirm(self, self.candidate_targets)
             # frame.Show()
             self.set_state(BallotScreen.STATE_AUTODETECT_VERIFY)
             # self.Refresh()
@@ -2130,7 +2130,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             new_box = BoundingBox(x_rel, y_rel, x2_rel,
                                   y2_rel, is_contest=is_contest)
             self.set_new_box(new_box)
-            #self.world.add_box(self.current_imgpath, new_box)
+            # self.world.add_box(self.current_imgpath, new_box)
             self.Refresh()
         elif (self.curstate in (BallotScreen.STATE_IDLE, BallotScreen.STATE_MODIFY)
                 and self.get_closest_target((x, y), mode="interior")
@@ -2288,7 +2288,7 @@ self._autodetect_region was None, i.e. the user didn't choose anything."
             x2 = int(round((x2 / float(w_img)) * img.size[0]))
             y2 = int(round((y2 / float(h_img)) * img.size[1]))
             region = img.crop(((x1, y1, x2, y2)))
-            #region_threshold = util_gui.fit_image(region)
+            # region_threshold = util_gui.fit_image(region)
 
             self._autodetect_region = region
             pub.sendMessage("signals.autodetect.updatebox",
@@ -2363,7 +2363,7 @@ selected box...in your imagination."
 
     def onMotion(self, event):
         """
-        Depending on the edit mode, move the voting target box 
+        Depending on the edit mode, move the voting target box
         currently held by the user.
         """
         x, y = self.CalcUnscrolledPosition(event.GetPositionTuple())
@@ -2512,9 +2512,9 @@ selected box...in your imagination."
         event.Skip()
 
     def onPaint(self, event):
-        """ 
-        Refresh screen. 
-        Note: Regrettably, I couldn't simply call the inherited 
+        """
+        Refresh screen.
+        Note: Regrettably, I couldn't simply call the inherited
               onPaint() method of the parent, since visual things got
               all wonky.
         """
@@ -2585,12 +2585,12 @@ class Autodetect_Panel(wx.Panel):
     """
 
     def __init__(self, parent, *args, **kwargs):
-        #wx.Frame.__init__(self, parent, title="Autodetect Voting Targets Frame")
+        # wx.Frame.__init__(self, parent, title="Autodetect Voting Targets Frame")
         wx.Panel.__init__(self, parent, *args, **kwargs)
         font = wx.Font(12, wx.MODERN, style=wx.NORMAL,
                        weight=wx.NORMAL, underline=False)
         txt_inst = wx.StaticText(self, label="""
-Please highlight an example voting target 
+Please highlight an example voting target
 from the ballot image, (by clicking-and-dragging),
 and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         txt_inst.SetFont(font)
@@ -2643,7 +2643,7 @@ and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
         new_w = int(round(w_img / c))
         bmp = util_gui.PilImageToWxBitmap(
             img_pil.resize((new_w, 100), Image.ANTIALIAS))
-        #self.staticbmp.SetSize((100, min(new_h, 20)))
+        # self.staticbmp.SetSize((100, min(new_h, 20)))
         self.staticbmp.SetBitmap(bmp)
         self.Refresh()
         self.Fit()
@@ -2683,11 +2683,11 @@ class Autodetect_Confirm(wx.Panel):
         # Set to True iff I destroy myself (vs. system destroying me)
         self._did_i_destroy = None
 
-        #self.SetTitle("Verify Autodetected Targets")
+        # self.SetTitle("Verify Autodetected Targets")
         self.panel = wx.Panel(self)
         font = wx.Font(12, wx.MODERN, wx.NORMAL, wx.NORMAL, underline=False)
-        txt = wx.StaticText(self.panel, label="""{0} targets were detected. You may either 
-delete specific targets by clicking on the 
+        txt = wx.StaticText(self.panel, label="""{0} targets were detected. You may either
+delete specific targets by clicking on the
 offending target, or proceed by choosing 'Done.'""".format(len(target_candidates)), style=wx.ALIGN_CENTRE)
         txt.SetFont(font)
 
@@ -2734,7 +2734,7 @@ def split_contest(mousepos, contest, boxes, mode='horizontal'):
     """
     Depending on where the user clicked, split the contest in half,
     returning two contests:
-        One contest that contains all targets to the left of the 
+        One contest that contains all targets to the left of the
         mouse, and another contest that contains all targets to
         the right of the mouse.
     If the user clicked in a way such that no targets are to the

@@ -15,7 +15,7 @@ def extract(imgpatches, do_threshold=None, manager=None, queue_mygauge=None):
             Pass if you want to do MyGauge-related updates (to be used
             with an associated Queue instance, QUEUE_MYGAUGE.
         obj QUEUE_MYGAUGE:
-            The Queue instance (owned by MANAGER) which is used to 
+            The Queue instance (owned by MANAGER) which is used to
             communicate cross-process to a MyGauge instance.
     Output:
         dict IMG2PATCH: {(imgpath, tag): patchpath},

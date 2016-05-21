@@ -326,7 +326,7 @@ def main():
                 if not line:
                     continue
                 line = line.strip()
-                if not line or line.startswith("#"):
+                if not line or line.startswith("# "):
                     continue
                 try:
                     balids.append(int(line))

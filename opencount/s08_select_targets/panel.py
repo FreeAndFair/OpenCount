@@ -234,7 +234,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
     def save_session(self):
         state = {'i2groupid': self.i2groupid,
                  'displayed_imgpaths': self.displayed_imgpaths,
-                 #'group_to_Iref': self.group_to_Iref
+                 # 'group_to_Iref': self.group_to_Iref
                  }
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
@@ -1230,7 +1230,7 @@ before running the automatic contest detection routine.")
         # and since I don't want to pass in an empty contest to InferContests
         # (it crashes), I have to manually remove all empty-pages from IMGPATHS_EXS
         # and TARGETS
-        # Let i=target #, j=ballot style, k=contest idx:
+        # Let i=target # , j=ballot style, k=contest idx:
         targets = []  # list of [[[box_ijk, ...], [box_ijk+1, ...], ...], ...]
         for partition_idx, boxes_sides in self.boxes.iteritems():
             for side, boxes in enumerate(boxes_sides):

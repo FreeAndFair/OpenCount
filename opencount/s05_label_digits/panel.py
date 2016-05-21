@@ -41,7 +41,7 @@ Output files:
 
 <projdir>/digitpatch2temp.p
 
-This keeps track of the mapping from digit patch imgpaths to the 
+This keeps track of the mapping from digit patch imgpaths to the
 associated blank ballot imgpath:
     {str digitpatchpath: (str templatepath, attrstr, bb, int side)}
 
@@ -575,7 +575,7 @@ def extract_digitbased_patches(tasks, (digit_attrtypes, proj, img2flip), idx):
                 os.makedirs(pathjoin(outdir, attrs_sortedstr))
             except:
                 pass
-            #outfilename = 'balid_{0}.png'.format(templateid)
+            # outfilename = 'balid_{0}.png'.format(templateid)
             outfilename = '{0}_{1}_exemplar.png'.format(idx, i)
             outfilepath = pathjoin(outdir,
                                    attrs_sortedstr,

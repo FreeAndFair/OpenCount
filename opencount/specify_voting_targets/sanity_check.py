@@ -82,16 +82,16 @@ def collect_stats(dir):
                 image_sizes[size] += 1
 
                 # Record the format of the image
-                #format = img.format
+                # format = img.format
                 # if not image_formats.has_key(format):
                 #    image_formats[format] = 0
-                #image_formats[format] += 1
+                # image_formats[format] += 1
 
                 # Record the mode of the image
-                #mode = img.mode
+                # mode = img.mode
                 # if not image_modes.has_key(mode):
                 #    image_modes[mode] = 0
-                #image_modes[mode] += 1
+                # image_modes[mode] += 1
             else:
                 non_image_files.append(f)
                 will_skip[imgpath.replace(dir, '')[1:]] = 'not an image'
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     if not options.template_dir or not options.sample_dir:
         print """Must specify directories, i.e.:
-        
+
     $ python quick_overlay.py -t templates -s samples"""
         exit(1)
 

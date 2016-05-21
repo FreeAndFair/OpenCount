@@ -364,7 +364,7 @@ class GridShow(wx.ScrolledWindow):
 
     def drawWrongMarks(self, idxs, C=0.7):
         """ Draws a red transparent mask on all visible targets. These
-        targets are targets that the user manually marked as being 
+        targets are targets that the user manually marked as being
         'wrong' (by left-clicking them).
         Input:
             list IDXS:
@@ -502,8 +502,8 @@ class GridShow(wx.ScrolledWindow):
 
     """
     def show_overlays(self, ii, evt):
-        #Starting at the place where the user right-clicked, generate 
-        #min/max overlays from all voting targets, up to the last target.
+        # Starting at the place where the user right-clicked, generate
+        # min/max overlays from all voting targets, up to the last target.
         start_idx = ii+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
 
         print 'start_idx:', start_idx
@@ -819,7 +819,7 @@ class GridShow(wx.ScrolledWindow):
                 is64bit = (sys.maxsize > (2**32))
                 size = 8 if is64bit else 4
                 arr = array.array("L")
-                arr.fromfile(open(self.proj.classified+".index"), 
+                arr.fromfile(open(self.proj.classified+".index"),
                              os.path.getsize(self.proj.classified+".index")/size)
                 self.classifiedindex = arr
             except Exception as e:

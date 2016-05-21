@@ -29,11 +29,11 @@ def do_partask(fn, jobs, _args=None, blocking=True,
             where each arg_i is optional, and provided by '_args'
         list jobs: A list of tasks, to be split up by do_partask.
             If JOBS is a dict, then it will be split up by keys.
-        list _args: 
-        bool blocking: 
+        list _args:
+        bool blocking:
         fn combfn: A combining function that must take two arguments
             combfn(T results, T* subresults) -> (T results*, int k)
-        T init: Used with 'combfn', specifies the initial starting 
+        T init: Used with 'combfn', specifies the initial starting
                 value.
         bool pass_idx: If True, then the starting index w.r.t jobs will
                        be passed to 'fn' as the last argument.

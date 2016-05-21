@@ -516,7 +516,7 @@ def PilImageToWxImage(myPilImage, copyAlpha=True):
 
     return myWxImage
 
-#-----
+# -----
 
 
 def imageToPil(myWxImage):
@@ -529,9 +529,9 @@ def imageToPil(myWxImage):
 def WxImageToWxBitmap(myWxImage):
     return myWxImage.ConvertToBitmap()
 
-####################################################################
-## Additional methods to quickly convert between wx* and numpy/cv ##
-####################################################################
+# ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## #
+# # Additional methods to quickly convert between wx* and numpy/cv # #
+# ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## #
 
 
 def wxImage2np(Iwx, is_rgb=True):
@@ -608,7 +608,7 @@ class MainFrame(wx.Frame):
         self.btn_focus.Bind(wx.EVT_BUTTON, self.onButton_focus)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        #self.sizer.Add(self.img_manipulate, proportion=1, flag=wx.SHAPED)
+        # self.sizer.Add(self.img_manipulate, proportion=1, flag=wx.SHAPED)
         self.sizer.Add(self.img_manipulate, proportion=0)
         self.sizer.Add(self.btn_zoomin)
         self.sizer.Add(self.btn_zoomout)
@@ -1108,7 +1108,7 @@ def is_multipage(project):
     Currently an ad-hoc method of determining if the current election
     is multipage or not.
     """
-    #ballot_to_images_path = project.ballot_to_images
+    # ballot_to_images_path = project.ballot_to_images
     # try:
     #    return len(pickle.load(open(ballot_to_images_path)).items()[0][1]) != 1
     # except:

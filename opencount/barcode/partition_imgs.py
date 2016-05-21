@@ -34,12 +34,12 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
     """ Partition the images in IMGPATHS, assuming that the images
     are from the VENDOR.
     Input:
-        list imgpaths: 
+        list imgpaths:
         str vendor: One of 'hart', 'diebold', 'sequoia'.
     Output:
         dict grouping. GROUPING is a dict of the following form:
             {(barcode_i, ...): [(imgpath_i, isflip_i, bbs_i, dict info), ...]}
-        where INFO is a dict mapping info like 'page', etc. 
+        where INFO is a dict mapping info like 'page', etc.
     """
     grouping = {}
     try:

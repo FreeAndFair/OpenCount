@@ -348,7 +348,7 @@ Implies that imgpath is present in imageslist more than once."
         h_new = wximg.GetHeight() / c
         wximg_scaled = wximg.Scale(w_new, h_new, quality=wx.IMAGE_QUALITY_HIGH)
         bitmap = wx.BitmapFromImage(wximg_scaled)
-        #bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
+        # bitmap = wx.Bitmap(imgpath, type=wx.BITMAP_TYPE_PNG)
         self.imgpatch.SetBitmap(bitmap)
         if h_new >= (h_win * 0.75):
             self.sizer.SetOrientation(wx.HORIZONTAL)

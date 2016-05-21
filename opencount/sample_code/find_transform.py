@@ -8,7 +8,7 @@ transformation matrix M that fits B to A, and then applying M to B.
 
 Usage:
     python find_transform.py
-    
+
 A nice explanation behind the theory is found at:
     http://docs.opencv.org/doc/tutorials/imgproc/imgtrans/warp_affine/warp_affine.html
 """
@@ -17,7 +17,7 @@ A nice explanation behind the theory is found at:
 def align_affine(imgA, imgB, ptsA, ptsB):
     """ Aligns IMGB to IMGA, given that the points in PTSA correspond
     to the points in PTSB. Returns both the aligned IMGB and the
-    affine transformation matrix.    
+    affine transformation matrix.
     """
     # 1.) Assume that transformation is 'rigid' (translation, rotation,
     # scaling). Solve the equation:

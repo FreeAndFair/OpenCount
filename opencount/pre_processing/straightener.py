@@ -181,7 +181,7 @@ def houghTransform(binaryImg, rho, theta, maxAngle, guess, method=METHOD_MEAN, g
 
 '''
 Open the image @ filename, downsize it by a factor of resizeFactor
-and attempt to determine the angle of rotation by finding 
+and attempt to determine the angle of rotation by finding
 near-vertical and near-horizontal lines and averaging their angle
 to the vertical or the horizontal, respectively. If GRAPH_LINES is
 true, graph the detected lines on the image and save the resulting
@@ -262,7 +262,7 @@ def fixRotation(fname, angle):
     rOff, tOff, lOff, bOff = findBorder(numpy.asarray(grayImg))
     cv.SetImageROI(img, (lOff, tOff, rOff - lOff, bOff - tOff))
 
-    #cv.SaveImage(outName, img)
+    # cv.SaveImage(outName, img)
     return img
 
 

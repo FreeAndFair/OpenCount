@@ -8,7 +8,7 @@ class Vendor(object):
 
     def __init__(self, proj):
         pass
-        #raise NotImplementedError("Can't instantiate abstract Vendor class.")
+        # raise NotImplementedError("Can't instantiate abstract Vendor class.")
 
     def decode_ballots(self, ballots, cache=None, *args, **kwargs):
         """
@@ -41,7 +41,7 @@ class Vendor(object):
             needs, or simply None. In many cases you won't need USERINFO,
             but this is present to allow meta-data to flow from
             Vendor.decode_ballots to Vendor.partition_ballots if need be.
-        ERR_IMGPATHS: List of voted imgpaths that were unable to be 
+        ERR_IMGPATHS: List of voted imgpaths that were unable to be
             successfully decoded. These will be handled specially, by
             having the user manually enter the barcode values.
         IOERR_IMGPATHS: List of voted imgpaths that were unable to be
@@ -67,7 +67,7 @@ class Vendor(object):
                 This maps to a /tuple/ of strings, because there may be
                 multiple barcodes on a given image.
         Output:
-            (dict PARTITIONS, 
+            (dict PARTITIONS,
              dict IMG2DECODING,
              dict IMAGE_INFO)
 
@@ -75,7 +75,7 @@ class Vendor(object):
             {int partitionID: [int ballotID_i, ...]}
         IMG2DECODING: stores barcode strings for each image as:
             {str imgpath: [str bc_i, ...]}
-            Note: IMG2DECODING maps each imgpath to a /tuple/ of 
+            Note: IMG2DECODING maps each imgpath to a /tuple/ of
                   strings. This is to account for ballots where multiple
                   barcodes may be present in a single image.
         IMAGE_INFO: stores meaningful info for each image:
@@ -89,8 +89,8 @@ class Vendor(object):
 
     def split_contest_to_targets(self, ballot_image, contest, targets):
         """
-        Given an image of a contest, extract 
-            (a) the tile and 
+        Given an image of a contest, extract
+            (a) the tile and
             (b) each of the voting targets
 
         Input:

@@ -35,7 +35,7 @@ class ESSVendor(Vendor):
 
     def decode_ballots(self, ballots, manager=None, queue=None, skipVerify=True, *args, **kwargs):
         """
-        Decode ES&S style ballot barcodes. 
+        Decode ES&S style ballot barcodes.
         Each mark will later be verified for correctness.
         Input:
             ballots : {int ballotID: [imgpath_side0, ...]}.
@@ -146,7 +146,7 @@ class ESSVendor(Vendor):
 
 
 def _do_decode_ballots(ballots, mark_path, queue=None):
-    """ 
+    """
     Decode ES&S barcode for all ballots
     Input:
         ballots   : {int ballotID: [imgpath_side0, ...]}.
@@ -174,7 +174,7 @@ def _do_decode_ballots(ballots, mark_path, queue=None):
 
 
 def decode_ballots(ballots, mark_path, manager, queue):
-    """ 
+    """
     Decode ES&S barcode for all ballots by calling multiprocessing module.
     Input:
         ballots   : {int ballotID: [imgpath_side0, ...]}

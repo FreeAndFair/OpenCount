@@ -127,7 +127,7 @@ def group_attributes_V2(project, job_id=None, THRESHOLD=0.95):
 
 def cluster_bkgd(mapping, bb_map=None, D=5, debug_SKIP=False):
     """ Given a mapping {str label: (imgpath_i, ...)}, for each label L,
-    generates N exemplar images, where each img in N (hopefully) 
+    generates N exemplar images, where each img in N (hopefully)
     contains a different backgroung coloring.
     Input:
         dict mapping: {str label: (imgpath_i, ...)}
@@ -355,7 +355,7 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
     """ Given a mapping {str label: ((imgpath_i, bb_i),...)}, extracts a subset
     of the imgpaths {str label: (imgpath_i, ...)} such that these
     imgpaths are the best-describing 'exemplars' of the entire input
-    mapping. 
+    mapping.
     NOTE: bb's here are in [y1,y2,x1,x2] format.
     Input:
         dict mapping: {label: ((imgpath_i, bb_i), ...)}
@@ -364,14 +364,14 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
         A (hopefully smaller) dict mapping {label: ((imgpath_i, bb_i), ...)}
     """
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2):
-        #t = time.time()
+        # t = time.time()
         # print "Running find_patch_matchesV1..."
         if bb == None:
             bb = [0, img.shape[0] - 1, 0, img.shape[1] - 1]
             bbs2 = None
-        #matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
+        # matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
         matches = temp_match(img, bb, imgpaths2, bbSearches=bbs2)
-        #dur = time.time() - t
+        # dur = time.time() - t
         # print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
         if not matches:
             print "Uhoh, no matches found for imgpath {0}.".format(imgpath)

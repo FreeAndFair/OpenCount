@@ -53,7 +53,7 @@ def doWriteMAP(finalOrder, Ip, err, attrtype, patchDir, ballotid, exemplar_idx):
     """
     # TODO: For now, just use the int ballotID itself, in a flat
     # dirstruct manner.
-    #fullpath = encodepath(balKey)
+    # fullpath = encodepath(balKey)
     fullpath = str(ballotid)
 
     # - patchDir: write out Ip into patchDir
@@ -67,14 +67,14 @@ def doWriteMAP(finalOrder, Ip, err, attrtype, patchDir, ballotid, exemplar_idx):
     for pt in finalOrder:
         attrOrder.append(pt[2])
 
-    #to = os.path.join(metaDir, fullpath)
+    # to = os.path.join(metaDir, fullpath)
     # toWrite={"attrOrder": attrOrder, "flipOrder":flipOrder,"err":err,"imageOrder":imageOrder,
     #         "exemplar_idx": exemplar_idx}
     outdict = {'attrOrder': attrOrder, 'err': err,
                'exemplar_idx': exemplar_idx, 'patchpath': to}
     out = [ballotid, attrtype, outdict]
-    #file = open(to, "wb")
-    #pickle.dump(toWrite, file)
+    # file = open(to, "wb")
+    # pickle.dump(toWrite, file)
     # file.close()
     return out
 
@@ -115,7 +115,7 @@ def evalPatchSimilarity(I, patch, debug=False):
     IO = imagesAlign(I1c, patch, trfm_type='rigid', minArea=np.power(2, 20))
 
     Ireg = IO[1]
-    #Ireg = np.nan_to_num(Ireg)
+    # Ireg = np.nan_to_num(Ireg)
     # TODO: Ireg is frequently just a competely-black image (due to
     # presence of Nan's?). By inserting the line:
     #     Ireg = np.nan_to_num(Ireg)
@@ -174,7 +174,7 @@ def evalPatchSimilarity(I, patch, debug=False):
 
     err = sh.variableDiffThr(Ireg1, patch1)
     diff = np.abs(Ireg1 - patch1)
-    # #estimate threshold for comparison:
+    # # estimate threshold for comparison:
 
     return (-err, YX, diff)
 
@@ -190,18 +190,18 @@ def evalPatchSimilarity2(I, patch, debug=False):
     # converting NP -> OpenCV.
     patchCv = cv.fromarray(np.copy(patch) * 255.0)
     ICv = cv.fromarray(np.copy(I) * 255.0)
-    #cv.SaveImage("_patchCv.png", patchCv)
-    #cv.SaveImage("_ICv.png", ICv)
-    #patchCv = tempmatch.smooth_mat(patchCv, 5, 5, bordertype='const', val=255)
-    #ICv = tempmatch.smooth_mat(ICv, 5, 5, bordertype='const', val=255)
-    #cv.SaveImage("_patchCv_smooth.png", patchCv)
-    #cv.SaveImage("_ICv_smooth.png", ICv)
+    # cv.SaveImage("_patchCv.png", patchCv)
+    # cv.SaveImage("_ICv.png", ICv)
+    # patchCv = tempmatch.smooth_mat(patchCv, 5, 5, bordertype='const', val=255)
+    # ICv = tempmatch.smooth_mat(ICv, 5, 5, bordertype='const', val=255)
+    # cv.SaveImage("_patchCv_smooth.png", patchCv)
+    # cv.SaveImage("_ICv_smooth.png", ICv)
     # pdb.set_trace()
     # call template match
     outCv = cv.CreateMat(I.shape[0] - patch.shape[0] + 1,
                          I.shape[1] - patch.shape[1] + 1, patchCv.type)
     cv.MatchTemplate(ICv, patchCv, outCv, cv.CV_TM_CCOEFF_NORMED)
-    #Iout=np.asarray(outCv) / 255.0
+    # Iout=np.asarray(outCv) / 255.0
     Iout = np.asarray(outCv)
     YX = np.unravel_index(Iout.argmax(), Iout.shape)
 
@@ -250,8 +250,8 @@ def evalPatchSimilarity2(I, patch, debug=False):
         I1c = sh.padWithBorderHandling(I1c, i1exp, i2exp, j1exp, j2exp)
 
     # expand if necessary
-    #hCells = max(int(round(I1c.shape[1] / 200)), 1)
-    #vCells = max(int(round(I1c.shape[0] / 200)), 1)
+    # hCells = max(int(round(I1c.shape[1] / 200)), 1)
+    # vCells = max(int(round(I1c.shape[0] / 200)), 1)
     hCells, vCells = 1, 1
 
     IO = imagesAlign(I1c, patchPad, trfm_type='rigid',
@@ -308,8 +308,8 @@ def dist2patches(patchTuples, scale, debug=False):
         # pixel_reg/opencv_bug_repo.py]
         I = np.round(sh.fastResize(imgpatch, scale) * 255.) / 255.
         # opencv appears to not like pure 1.0 and 0.0 values.
-        #I[I==1.0]=.999; I[I==0.0]=.001
-        #patchScale = sh.resizeOrNot(attrpatch.shape, int(round(max(attrpatch.shape)*scale)))
+        # I[I==1.0]=.999; I[I==0.0]=.001
+        # patchScale = sh.resizeOrNot(attrpatch.shape, int(round(max(attrpatch.shape)*scale)))
         bestscore = None
         bestloc = None
         best_idx_ex = None  # Index of the best exemplar
@@ -317,7 +317,7 @@ def dist2patches(patchTuples, scale, debug=False):
         # account for background variation).
         for idx_ex, attrpatch in enumerate(attrpatches):
             patch = np.round(sh.fastResize(attrpatch, scale) * 255.) / 255.
-            #patch[patch==1.0]=.999; patch[patch==0.0]=.001
+            # patch[patch==1.0]=.999; patch[patch==0.0]=.001
             try:
                 res = evalPatchSimilarity2(I, patch, debug=flag)
             except Exception as e:
@@ -349,7 +349,7 @@ def dist2patches(patchTuples, scale, debug=False):
 
 def createPatchTuples(I, attr2pat, R, flip=False):
     """
-    Only used in templateSSWorker. Note: This is quite different from 
+    Only used in templateSSWorker. Note: This is quite different from
     createPatchTuplesMAP, despite the very similar name.
     Input:
         nparray I:
@@ -456,16 +456,16 @@ def templateSSWorker(job):
             sc1 = sc1 - sStep
 
     # write scale to file
-    #toWrite={"scale": min(sc1+sStep,sc0)}
-    #file = open(fOut, "wb")
-    #pickle.dump(toWrite, file)
+    # toWrite={"scale": min(sc1+sStep,sc0)}
+    # file = open(fOut, "wb")
+    # pickle.dump(toWrite, file)
     # file.close()
     templateSSWorker.queue.put(min(sc1 + sStep, sc0))
 
 
 def groupImagesWorkerMAP(job):
     try:
-        #(ballotid, imgpaths, attrName, bb, attrinfo, attr2pat,scale) = job
+        # (ballotid, imgpaths, attrName, bb, attrinfo, attr2pat,scale) = job
         # Note: In blankballot-less pipeline, IMGPATHS is always a list of
         # one element - the imgpath that is the correct side for ATTRTYPE.
         (ballotid, imgpaths, attrtype, bb, attr2pat, isflip,
@@ -589,7 +589,7 @@ def estimateScale(attr2pat, img2flip, superRegion, rszFac, stopped):
     """
     Input:
         dict attr2pat: maps {str attrval: [[str exmpl_imP, nparray imgpatch_i], ...]}
-        tuple superRegion: 
+        tuple superRegion:
         float rszFac:
         fn stopped:
     Output:
@@ -600,7 +600,7 @@ def estimateScale(attr2pat, img2flip, superRegion, rszFac, stopped):
     sStep = .05
     sList = []
     nProc = sh.numProcs()
-    #nProc = 1
+    # nProc = 1
 
     queue = mp.Queue()
     pool = mp.Pool(processes=nProc,
@@ -643,7 +643,7 @@ def estimateScale(attr2pat, img2flip, superRegion, rszFac, stopped):
 
     print sList
     scale = min(max(sList) + 2 * sStep, rszFac)
-    #scale = 0.95
+    # scale = 0.95
     return scale
 
 
@@ -655,7 +655,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
         dict IMG2PAGE:
         dict IMG2FLIP:
         str attrName: the current attribute type
-        int SIDE: 
+        int SIDE:
         dict attrMap: maps {str attrtype: {str attrval: (bb, str side, blankpath)}}
         str patchDestDir: A directory, i.e. 'extracted_precincts-ballottype', stores
             the extracted attribute image patches.
@@ -701,7 +701,7 @@ def groupByAttr(bal2imgs, img2page, img2flip, attrName, side, attrMap,
     print 'ATTR: ', attrName, ': using starting scale:', scale
     # 2.) Generate jobs for the multiprocessing
     nProc = sh.numProcs()
-    #nProc = 1
+    # nProc = 1
 
     manager = mp.Manager()
     queue = manager.Queue()
@@ -782,11 +782,11 @@ def groupImagesMAP(bal2imgs, partitions_map, partition_exmpls, img2page, img2fli
                   {str imgpath: List of [(y1,y2,x1,x2), str attrtype, str attrval, str side]},
                 where 'side' is either 'front' or 'back'.
       dict GRPMODE_MAP: maps {attrtype: bool is_grp_per_partition}
-      list BADBALLOTIDS: List of quarantined/discarded ballot ids. 
+      list BADBALLOTIDS: List of quarantined/discarded ballot ids.
       ballotD:
       patchDir_root: Root directory to store voted image attribute patches
       stopped:
-      obj proj: 
+      obj proj:
     Output:
       dict RESULTS. maps {int ballotid: {attrtype: dict outdict}}
       Only contains results for attributes that are NOT consistent within

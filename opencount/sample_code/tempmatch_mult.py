@@ -7,7 +7,7 @@ def find_matches(imgpaths, patch, C=0.8):
     """ Runs template matching to find PATCH in each IMGPATHS.
     Input:
         list imgpaths: [imgpath_i, ...]
-        IplImage patch: 
+        IplImage patch:
         float C:
     Output:
         list matches, [[imgpath_i, (x,y), score_i], ...]

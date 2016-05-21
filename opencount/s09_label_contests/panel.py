@@ -135,8 +135,8 @@ class LabelContest(wx.Panel):
                     # Means this file had no contests, so, add dummy
                     # values to my data structures
                     # Grab an arbitrary voted ballot from this group
-                    #imgpaths = b2imgs[group_exmpls[groupID][0]]
-                    #imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    # imgpaths = b2imgs[group_exmpls[groupID][0]]
+                    # imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
                     # self.dirList.append(imgpaths_ordered[side])
                     self.groupedtargets.append([])
                     continue
@@ -145,7 +145,7 @@ class LabelContest(wx.Panel):
                 #   but only go left->right if we're on a new column,
                 #   not if we're only off by a few pixels to the left.
                 errorby = self.template_width / 20
-                #errorby = 0.05
+                # errorby = 0.05
 
                 cols = {}
                 for _, _, x, _, _, _ in sum(lst, []):
@@ -228,7 +228,7 @@ class LabelContest(wx.Panel):
 
         rightside = wx.BoxSizer(wx.HORIZONTAL)
 
-        #self.textarea = wx.Panel(self)
+        # self.textarea = wx.Panel(self)
         self.textarea = wx.lib.scrolledpanel.ScrolledPanel(
             self, size=(300, self.view_y_size - 150))
         self.textarea.SetAutoLayout(True)
@@ -343,7 +343,7 @@ class LabelContest(wx.Panel):
             for bid in range(len(self.grouping_cached)):
                 order = []
                 for cid in range(len(self.grouping_cached[bid]) - 1):
-                    #print (bid,cid)
+                    # print (bid,cid)
                     # print self.multiboxcontests
                     if any((bid, self.contest_order[bid][cid + 1]) in mult for mult in self.multiboxcontests):
                         continue
@@ -386,7 +386,7 @@ class LabelContest(wx.Panel):
                     cleared.append(new_group)
             fixed = cleared + [[((bid, boxes), order)
                                 for ((bid, boxes, text), order) in newgroup]]
-            #newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
+            # newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
             self.groups_saved = fixed
 
             # print "BEFORE", self.equivs_processed
@@ -590,7 +590,7 @@ class LabelContest(wx.Panel):
                                        for x in targ_to_cont.values()]
                 w = [i for i, bboxes in enumerate(contestbboxes) if any(
                     x in corresponding_boxes for x in bboxes)]
-                #w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
+                # w = [i for i,bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
                 if len(w) != 1:
                     print 'I got', w, 'of them'
                     print [bblist for i, bblist in enumerate(contestbboxes) if any(intersect(targetlist[0][2:], x) == targetlist[0][2:] for x in bblist)]
@@ -987,7 +987,7 @@ class LabelContest(wx.Panel):
             c += 1
         # Redraw the yellow on the current so it goes on top of everything else
         l, u, r, d = fix(self.boxes[self.templatenum][self.count])
-        #dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
+        # dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
         img[u:d, l:r] = self.imgo_resize[u:d, l:r]
         img[u:d, l:r] = img[u:d, l:r] * .5
         img[u:d, l:r] = img[u:d, l:r] + np.array([200, 200, 0]) * .5
@@ -1003,7 +1003,7 @@ class LabelContest(wx.Panel):
             img[u:d, l:r] = img[u:d, l:r] * .5
             img[u:d, l:r] = img[u:d, l:r] + np.array([0, 0, 200]) * .5
 
-        #new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
+        # new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
 
         image = wx.EmptyImage(self.small_x_size, self.small_y_size)
         image.SetData(img.tostring())
@@ -1053,7 +1053,7 @@ class LabelContest(wx.Panel):
 
     def is_multibox_contest(self, contestid):
         """ Returns True if the given contest is part of a multibox contest,
-        False o.w. 
+        False o.w.
         Input:
             tuple CONTESTID: (int STYLENUM, int ID)
         """
@@ -1289,7 +1289,7 @@ class LabelContest(wx.Panel):
 
                 l, u, r, d = self.crop[self.currentcontests[self.count]][1]
                 # print box
-                #dr.rectangle(box, fill=(0,250,0))
+                # dr.rectangle(box, fill=(0,250,0))
                 # TODO to get performance, only draw the contest bounding box
                 # once
                 mine[u:d, l:r] = mine[u:d, l:r] * .85

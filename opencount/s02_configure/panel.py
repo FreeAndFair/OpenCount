@@ -85,7 +85,7 @@ class ConfigPanel(ffwx.Panel):
         #     self, label="Voted ballot directory:")
         # self.box_samples.txt_samplespath = wx.StaticText(self)
         # # self.box_samples.sizer.Add(self.box_samples.txt)
-        # #self.box_samples.sizer.Add((0, 20))
+        # # self.box_samples.sizer.Add((0, 20))
         # self.box_samples.sizer.Add(self.box_samples.btn)
         # self.box_samples.sizer.Add((0, 20))
         # self.box_samples.sizer.Add(self.box_samples.txt2)

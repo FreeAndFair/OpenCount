@@ -267,7 +267,7 @@ class RunGroupingMainPanel(wx.Panel):
     def on_digitgrouping_done(self, digitgrouping_results_tpl):
         """
         Input:
-            (dict RESULTS: {str digitattrtype: {int ID: [str digitstr, imgpath, 
+            (dict RESULTS: {str digitattrtype: {int ID: [str digitstr, imgpath,
                                                         [[str digit_i, (x1,y1,x2,y2), score_i, digpatchP_i], ...]]},
                            where ID is partitionID/ballotID depending on MODE.
              int DIGITDIST)
@@ -603,7 +603,7 @@ def get_quarantined_bals(proj):
 
 
 def get_discarded_bals(proj):
-    """ Returns a list of all ballotids discarded prior to grouping 
+    """ Returns a list of all ballotids discarded prior to grouping
     (i.e. during Partitioning).
     """
     discarded_bals = pickle.load(open(pathjoin(proj.projdir_path,

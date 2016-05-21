@@ -21,7 +21,7 @@ import s08_select_targets.panel  # as select_targets XXXX
 
 def pdb_on_crash(f):
     """
-    Decorator to run PDB on crashing  
+    Decorator to run PDB on crashing
     """
     def res(*args, **kwargs):
         try:
@@ -39,7 +39,7 @@ export = False
 
 flipped = {}
 
-#@pdb_on_crash
+# @pdb_on_crash
 
 
 def num2pil(img):
@@ -192,7 +192,7 @@ def find_lines(data):
             q = list(set([dy + y for y in q for dy in [-1, 0, 1]
                           if lower <= dy + y < upper and data[dy + y][x] < black]))
             seen.extend(q)
-            #LST.extend([(x,y) for y in q])
+            # LST.extend([(x,y) for y in q])
             x -= 1
         l = x
         q = [point[0]]
@@ -201,7 +201,7 @@ def find_lines(data):
             q = list(set([dy + y for y in q for dy in [-1, 0, 1]
                           if lower <= dy + y < upper and data[dy + y][x] < black]))
             seen.extend(q)
-            #LST.extend([(x,y) for y in q])
+            # LST.extend([(x,y) for y in q])
             x += 1
         r = x
         yy = sum(seen) / len(seen) if len(seen) else point[0]
@@ -226,7 +226,7 @@ def find_lines(data):
             q = list(set([dx + x for x in q for dx in [-1, 0, 1]
                           if lower <= dx + x < upper and data[y][dx + x] < black]))
             seen.extend(q)
-            #LST.extend([(x,y) for y in q])
+            # LST.extend([(x,y) for y in q])
             y -= 1
         u = y
         q = [point[1]]
@@ -235,7 +235,7 @@ def find_lines(data):
             q = list(set([dx + x for x in q for dx in [-1, 0, 1]
                           if lower <= dx + x < upper and data[y][dx + x] < black]))
             seen.extend(q)
-            #LST.extend([(x,y) for y in q])
+            # LST.extend([(x,y) for y in q])
             y += 1
         d = y
         yy = sum(seen) / len(seen) if len(seen) else point[1]
@@ -249,7 +249,7 @@ def find_lines(data):
     for y in range(0, height, 1):
         for x in range(0, width, 1) if y % YSKIP == 0 else range(0, width, XSKIP):
             if not data[y][x] < black:
-                #data[y][x] = black
+                # data[y][x] = black
                 continue
             if y % YSKIP == 0 and (y / 3, x / 3) not in foundy:
                 u, d = full_extend_ud((y, x))
@@ -384,7 +384,7 @@ def to_graph(lines, width, height, minsize, giventargets):
     horizontal lines which intersect, or two vertical lines which
     intersect, then merge them in to one line of the union of the two.
 
-    We do this by making another graph of all horizontal lines and 
+    We do this by making another graph of all horizontal lines and
     adding edges between the lines when they touch. Then we run a
     connnected components algorithm over it and take the union.
     This is done by creating an width*height array, storing where all
@@ -504,8 +504,8 @@ def find_squares(graph, minarea):
             res += dfs_square(stack + [vertex], debug)
         return res
 
-    #result = [dfs_square([start]) for start in graph]
-    #result = [x for sublist in result for x in sublist]
+    # result = [dfs_square([start]) for start in graph]
+    # result = [x for sublist in result for x in sublist]
     # return list(set([x for x in result if x]))
     result = {}
     for i, start in enumerate(graph):
@@ -527,7 +527,7 @@ def do_extract(name, img, squares, giventargets):
     Find all contests and extract them.
 
     Start with the smallest sized bounding box, and check if it
-    contains any voting targets. 
+    contains any voting targets.
 
     If it does, it's a contest. Remove it and the targets that
     are inside of it. Move on to next biggest.
@@ -682,10 +682,10 @@ def do_extract(name, img, squares, giventargets):
     return contests
 
     # print targets, contests
-    #os.popen("open tmp/*")
+    # os.popen("open tmp/*")
     # exit(0)
 
-#@pdb_on_crash
+# @pdb_on_crash
 
 
 def remove_contest_overlap(boxes, targets):
@@ -725,7 +725,7 @@ def remove_contest_overlap(boxes, targets):
 
     return [map(int, x) for x in map(list, np.reshape(v, boxes.shape) + boxes)]
 
-#remove_contest_overlap([(601, 425, 1094, 753), (118, 1479, 607, 1876), (1088, 425, 1575, 880), (1088, 874, 1575, 1450), (118, 1870, 607, 2479), (118, 425, 607, 1394), (601, 838, 1094, 2012)], [(620, 552, 690, 593), (1107, 1331, 1177, 1372), (621, 1750, 691, 1791), (620, 1199, 690, 1240), (621, 1614, 691, 1655), (621, 1098, 691, 1139), (1107, 819, 1177, 860), (621, 1399, 691, 1440), (621, 1887, 691, 1928), (136, 916, 206, 957), (137, 2030, 207, 2071), (138, 2348, 208, 2389), (137, 1751, 207, 1792), (135, 516, 205, 557), (136, 1085, 206, 1126), (136, 1269, 206, 1310), (136, 782, 206, 823), (620, 652, 690, 693), (620, 963, 690, 1004), (621, 1500, 691, 1541), (137, 1604, 207, 1645), (1107, 762, 1177, 803), (621, 1300, 691, 1341), (137, 2200, 207, 2241), (136, 649, 206, 690), (1108, 1389, 1178, 1430)])
+# remove_contest_overlap([(601, 425, 1094, 753), (118, 1479, 607, 1876), (1088, 425, 1575, 880), (1088, 874, 1575, 1450), (118, 1870, 607, 2479), (118, 425, 607, 1394), (601, 838, 1094, 2012)], [(620, 552, 690, 593), (1107, 1331, 1177, 1372), (621, 1750, 691, 1791), (620, 1199, 690, 1240), (621, 1614, 691, 1655), (621, 1098, 691, 1139), (1107, 819, 1177, 860), (621, 1399, 691, 1440), (621, 1887, 691, 1928), (136, 916, 206, 957), (137, 2030, 207, 2071), (138, 2348, 208, 2389), (137, 1751, 207, 1792), (135, 516, 205, 557), (136, 1085, 206, 1126), (136, 1269, 206, 1310), (136, 782, 206, 823), (620, 652, 690, 693), (620, 963, 690, 1004), (621, 1500, 691, 1541), (137, 1604, 207, 1645), (1107, 762, 1177, 803), (621, 1300, 691, 1341), (137, 2200, 207, 2241), (136, 649, 206, 690), (1108, 1389, 1178, 1430)])
 # exit(0)
 
 """
@@ -755,7 +755,7 @@ def extract_contest(args):
 
     print "processing", image_path
     data = load_threshold(image_path)
-    #data = load_num(image_path)
+    # data = load_num(image_path)
     print 'loaded'
     lines = find_lines(data)
     lines += [('V', (len(data[0]) - 20, 0, len(data[0]), len(data)))]
@@ -816,11 +816,11 @@ def extract_contest(args):
 
     # print "before"
     # print final
-    #final = remove_contest_overlap(final, giventargets)
+    # final = remove_contest_overlap(final, giventargets)
     # print "after"
     # print final
 
-    #os.popen("open tmp/*")
+    # os.popen("open tmp/*")
     # exit(0)
 
     print "Took", time.time() - now
@@ -871,7 +871,7 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
     print "RESULTING", res
     return res
 
-#@pdb_on_crash
+# @pdb_on_crash
 
 
 def compare_preprocess(lang, path, image, contest, targets, vendor):
@@ -882,7 +882,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     and one for the title. OCR the text and record it.
     """
 
-    # targets = [x for x in targets if area(intersect(contest, x))] #xxx
+    # targets = [x for x in targets if area(intersect(contest, x))] # xxx
     cont_area = None
 
     print path
@@ -949,7 +949,7 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
     print 'retlen', len(blocks)
     return blocks
 
-#import editdist
+# import editdist
 try:
     from Levenshtein import distance
 except:
@@ -1204,7 +1204,7 @@ def do_group_pairing_map(args):
     #    print k,v
 
     items, contests_text = args
-    #out = open(tmp+"/group_dump/"+str(items[0]), "w")
+    # out = open(tmp+"/group_dump/"+str(items[0]), "w")
     x = 0
     for i in items:
         lst = []
@@ -1212,7 +1212,7 @@ def do_group_pairing_map(args):
             if x % 10000 == 0:
                 print x
             x += 1
-            #print ((i,j),compare(contests_text[i][2], contests_text[j][2]))
+            # print ((i,j),compare(contests_text[i][2], contests_text[j][2]))
             lst.append(
                 ((i, j), compare(contests_text[i][2], contests_text[j][2])))
         # out.write("\n".join(map(str,lst))+"\n")
@@ -1233,9 +1233,9 @@ def group_by_pairing(contests_text, CONST):
     contests = [Contest(contests_text, i, CONST)
                 for i in range(len(contests_text))]
 
-    #args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text)]
+    # args = [(i,cont1,j,cont2) for i,cont1 in enumerate(contests_text) for j,cont2 in enumerate(contests_text)]
 
-    #"""
+    # """
     if not os.path.exists(tmp + "/group_dump"):
         os.mkdir(tmp + "/group_dump")
     else:
@@ -1253,7 +1253,7 @@ def group_by_pairing(contests_text, CONST):
     pool.map(do_group_pairing_map, data)
     pool.close()
     pool.join()
-    #"""
+    # """
     if False:
         do_group_pairing_map([(range(len(contests_text)), contests_text)])
     else:
@@ -1377,7 +1377,7 @@ def full_group(contests_text, key):
     #    print each[0]
     #    s1 = each[1][0][1].split("\n")
     #    s2 = each[1][1][1].split("\n")
-    #    #print s1, s2
+    #    # print s1, s2
     #    s1 = [x+"."*(max(map(mylen,s1))-mylen(x)) for x in s1]
     #    print "\n".join([a+"  |  "+b for a,b in zip(s1,s2)])
 
@@ -1499,7 +1499,7 @@ def merge_contests(ballot_data, fulltargets):
 
             # print 'targs is', group
             # indexs in ballot of contests which are equal
-            #equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
+            # equal = [i for t in group for i,(_,bounding,_) in enumerate(ballot) if intersect(t, bounding) == t]
             equal = [target_to_contest[x] for x in group]
             equal_uniq = list(set(equal))
             if any(x in seen_so_far for x in equal_uniq) or equal_uniq == []:
@@ -1568,8 +1568,8 @@ def find_contests(t, paths, giventargets):
     global tmp
     # print "ARGS", (t, paths, giventargets)
     # exit(0)
-    #paths = paths[80:400]
-    #giventargets = giventargets[80:400]
+    # paths = paths[80:400]
+    # giventargets = giventargets[80:400]
 
     """
     giventargets += giventargets
@@ -1591,7 +1591,7 @@ def find_contests(t, paths, giventargets):
     queue = manager.Queue()
     args = [(f, sum(giventargets[i], []), False, queue)
             for i, f in enumerate(paths)]
-    #args = [x for x in args if '0/bal_0_side_1' in x[0]]
+    # args = [x for x in args if '0/bal_0_side_1' in x[0]]
     pool = mp.Pool(mp.cpu_count())
     res = [None]
 
@@ -1636,7 +1636,7 @@ def group_given_contests_map(arg):
     lang = lang_map[f] if f in lang_map else 'eng'
     return ballot_preprocess(i, f, im, conts, sum(giventargets[i], []), lang, vendor)
 
-#@pdb_on_crash
+# @pdb_on_crash
 
 
 def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map={}, NPROC=None):
@@ -1650,7 +1650,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     tmp = t
     if not os.path.exists(tmp):
         os.mkdir(tmp)
-    #os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
+    # os.popen("rm -r "+tmp.replace(" ", "\\ ")+"*")
     if NPROC == None:
         NPROC = mp.cpu_count()
     if NPROC == 1:
@@ -1671,7 +1671,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
         ballots = pool.map(group_given_contests_map, args)
         pool.close()
         pool.join()
-        #ballots = map(group_given_contests_map, args)
+        # ballots = map(group_given_contests_map, args)
     print "WORKING ON", ballots
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
@@ -1686,13 +1686,13 @@ def final_grouping(ballots, giventargets, paths, langs, t=None):
         languages = dict((idx, langs[imP]) for imP, idx in lookup.iteritems())
     else:
         languages = {}
-    #languages = dict((lookup[k],v) for k,v in langs.items())
+    # languages = dict((lookup[k],v) for k,v in langs.items())
     print "RUNNING FINAL GROUPING"
-    #pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
+    # pickle.dump((ballots, giventargets), open("/tmp/aaa", "w"))
     ballots = merge_contests(ballots, giventargets)
     print "NOW EQU CLASSES"
     # print ballots
-    #pickle.dump((ballots, languages), open("/tmp/aaa", "w"))
+    # pickle.dump((ballots, languages), open("/tmp/aaa", "w"))
     return equ_class(ballots, languages)
 
 
@@ -1775,7 +1775,7 @@ if __name__ == "__main__":
     paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
     find_contests("tmp", paths, them)
     exit(0)
-#"""
+# """
 
 tmp = "tmp"
 

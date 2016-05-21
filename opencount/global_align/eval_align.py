@@ -326,7 +326,7 @@ def recover_theta_rot(H):
     '''
     Minor annoyance: Recall that there are two separate rotation matrices:
         | cos(R) , sin(R) |        | cos(R) , -sin(R) |
-        |-sin(R) , cos(R) |        | sin(R) ,  cos(R) | 
+        |-sin(R) , cos(R) |        | sin(R) ,  cos(R) |
       In the left one, positive R implies counter-clockwise rotation.
       In the right one, positive R implies clockwise rotation.
     We need to disambiguate this to always return theta s.t.
@@ -366,7 +366,7 @@ def make_affine_mat(x, y, theta, w, h):
 
 
 def warp_img(I, x, y, theta, bright_amt):
-    """ Warps image I by translating by (X,Y), rotating by THETA, and 
+    """ Warps image I by translating by (X,Y), rotating by THETA, and
     adding BRIGHT_AMT to the intensities. Theta is in degrees, counter-clockwise
     rotation for positive theta.
     """

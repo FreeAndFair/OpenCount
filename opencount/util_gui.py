@@ -47,7 +47,7 @@ def fastResize(I, rszFac, sig=-1):
 
 
 def open_img_scipy(imgpath, flag='normal'):
-    """ 
+    """
     Open img in scipy.
     The possible flags are:
         flag='normal' -- Open image in grayscale
@@ -207,7 +207,7 @@ def is_image_ext(filepath):
 
 # Converter functions from wxPython to PIL Images
 # From: http://wiki.wxpython.org/WorkingWithImages
-####
+# ## #
 
 # Tested with wxPython 2.3.4.2 and PIL 1.1.3.
 
@@ -219,7 +219,7 @@ def WxBitmapToPilImage(myBitmap):
 def WxBitmapToWxImage(myBitmap):
     return wx.ImageFromBitmap(myBitmap)
 
-#-----
+# -----
 
 
 def PilImageToWxBitmap(myPilImage):
@@ -260,7 +260,7 @@ def PilImageToWxImage(myPilImage, copyAlpha=True):
 
     return myWxImage
 
-#-----
+# -----
 
 
 def imageToPil(myWxImage, flatten=False):
@@ -300,7 +300,7 @@ def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
     """
     Return all matches of refimg inside img, using Template Matching.
     (Gratefully) borrowed from:
-        http://stackoverflow.com/questions/7670112/finding-a-subimage-inside-a-numpy-image/9253805#9253805
+        http://stackoverflow.com/questions/7670112/finding-a-subimage-inside-a-numpy-image/9253805# 9253805
     Input:
         obj img: A numpy array representing an image
         obj refimg: A numpy array representing the reference image
@@ -320,18 +320,18 @@ def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
 
     I = cv.fromarray(img)
     ref = cv.fromarray(refimg)
-    #I = cv.fromarray(np.copy(img))
-    #ref = cv.fromarray(np.copy(refimg))
+    # I = cv.fromarray(np.copy(img))
+    # ref = cv.fromarray(np.copy(refimg))
     I_s = cv.CreateMat(I.rows, I.cols, I.type)
     cv.Smooth(I, I_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
     ref_s = cv.CreateMat(ref.rows, ref.cols, ref.type)
     cv.Smooth(ref, ref_s, cv.CV_GAUSSIAN, param1=xwin, param2=ywin)
-    #img = np.array(img, dtype='uint8')
-    #refimg = np.array(refimg, dtype='uint8')
+    # img = np.array(img, dtype='uint8')
+    # refimg = np.array(refimg, dtype='uint8')
     result = cv.CreateMat(I_s.rows - ref_s.rows + 1,
                           I_s.cols - ref_s.cols + 1, cv.CV_32F)
     cv.MatchTemplate(I_s, ref_s, result, cv.CV_TM_CCOEFF_NORMED)
-    #result = cv2.matchTemplate(img, refimg, cv2.TM_CCOEFF_NORMED)
+    # result = cv2.matchTemplate(img, refimg, cv2.TM_CCOEFF_NORMED)
     # result is a 'similarity' matrix, with values from -1.0 (?) to 1.0,
     # where 1.0 is most similar to the template image.
     result_np = np.asarray(result)
@@ -339,7 +339,7 @@ def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
         (result_np > confidence).flatten()]
     return [flatidx_to_pixelidx(flatidx, result_np.shape) for flatidx in match_flatidxs]
 
-    #match_flatidxs = np.arange(result.size)[(result>confidence).flatten()]
+    # match_flatidxs = np.arange(result.size)[(result>confidence).flatten()]
     # return [flatidx_to_pixelidx(flatidx, result.shape) for flatidx in
     # match_flatidxs]
 
@@ -397,7 +397,7 @@ def flatidx_to_pixelidx(flatidx, shape):
 
 
 def _np_unravel_index(match_flatidxs, shape):
-    """ 
+    """
     Before numpy v1.6.0, unravel_index() only accepts 1 idx.
     This is a function that emulates post v.1.6.0 unravel_index,
     which can accept multiple idxs.
@@ -516,7 +516,7 @@ def autothreshold(gray_im, method="otsu"):
 
 def autothreshold_numpy(gray_im, method="otsu", slop=0):
     """
-    Like autothreshold(2), but for numpy arrays. If you want the 
+    Like autothreshold(2), but for numpy arrays. If you want the
     threshold to be more 'generous', set the slop value to a positive
     integer.
     """
@@ -537,7 +537,7 @@ def autothreshold_numpy(gray_im, method="otsu", slop=0):
 def fit_image(img, padx=0, pady=0, BLACK=0):
     """
     Given a PIL image, cut out all whitespace around the object of
-    interest (adding some optional padding too). Remember to also 
+    interest (adding some optional padding too). Remember to also
     center the object.
     """
     thresholded_img = autothreshold(img, method="otsu")
@@ -664,7 +664,7 @@ def _dictwriter_writeheader(csvfile, fields):
 
 def import_box_locations(csvdir, imgsize):
     """
-    Read in target/contest locations from csvfiles, and 
+    Read in target/contest locations from csvfiles, and
     return a list of BoundingBox instances.
     Annoying: Since I export target/contest locations in pixel coords
               (instead of relative coords), you have to also pass in
@@ -688,7 +688,7 @@ def import_box_locations(csvdir, imgsize):
         except:
             return boxes
 
-    #fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id', 'target_id')
+    # fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id', 'target_id')
     boxes = {}
     boxes = prepopulate_boxes(boxes)
     for dirpath, dirnames, filenames in os.walk(csvdir):
@@ -746,8 +746,8 @@ def std_dev_fast2(data):
         if n > 1:
             M2 = M2 + delta * (x - mean)
 
-    #variance_n = M2/n
-    #sample_var = M2/(n - 1)
+    # variance_n = M2/n
+    # sample_var = M2/(n - 1)
     # return (sample_var, variance_n)
     return mean, math.sqrt(M2 / (n - 1))
 

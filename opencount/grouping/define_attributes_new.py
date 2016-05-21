@@ -142,7 +142,7 @@ class DefineAttributesPanel(ScrolledPanel):
     def start(self, ballot_sides, img2flip, stateP):
         """
         Input:
-            list BALLOT_SIDES: [[imgP_i_side0, ...], [imgP_i_side1, ...] ...], i.e. a list of 
+            list BALLOT_SIDES: [[imgP_i_side0, ...], [imgP_i_side1, ...] ...], i.e. a list of
                 candidate ballots (includes all sides) to display.
             dict IMG2FLIP: maps {str imgpath: bool isflipped}
             str STATEP:
@@ -183,7 +183,7 @@ class DefineAttributesPanel(ScrolledPanel):
     def display_image(self, cur_side, cur_i, autofit=True):
         """ Displays the CUR_SIDE-side of the CUR_I-th image.
         Input:
-            int CUR_SIDE: 
+            int CUR_SIDE:
             int CUR_I:
             bool AUTOFIT
                 If True, then this will autoscale the image such that
@@ -534,7 +534,7 @@ class AttrBox(select_targets.Box):
 
 class DefineAttributeDialog(wx.Dialog):
     """
-    A dialog to allow the user to add attribute types to a 
+    A dialog to allow the user to add attribute types to a
     bounding box.
     """
 
@@ -755,7 +755,7 @@ class FilenameAttrDialog(wx.Dialog):
     """
     Dialog that handles the creation of a Filename-based Custom
     Attribute. The user-input will be a regex-like expression in order
-    to extract the 'attribute' from the filename. For instance, to 
+    to extract the 'attribute' from the filename. For instance, to
     extract the last digit '0' from a filename like:
         329_141_250_145_0.png
     The user-input regex would be:

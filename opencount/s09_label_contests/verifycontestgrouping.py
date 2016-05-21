@@ -74,7 +74,7 @@ def align(groupid, dat):
             left_border = 0
         else:
             # Skip the voting target for the rest
-            #left_border = 80
+            # left_border = 80
             left_border = 0
 
         Iref_orig = sh.standardImread(group[0], flatten=True)

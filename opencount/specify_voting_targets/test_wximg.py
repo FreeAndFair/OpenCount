@@ -60,13 +60,13 @@ def wximg_to_np(wximg, flatten=False):
     to Grayscale (single channel).
     """
     w, h = wximg.GetWidth(), wximg.GetHeight()
-    #wximg = wximg.Copy()
+    # wximg = wximg.Copy()
     if flatten:
         wximg = wximg.ConvertToGreyscale()
-    #data = wximg.GetDataBuffer()
+    # data = wximg.GetDataBuffer()
     # pdb.set_trace()
-    #npdata = np.frombuffer(data, dtype="u1")
-    #npdata = np.frombuffer(data, dtype='uint8')
+    # npdata = np.frombuffer(data, dtype="u1")
+    # npdata = np.frombuffer(data, dtype='uint8')
     npdata = np.fromstring(wximg.GetData(), dtype='uint8')
     # pdb.set_trace()
     npdata = npdata.reshape(h, w, 3)
@@ -83,29 +83,29 @@ def wximg_to_cv(wximg, flatten=False):
     to Grayscale (single channel).
     """
     w, h = wximg.GetWidth(), wximg.GetHeight()
-    #wximg = wximg.Copy()
+    # wximg = wximg.Copy()
     if flatten:
         wximg = wximg.ConvertToGreyscale()
-    #data = wximg.GetData()
+    # data = wximg.GetData()
 
-    #cv_im = cv.CreateImage((w, h), cv.IPL_DEPTH_8U, 3)
-    #cv.SetData(cv_im, data)
+    # cv_im = cv.CreateImage((w, h), cv.IPL_DEPTH_8U, 3)
+    # cv.SetData(cv_im, data)
 
-    #cv_mat = cv.CreateMat(h,w, cv.CV_8UC3)
-    #cv.SetData(cv_mat, data)
+    # cv_mat = cv.CreateMat(h,w, cv.CV_8UC3)
+    # cv.SetData(cv_mat, data)
 
-    #cv_mathead= cv.CreateMatHeader(h, w, cv.CV_8UC3)
+    # cv_mathead= cv.CreateMatHeader(h, w, cv.CV_8UC3)
     # cv.CreateData(cv_mathead)
-    #cv.SetData(cv_mat, data)
+    # cv.SetData(cv_mat, data)
 
     cv_mat = cv.CreateMat(h, w, cv.CV_8UC3)
     cv.SetData(cv_mat, wximg.GetData())
 
-    #cv.Copy(data, cv_mat)
+    # cv.Copy(data, cv_mat)
     if flatten:
-        #cv.SetImageCOI(cv_im, 1)
-        #res = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 1)
-        #cv.Copy(cv_im, res)
+        # cv.SetImageCOI(cv_im, 1)
+        # res = cv.CreateImage((w,h), cv.IPL_DEPTH_8U, 1)
+        # cv.Copy(cv_im, res)
         # return res
         res = cv.CreateMat(h, w, cv.CV_8UC1)
         cv.Split(cv_mat, res, None, None, None)

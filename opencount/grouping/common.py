@@ -213,7 +213,7 @@ def load_attrboxes(filepath):
 
 def marshall_iworldstate(world):
     """
-    Marshall world.box_locations such that it's 
+    Marshall world.box_locations such that it's
     possible to pickle them.
     """
     boxlocs = {}
@@ -555,7 +555,7 @@ def make_grouplabel(*args):
 
 def get_propval(gl_idx, property, proj, gl_record=None):
     """ Returns the value of a property in a grouplabel, or None
-    if the property isn't present. 
+    if the property isn't present.
     TODO: Outdated doctest.
     >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
     >>> get_propval(grouplabel, 'precinct')
@@ -651,7 +651,7 @@ class GroupClass(object):
         TODO: Is it really 'sampleid'? Or what?
 
         elements: A list of (str sampleid, rankedlist, str imgpatch),
-                 where sampleid is the ID for this data point. 
+                 where sampleid is the ID for this data point.
                  rankedlist is a list of grouplabels, which should be
                  sorted by confidence (i.e. the most-likely grouplabel
                  should be at index 0).
@@ -664,7 +664,7 @@ class GroupClass(object):
                    behavior. TODO: UNUSED.
         """
         # Converting to Tuples didn't seem to help - if anything, it hurt?
-        #self.elements = tuple(elements) if type(elements) != tuple else elements
+        # self.elements = tuple(elements) if type(elements) != tuple else elements
         self.elements = elements
         # for i in range(len(elements)):  # Why did I do this again?
         #    if not issubclass(type(elements[i][1]), list):
@@ -1338,7 +1338,7 @@ def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
     Input:
         list imgpaths: list of image paths to perform digit ocr over
         dict digit_exs: maps {str digit: ((str temppath_i, bb_i, exemplarP_i), ...)}
-        tuple bb: If given, this is a tuple (y1,y2,x1,x2), which 
+        tuple bb: If given, this is a tuple (y1,y2,x1,x2), which
                   restricts the ocr search to the given bb.
         dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
         dict accepted_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}

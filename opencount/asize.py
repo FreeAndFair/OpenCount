@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# !/usr/bin/env python
 
 # Copyright, license and disclaimer are at the end of this file.
 
@@ -1269,7 +1269,7 @@ try:
 except NameError:  # missing
     pass
 try:
-    if type(bytes) is not type(str):  # bytes is str in 2.6 #PYCHOK bytes new in 2.6, 3.0
+    if type(bytes) is not type(str):  # bytes is str in 2.6 # PYCHOK bytes new in 2.6, 3.0
         # PYCHOK bytes new in 2.6, 3.0
         _typedef_both(bytes, item=_sizeof_Cbyte, leng=_len)
 except NameError:  # missing
@@ -1453,7 +1453,7 @@ def _typedef(obj, derive=False, infer=False):
     t = type(obj)
     v = _Typedef(base=_basicsize(t, obj=obj),
                  kind=_kind_dynamic, type=t)
-  ##_printf('new %r %r/%r %s', t, _basicsize(t), _itemsize(t), _repr(dir(obj)))
+  # #_printf('new %r %r/%r %s', t, _basicsize(t), _itemsize(t), _repr(dir(obj)))
     if ismodule(obj):  # handle module like dict
         v.dup(item=_dict_typedef.item + _sizeof_CPyModuleObject,
               leng=_len_module,
@@ -2327,7 +2327,7 @@ if __name__ == '__main__':
             obj, align=align))  # , code=code
         _printf('%s(): %s', ' asized',           asized(
             obj, align=align, detail=detail, code=code, limit=limit))
-        ##_printf('%s(): %s', '.asized',   _asizer.asized(obj, align=align, detail=detail, code=code, limit=limit))
+        # #_printf('%s(): %s', '.asized',   _asizer.asized(obj, align=align, detail=detail, code=code, limit=limit))
 
     def _bool(arg):
         a = arg.lower()
@@ -2509,11 +2509,11 @@ if __name__ == '__main__':
             _print_asizeof(o, infer=True)
 
   # if _opts('-gc'):  # gc examples
-        ##_printf('%sasizeof(limit=%s, code=%s, *%s) ...', linesep, 'MAX', False, 'gc.garbage')
+        # #_printf('%sasizeof(limit=%s, code=%s, *%s) ...', linesep, 'MAX', False, 'gc.garbage')
         # from gc import collect, garbage  # list()
-        ##asizeof(limit=MAX, code=False, stats=1, *garbage)
+        # #asizeof(limit=MAX, code=False, stats=1, *garbage)
         # collect()
-        ##asizeof(limit=MAX, code=False, stats=2, *garbage)
+        # #asizeof(limit=MAX, code=False, stats=2, *garbage)
 
     if _opts('-gen', '-generator'):  # generator examples
         _printf('%sasizeof(%s, code=%s) ... %s', linesep,
@@ -2689,7 +2689,7 @@ if __name__ == '__main__':
             _getsizeof = None  # zap _getsizeof for flatsize()
             for o in t:
                 a = flatsize(o)
-                s = sys.getsizeof(o, 0)  # 0 as default #PYCHOK expected
+                s = sys.getsizeof(o, 0)  # 0 as default # PYCHOK expected
                 if a != s:
                      # flatsize approximates the length of sequences
                      # (sys.getsizeof(bool) on 3.0b3 is not correct)
@@ -2714,7 +2714,7 @@ if __name__ == '__main__':
 
 # License file from an earlier version of this source file follows:
 
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
 #       Copyright (c) 2002-2009 -- ProphICy Semiconductor, Inc.
 #                        All rights reserved.
 #
@@ -2747,4 +2747,4 @@ if __name__ == '__main__':
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------

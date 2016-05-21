@@ -135,10 +135,10 @@ def extractTargetsRegions(I, Iref, bbs, vCells=4, hCells=4, verbose=False, balP=
     Input:
         bool DO_GRID_OPT:
             If True, then this will grid up the image into VCELLSxHCELLS
-            cells. For each cell C_i, a super-region R is computed around 
+            cells. For each cell C_i, a super-region R is computed around
             all voting targets T that reside in C_i, and a single local-alignment
-            is performed for T. 
-            If False, then a small area around each individual voting 
+            is performed for T.
+            If False, then a small area around each individual voting
             target is aligned.
         int METHOD_GALIGN:
             Specifies which global alignment scheme to use. One of:
@@ -155,13 +155,13 @@ def extractTargetsRegions(I, Iref, bbs, vCells=4, hCells=4, verbose=False, balP=
     rszFac = sh.resizeOrNot(I.shape, sh.COARSE_BALLOT_REG_HEIGHT)
     # IrefM=sh.maskBordersTargets(Iref,bbs,pf=0.05)
     IrefM = Iref  # Currently don't mask out targets, found it helps global alignment
-    #IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
-    #Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
+    # IrefM_crop = cropout_stuff(IrefM, 0.05, 0.05, 0.05, 0.05)
+    # Icrop = cropout_stuff(I, 0.05, 0.05, 0.05, 0.05)
     t0 = time.clock()
 
     # GlobalAlign (V1): Simple scheme.
-    #H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
-    #I1 = imtransform(I, H1)
+    # H1, I1, err = imagesAlign(Icrop, IrefM_crop, fillval=1, trfm_type='rigid', rszFac=0.25)
+    # I1 = imtransform(I, H1)
 
     # orig_err = np.mean(np.abs(I - IrefM).flatten()) # L1 error, normalized
     # by area
@@ -182,7 +182,7 @@ def extractTargetsRegions(I, Iref, bbs, vCells=4, hCells=4, verbose=False, balP=
         H1 = H1_  # align_image outputs 3x3 H, but align_cv outputs 2x3 H.
         err_rel = err_galign / orig_err if orig_err != 0 else 0.0
 
-    #misc.imsave("Iglobal.png", I1+IrefM)
+    # misc.imsave("Iglobal.png", I1+IrefM)
 
     FLAG_UNDO_GALIGN = err_rel >= ERR_REL_THR
     # print 'err_galign={0:.5f}  err_orig={1:.5f}
@@ -284,7 +284,7 @@ def extractTargetsRegions(I, Iref, bbs, vCells=4, hCells=4, verbose=False, balP=
                     if method_galign == GALIGN_CV:
                         Ic = Ic.astype('float32') / 255.0
                         Irefc = Irefc.astype('float32') / 255.0
-                    #Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,16))
+                    # Hc1, Ic1, err = imagesAlign(Ic,Irefc,fillval=1,rszFac=rszFac,trfm_type='rigid',minArea=np.power(2,16))
                     Hc1, Ic1, err = global_align.align_image(
                         Ic, Irefc, crop=True, CROPX=0.05, CROPY=0.05, MINAREA=np.power(2, 16))
                     # if i == 3 and j == 3:
@@ -341,7 +341,7 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
     relpath_root = os.path.normpath(relpath_root)
     targetout_rootdir = os.path.normpath(os.path.join(
         targetDir, relpath_root, imgname, "page{0}".format(page)))
-    #targetmetaout_rootdir = os.path.normpath(os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page)))
+    # targetmetaout_rootdir = os.path.normpath(os.path.join(targetMetaDir, relpath_root, imgname, "page{0}".format(page)))
     targetdiffout_rootdir = os.path.normpath(os.path.join(
         targetDiffDir, relpath_root, imgname, "page{0}".format(page)))
     imgmetaout_rootdir = os.path.normpath(os.path.join(
@@ -404,9 +404,9 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
         diffoutname = imgname + "." + str(int(uid)) + ".npy"
         np.save(pathjoin(targetdiffout_rootdir, diffoutname), Idiff)
 
-        #metaoutname = imgname + '.' + str(int(uid))
-        #metafile = pathjoin(targetmetaout_rootdir, metaoutname)
-        #pickle.dump({'bbox':bbox}, open(metafile, "w"))
+        # metaoutname = imgname + '.' + str(int(uid))
+        # metafile = pathjoin(targetmetaout_rootdir, metaoutname)
+        # pickle.dump({'bbox':bbox}, open(metafile, "w"))
         bboxes.append(bbox)
 
         placefile = os.path.join(radix_sort_dir, "%02x" % int(avg_intensity))
@@ -615,7 +615,7 @@ def convertImagesWorkerMAP(job):
     # match to front-back
     # (list of template images, target bbs for each template, filepath for image,
     #  output for targets, output for quarantine info, output for extracted
-    #(tplImgs, tplPaths, tpl_flips, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue, method_galign, method_lalign) = job
+    # (tplImgs, tplPaths, tpl_flips, bbsL, balL, targetDir, targetDiffDir, targetMetaDir, imageMetaDir, queue, method_galign, method_lalign) = job
     # print "START"
     try:
         (tplImgs, tplPaths, tpl_flips, bbsL, balL, balId, balL_flips, targetDir, targetDiffDir,
@@ -708,7 +708,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
 
     if nProc == None:
         nProc = sh.numProcs()
-    #nProc = 1
+    # nProc = 1
     num_jobs = len(jobs)
 
     if nProc < 2:
@@ -733,7 +733,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
         if wx.App.IsMainLoopRunning():
             util.MyGauge.all_next_job(num_jobs)
         print "GOING UP TO", num_jobs
-        #pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
+        # pool.map_async(convertImagesWorkerMAP,jobs,callback=lambda x: imdone(it))
         pool.map_async(convertImagesWorkerMAP, jobs)
         cnt = 0
         while cnt < len(jobs):
@@ -822,7 +822,7 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
         str TARGETDIR: Dir to store extracted target patches
         str TARGETMETADIR: Dir to store metadata for each target
         str IMAGEMETADIR: Dir to store metadata for each ballot
-        str TARGETEXTRACT_QUARANTINED: 
+        str TARGETEXTRACT_QUARANTINED:
         fn STOPPED: Intended to be used as a way to cancel the extraction,
             i.e. returns True if we should.
         int NPROC: Number of processors to use (if None, then # cores on machine)

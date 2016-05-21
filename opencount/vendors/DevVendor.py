@@ -54,7 +54,7 @@ class DevVendor(Vendor):
                 This maps to a /tuple/ of strings, because there may be
                 multiple barcodes on a given image.
         Output:
-            (dict PARTITIONS, 
+            (dict PARTITIONS,
              dict IMG2DECODING,
              dict IMAGE_INFO)
         """

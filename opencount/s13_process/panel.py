@@ -86,7 +86,7 @@ class ResultsPanel(ScrolledPanel):
                 ballotid = int(line[0])
                 imgpaths = sorted(b2imgs[ballotid],
                                   key=lambda imP: img2page[imP])
-                #c_t[os.path.abspath(line[0])] = line[1:]
+                # c_t[os.path.abspath(line[0])] = line[1:]
                 attrvals = line[1:]
                 attrvals = attrvals[:-1]  # ignore partitionID (always at end)
                 c_t[imgpaths[0]] = attrvals
@@ -228,7 +228,7 @@ class ResultsPanel(ScrolledPanel):
                 votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
                 page = img2page[meta['ballot']]
 
-                #votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
+                # votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
                 bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
                 # If any of the sides is quarantined, skip it
                 if True in bools:
@@ -308,7 +308,7 @@ class ResultsPanel(ScrolledPanel):
         print 'And now the quarantine ones'
 
         cvr = csv.writer(open(self.proj.cvr_csv, "w"))
-        headerstr = ['#path'] + sum([[b[1] + ":" + c for c in b[2:]] + [b[1]]
+        headerstr = ['# path'] + sum([[b[1] + ":" + c for c in b[2:]] + [b[1]]
                                      for _, b in text.items()], [])
         cvr.writerow(headerstr)
 
@@ -417,7 +417,7 @@ class ResultsPanel(ScrolledPanel):
             list CVR: List of [[imgpath_i, ballot_cvr_i, ...], ...], where each
                 ballot_cvr_i is a dict {int targetid: [bool isfilled_i, ..., 'OK'/'UNDERVOTE'/etc]}
                 for each contest.
-        Returns: dict containing key-value pairs of 
+        Returns: dict containing key-value pairs of
         attribute -> cvr item
         e.g. 'precinct 1' : cvr item
         """
@@ -443,7 +443,7 @@ class ResultsPanel(ScrolledPanel):
             def groupby(lst, attrtype, ballot_attributes, img2bal, bal2grp, quar):
                 """
                 Input:
-                    lst LST: 
+                    lst LST:
                     str ATTRTYPE: Attrtype to group by
                     list QUAR: [imgpath_i, ...], list of quarantined voted imgpaths.
                 Output:

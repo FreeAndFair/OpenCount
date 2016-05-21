@@ -58,7 +58,7 @@ def decode(imgpath, Izero, Ione, _imgpath=None):
     Input:
         str/IplImage IMGPATH: If this is passed in as an IplImage, then
             _IMGPATH is the image path.
-        IplImage IZERO: 
+        IplImage IZERO:
         IplImage IONE:
     Output:
         (list DECODINGS, dict MARK_LOCS)
@@ -88,7 +88,7 @@ def is_empty_image(I):
 
 def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     """ Determines which side the image I is. Also determines the flip
-    as a by-product. If it can't find either ISYMA or ISYMB, then 
+    as a by-product. If it can't find either ISYMA or ISYMB, then
     something strange is up - returns None to signal this.
     Input:
         IplImage I:
@@ -180,9 +180,9 @@ def is_backside(decodings, mark_locs, I, Izero):
 
     Note: This doesn't detect empty backsides. Assumes that the decoder
     is 'good enough' such that it will not spuriously return "" or "0"
-    for an real front-side barcode. 
+    for an real front-side barcode.
 
-    Output: 
+    Output:
         bool isBack, bool isFlip
     """
     if decodings[0] == "0" and decodings[1] == "":
@@ -229,7 +229,7 @@ def processImg(img, template_zero, template_one, imgpath):
         3) process matching result, transform into 01-bitstring
     Note: Only the front-side has a full barcodes on the UL/UR corners.
     The back-side, however, has "0", "" on the top, and "0", "0" on the
-    bottom. We can leverage this information. 
+    bottom. We can leverage this information.
     Output:
         list DECODINGS, dict MARKS_OUT.
     list DECODINGS: [str decoding_upperLeft, str decoding_upperRight]
@@ -315,7 +315,7 @@ def postprocess_locs(zero_locs, one_locs):
 
 
 def transformToBits(zero_locs, one_locs, img):
-    """Assumes best_locs are the correct locations. 
+    """Assumes best_locs are the correct locations.
     Also, the BEST_LOCS are sorted by height.
     """
     # ZERO_LOCS, ONE_LOCS: [(x1,y1,x2,y2,score), ...]

@@ -5,9 +5,9 @@ import cv
 
 def decode_patch(original_image, original_mark, expected_bits):
     """
-    Given a ES&S-style ballot, returns the LHS barcode as a bitstring 
+    Given a ES&S-style ballot, returns the LHS barcode as a bitstring
     if one is found, along with bounding box of each digit in the barcode.
-    The algorithm works by finding finding the column of timing marks on 
+    The algorithm works by finding finding the column of timing marks on
     the left side of the ballot and looking at the intensity of pixels
     just to the right of each of them to detect "on" or "off" bits.
     Input:
@@ -121,7 +121,7 @@ def decode_patch(original_image, original_mark, expected_bits):
 
 def decode(imgpath, mark, bits):
     """
-    Given a ES&S-style ballot, returns the LHS barcode as a bitstring. 
+    Given a ES&S-style ballot, returns the LHS barcode as a bitstring.
     Will try to detect and report flipped ballots.
     Input:
         imgpath : path to ballot image

@@ -8,7 +8,7 @@ import pdb
 """ An external merge-sort implementation. Useful when you need to sort
 a file that is too large to fit in memory.
 
-Modified from: 
+Modified from:
     http://www.cs.sunysb.edu/~algorith/implement/psort/implement.shtml
 """
 
@@ -206,7 +206,7 @@ def batch_sort_mod(input, output, imgSize, key=None,
                     # intensity)
                     sorted_chunk = sorted(
                         sorted_chunk, key=lambda (i, tdata): sort_order[i])
-                    #sorted_chunk = sorted(enumerate(current_chunk), key=lambda (tidx, target): key(offset_tidx + tidx))
+                    # sorted_chunk = sorted(enumerate(current_chunk), key=lambda (tidx, target): key(offset_tidx + tidx))
                     output_chunk = file(os.path.join(
                         tempdir, '%06i' % len(chunks)), 'w+b', 64 * 1024)
                     for (i, target) in sorted_chunk:

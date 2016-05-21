@@ -15,7 +15,7 @@ from pixel_reg.imagesAlign import imagesAlign
 def minmax_cv_par(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
                   minArea=np.power(2, 16), bbs_map=None, numProcs=None,
                   imgCache=None):
-    """ A parallel-wrapper for minmax_cv_v2. 
+    """ A parallel-wrapper for minmax_cv_v2.
     Note: For some reason, this is ~10X slower than just calling minmax_cv
     and doing it in a single process. Not sure why...
     NOTE: Currently deprecated. We switched back to using a numpy-based
@@ -68,7 +68,7 @@ def _minmax_cv_v2_wrapper(imgpaths, *args, **kwargs):
 def minmax_cv_v2(imgpaths, Iref_imP=None, do_align=False, rszFac=1.0, trfm_type='rigid',
                  minArea=np.power(2, 16), bbs_map=None):
     """ Computes the overlays of IMGPATHS, but uses the IREF_IMP as the
-    reference image to align against, if DO_ALIGN is True. Mainly a 
+    reference image to align against, if DO_ALIGN is True. Mainly a
     function written for the parallel version (minmax_cv is still fine for
     single-process use).
     """
@@ -142,7 +142,7 @@ def minmax_cv(imgpaths, do_align=False, rszFac=1.0, trfm_type='rigid',
         cv.SetImageROI(Imin, coords)
     Imax = cv.CloneImage(Imin)
 
-    #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
+    # Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
     Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
     for imgpath in imgpaths[1:]:
         I = load_image(imgpath)
@@ -173,7 +173,7 @@ def minmax_cv_V2(imgs, do_align=False, rszFac=1.0, trfm_type='rigid',
     """
     Imin = cv.CloneImage(imgs[0])
     Imax = cv.CloneImage(Imin)
-    #Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
+    # Iref = np.asarray(cv.CloneImage(Imin)) if do_align else None
     Iref = (iplimage2np(cv.CloneImage(Imin)) / 255.0) if do_align else None
     for I in imgs[1:]:
         Iout = matchsize(I, Imax)
@@ -218,8 +218,8 @@ def matchsize(A, B):
 
 
 def iplimage2np(img):
-    #a = np.frombuffer(img.tostring(), dtype=np.uint8)
-    #a.shape = img.height, img.width
+    # a = np.frombuffer(img.tostring(), dtype=np.uint8)
+    # a.shape = img.height, img.width
     a = np.fromstring(img.tostring(), dtype=np.uint8)
     w, h = cv.GetSize(img)
     a = a.reshape(h, w)
@@ -323,8 +323,8 @@ def make_minmax_overlay2(imgs, do_align=False, rszFac=1.0):
             overlayMax = np.fmax(overlayMax, img)
 
     # rszFac=sh.resizeOrNot(overlayMax.shape,sh.MAX_PRECINCT_PATCH_DISPLAY)
-    # overlayMax = sh.fastResize(overlayMax, rszFac) #/ 255.0
-    # overlayMin = sh.fastResize(overlayMin, rszFac) #/ 255.0
+    # overlayMax = sh.fastResize(overlayMax, rszFac) # / 255.0
+    # overlayMin = sh.fastResize(overlayMin, rszFac) # / 255.0
     return overlayMin, overlayMax
 
 
@@ -682,7 +682,7 @@ if __name__ == '__main__':
         psyco.full()
     except ImportError:
         pass
-    
+
     import pylab
     from numpy import random
     vec = random.random((1000,1000)) < 0.0001
