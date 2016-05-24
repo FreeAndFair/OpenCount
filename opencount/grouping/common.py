@@ -13,6 +13,7 @@ import wx
 import numpy as np
 import scipy.cluster.vq
 from scipy import misc
+from util import error
 
 
 import pixel_reg.shared as sh
@@ -59,39 +60,8 @@ class AttributeBox(BoundingBox):
         self.is_digitbased = is_digitbased
         self.is_tabulationonly = is_tabulationonly
 
-    def has_attrtype(self, attrtype):
-        return attrtype in self.attrs
-
-    def get_attrval(self, attrtype):
-        return self.attrs.get(attrtype, None)
-
     def get_attrtypes(self):
         return tuple(self.attrs.keys())
-
-    def add_attrtypes(self, attrtypes, attrvals=None):
-        if not attrvals:
-            attrvals = (None,) * len(attrtypes)
-        assert len(attrtypes) == len(attrvals)
-        for i, attrtype in enumerate(attrtypes):
-            self.set_attrtype(attrtype, attrvals[i])
-
-    def add_attrtype(self, attrtype, attrval=None):
-        self.attrs[attrtype] = attrval
-
-    def set_attrtype(self, attrtype, attrval=None):
-        self.attrs[attrtype] = attrval
-
-    def remove_attrtype(self, attrtype):
-        assert attrtype in self.attrs, "Error - {0} was not found in \
-self.attrs: {1}".format(attrtype, self.attrs)
-        self.attrs.pop(attrtype)
-
-    def relabel_attrtype(self, oldname, newname):
-        assert oldname in self.attrs, "Error - {0} was not found in \
-self.attrs: {1}".format(oldname, self.attrs)
-        oldval = self.get_attrval(oldname)
-        self.remove_attrtype(oldname)
-        self.set_attrtype(newname, oldval)
 
     def copy(self):
         """ Return a copy of myself """
@@ -137,122 +107,6 @@ self.attrs: {1}".format(oldname, self.attrs)
         return "AttributeBox({0},{1},{2},{3},attrs={4},side={5},is_digitbased{6},is_tabonly{7})".format(self.x1, self.y1, self.x2, self.y2, self.attrs, self.side, self.is_digitbased, self.is_tabulationonly)
 
 
-class IWorldState(WorldState):
-
-    def __init__(self, box_locations=None):
-        WorldState.__init__(self, box_locations=box_locations)
-
-    def get_attrpage(self, attrtype):
-        return self.get_attrbox(attrtype).side
-
-    def get_attrtypes(self):
-        """
-        Return a list of all attribute types.
-        """
-        result = set()
-        for b in self.get_attrboxes():
-            for attrtype in b.get_attrtypes():
-                result.add(attrtype)
-        return list(result)
-
-    def get_attrbox(self, attrtype):
-        """
-        Return the AttributeBox with given attrtype.
-        """
-        for b in self.get_boxes_all_list():
-            if b.has_attrtype(attrtype):
-                return b
-        error('In IWorldState.get_attrbox, no AttributeBox '
-              'with type {0} was found.', attrtype)
-        return None
-
-    def get_attrboxes(self):
-        """
-        Return all AttributeBoxes in a flat list.
-        """
-        return self.get_boxes_all_list()
-
-    def remove_attrtype(self, attrtype):
-        """
-        Removes the attrtype from all instances of AttributeBoxes.
-        """
-        for temppath, boxes in self.box_locations.iteritems():
-            for b in boxes:
-                if attrtype in b.get_attrtypes():
-                    b.remove_attrtype(attrtype)
-        self._remove_empties()
-
-    def _remove_empties(self):
-        newboxlocs = {}
-        for temppath, boxes in self.box_locations.iteritems():
-            newboxlocs[temppath] = [b for b in boxes if b.get_attrtypes()]
-        self.box_locations = newboxlocs
-
-    def remove_attrbox(self, box):
-        for temppath in self.box_locations:
-            if box in self.get_boxes(temppath):
-                self.remove_box(temppath, box)
-
-    def mutate(self, iworld):
-        WorldState.mutate(self, iworld)
-
-
-def dump_attrboxes(attrboxes, filepath):
-    listdata = [b.marshall() for b in attrboxes]
-    f = open(filepath, 'wb')
-    pickle.dump(listdata, f)
-    f.close()
-
-
-def load_attrboxes(filepath):
-    f = open(filepath, 'rb')
-    listdata = pickle.load(f)
-    f.close()
-    return [AttributeBox.unmarshall(b) for b in listdata]
-
-
-def marshall_iworldstate(world):
-    """
-    Marshall world.box_locations such that it's
-    possible to pickle them.
-    """
-    boxlocs = {}
-    for temppath, boxes in world.box_locations.iteritems():
-        for b in boxes:
-            b_data = b.marshall()
-            boxlocs.setdefault(temppath, []).append(b_data)
-    return boxlocs
-
-
-def unmarshall_iworldstate(data):
-    """
-    Unmarshall data, which is of the form:
-        <boxlocations data>
-    to return a new IWorldState.
-    """
-    iworld = IWorldState()
-    new_boxlocations = {}
-    boxlocsdata = data
-    for temppath, boxesdata in boxlocsdata:
-        for b_data in boxesdata:
-            box = AttributeBox.unmarshall(b_data)
-            new_boxlocations.setdefault(temppath, []).append(box)
-    iworld.box_locations = new_boxlocations
-    return iworld
-
-
-def load_iworldstate(filepath):
-    f = open(filepath, 'rb')
-    data = pickle.load(filepath)
-    return unmarshall_iworldstate(data)
-
-
-def dump_iworldstate(iworld, filepath):
-    f = open(filepath, 'wb')
-    pickle.dump(marshall_iworldstate(iworld), f)
-    f.close()
-
-
 def resize_img_norescale(img, size):
     """ Resizes img to be a given size without rescaling - it only
     pads/crops if necessary.
@@ -288,18 +142,6 @@ def get_attrtypes(project, with_digits=True):
     return result
 
 
-def get_attrtypes_all(project):
-    """
-    Returns all attrtypes, including CustomAttributes.
-    """
-    attrtypes = list(get_attrtypes(project))
-    cattrs = cust_attrs.load_custom_attrs(project)
-    if cattrs is not None:
-        for cattr in cattrs:
-            attrtypes.append(cattr.attrname)
-    return set(attrtypes)
-
-
 def exists_imgattrs(proj):
     """ Returns True if there exists at least one image based attribute
     (i.e. a non-custom+non-digit based attr).
@@ -311,21 +153,6 @@ def exists_imgattrs(proj):
         if not attr['is_digitbased']:
             return True
     return False
-
-
-def exists_digitattrs(proj):
-    """ Returns True if there exists at least one digit-based attr. """
-    attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
-    for attr in attrs:
-        if attr['is_digitbased']:
-            return True
-    return False
-
-
-def exists_customattrs(proj):
-    """ Returns True if there exists at least one Custom attr. """
-    customattrsP = pathjoin(proj.projdir_path, proj.custom_attrs)
-    return os.path.exists(customattrsP)
 
 
 def is_tabulationonly(project, attrtype):
@@ -376,48 +203,6 @@ def is_quarantined(project, path):
     return False
 
 
-def get_attrpair_grouplabel(project, gl_idx, gl_record=None):
-    """ Given a grouplabel, return both the attrtype of the grouplabel
-    and the attrval. Assumes the newer grouplabel_record interface.
-    """
-    # Assumes that non-digitbased grouplabels look like:
-    #     frozenset([('party', 'democratic'), ('imageorder', 1), ('flip', 0)])
-    if type(gl_idx) != int:
-        error("Uhoh, expected int index, got {0} instead.", type(gl_idx))
-        traceback.print_exc()
-        pdb.set_trace()
-
-    if gl_record is None:
-        gl_record = load_grouplabel_record(project)
-    grouplabel = gl_record[gl_idx]
-    attrtype, attrval = None, None
-    for (k, v) in grouplabel:
-        if k != 'imageorder' and k != 'flip':
-            attrtype = k
-            attrval = v
-            break
-    return attrtype, attrval
-
-
-def get_attr_side(project, attrtype):
-    """ Returns which side of the ballot this attrtype was defined
-    on.
-    """
-    ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
-    for attrdict in ballot_attrs:
-        attrstr = get_attrtype_str(attrdict['attrs'])
-        if attrstr == attrtype:
-            return attrdict['side']
-    customattrs = cust_attrs.load_custom_attrs(project)
-    for cattr in customattrs:
-        if cattr.attrname == attrtype:
-            # The side is irrelevant.
-            return 0
-    error("couldn't find attribute: {0}", attrtype)
-    pdb.set_trace()
-    return None
-
-
 def get_attr_prop(project, attrtype, prop):
     """ Returns the property of the given attrtype. """
     ballot_attrs = pickle.load(open(project.ballot_attributesfile, 'rb'))
@@ -428,45 +213,6 @@ def get_attr_prop(project, attrtype, prop):
     error("couldn't find attribute: {0}", attrtype)
     pdb.set_trace()
     return None
-
-
-def get_numdigits(project, attr):
-    """Return the number of digits that this digit-based attribute
-    has. If this attr is not a digits attribute (or num_digitsmap
-    hasn't been created yet), this returns None.
-    """
-    if not os.path.exists(pathjoin(project.projdir_path,
-                                   project.num_digitsmap)):
-        return None
-    numdigits_map = pickle.load(open(pathjoin(project.projdir_path,
-                                              project.num_digitsmap),
-                                     'rb'))
-    if attr not in numdigits_map:
-        return None
-    return int(numdigits_map[attr])
-
-
-def get_digitbased_attrs(project):
-    allattrs = get_attrtypes(project)
-    return [attr for attr in allattrs if is_digitbased(project, attr)]
-
-
-def is_digit_grouplabel(gl_idx, project, gl_record=None):
-    """ Return True if this grouplabel is digit-based. """
-    if type(gl_idx) != int:
-        error("Uhoh, expected int index, got {0} instead.", type(gl_idx))
-        traceback.print_exc()
-        pdb.set_trace()
-
-    if gl_record is None:
-        gl_record = load_grouplabel_record(project)
-    grouplabel = gl_record[gl_idx]
-    attrtype = None
-    for (k, v) in grouplabel:
-        if k != 'imageorder' and k != 'flip':
-            attrtype = k
-            break
-    return is_digitbased(project, attrtype)
 
 
 def get_attrtype_str(attrtypes):
@@ -480,22 +226,6 @@ def get_attrtype_str(attrtypes):
         lst attrtypes: List of strings
     """
     return '_'.join(sorted(attrtypes))
-
-
-def remove_common_pathpart(rootdir, path):
-    """ Given two paths, a root and a path, return just the part of
-    path that starts at root:
-    >>> remove_common_pathpart('/media/data1/election', 'election/blanks1/bar.png')
-    blanks1/bar.png
-    """
-    rootdir_abs = os.path.abspath(rootdir)
-    path_abs = os.path.abspath(path)
-    if not rootdir.endswith('/'):
-        rootdir += '/'
-    if not path_abs.startswith(rootdir_abs):
-        error("invalid arguments to remove_common_pathpart(?)")
-        pdb.set_trace()
-    return path_abs[:len(rootdir_abs)]
 
 
 def num_common_prefix(*args):
@@ -529,86 +259,6 @@ def get_imagepaths(dir):
     return results
 
 
-def save_grouplabel_record(proj, grouplabel_record):
-    outP = pathjoin(proj.projdir_path, proj.grouplabels_record)
-    pickle.dump(grouplabel_record, open(outP, 'wb'))
-
-
-def load_grouplabel_record(proj):
-    """ Returns None if the grouplabel_record hasn't been created
-    yet.
-    """
-    path = pathjoin(proj.projdir_path, proj.grouplabels_record)
-    if not os.path.exists(path):
-        return None
-    return pickle.load(open(path, 'rb'))
-
-""" GroupLabel Data Type """
-
-
-def make_grouplabel(*args):
-    """ Given k-v tuples, returns a grouplabel.
-    >>> make_grouplabel(('precinct', '380400'), ('side', 0))
-    """
-    return frozenset(args)
-
-
-def get_propval(gl_idx, property, proj, gl_record=None):
-    """ Returns the value of a property in a grouplabel, or None
-    if the property isn't present.
-    TODO: Outdated doctest.
-    >>> grouplabel = make_grouplabel(('precinct', '380400'), ('side', 0))
-    >>> get_propval(grouplabel, 'precinct')
-    380400
-    >>> get_propval(grouplabel, 'foo') is None
-    True
-    """
-    if type(gl_idx) != int:
-        error("expected int index, got {0} instead.", type(gl_idx))
-        traceback.print_exc()
-        pdb.set_trace()
-    if gl_record is None:
-        gl_record = load_grouplabel_record(proj)
-    for k, v in gl_record[gl_idx]:
-        if k == property:
-            return v
-    return None
-
-
-def str_grouplabel(gl_idx, proj, gl_record=None):
-    """ Returns a string-representation of the grouplabel. """
-    if type(gl_idx) != int:
-        error("expected int index, got {0} instead.", type(gl_idx))
-        traceback.print_exc()
-        pdb.set_trace()
-
-    if gl_record is None:
-        gl_record = load_grouplabel_record(proj)
-    grouplabel = gl_record[gl_idx]
-    kv_pairs = tuple(grouplabel)
-    out = ''
-    for (k, v) in sorted(kv_pairs):
-        out += '{0}->{1}, '.format(k, v)
-    return out
-
-
-def get_median_img(imgpaths):
-    """ Given a list of images, return the image with the median average
-    intensity.
-    """
-    scorelist = []  # [(score_i, imgpath_i), ...]
-    for imgpath in imgpaths:
-        img = scipy.misc.imread(imgpath, flatten=True)
-        score = np.average(img)
-        scorelist.append((score, imgpath))
-    if not scorelist:
-        error("No imgpaths passed in.")
-        return None
-    elif len(scorelist) <= 2:
-        return scorelist[0][1]
-    return scorelist[int(len(scorelist) / 2)][1]
-
-
 def get_avglightest_img(imgpaths):
     """ Given a list of image paths, return the image with the lightest
     average intensity.
@@ -618,21 +268,6 @@ def get_avglightest_img(imgpaths):
         img = scipy.misc.imread(imgpath, flatten=True)
         score = np.average(img)
         if bestpath is None or score > bestscore:
-            bestpath = imgpath
-            bestscore = score
-            idx = i
-    return bestpath, bestscore, idx
-
-
-def get_avgdarkest_img(imgpaths):
-    """ Given a list of image paths, return the image with the lightest
-    average intensity.
-    """
-    bestpath, bestscore, idx = None, None, None
-    for i, imgpath in enumerate(imgpaths):
-        img = scipy.misc.imread(imgpath, flatten=True)
-        score = np.average(img)
-        if bestpath is None or score < bestscore:
             bestpath = imgpath
             bestscore = score
             idx = i
@@ -1085,43 +720,6 @@ class DigitGroupClass(GroupClass):
         GroupClass.__init__(self, elements, no_overlays=no_overlays,
                             user_data=user_data)
 
-    def split_medianwise(self):
-        """
-        TODO: NOT IN USE. Replaced by split_kmeans(), since it seems to
-              work better.
-        """
-        # Assumes that only Digit attributes is using self.user_data.
-        # Split the elements based on the partmatch scores: the top
-        # 50%, and the bottom 50%.
-        # self.user_data: {str patchpath: float score}
-        # 0.) Check degenerate case
-        if len(self.elements) == 2:
-            return (DigitGroupClass((self.elements[0],),
-                                    user_data=self.user_data),
-                    DigitGroupClass((self.elements[1],),
-                                    user_data=self.user_data))
-        # 1.) Compute median score
-        scores = []
-        for (sampleid, rlist, patchpath) in self.elements:
-            if patchpath not in self.user_data:
-                print "Uhoh, patchpath not in self.user_data."
-                pdb.set_trace()
-            score = self.user_data[patchpath]
-            scores.append(score)
-        scores = sorted(scores)
-        median = scores[int(len(scores) / 2)]
-        print "MEDIAN WAS:", median
-        # 2.) Group high and low scores
-        elements1, elements2 = [], []
-        for (sampleid, rlist, patchpath) in self.elements:
-            score = self.user_data[patchpath]
-            if score > median:
-                elements1.append((sampleid, rlist, patchpath))
-            else:
-                elements2.append((sampleid, rlist, patchpath))
-        return (DigitGroupClass(elements1, user_data=self.user_data),
-                DigitGroupClass(elements2, user_data=self.user_data))
-
     def split_kmeans(self, K=2):
         """ Uses k-means (k=2) to try to split this group. """
         if len(self.elements) == 2:
@@ -1327,161 +925,3 @@ class SingleChoiceDialog(wx.Dialog):
 
     def onButton_cancel(self, evt):
         self.EndModal(wx.ID_CANCEL)
-
-
-def do_digitocr(imgpaths, digit_exs, num_digits, bb=None,
-                rejected_hashes=None, accepted_hashes=None,
-                digitdist=20):
-    """ Basically does what sh.digitParse does, but checks to see if
-    the image might be flipped, and if it is, to flip it and return
-    the match with the best response.
-    Input:
-        list imgpaths: list of image paths to perform digit ocr over
-        dict digit_exs: maps {str digit: ((str temppath_i, bb_i, exemplarP_i), ...)}
-        tuple bb: If given, this is a tuple (y1,y2,x1,x2), which
-                  restricts the ocr search to the given bb.
-        dict rejected_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
-        dict accepted_hashes: maps {imgpath: {str digit: [((y1,y2,x1,x2),side_i,isflip_i), ...]}}
-        int digitdist: The expected distance between adjacent digits.
-    Output:
-        list of [(imgpath_i, ocrstr_i, meta_i, bool isflip_i), ...]
-    """
-    def get_best_flip(results_noflip, results_flip):
-        """ Given the results of digitParse (both not flipped and
-        flipped), return a new results list that, for each voted ballot,
-        chooses the match (either flipped/not-flipped) with the highest
-        score.
-        Input:
-            lst results_noflip: list of [(imgpath_i, ocrstr_i, meta_i), ...]
-            lst results_flip: list of [(imgpath_i, ocrstr_i, meta_i), ...]
-        Output:
-            lst results: list of [(imgpath_i, ocrstr_i, meta_i, isflip_i), ...]
-        """
-        assert len(results_noflip) == len(results_flip)
-        results_noflip = sorted(results_noflip, key=lambda tup: tup[0])
-        results_flip = sorted(results_flip, key=lambda tup: tup[0])
-        results = []
-        for idx, (path_noflip, ocrstr_noflip, meta_noflip) in enumerate(results_noflip):
-            path_flip, ocrstr_flip, meta_flip = results_flip[idx]
-            assert path_noflip == path_flip
-            assert len(meta_noflip) == len(meta_flip)
-            avg_score_noflip = sum(
-                [tup[6] for tup in meta_noflip]) / float(len(meta_noflip))
-            avg_score_flip = sum([tup[6]
-                                  for tup in meta_flip]) / float(len(meta_flip))
-            if avg_score_noflip > avg_score_flip:
-                results.append(
-                    (path_noflip, ocrstr_noflip, meta_noflip, False))
-            else:
-                results.append((path_flip, ocrstr_flip, meta_flip, True))
-        assert len(results) == len(results_noflip)
-        assert len(results) == len(results_flip)
-        return results
-
-    if not bb:
-        imgsize = misc.imread(imgpath, flatten=True).shape
-        bb = (0, imgsize[0], 0, imgsize[1])
-    print "======== HSPACE IS:", digitdist
-    results_noflip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                           num_digits, do_flip=False,
-                                           rejected_hashes=rejected_hashes,
-                                           accepted_hashes=accepted_hashes,
-                                           hspace=digitdist)
-    results_flip = part_match.digitParse(digit_exs, imgpaths, bb,
-                                         num_digits, do_flip=True,
-                                         rejected_hashes=rejected_hashes,
-                                         accepted_hashes=accepted_hashes,
-                                         hspace=digitdist)
-    results_noflip = munge_pm_results(results_noflip)
-    results_flip = munge_pm_results(results_flip)
-    results_best = get_best_flip(results_noflip, results_flip)
-    return results_best
-
-
-def munge_pm_results(results):
-    """ Converts results format from part_match.digitParse to the output
-    format of shared.digitParse.
-    Input:
-        lst results: List of [(imgpath_i, ocrstr_i, imgpatches_i, patchcoords_i, scores_i), ...]
-    Output:
-        lst of [(imgpath_i, ocrstr_i, meta_i), ...], where each meta_i
-        is a list of the form:
-            meta_i := (y1,y2,x1,x2,str digit, obj digitimg, float score)
-    """
-    out = []
-    for (imgpath, ocrstr, imgpatches, patchcoords, scores) in results:
-        meta = []
-        if not (len(imgpatches) == len(patchcoords) == len(scores)):
-            print "Uhoh, not all were equal length."
-            pdb.set_trace()
-        assert len(imgpatches) == len(patchcoords) == len(scores)
-        for i, (y1, y2, x1, x2) in enumerate(patchcoords):
-            try:
-                digit = ocrstr[i]
-            except Exception as e:
-                print e
-                print "OH DEAR. Did you accidently not type in the digit \
-during LabelDigitAttrs?"
-                pdb.set_trace()
-            digitimg = imgpatches[i]
-            score = scores[i]
-            meta.append((y1, y2, x1, x2, digit, digitimg, score))
-        out.append((imgpath, ocrstr, meta))
-    return out
-
-
-def par_extract_patches(tasks):
-    """ Parallelizes the following task:
-    For N images, extract a boundingbox from each image, and store it
-    to disk.
-    Input:
-        list tasks: ((imgpath_i, bb_i, outpath_i), ...)
-    """
-    # TODO: I should probably be nuked.
-    partask.do_partask(imgmap)
-
-
-def is_blankballot_contests_eq(*blankpaths):
-    """ Returns True if the input blank ballots contain the same contests,
-    False otherwise.
-    Input:
-        list blankpaths: (blankpath_i, ...)
-    Output:
-        True or False.
-    """
-    '''
-    for i, b1 in enumerate(blankpaths):
-        if i == len(blankpaths-1):
-            break
-        b2 = blankpaths[i+1]
-    '''
-    # TODO: Implement me!
-    return False
-
-if __name__ == '__main__':
-    class MyFrame(wx.Frame):
-
-        def __init__(self, parent, *args, **kwargs):
-            wx.Frame.__init__(self, parent, *args, **kwargs)
-            btn = wx.Button(self, label="Click me")
-            btn.Bind(wx.EVT_BUTTON, self.onButton)
-
-        def onButton(self, evt):
-            dlg = TextInputDialog(self, labels=(
-                "Input 1:", "Input 2:", "Input 3:"))
-            dlg.ShowModal()
-            print dlg.results
-    app = wx.App(False)
-    frame = MyFrame(None)
-    frame.Show()
-    app.MainLoop()
-
-
-def log_misclassify_ballots(proj, elements):
-    """ Logs misclassified ballots to a logfile. """
-    try:
-        logfile = open(os.path.join(proj.projdir_path, 'misclassify.log'), 'a')
-        for sampleid, rlist, patchpath in elements:
-            print >>logfile, sampleid
-    except Exception as e:
-        print e

@@ -384,15 +384,6 @@ def infer_narrow_wide(lens):
     """ Infers the narrow/wide parameters, given LENS, a list of integers
     representing lengths of regions.
     """
-    def get_median_bucket(hist):
-        K = int(sum(hist) / 2)
-        for i, bucket in enumerate(tuple(hist)):
-            if (K - bucket) <= 0:
-                return i
-            K -= bucket
-        print "UH OH, this is weird."
-        return 1
-
     def get_mostpop_bucket(hist):
         idx = np.argmax(hist)
         return idx
@@ -406,8 +397,6 @@ def infer_narrow_wide(lens):
 
     binsNarrow = bins[:idx0]
     binsWide = bins[idx0:]
-    # narrow_idx = get_median_bucket(binsNarrow)
-    # wide_idx = get_median_bucket(binsWide)
     narrow_idx = get_mostpop_bucket(binsNarrow)
     wide_idx = min(get_mostpop_bucket(binsWide) + 1, len(binedges))
     narrow = binedges[:idx0][narrow_idx]
@@ -417,10 +406,6 @@ def infer_narrow_wide(lens):
 
 def is_pix_on(val, pix_on, pix_off):
     return abs(pix_on - val) < abs(pix_off - val)
-
-
-def w_or_n(cnt, w_narrow, w_wide, step=1):
-    return NARROW if (abs((cnt + ((step - 1) * cnt)) - w_narrow) < abs((cnt + ((step - 1) * cnt)) - w_wide)) else WIDE
 
 
 def stripes_to_bars(lens, narrow, wide, imgP=None, T=0.04):
@@ -516,18 +501,6 @@ def bestmatch(A, B):
     cv.MatchTemplate(B, A, s_mat, cv.CV_TM_CCOEFF_NORMED)
     minResp, maxResp, minLoc, maxLoc = cv.MinMaxLoc(s_mat)
     return maxLoc, s_mat
-
-
-def iplimage2cvmat(I):
-    w, h = cv.GetSize(I)
-    if I.depth == cv.IPL_DEPTH_8U and I.channels == 1:
-        cvmat = cv.CreateMat(h, w, cv.CV_8UC1)
-    elif I.depth == cv.IPL_DEPTH_32F and I.channels == 1:
-        cvmat = cv.CreateMat(h, w, cv.CV_32FC1)
-    else:
-        cvmat = cv.CreateMat(h, w, cv.CV_8UC1)
-    cv.Copy(I, cvmat)
-    return cvmat
 
 
 def dothreshold(I):

@@ -208,10 +208,6 @@ class ResultsPanel(ScrolledPanel):
             retval = ['01'[voted[x]] for x in order[template, cid]] + ['OK']
             return retval
 
-        def noexist(cid):
-            # When a contest doesn't appear on a ballot, write this
-            return ["0"] * (len(text[cid]) - 2) + ["ABSENT"]
-
         # Hold the CVR results for a single image.
         image_cvr = {}
 
@@ -309,7 +305,7 @@ class ResultsPanel(ScrolledPanel):
 
         cvr = csv.writer(open(self.proj.cvr_csv, "w"))
         headerstr = ['# path'] + sum([[b[1] + ":" + c for c in b[2:]] + [b[1]]
-                                     for _, b in text.items()], [])
+                                      for _, b in text.items()], [])
         cvr.writerow(headerstr)
 
         full_cvr = []
@@ -478,34 +474,6 @@ class ResultsPanel(ScrolledPanel):
                     if is_attrtype_exists('mode', self.proj):
                         ht2 = groupby(v, 'mode', ballot_attributes,
                                       img2bal, b2grp, quar)
-                        for k2, v2 in ht2.items():
-                            name = "Precinct, Mode: " + k + ", " + k2
-                            result += self.final_tally(v2, name)
-        return result
-
-    def tally_by_precinct_and_mode_hack(self, cvr):
-        result = ""
-        result += self.final_tally(cvr, name="TOTAL")
-
-        if True:
-            def groupby(lst, attr):
-                res = {}
-                for a in lst:
-                    if attr == 'precinct':
-                        thisattr = a[0].split("/")[-1].split("_")[1]
-                    elif attr == 'mode':
-                        thisattr = a[0].split("/")[-1].split("_")[0]
-                    if thisattr not in res:
-                        res[thisattr] = []
-                    res[thisattr].append(a)
-                return res
-
-            if True:
-                ht = groupby(cvr, 'precinct')
-                for k, v in ht.items():
-                    result += self.final_tally(v, name="Precinct: " + k)
-                    if True:
-                        ht2 = groupby(v, 'mode')
                         for k2, v2 in ht2.items():
                             name = "Precinct, Mode: " + k + ", " + k2
                             result += self.final_tally(v2, name)

@@ -545,18 +545,6 @@ def wxImage2np(Iwx, is_rgb=True):
     return Inp
 
 
-def wxBitmap2np(wxBmp, is_rgb=True):
-    """ Converts wxBitmap to numpy array """
-    # TODO: I believe all wxBitmaps are implicitly RGB, so, the
-    #       IS_RGB argument may be unnecessary (it currently isn't even
-    #       handled right now...)
-    w, h = wxBmp.GetSize()
-    npimg = np.zeros(h * w * 3, dtype='uint8')
-    wxBmp.CopyToBuffer(npimg, format=wx.BitmapBufferFormat_RGB)
-    npimg = npimg.reshape(h, w, 3)
-    return npimg
-
-
 def np2wxImage(nparray):
     """ Converts a numpy array to a wxImage. Note that wxImages are
     always RGB (3-channeled) - if a single-channel (grayscale) nparray
@@ -968,13 +956,6 @@ class Counter(dict):
             for _ in itertools.repeat(None, count):
                 yield elem
 
-    # Override dict methods where the meaning changes for Counter objects.
-
-    @classmethod
-    def fromkeys(cls, iterable, v=None):
-        raise NotImplementedError(
-            'Counter.fromkeys() is undefined.  Use Counter(iterable) instead.')
-
     def update(self, iterable=None, **kwds):
         '''Like dict.update() but add counts instead of replacing them.
 
@@ -1098,11 +1079,6 @@ class Counter(dict):
         return result
 
 
-def encodepath(p):
-    import hashlib
-    return hashlib.sha224(p).hexdigest()
-
-
 def is_multipage(project):
     """
     Currently an ad-hoc method of determining if the current election
@@ -1163,21 +1139,6 @@ def get_memory_stats():
         return virtmem.available, virtmem.total
     except ImportError:
         raise Exception("Module psutil not detected.")
-
-
-def as_thread(func):
-    '''
-    This decorator allows us to wrap up a single lexically scoped
-    block of code as a thread. Eventually, this helper should ideally
-    be phased out by eliminating the need for threaded code in
-    general , but it makes a lot of code shorter right now.
-    '''
-    class WrappedFunction(threading.Thread):
-
-        def run(self):
-            return func()
-    WrappedFunction.__name__ = func.__name__
-    return WrappedFunction()
 
 
 def as_process(func):

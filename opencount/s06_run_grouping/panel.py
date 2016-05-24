@@ -366,9 +366,6 @@ the state files from the prior grouping will NOT be deleted."
         self.btn_rungrouping.Disable()
         self.run_imgbased_grouping()
 
-    def onButton_continueverify(self, evt):
-        pass
-
     def onButton_rerun_imggroup(self, evt):
         pass
 

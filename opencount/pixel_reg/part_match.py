@@ -350,18 +350,6 @@ def pm2(digit_hash, I, nDigits, hspace, hackConstant=250, rejected_hash=None, ac
     return (ocr_str, patches, bbs, scores, matched_keys)
 
 
-def stackMax1(result_hash):
-    maxSurf = np.zeros(1)
-    symmax = -1
-    for key in result_hash.keys():
-        out = result_hash[key]
-        if out.max() > maxSurf.max():
-            maxSurf = out
-            symmax = key
-
-    return (maxSurf, symmax)
-
-
 def process_one(args):
     try:
         imP, digit_hash, imList, bbSearch, nDigits, hspace, rejected_hashes, accepted_hashes, flipmap, queue_progress = args

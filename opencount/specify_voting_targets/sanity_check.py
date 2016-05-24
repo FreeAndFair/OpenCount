@@ -15,29 +15,6 @@ BIN_SIZE = 10000
 EVT_SANITYCHECK_ID = wx.NewId()
 
 
-def EVT_SANITYCHECK(win, fn):
-    win.Connect(-1, -1, EVT_SANITYCHECK_ID, fn)
-
-
-class SanityCheckEvent(wx.PyEvent):
-
-    def __init__(self, data):
-        """
-        data := (str 'templates'/'samples', dict)
-        """
-        wx.PyEvent.__init__(self)
-        self.SetEventType(EVT_SANITYCHECK_ID)
-        self.data = data
-
-
-def sanity_check(templatesdir, samplesdir, frame):
-    _, _, _, _, _, _, will_skip = collect_stats(templatesdir)
-    wx.PostEvent(frame, SanityCheckEvent(('templates', will_skip)))
-    _, _, _, _, _, _, will_skip2 = collect_stats(samplesdir)
-    wx.PostEvent(frame, SanityCheckEvent(('samples', will_skip2)))
-    wx.CallAfter(pub.sendMessage, "signals.ProgressGauge.done")
-
-
 def safe_open(image_path):
     try:
         # return Image.open(image_path)

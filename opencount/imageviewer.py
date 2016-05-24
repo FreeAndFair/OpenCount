@@ -151,10 +151,6 @@ class ImageViewer(wx.ScrolledWindow):
         for (topic, callback) in self.callbacks:
             pub.subscribe(callback, topic)
 
-    def unsubscribe_pubsubs(self):
-        for (topic, callback) in self.callbacks:
-            pub.unsubscribe(callback, topic)
-
     def _init_ui(self):
         # Grab default image
         self.set_image(None)
@@ -262,9 +258,6 @@ class ImageViewer(wx.ScrolledWindow):
     def get_boxes(self):
         return self.world.get_boxes(self.current_imgpath)
 
-    def get_targets(self):
-        return [t for t in self.get_boxes() if not t.is_contest]
-
     def get_contests(self):
         return [c for c in self.get_boxes() if c.is_contest]
 
@@ -323,10 +316,6 @@ class ImageViewer(wx.ScrolledWindow):
     def decrease_scale(self, amt):
         self.set_scale(self.scale - amt)
 
-    def to_scaled_coords(self, (x, y)):
-        """ Convert (x,y) client coords to scaled-client coords """
-        return int(round(x * self.scale)), int(round(y * self.scale))
-
     def set_state(self, newstate):
         if newstate not in (ImageViewer.STATE_IDLE,
                             ImageViewer.STATE_ZOOM_IN,
@@ -379,90 +368,7 @@ class ImageViewer(wx.ScrolledWindow):
             c = wx.CURSOR_ARROW
         self.SetCursor(wx.StockCursor(c))
 
-    def set_target_width(self, w):
-        self.target_width = w
-
-    def set_target_height(self, h):
-        self.target_height = h
-
-    def import_locations(self, csvfilepath):
-        """
-        Import locations (both targets and contests) from 'csvfilepath'.
-        OUTDATED: Doesn't use self.world yet.
-        """
-        fields = ('imgpath', 'id', 'x', 'y', 'width', 'height',
-                  'label', 'is_contest', 'contest_id')
-        try:
-            csvfile = open(csvfilepath, 'rb')
-            dictreader = csv.DictReader(csvfile)
-            w_img, h_img = self.img_pil.size
-            # Ensure that target ID's are consecutive
-            sorted_rows = sorted([row for row in dictreader],
-                                 key=lambda r: int(r['id']))
-            for i, row in enumerate(sorted_rows):
-                # Scaling that has to be done
-                x1 = float(row['x']) / float(w_img)
-                y1 = float(row['y']) / float(h_img)
-                x2 = x1 + (float(row['width']) / float(w_img))
-                y2 = y1 + (float(row['height']) / float(h_img))
-                is_contest = True if int(row['is_contest']) == 1 else False
-                contest_id = int(row['contest_id'])
-                target = BoundingBox(x1, y1, x2, y2,
-                                     label=row['label'],
-                                     is_contest=is_contest,
-                                     contest_id=contest_id,
-                                     id=i)
-                assert target.contest_id == contest_id
-                self.world.add_box(os.path.abspath(
-                    self.current_imgpath), target)
-                assert target.contest_id == contest_id
-            self.Refresh()
-        except IOError as e:
-            print "Unable to open file: {0}".format(csvfilepath)
-
-    def export_locations(self, outfilepath):
-        """ Save all bounding boxes (targets, contests) to CSV file """
-        fields = ['imgpath', 'id', 'x', 'y', 'width',
-                  'height', 'label', 'is_contest', 'contest_id']
-        try:
-            csvfile = open(outfilepath, 'wb')
-            dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
-            try:
-                dictwriter.writeheader()
-            except AttributeError:
-                util_gui._dictwriter_writeheader(csvfile, fields)
-            bounding_boxes = self.world.get_boxes(self.current_imgpath)
-            if self.get_selected_boxes():
-                bounding_boxes.extend(self.get_selected_boxes())
-            # Let's avoid holes in ID's, which may cause headaches down the
-            # line
-            bounding_boxes = sorted(bounding_boxes, key=lambda t: t.id)
-            # Ensure that ID's are consecutive via use of 'enumerate'
-            for id, t in enumerate(bounding_boxes):
-                t.id = id
-                row = {}
-                row['imgpath'] = os.path.abspath(self.current_imgpath)
-                row['id'] = id
-                # Unscaling that has to be done
-                w_img, h_img = self.img_pil.size
-                row['x'] = int(round(t.x1 * w_img))
-                row['y'] = int(round(t.y1 * h_img))
-                width = int(round(abs(t.x1 - t.x2) * w_img))
-                height = int(round(abs(t.y1 - t.y2) * h_img))
-                row['width'] = width
-                row['height'] = height
-                # Replace commas with underscore to avoid problems with csv
-                # files
-                row['label'] = t.label.replace(",", "_")
-                row['is_contest'] = 1 if t.is_contest else 0
-                row['contest_id'] = t.contest_id
-                dictwriter.writerow(row)
-            csvfile.close()
-        except IOError as e:
-            print "Couldn't write to file:", outfilepath
-
     # PubSub callbacks
-
     def _update_state(self, msg):
         self.set_state(msg.data)
 
@@ -1057,15 +963,8 @@ class WorldState(object):
         for (topic, callback) in self.callbacks:
             pub.subscribe(callback, topic)
 
-    def unsubscribe_pubsubs(self):
-        for (topic, callback) in self.callbacks:
-            pub.unsubscribe(callback, topic)
-
     def get_boxes(self, imgpath):
         return self.box_locations.get(imgpath, [])
-
-    def get_boxes_all(self):
-        return self.box_locations
 
     def get_boxes_all_list(self):
         """
@@ -1073,12 +972,6 @@ class WorldState(object):
         to perfrom some global operation on all boxes, like a global resize.
         """
         return reduce(lambda x, y: x + y, self.box_locations.values(), [])
-
-    def get_boxes_count(self, imgpath):
-        return len(self.get_boxes(imgpath))
-
-    def get_boxes_count_all(self):
-        return sum([self.get_boxes_count(path) for path in self.box_locations])
 
     def set_boxes(self, imgpath, boxes):
         self.box_locations[imgpath] = boxes
@@ -1284,96 +1177,6 @@ class BoundingBox(object):
 
     def __str___(self):
         return "BoundingBox({0},{1},{2},{3},label={4},is_contest={5})".format(self.x1, self.y1, self.x2, self.y2, self.label, self.is_contest)
-
-
-class BallotViewer(wx.Panel):
-    """
-    Panel that contains a BallotScreen (displays an image, and allows
-    creation of boxes), and a toolbar that controls the behavior of
-    the BallotScreen.
-    """
-
-    def __init__(self, parent, world, ballotscreen=None, toolbar=None, *args, **kwargs):
-        """
-        obj parent: Parent widget.
-        obj world: Object that stores all shared state between widgets
-        obj ballotscreen: If given, then this should be a subclass of
-                          BallotScreen.
-        obj toolbar: If given, this should be a subclass of ToolBar.
-        """
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
-        self.world = world
-
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        if not toolbar:
-            self.toolbar = ToolBar(self)
-        else:
-            self.toolbar = toolbar(self)
-        self.toolbar.disable_buttons()
-        self.sizer.Add(self.toolbar, proportion=0, flag=wx.ALL | wx.ALIGN_LEFT)
-        if not ballotscreen:
-            self.ballotscreen = BallotScreen(self, self.world)
-        else:
-            self.ballotscreen = ballotscreen(self, self.world)
-        self.sizer.Add(self.ballotscreen, proportion=1,
-                       flag=wx.EXPAND | wx.ALL | wx.ALIGN_LEFT)
-
-        self.SetSizer(self.sizer)
-        self.Fit()
-
-        # Pubsubs
-        self.callbacks = [("signals.ballotviewer.set_image_pil", self.pubsub_set_image_pil),
-                          ("signals.ballotviewer.set_candidate_targets",
-                           self.pubsub_set_candidate_targets),
-                          ("signals.ballotviewer.set_targets", self.pubsub_set_targets)]
-
-    def subscribe_pubsubs(self):
-        for (topic, callback) in self.callbacks:
-            pub.subscribe(callback, topic)
-        self.ballotscreen.subscribe_pubsubs()
-
-    def unsubscribe_pubsubs(self):
-        """
-        Deactivate listeners that shouldn't be listening while this
-        widget isn't active.
-        """
-        for (topic, callback) in self.callbacks:
-            pub.unsubscribe(callback, topic)
-        self.ballotscreen.unsubscribe_pubsubs()
-
-    def set_image(self, imgpath):
-        if not imgpath:
-            self.toolbar.disable_buttons()
-        else:
-            self.toolbar.enable_buttons()
-        self.ballotscreen.set_image(imgpath)
-
-    def set_image_pil(self, path, img_pil):
-        if not path or not img_pil:
-            self.toolbar.disable_buttons()
-        else:
-            self.toolbar.enable_buttons()
-        self.ballotscreen.set_image_pil(path, img_pil)
-
-    def get_imgsize(self):
-        return (self.ballotscreen.img_bitmap.GetWidth(),
-                self.ballotscreen.img_bitmap.GetHeight())
-
-    # Pubsub callbacks
-    def pubsub_set_image_pil(self, msg):
-        """ msg.data is a tuple: (str path, obj Image) """
-        path, img_pil = msg.data
-        self.set_image_pil(path, img_pil)
-
-    def pubsub_set_candidate_targets(self, msg):
-        target_locations, refimg_size_rel = msg.data
-        self.ballotscreen.set_candidate_targets(
-            target_locations, refimg_size_rel)
-
-    def pubsub_set_targets(self, msg):
-        target_locations = msg.data
-        self.ballotscreen.set_targets(target_locations)
 
 
 class ToolBar(wx.Panel):
@@ -1634,17 +1437,6 @@ class ToolBar(wx.Panel):
     def _clear_buttons(self, msg):
         self.clear_btns()
 
-    def select_button(self, name):
-        mapping = {'addtarget': self.btn_addtarget,
-                   'select': self.btn_select,
-                   'zoomin': self.btn_zoomin,
-                   'zoomout': self.btn_zoomout,
-                   'addcontest': self.btn_addcontest,
-                   'splitcontest': self.btn_splitcontest,
-                   'infercontest': self.btn_infercontests}
-        sel_bitmap = self.bitmaps[name + "_sel"]
-        mapping[name].SetBitmapLabel(sel_bitmap)
-
     def enable_buttons(self):
         self.btn_zoomin.Enable()
         self.btn_zoomout.Enable()
@@ -1898,17 +1690,6 @@ class BallotScreen(ImageViewer):
             c = wx.CURSOR_ARROW
         self.SetCursor(wx.StockCursor(c))
 
-    def set_candidate_targets(self, target_locations):
-        """
-        Given a list of (relative) (x,y,w,h), update the current state.
-        """
-        candidates = []
-        for (x, y, w, h) in target_locations:
-            x2, y2 = x + w, y + h
-
-            candidates.append(BoundingBox(x, y, x2, y2, color="Orange"))
-        self.candidate_targets = candidates
-
     def remove_voting_targets(self):
         self.world.remove_voting_targets(self.current_imgpath)
 
@@ -1959,18 +1740,6 @@ class BallotScreen(ImageViewer):
 
     def _update_state(self, msg):
         self.set_state(msg.data)
-
-    def _set_sel_target_size(self, msg):
-        for box in self.get_selected_boxes():
-            box.update_size(msg.data)
-
-    def _global_resize(self, msg):
-        newsize = msg.data
-        for t in self.world.get_boxes(self.current_imgpath):
-            t.update_size(newsize)
-        for box in self.get_selected_boxes():
-            box.update_size(newsize)
-        self.Refresh()
 
     def _new_image(self, msg):
         """
@@ -2577,157 +2346,6 @@ selected box...in your imagination."
             for t in contests:
                 c = t.contest_id
                 self._draw_box(dc, t)
-
-
-class Autodetect_Panel(wx.Panel):
-    """
-    Frame that pops up when user clicks 'Autodetect'
-    """
-
-    def __init__(self, parent, *args, **kwargs):
-        # wx.Frame.__init__(self, parent, title="Autodetect Voting Targets Frame")
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-        font = wx.Font(12, wx.MODERN, style=wx.NORMAL,
-                       weight=wx.NORMAL, underline=False)
-        txt_inst = wx.StaticText(self, label="""
-Please highlight an example voting target
-from the ballot image, (by clicking-and-dragging),
-and click 'Continue' to proceed with auto-detection.""", style=wx.ALIGN_CENTRE)
-        txt_inst.SetFont(font)
-        self.panel_btns = wx.Panel(self)
-        self.panel_btns.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_continue = wx.Button(self.panel_btns, label="Continue")
-        btn_continue.Bind(wx.EVT_BUTTON, self.onButton_continue)
-        btn_cancel = wx.Button(self.panel_btns, label="Cancel")
-        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
-        self.panel_btns.sizer.Add(btn_continue, flag=wx.ALIGN_CENTRE)
-        self.panel_btns.sizer.Add(btn_cancel, flag=wx.ALIGN_CENTRE)
-        self.panel_btns.SetSizer(self.panel_btns.sizer)
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-
-        help_gif = 'imgs/help/autodetect.gif'
-        self.ag = wx.animate.GIFAnimationCtrl(
-            self, wx.ID_ANY, help_gif, pos=(0, 0))
-        self.ag.GetPlayer().UseBackgroundColour(True)
-        self.ag.Play()
-        # self.staticbmp represents the image region currently selected
-        self.staticbmp = wx.StaticBitmap(self, size=(100, 100))
-        # Set to True when user selects target for the first time
-        self._did_user_select = False
-        self.btn_fit = wx.Button(self, label="Fit Autodetect Region")
-        self.sizer.Add(txt_inst, flag=wx.ALIGN_CENTER)
-        self.sizer.Add(self.ag, flag=wx.ALIGN_CENTER)
-        self.sizer.Add(self.staticbmp, flag=wx.ALIGN_CENTER)
-        self.sizer.Add(self.btn_fit, flag=wx.ALIGN_CENTER)
-        self.sizer.Add(self.panel_btns, flag=wx.ALIGN_CENTER)
-
-        self.Bind(wx.EVT_WINDOW_DESTROY, self.onWindowDestroy)
-        self.btn_fit.Bind(wx.EVT_BUTTON, self.onButton_fit)
-
-        # Set to True if I destroy myself (vs. system destroying it)
-        self._did_i_destroy = None
-
-        self.SetSizer(self.sizer)
-        self.Fit()
-        self.rect_coords = None
-
-        # PubSub Subscribing
-        pub.subscribe(self._boxupdate, "signals.autodetect.updatebox")
-
-    # Pubsub Callbacks
-    def _boxupdate(self, msg):
-        """ Receives a PIL image """
-        img_pil = msg.data
-        w_img, h_img = img_pil.size
-        c = h_img / 100.0
-        new_w = int(round(w_img / c))
-        bmp = util_gui.PilImageToWxBitmap(
-            img_pil.resize((new_w, 100), Image.ANTIALIAS))
-        # self.staticbmp.SetSize((100, min(new_h, 20)))
-        self.staticbmp.SetBitmap(bmp)
-        self.Refresh()
-        self.Fit()
-        if not self._did_user_select:
-            self._did_user_select = True
-
-    def onButton_continue(self, event):
-        if self._did_user_select:
-            pub.sendMessage("signals.enter_autodetect_verify", None)
-        else:
-            pub.sendMessage("signals.cancel_autodetect", None)
-        self._did_i_destroy = True
-        event.Skip()
-
-    def onButton_cancel(self, event):
-        pub.sendMessage("signals.cancel_autodetect", None)
-        self._did_i_destroy = True
-
-    def onButton_fit(self, event):
-        pub.sendMessage("signals.BallotScreen.fit_autodetect_region", None)
-        event.Skip()
-
-    def onWindowDestroy(self, event):
-        # Question: Does this get called even after a 'successful'
-        # autodetect run? I'd prefer that a 'cleanup' routine not
-        # be invoked twice during 'normal' usage.
-        if self._did_i_destroy != True:
-            Publisher.sendMessage("signals.cancel_autodetect", None)
-        event.Skip()
-
-
-class Autodetect_Confirm(wx.Panel):
-
-    def __init__(self, parent, target_candidates, *args, **kwargs):
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-
-        # Set to True iff I destroy myself (vs. system destroying me)
-        self._did_i_destroy = None
-
-        # self.SetTitle("Verify Autodetected Targets")
-        self.panel = wx.Panel(self)
-        font = wx.Font(12, wx.MODERN, wx.NORMAL, wx.NORMAL, underline=False)
-        txt = wx.StaticText(self.panel, label="""{0} targets were detected. You may either
-delete specific targets by clicking on the
-offending target, or proceed by choosing 'Done.'""".format(len(target_candidates)), style=wx.ALIGN_CENTRE)
-        txt.SetFont(font)
-
-        self.panel_btn = wx.Panel(self.panel)
-        btn_done = wx.Button(self.panel_btn, label="Done")
-        btn_removeall = wx.Button(self.panel_btn, label="Remove all.")
-        self.panel_btn.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.panel_btn.sizer.Add(btn_done, flag=wx.ALIGN_CENTER)
-        self.panel_btn.sizer.Add(btn_removeall, flag=wx.ALIGN_CENTER)
-        self.panel_btn.SetSizer(self.panel_btn.sizer)
-
-        self.panel.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.panel.sizer.Add(txt, flag=wx.ALIGN_CENTER)
-        self.panel.sizer.Add(self.panel_btn, flag=wx.ALIGN_CENTER)
-        self.panel.SetSizer(self.panel.sizer)
-
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.panel)
-
-        btn_done.Bind(wx.EVT_BUTTON, self.onButtonDone)
-        btn_removeall.Bind(wx.EVT_BUTTON, self.onButtonRemoveAll)
-        self.Bind(wx.EVT_WINDOW_DESTROY, self.onWindowDestroy)
-
-        self.SetSizer(self.sizer)
-        self.Fit()
-
-    def onButtonDone(self, evt):
-        self._did_i_destroy = True
-        pub.sendMessage("signals.leave_autodetect_verify")
-        # self.Destroy()
-
-    def onButtonRemoveAll(self, evt):
-        self._did_i_destroy = True
-        pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
-        # self.Destroy()
-
-    def onWindowDestroy(self, evt):
-        if self._did_i_destroy != True:
-            pub.sendMessage("signals.leave_autodetect_verify", 'remove_all')
-        evt.Skip()
 
 
 def split_contest(mousepos, contest, boxes, mode='horizontal'):

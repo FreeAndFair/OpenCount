@@ -18,30 +18,6 @@ from util import encodepath, GaugeID
 JOBID_GROUPING_IMGBASED = GaugeID("GROUPING_IMGBASED")
 
 
-def doWrite(finalOrder, Ip, err, attrName, patchDir, metaDir, origfullpath):
-    fullpath = encodepath(origfullpath)
-
-    # - patchDir: write out Ip into patchDir
-    Ip[np.isnan(Ip)] = 1
-    to = os.path.join(patchDir, fullpath + '.png')
-    sh.imsave(to, Ip)
-
-    # - metaDir:
-    # loop over finalOrder and compile array of group IDs and flip/nonflip
-    attrOrder = []
-    flipOrder = []
-    for pt in finalOrder:
-        # pt[2] := (str temppath, str attrval)
-        attrOrder.append(pt[2][1])
-        flipOrder.append(pt[3])
-
-    to = os.path.join(metaDir, fullpath)
-    toWrite = {"attrOrder": attrOrder, "flipOrder": flipOrder, "err": err}
-    file = open(to, "wb")
-    pickle.dump(toWrite, file)
-    file.close()
-
-
 def doWriteMAP(finalOrder, Ip, err, attrtype, patchDir, ballotid, exemplar_idx):
     """
     Input:
@@ -77,106 +53,6 @@ def doWriteMAP(finalOrder, Ip, err, attrtype, patchDir, ballotid, exemplar_idx):
     # pickle.dump(toWrite, file)
     # file.close()
     return out
-
-
-def evalPatchSimilarity(I, patch, debug=False):
-    # perform template matching and return the best match in expanded region
-    I_in = np.copy(I)
-    patch_in = np.copy(patch)
-
-    if debug == True:
-        print "...stepping into evalPatchSimilarity."
-        pdb.set_trace()
-
-    I = sh.prepOpenCV(I)
-    patch = sh.prepOpenCV(patch)
-    # See pixel_reg/eric_np2cv/demo.py for why I scale by 255.0 when
-    # converting NP -> OpenCV.
-    patchCv = cv.fromarray(np.copy(patch) * 255.0)
-    ICv = cv.fromarray(np.copy(I) * 255.0)
-    # patchCv=cv.fromarray(np.copy(patch))
-    # ICv=cv.fromarray(np.copy(I))
-
-    # call template match
-    outCv = cv.CreateMat(
-        I.shape[0] - patch.shape[0] + 1, I.shape[1] - patch.shape[1] + 1, patchCv.type)
-    cv.MatchTemplate(ICv, patchCv, outCv, cv.CV_TM_CCOEFF_NORMED)
-    Iout = np.asarray(outCv) / 255.0
-    # Iout=np.asarray(outCv)
-    Iout[Iout == 1.0] = 0
-    YX = np.unravel_index(Iout.argmax(), Iout.shape)
-
-    # local alignment: expand a little, then local align
-    i1 = YX[0]
-    i2 = YX[0] + patch.shape[0]
-    j1 = YX[1]
-    j2 = YX[1] + patch.shape[1]
-    I1c = I[i1:i2, j1:j2]
-    IO = imagesAlign(I1c, patch, trfm_type='rigid', minArea=np.power(2, 20))
-
-    Ireg = IO[1]
-    # Ireg = np.nan_to_num(Ireg)
-    # TODO: Ireg is frequently just a competely-black image (due to
-    # presence of Nan's?). By inserting the line:
-    #     Ireg = np.nan_to_num(Ireg)
-    # This stopped an apparent bug in Marin, where various attribute
-    # patches would erroneously be matched to the wrong side of the
-    # ballot.
-
-    # C := num pixels to discard around border. This used to be C=5,
-    #      but this caused issues if one of the 'patch' dimensions was
-    #      <= 10, causing an ill-formed image patch.
-    AMT = 0.2
-    C_i = int(round(Ireg.shape[0] * AMT))
-    C_j = int(round(Ireg.shape[1] * AMT))
-    D_i = int(round(patch.shape[0] * AMT))
-    D_j = int(round(patch.shape[1] * AMT))
-    bb_1 = [C_i,
-            min(Ireg.shape[0] - 1, Ireg.shape[0] - C_i),
-            C_j,
-            min(Ireg.shape[1] - 1, Ireg.shape[1] - C_j)]
-    bb_2 = [D_i,
-            min(patch.shape[0] - 1, patch.shape[0] - D_i),
-            D_j,
-            min(patch.shape[1] - 1, patch.shape[1] - D_j)]
-    if bb_1[0] >= bb_1[1]:
-        bb_1[0] = 0
-    if bb_1[1] <= 2:
-        bb_1[1] = Ireg.shape[0] - 1
-    if bb_1[2] >= bb_1[3]:
-        bb_1[2] = 0
-    if bb_1[3] <= 2:
-        bb_1[3] = Ireg.shape[1] - 1
-
-    if bb_2[0] >= bb_2[1]:
-        bb_2[0] = 0
-    if bb_2[1] <= 2:
-        bb_2[1] = patch.shape[0] - 1
-    if bb_2[2] >= bb_2[3]:
-        bb_2[2] = 0
-    if bb_2[3] <= 2:
-        bb_2[3] = patch.shape[1] - 1
-    # Ireg1=Ireg[C:Ireg.shape[0]-C,C:Ireg.shape[1]-C]
-    # patch1=patch[C:patch.shape[0]-C,C:patch.shape[1]-C]
-    Ireg1 = Ireg[bb_1[0]:bb_1[1], bb_1[2]:bb_1[3]]
-    patch1 = patch[bb_2[0]:bb_2[1], bb_2[2]:bb_2[3]]
-
-    if 0 in Ireg1.shape or 0 in patch1.shape:
-        print "==== Uhoh, a crash is about to happen."
-        print "Ireg.shape: {0}  patch.shape: {1}".format(Ireg.shape, patch.shape)
-        print "Ireg1.shape: {0}  patch1.shape: {1}".format(Ireg1.shape, patch1.shape)
-        print "bb_1:", bb_1
-        print "bb_2:", bb_2
-        misc.imsave("_evalpatchsim_ireg.png", Ireg)
-        misc.imsave("_evalpatchsim_patch.png", patch)
-        misc.imsave("_evalpatchsim_I1c.png", I1c)
-        misc.imsave("_evalpatchsim_I.png", I)
-
-    err = sh.variableDiffThr(Ireg1, patch1)
-    diff = np.abs(Ireg1 - patch1)
-    # # estimate threshold for comparison:
-
-    return (-err, YX, diff)
 
 
 def evalPatchSimilarity2(I, patch, debug=False):
@@ -547,17 +423,6 @@ def groupImagesWorkerMAP(job):
         traceback.print_exc()
         queue.put(e.message)
         queue_progress.put((False, ballotid))
-
-
-def listAttributes(patchesH):
-    # tuple ((key=attrType, patchesH tuple))
-
-    attrL = set()
-    for val in patchesH.values():
-        for (regioncoords, attrtype, attrval, side) in val:
-            attrL.add(attrtype)
-
-    return list(attrL)
 
 
 def listAttributesNEW(patchesH):

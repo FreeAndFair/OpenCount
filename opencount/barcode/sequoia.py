@@ -170,57 +170,6 @@ def get_side(I, IsymA, IsymB, IsymC, IsymD, IsymE):
     return None, None
 
 
-def is_backside(decodings, mark_locs, I, Izero):
-    """ Applies Sequoia-specific knowledge. A backside ballot side has
-    the following 'barcode' values (assume right-side-up):
-        UpperLeft: "0"
-        UpperRight: ""    (Just a black bar)
-        LowerLeft: "0"
-        LowerRight: "0"
-
-    Note: This doesn't detect empty backsides. Assumes that the decoder
-    is 'good enough' such that it will not spuriously return "" or "0"
-    for an real front-side barcode.
-
-    Output:
-        bool isBack, bool isFlip
-    """
-    if decodings[0] == "0" and decodings[1] == "":
-        # Possibly up-right backside.
-        return True, False
-    elif decodings[0] == "0" and decodings[1] == "0":
-        return True, True
-    # Try to handle if ballot is partially-cutoff.
-    _roi = cv.GetImageROI(I)
-    cv.ResetImageROI(I)
-    w_img, h_img = cv.GetSize(I)
-    w_fact, h_fact = 0.19, 0.13
-    w_patch, h_patch = int(round(w_img * w_fact)), int(round(h_img * h_fact))
-    if decodings[0] == "":
-        # LHS is possibly cut-off
-        cv.SetImageROI(I, (w_img - w_patch, h_img - h_patch, w_patch, h_patch))
-        x1, y1, score = tempmatch.bestmatch(
-            Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        cv.SetImageROI(I, _roi)
-        if score >= 0.9:
-            return True, True if decodings[1] == "" else False
-        else:
-            # No idea! What? Definitely a strange case...
-            print "...Wow, this is unexpected!"
-            return False, None
-    elif decodings[1] == "" and decodings[0] == "0":
-        # RHS is possibly cut-off
-        cv.SetImageROI(I, (0, h_img - h_patch, w_patch, h_patch))
-        x1, y1, score = tempmatch.bestmatch(
-            Izero, [I], do_smooth=tempmatch.SMOOTH_IMG_BRD)[0]
-        cv.SetImageROI(I, _roi)
-        if score >= 0.9:
-            return True, False
-        else:
-            return True, True
-    return False, None
-
-
 def processImg(img, template_zero, template_one, imgpath):
     """ The pipeline for processing one image:
         1) crop out two rough barcode regions from the image

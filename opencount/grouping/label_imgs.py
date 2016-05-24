@@ -361,14 +361,3 @@ Implies that imgpath is present in imageslist more than once."
         self.update_listbox(self.cur_imgidx)
         # self.Fit()
         self.SetupScrolling()
-
-    def export_labels(self):
-        """ Exports all labels to an output csvfile. """
-        f = open(self.outpath, 'w')
-        header = ('imgpath', 'label')
-        dictwriter = csv.DictWriter(f, header)
-        util_gui._dictwriter_writeheader(f, header)
-        for imgpath, label in self.imagelabels.iteritems():
-            row = {'imgpath': imgpath, 'label': label}
-            dictwriter.write_row(row)
-        f.close()

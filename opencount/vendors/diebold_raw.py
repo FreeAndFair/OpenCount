@@ -648,18 +648,6 @@ def shift_roi(I, x, y, w, h):
     return I
 
 
-def drawit(I, bbs, imgpath, isflip=False):
-    Icolor = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_COLOR)
-    if isflip:
-        cv.Flip(Icolor, Icolor, -1)
-    cv.SetImageROI(Icolor, cv.GetImageROI(I))
-    for (x1, y1, x2, y2) in bbs:
-        cv.Rectangle(Icolor, (x1, y1), (x2, y2), cv.CV_RGB(255, 0, 0))
-    print "<><><><> Saving '_Icolor.png' <><><><>"
-    cv.SaveImage("_Icolor.png", Icolor)
-    pdb.set_trace()
-
-
 def estimate_rotation(xs, ys):
     # Assumption: len(xs) >= 2
     if not np.any(ys != ys[0]):

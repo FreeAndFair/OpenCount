@@ -164,13 +164,6 @@ def find_lines(data):
         u1, d1 = extend_ud((y, x))
         return u1, d1
 
-    def full_extend_lr(point):
-        y, x = point
-        u, d = extend_ud((y, x))
-        y = (u + d) / 2 if u + d < 20 else y
-        l1, r1 = extend_lr((y, x))
-        return l1, r1
-
     LST = []
 
     def full_extend_lr_2(point):
@@ -681,64 +674,6 @@ def do_extract(name, img, squares, giventargets):
 
     return contests
 
-    # print targets, contests
-    # os.popen("open tmp/*")
-    # exit(0)
-
-# @pdb_on_crash
-
-
-def remove_contest_overlap(boxes, targets):
-    print "INPUT", boxes, targets
-
-    boxes = np.array(boxes)
-
-    def fn(delta):
-        delta = np.reshape(delta, boxes.shape)
-        # print "D",delta
-        # print "B",boxes
-        bxs = delta + boxes
-        r = 0
-        for i, box1 in enumerate(bxs):
-            for j, box2 in enumerate(bxs):
-                if all(box1 == box2):
-                    continue  # yeah, yeah, a contest overlaps with itself
-                r += area(intersect(box1, box2)) * 100
-        r += (delta**2).sum()
-        return r
-
-    # def pr(x): print np.reshape(x,boxes.shape)
-
-    zeros = np.zeros(boxes.shape)
-    last = [None]
-    # print 'aaa'
-
-    def checkdiff(x):
-        if last[0] is not None:
-            print np.abs(last[0] - x).sum(),
-        last[0] = np.array(x)
-
-    # print 'bbb'
-    # print zeros+boxes
-    v = fmin(fn, x0=zeros)
-    # print "done", v
-
-    return [map(int, x) for x in map(list, np.reshape(v, boxes.shape) + boxes)]
-
-# remove_contest_overlap([(601, 425, 1094, 753), (118, 1479, 607, 1876), (1088, 425, 1575, 880), (1088, 874, 1575, 1450), (118, 1870, 607, 2479), (118, 425, 607, 1394), (601, 838, 1094, 2012)], [(620, 552, 690, 593), (1107, 1331, 1177, 1372), (621, 1750, 691, 1791), (620, 1199, 690, 1240), (621, 1614, 691, 1655), (621, 1098, 691, 1139), (1107, 819, 1177, 860), (621, 1399, 691, 1440), (621, 1887, 691, 1928), (136, 916, 206, 957), (137, 2030, 207, 2071), (138, 2348, 208, 2389), (137, 1751, 207, 1792), (135, 516, 205, 557), (136, 1085, 206, 1126), (136, 1269, 206, 1310), (136, 782, 206, 823), (620, 652, 690, 693), (620, 963, 690, 1004), (621, 1500, 691, 1541), (137, 1604, 207, 1645), (1107, 762, 1177, 803), (621, 1300, 691, 1341), (137, 2200, 207, 2241), (136, 649, 206, 690), (1108, 1389, 1178, 1430)])
-# exit(0)
-
-"""
-def extract_contest(args):
-    try:
-        return extract_contest_2(args)
-    except:
-        print "Fail on", args[0]
-        print "Fail on", args[0]
-        print "Fail on", args[0]
-        print "Fail on", args[0]
-"""
-
 
 def extract_contest(args):
     if len(args) == 3:
@@ -1127,29 +1062,6 @@ class Contest:
             self.parent = self.parent.parent
         return self.parent
 
-    def dominating_set(self):
-        root = self.get_root()
-        children = root.all_children()
-        conn = {}
-        for c1 in children:
-            lst = []
-            for c2 in children:
-                if c1.similarity[c2.cid][root.writein_num][0] < .1:
-                    lst.append(c2.cid)
-            conn[c1.cid] = lst
-        conn = conn.items()
-        rem = {}
-        used = []
-        while len(rem) != len(children):
-            item = max(conn, key=lambda x: len(x[1]))
-            used.append(item[0])
-            for v in item[1]:
-                rem[v] = True
-            rem[item[0]] = True
-            conn = [(k, [x for x in v if x not in rem])
-                    for k, v in conn if k not in rem]
-        print "SET", used
-
     def is_close(self, other, num_writein):
         group1 = self.all_children()
         group2 = other.all_children()
@@ -1369,17 +1281,6 @@ def full_group(contests_text, key):
                 # print 'merged', c1[2], c2[2]
                 joins[i].append(i + offset)
                 joins[i + offset].append(i)
-
-    def mylen(l):
-        return sum(2 if ord(x) > 512 else 1 for x in l)
-
-    # for each in sorted(debug):
-    #    print each[0]
-    #    s1 = each[1][0][1].split("\n")
-    #    s2 = each[1][1][1].split("\n")
-    #    # print s1, s2
-    #    s1 = [x+"."*(max(map(mylen,s1))-mylen(x)) for x in s1]
-    #    print "\n".join([a+"  |  "+b for a,b in zip(s1,s2)])
 
     seen = {}
     exclude = {}
@@ -1707,66 +1608,6 @@ def sort_nicely(l):
 
 import re
 import csv
-
-
-class ThreadDoInferContests:
-
-    def __init__(self, queue, job_id, proj, *args, **kwargs):
-        self.job_id = job_id
-        self.queue = queue
-        self.proj = proj
-
-    def extract_data(self):
-        """
-        Stolen from labelcontest.py.
-
-        This should be removed in favor of taking the data from
-        this panel directly, instead of loading from the file.
-        """
-        res = []
-        dirList = []
-        for root, dirs, files in os.walk(self.proj.target_locs_dir):
-            sort_nicely(files)  # Fixes Marin ordering.
-            for each in files:
-                if each[-4:] != '.csv':
-                    continue
-                gr = {}
-                name = os.path.join(root, each)
-                for i, row in enumerate(csv.reader(open(name))):
-                    if i == 0:
-                        # skip the header row, to avoid adding header
-                        # information to our data structures
-                        continue
-                    # If this one is a target, not a contest
-                    if row[7] == '0':
-                        if row[8] not in gr:
-                            gr[row[8]] = []
-                        # 2,3,4,5 are left,up,width,height but need
-                        # left,up,right,down
-                        gr[row[8]].append((int(row[2]), int(row[3]),
-                                           int(row[2]) + int(row[4]),
-                                           int(row[3]) + int(row[5])))
-                    r = row[0].replace(
-                        "/media/data1/audits2012_straight/santacruz/blankballots/", "santacruz/")
-                    if r not in dirList:
-                        dirList.append(r)
-                if gr.values() != []:
-                    res.append(gr.values())
-        # for a,b in zip(dirList, res):
-        #    print a,b
-        # print res
-        # print dirList
-        return res, dirList
-
-    def run(self):
-        # Do fancy contest-inferring computation
-        data, files = self.extract_data()
-        bboxes = dict(zip(files, find_contests(
-            self.proj.ocr_tmp_dir, files, data)))
-        # Computation done!
-        self.queue.put(bboxes)
-        self.proj.infer_bounding_boxes = True
-        print "AND I SEND THE RESUTS", bboxes
 
 
 """

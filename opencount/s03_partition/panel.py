@@ -524,34 +524,6 @@ class PartitionPanel(ScrolledPanel):
         Input:
             dict CACHE: maps {str imgpath: (tuple decodings, bool isflipped)}
         """
-        class PartitionThread(threading.Thread):
-
-            def __init__(self, b2imgs, vendor_obj, callback, jobid, manager, progress_queue, tlisten, skipVerify, *args, **kwargs):
-                threading.Thread.__init__(self, *args, **kwargs)
-                self.b2imgs = b2imgs
-                self.vendor_obj = vendor_obj
-                self.callback = callback
-                self.jobid = jobid
-                self.manager = manager
-                self.queue = progress_queue
-                self.tlisten = tlisten
-                self.skipVerify = skipVerify
-
-            def run(self):
-                t = time.time()
-                debug("Running Decoding ({0} ballots)...", len(self.b2imgs))
-                # Pass in self.manager and self.queue to allow cross-process
-                # communication (for multiprocessing)
-                img2decoding, flipmap, verifypatch_bbs, err_imgpaths, ioerr_imgpaths = self.vendor_obj.decode_ballots(
-                    self.b2imgs, manager=self.manager, queue=self.queue, skipVerify=self.skipVerify, cache=cache)
-                dur = time.time() - t
-                debug("Done Decoding Ballots ({0} s).", dur)
-                debug("    Avg. Time Per Ballot:",
-                      dur / float(len(self.b2imgs)))
-                self.jobid.done()
-                wx.CallAfter(self.callback, img2decoding, flipmap,
-                             verifypatch_bbs, err_imgpaths, ioerr_imgpaths)
-                self.tlisten.stop()
 
         class ListenThread(threading.Thread):
 
@@ -579,7 +551,8 @@ class PartitionPanel(ScrolledPanel):
                         pass
 
         # First, remove all prior output files (if exists)
-        for path in (pathjoin(self.proj.projdir_path, self.proj.partition_quarantined),
+        for path in (pathjoin(self.proj.projdir_path,
+                              self.proj.partition_quarantined),
                      pathjoin(self.proj.projdir_path,
                               self.proj.partitions_invmap),
                      pathjoin(self.proj.projdir_path, self.proj.img2decoding),
@@ -1004,14 +977,8 @@ You may move onto the next step.").ShowModal()
     def quarantine_ballot(self, ballotid):
         self.quarantined_bals.add(ballotid)
 
-    def unquarantine_ballot(self, ballotid):
-        self.quarantined_bals.remove(ballotid)
-
     def discard_ballot(self, ballotid):
         self.discarded_bals.add(ballotid)
-
-    def undiscard_ballot(self, ballotid):
-        self.discarded_bals.remove(ballotid)
 
 
 class VerifyOverlaysFrame(wx.Frame):

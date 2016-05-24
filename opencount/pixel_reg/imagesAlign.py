@@ -148,39 +148,3 @@ def pttransform(I, H0, pt0):
     pt1[2] = 1
 
     return pt1
-
-
-def associateTwoPage(tplImL, balImL):
-    # return permuted balImL list
-    # check first template against both ballots
-    # Assumes that tplImL, balImL are ordered by imageorder, meaning:
-    #   tplImL := [frontpath, backpath]
-    #   balImL := [frontback, backpath]
-    tpl0 = tplImL[0]
-    tpl1 = tplImL[1]
-    bal0 = balImL[0]
-    bal1 = balImL[1]
-
-    res0 = checkBallotFlipped(bal0, tpl0)
-    res1 = checkBallotFlipped(bal1, tpl0)
-    if res0[2] < res1[2]:
-        return (res0, checkBallotFlipped(bal1, tpl1), (0, 1))
-    else:
-        return (res1, checkBallotFlipped(bal0, tpl1), (1, 0))
-
-
-def checkBallotFlipped(I, Iref, verbose=False):
-    rszFac = sh.resizeOrNot(I.shape, sh.FLIP_CHECK_HEIGHT)
-    Iref1 = sh.fastResize(Iref, rszFac)
-    I1 = sh.fastResize(I, rszFac)
-    IR = sh.fastFlip(I1)
-    (H, Io, err) = imagesAlign(I1, Iref1, trfm_type='translation')
-    (HR, IoR, errR) = imagesAlign(IR, Iref1, trfm_type='translation')
-
-    if(verbose):
-        print 'flip margin: ', err, errR
-
-    if err > errR:
-        return (True, sh.fastFlip(I), errR)
-    else:
-        return (False, I, err)

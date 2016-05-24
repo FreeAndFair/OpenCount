@@ -22,15 +22,6 @@ import numpy as np
 CONSTANT_CLOSE_TO = 5.0
 
 
-def img_size_scipy(img):
-    """
-    Returns dimensions of the image (array). Robust for RGB and grayscale
-    images.
-    """
-    size = img.shape
-    return size[1], size[0]
-
-
 def fastResize(I, rszFac, sig=-1):
     if rszFac == 1:
         return I
@@ -118,20 +109,6 @@ def img_to_array(img):
         return array
     except:
         # wat
-        print 'Unrecognized input to util_gui.img_to_array:', type(img)
-        raise RuntimeError("Unrecognized input to util_gui.img_to_array")
-
-
-def img_to_pil(img):
-    if issubclass(type(img), Image.Image):
-        return img
-    try:
-        return Image.open(img).convert('L')
-    except:
-        pass
-    try:
-        return Image.fromarray(img).convert('L')
-    except:
         print 'Unrecognized input to util_gui.img_to_array:', type(img)
         raise RuntimeError("Unrecognized input to util_gui.img_to_array")
 
@@ -225,12 +202,6 @@ def WxBitmapToWxImage(myBitmap):
 def PilImageToWxBitmap(myPilImage):
     return WxImageToWxBitmap(PilImageToWxImage(myPilImage))
 
-
-def PilImageToWxImage(myPilImage):
-    myWxImage = wx.EmptyImage(myPilImage.size[0], myPilImage.size[1])
-    myWxImage.SetData(myPilImage.convert('RGB').tobytes())
-    return myWxImage
-
 # Or, if you want to copy any alpha channel, too (available since wxPython 2.5)
 # The source PIL image doesn't need to have alpha to use this routine.
 # But, a PIL image with alpha is necessary to get a wx.Image with alpha.
@@ -265,8 +236,7 @@ def PilImageToWxImage(myPilImage, copyAlpha=True):
 
 def imageToPil(myWxImage, flatten=False):
     w, h = myWxImage.GetWidth(), myWxImage.GetHeight()
-    myPilImage = Image.new(
-        'RGB', (myWxImage.GetWidth(), myWxImage.GetHeight()))
+    myPilImage = Image.new('RGB', (w, h))
     myPilImage.frombytes(myWxImage.GetData())
     if flatten:
         myPilImage = myPilImage.convert("L")
@@ -283,17 +253,6 @@ def NumpyToWxBitmap(img):
     """
     img_pil = Image.fromarray(img)
     return PilImageToWxBitmap(img_pil)
-
-
-def make_blank_bitmap(size, val):
-    """
-    Construct a wxBitmap filled with 'val', of size 'size'. Useful to
-    generate dummy Bitmap squares.
-    """
-    blank_img = np.ones(size)
-    blank_img *= val
-    blank_bitmap = PilImageToWxBitmap(Image.fromarray(blank_img))
-    return blank_bitmap
 
 
 def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
@@ -344,70 +303,12 @@ def template_match(img, refimg, confidence=0.6, xwin=19, ywin=19):
     # match_flatidxs]
 
 
-def overlay_autodetect_results(img, match_coords, refsize):
-    """
-    Given the output of template_match (which is a list of coords),
-    return a new image with the boxes displayed.
-    Input:
-        obj img: a PIL image
-        tuple match_coords: A list of (x,y) coords that denote the UL-corner
-            of a match
-        tuple refsize: A tuple of (w,h) that is the size of the ref
-            img patch.
-    Output:
-        A PIL image
-    """
-    # TODO: Convert image to RGB so that I can highlight the voting
-    # targets in Green boxes
-    img_array = np.array(img)
-    mask = np.ones(img_array.shape)
-    h, w = refsize
-    for (x, y) in match_coords:
-        mask[y:y + h, x:x + 4] = 0
-        mask[y:y + h, x + w:x:w - 4] = 0
-        mask[y:y + 4, x:x + w] = 0
-        mask[y:y + h - 4, x:x + w] = 0
-    img_array = img_array * mask
-    return Image.fromarray(img_array)
-
-
 def flatidx_to_pixelidx(flatidx, shape):
     """
     Given a list of flat indexes, and the shape of the corresponding
     matrix, returns the list of pixel indicies (x,y).
     """
     return np.unravel_index(flatidx, shape)[::-1]
-#    try:
-#        try:
-#            match_idxs = np.unravel_index(flatidxs, shape)
-#        except ValueError as e:
-#            # In Legacy numpy versions (i.e. v1.6.0), np.unravel_index
-#            # accepts only a single index at a time.
-#            print 'ValueError:', e
-#            match_idxs = _np_unravel_index(flatidxs, shape)
-#    except AttributeError as e:
-#        # Legacy numpy versions have unravel_index defined elsewhere
-#        # Not sure if this is relevant anymore - I can't seem to find
-#        # the legacy API where unravel_index wasn't found in
-#        # numpy.unravel_index
-#        print 'AttributeError:', e
-#        match_idxs = _np_unravel_index(flatidxs, shape)
-#    print 'match_idxs is:', match_idxs
-#    match_coords = zip(*[list(x) for x in match_idxs][::-1])
-
-
-def _np_unravel_index(match_flatidxs, shape):
-    """
-    Before numpy v1.6.0, unravel_index() only accepts 1 idx.
-    This is a function that emulates post v.1.6.0 unravel_index,
-    which can accept multiple idxs.
-    """
-    result = [[], []]
-    for idx in match_flatidxs:
-        row, col = np.unravel_index(idx, shape)
-        result[0].append(row)
-        result[1].append(col)
-    return result
 
 
 def histogram_mean(l, offset=0):
@@ -436,35 +337,6 @@ threshold = otsu( im )
         inter_class_variance = sum(
             left) * sum(right) * (histogram_mean(left) - histogram_mean(right, len(left)))**2
         # print "%s, %5.5f" % (t, inter_class_variance)
-        if best is None or inter_class_variance > best[1]:
-            best = (t, inter_class_variance)
-    if not best:
-        # This is a totally-degenerate case, i.e. an image where there
-        # is only one non-zero pixel intensity value. Don't do any
-        # thresholding
-        return max(hist)
-    return best[0]
-
-
-def otsu_numpy(gray_im):
-    """
-    Like otsu(1), but with numpy arrays.
-    Input:
-        obj gray_im: A numpy array, representing a gray-scale image.
-    Output:
-        A value representing the optimal global threshold value.
-    """
-    hist, bin_vals = np.histogram(gray_im, bins=range(0, 256))
-    best = None
-    for t in range(len(hist)):
-        left = hist[:(t + 1)]
-        right = hist[(t + 1):]
-        a = sum(left) * sum(right)
-        if a == 0:
-            # skip degenerate cases
-            continue
-        inter_class_variance = a * \
-            (histogram_mean(left) - histogram_mean(right, len(left))) ** 2.0
         if best is None or inter_class_variance > best[1]:
             best = (t, inter_class_variance)
     if not best:
@@ -512,26 +384,6 @@ def autothreshold(gray_im, method="otsu"):
     elif method == "kmeans":
         t = ave(kmeans(list(gray_im.getdata())))
     return gray_im.point(lambda x: 0 if x <= t else 255)  # < or <= ?
-
-
-def autothreshold_numpy(gray_im, method="otsu", slop=0):
-    """
-    Like autothreshold(2), but for numpy arrays. If you want the
-    threshold to be more 'generous', set the slop value to a positive
-    integer.
-    """
-    def threshold_row(row, t):
-        return [0 if x < t else 255 for x in row]
-    if method == "otsu":
-        threshold = otsu_numpy(gray_im)
-    elif method == "kmeans":
-        threshold = ave(kmeans(reduce(lambda x, res: x + res,
-                                      [list(row) for row in gray_im], [])))
-    else:
-        raise NotImplementedError(
-            "In util_gui.autothreshold_numpy, method doesn't exist: {0}".format(method))
-        return None
-    return np.array(map(lambda row: threshold_row(row, threshold + slop), gray_im))
 
 
 def fit_image(img, padx=0, pady=0, BLACK=0):
@@ -660,125 +512,6 @@ def standardize_box(b):
 def _dictwriter_writeheader(csvfile, fields):
     """ csv.DictWriter.writeheader is not in Python 2.6 or earlier """
     print >>csvfile, ','.join(fields)
-
-
-def import_box_locations(csvdir, imgsize):
-    """
-    Read in target/contest locations from csvfiles, and
-    return a list of BoundingBox instances.
-    Annoying: Since I export target/contest locations in pixel coords
-              (instead of relative coords), you have to also pass in
-              the dimensions of the image. Bleh.
-    Input:
-        str csvdir: path to directory containing csvfiles
-        tuple imgsize: (int width, int height)
-    Output:
-        Dictionary mapping templatepath to list of BoundingBoxes.
-    """
-    def is_csvfile(p):
-        return os.path.splitext(p)[1].lower() == '.csv'
-
-    def prepopulate_boxes(boxes):
-        try:
-            csvpath_map_filepath = pathjoin(csvdir, 'csvpath_map.p')
-            csvpath_map = pickle.load(open(csvpath_map_filepath, 'rb'))
-            for csvfilepath, templatepath in csvpath_map.items():
-                boxes[templatepath] = []
-            return boxes
-        except:
-            return boxes
-
-    # fields = ('imgpath', 'id', 'x', 'y', 'width', 'height', 'label', 'is_contest', 'contest_id', 'target_id')
-    boxes = {}
-    boxes = prepopulate_boxes(boxes)
-    for dirpath, dirnames, filenames in os.walk(csvdir):
-        for csvfilepath in [f for f in filenames if is_csvfile(f)]:
-            try:
-                csvfile = open(pathjoin(dirpath, csvfilepath), 'rb')
-                dictreader = csv.DictReader(csvfile)
-                w_img, h_img = imgsize
-                # Ensure that target ID's are consecutive
-                sorted_rows = sorted(
-                    [row for row in dictreader], key=lambda r: int(r['id']))
-
-                for row in sorted_rows:
-                    # Scaling that has to be done
-                    x1 = float(row['x']) / float(w_img)
-                    y1 = float(row['y']) / float(h_img)
-                    x2 = x1 + (float(row['width']) / float(w_img))
-                    y2 = y1 + (float(row['height']) / float(h_img))
-                    is_contest = True if int(row['is_contest']) == 1 else False
-                    contest_id = int(row['contest_id'])
-                    try:
-                        target_id = int(row['target_id'])
-                    except:
-                        # This csvfile is not recent, has no target_id col
-                        target_id = None
-                    box = imageviewer.BoundingBox(x1, y1, x2, y2,
-                                                  label=row['label'],
-                                                  is_contest=is_contest,
-                                                  contest_id=contest_id,
-                                                  target_id=target_id)
-                    boxes.setdefault(row['imgpath'], []).append(box)
-            except IOError as e:
-                print "Unable to open file: {0}".format(csvfilepath)
-    return boxes
-
-
-def compute_ids(box_locations):
-    """
-    Given a dict mapping {str temppath: list BoundingBoxes}, re-compute
-    all ids, contest_ids, and target_ids.
-    """
-    pass
-
-
-def std_dev_fast2(data):
-    """ Faster (~2.0x) way of computing std_dev. Returns (mean, stddev) """
-    if len(data) == 1:
-        return 0
-    n, mean, M2 = 0.0, 0, 0
-
-    for x in data:
-        n = n + 1
-        delta = x - mean
-        mean = mean + delta / n
-        if n > 1:
-            M2 = M2 + delta * (x - mean)
-
-    # variance_n = M2/n
-    # sample_var = M2/(n - 1)
-    # return (sample_var, variance_n)
-    return mean, math.sqrt(M2 / (n - 1))
-
-
-def center_img(img):
-    """
-    Given an array (representing an img), center the img by
-    computing the bounding box, and making sure the center
-    of the bounding box is in the center of the array.
-    """
-    pass
-
-
-def fit_img_numpy(img):
-    """
-    Given a numpy array (image), fit the image via boundingbox.
-    """
-    pass
-
-
-def get_img_bbox(img):
-    """
-    Return bounding box of the object inside img.
-    """
-    I = autothreshold_numpy(img)
-    scipy.misc.imsave("__thresholded_img.png", I)
-    B = argwhere(I)
-    (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
-    Itrim = I[ystart:ystop, xstart:xstop]
-    scipy.misc.imsave("__thresholded_trimmed.png", Itrim)
-    return Itrim
 
 
 def associated_targets(contest, boxes):

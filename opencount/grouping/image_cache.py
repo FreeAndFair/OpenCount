@@ -253,11 +253,6 @@ class ImageCache(object):
         self._size = cur_size
         return num_evicted
 
-    def cache_isFull(self):
-        if self.sizecap == SIZECAP_UNBOUNDED:
-            return False
-        return self.cache_computeSize() < self.sizecap
-
     def cache_computeSize(self):
         if self._size is not None:
             return self._size

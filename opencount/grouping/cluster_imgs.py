@@ -178,60 +178,6 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     return clusters
 
 
-def cluster_imgs_kmeans_mine(imgpaths, bb_map=None, k=2, distfn_method='L2', centroidfn_method='mean', do_align=True):
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
-    debug("Running k-means")
-    t = time.time()
-    assigns = cluster_fns.kmeans(
-        data, K=k, distfn_method=distfn_method, centroidfn_method=centroidfn_method)
-    dur = time.time() - t
-    debug("Finished k-means ({0} s).", dur)
-    clusters = {}  # maps {clusterID: [imgpath_i, ...]}
-    for i in xrange(k):
-        cluster = []
-        for idx in np.where(assigns == i)[0]:
-            cluster.append(imgpaths[idx])
-        debug("    cluster {0}: {1} elements.", i, len(cluster))
-        clusters[i] = cluster
-    return clusters
-
-
-def cluster_imgs_kmeans_alignerr(imgpaths, bb_map=None, k=2, distfn_method=None, centroidfn_method=None, do_align=True):
-    data, errs = imgpaths_to_mat(
-        imgpaths, bb_map=bb_map, do_align=do_align, return_align_errs=True)
-    with time_operation('running k-means'):
-        assigns = cluster_fns.kmeans(errs,
-                                     K=k,
-                                     distfn_method=distfn_method,
-                                     centroidfn_method=centroidfn_method)
-    clusters = {}
-    for i in xrange(k):
-        cluster = []
-        for idx in np.where(assigns == i)[0]:
-            cluster.append(imgpaths[idx])
-        debug("    cluster {0}: {1} elements.", i, len(cluster))
-        clusters[i] = cluster
-    return clusters
-
-
-def cluster_imgs_hag(imgpaths, bb_map=None, do_align=True, distfn_method='L2', centroidfn_method='simple'):
-    data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align)
-    with util.time_operation('HAG-clustering'):
-        assigns = cluster_fns.hag_cluster_flatten(data,
-                                                  C=0.8,
-                                                  distfn_method=distfn_method,
-                                                  centroidfn_method=centroidfn_method)
-    clusters = {}
-    k = len(set(list(assigns)))
-    for i in xrange(k):
-        cluster = []
-        for idx in np.where(assigns == i)[0]:
-            cluster.append(imgpaths[idx])
-        debug("    cluster {0}: {1} elements.", i, len(cluster))
-        clusters[i] = cluster
-    return clusters
-
-
 def kmeans_2D(imgpaths, bb_map=None, k=2, distfn_method=None,
               do_align=True, do_edgedetect=False):
     data = imgpaths_to_mat2D(imgpaths, bb_map=bb_map,
@@ -496,17 +442,6 @@ def resize_mat(mat, shape, rszFac=None):
     j = min(mat_rsz.shape[1], out.shape[1])
     out[0:i, 0:j] = mat_rsz[0:i, 0:j]
     return out
-
-
-def _test_resize_mat():
-    foo = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    debug('foo is: {0}', foo)
-    out1 = resize_mat(foo, (2, 2))
-    debug('out1 is: {0}', out1)
-    out2 = resize_mat(foo, (4, 5))
-    debug('out2 is: {0}', out2)
-    out3 = resize_mat(foo, (3, 3))
-    debug('out3 is: {0}', out3)
 
 
 def test_clusterimgs_kmeans():

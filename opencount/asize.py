@@ -1809,18 +1809,6 @@ class Asizer(object):
         for o in objs:
             self._seen.setdefault(id(o), 0)
 
-    def exclude_types(self, *objs):
-        '''Exclude the specified object instances and types from sizing.
-
-           All instances and types of the given objects are excluded,
-           even objects specified as positional arguments in subsequent
-           calls to methods  asizeof and  asizesof.
-        '''
-        for o in objs:
-            for t in _keytuple(o):
-                if t and t not in self._excl_d:
-                    self._excl_d[t] = 0
-
     def print_profiles(self, w=0, cutoff=0, **print3opts):
         '''Print the profiles above cutoff percentage.
 
@@ -2053,22 +2041,6 @@ class Asizer(object):
         self.set(align=align, code=code, stats=stats)
 
  # public functions
-
-
-def adict(*classes):
-    '''Install one or more classes to be handled as dict.
-    '''
-    a = True
-    for c in classes:
-         # if class is dict-like, add class
-         # name to _dict_classes[module]
-        if isclass(c) and _infer_dict(c):
-            t = _dict_classes.get(c.__module__, ())
-            if c.__name__ not in t:  # extend tuple
-                _dict_classes[c.__module__] = t + (c.__name__,)
-        else:  # not a dict-like class
-            a = False
-    return a  # all installed if True
 
 _asizer = Asizer()
 

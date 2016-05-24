@@ -176,14 +176,6 @@ class LabelContest(wx.Panel):
     def reset_panel(self):
         self.proj.removeCloseEvent(self.save)
 
-    def reset_data(self):
-        for f in [self.proj.contest_id,
-                  self.proj.contest_internal,
-                  self.proj.contest_text]:
-            if os.path.exists(f):
-                print "UNLINK", f
-                os.unlink(f)
-
     firstTime = True
 
     def start(self, project=None):
@@ -1455,9 +1447,6 @@ rotation doesn't currently work for multibox contests.")
                                                 min=1, max=len(self.text_targets))
         self.text_upto.Bind(wx.EVT_SET_FOCUS, lambda x: showFocus(None))
 
-        def enter_upto(x):
-            self.focusIsOn = -2
-            enterPushed(x)
         self.text_upto.Bind(wx.EVT_TEXT_ENTER, enterPushed)
         sz.Add(self.text_upto)
 

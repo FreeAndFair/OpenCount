@@ -425,16 +425,11 @@ class DigitLabelPanel(wx.lib.scrolledpanel.ScrolledPanel):
         pickle.dump(state, f)
         f.close()
 
-    def _get_cur_loc(self):
-        """Returns (x,y) of next cell location """
-        return (self.j_cur * self.cellw, self.i_cur * self.cellh)
-
     def add_img(self, imgbitmap, imgID, npimg, imgpath, rszFac):
         """Adds a new image to this grid. Populates the self.imgID2cell,
         self.cell2imgID, self.i, self.j, self.cells, and
         self.precinct_txts instance variables.
         """
-        # (x, y) = self._get_cur_loc()
         assert imgID not in self.imgID2cell
         assert (self.i, self.j) not in self.cell2imgID
         self.imgID2cell[imgID] = (self.i, self.j)
@@ -796,15 +791,6 @@ are not of proper length.'
         self.export_precinct_nums(result)
         return result
 
-    def get_patch2cellID(self):
-        """ Return dictionary mapping patchpath to the cell ID on the digit UI """
-        result = {}
-        for patchpath, txt in self.precinct_txts.iteritems():
-            assert patchpath not in result
-            result[patchpath] = txt.GetLabel().split(' ')[0]
-
-        return result
-
     def get_patch2precinct(self):
         """ Called by on_done, sort_cells, and check_digit_strings. Computes the result dictionary:
             {str patchpath: str precinct number},
@@ -879,9 +865,6 @@ class MyStaticBitmap(wx.Panel):
         self.Bind(wx.EVT_LEFT_UP, self.onLeftUp)
         self.Bind(wx.EVT_MOTION, self.onMotion)
         self.Bind(wx.EVT_PAINT, self.onPaint)
-
-    def cell2xy(self, i, j):
-        return (self.parent.cellw * j, self.parent.cellh * i)
 
     def get_digits(self):
         """ Returns (in L-R order) the digits of all currently-labeled
@@ -1056,9 +1039,6 @@ class Box(object):
     @property
     def height(self):
         return abs(self.y1 - self.y2)
-
-    def set_coords(self, pts):
-        self.x1, self.y1, self.x2, self.y2 = pts
 
     def get_coords(self):
         return self.x1, self.y1, self.x2, self.y2
@@ -1270,22 +1250,6 @@ def get_common_area(bb1, bb2):
     '''
 
 
-def _test_get_common_area():
-    bb1 = [2, 0, 0, 1]
-    bb2 = [1, 0, 0, 2]
-    print get_common_area(bb1, bb2)
-
-    bb1 = [3, 1, 1, 2]
-    bb2 = [2, 0, 3, 5]
-    print get_common_area(bb1, bb2)
-
-    bb1 = [1, 3, 1, 3]
-    bb2 = [1, 3, 2, 3]
-    print get_common_area(bb1, bb2)
-# _test_get_common_area()
-# pdb.set_trace()
-
-
 def is_overlap(rect1, rect2):
     """
     Returns True if any part of rect1 is contained within rect2.
@@ -1316,30 +1280,6 @@ def too_close(b1, b2):
              abs(b1[1] - b2[1]) <= h / 2.0) or
             is_overlap(b1, b2) or
             is_overlap(b2, b1))
-
-
-def autocrop_img(img):
-    """ Given an image, try to find the bounding box. """
-    def new_argwhere(a):
-        """ Given an array, do what argwhere does but for 255, since
-        np.argwhere does it for non-zero values instead.
-        """
-        b = a.copy()
-        for i in range(b.shape[0]):
-            for j in range(b.shape[1]):
-                val = a[i, j]
-                if val == 255:
-                    b[i, j] = 0
-                else:
-                    b[i, j] = 1
-        return np.argwhere(b)
-    thresholded = util_gui.autothreshold_numpy(img, method='otsu')
-    B = new_argwhere(thresholded)
-    if len(B.shape) == 1:
-        pdb.set_trace()
-        return None
-    (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
-    return img[ystart:ystop, xstart:xstop]
 
 
 def do_extract_digitbased_patches(proj, C, MIN, MAX):

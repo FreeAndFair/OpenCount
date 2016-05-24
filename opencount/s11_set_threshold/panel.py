@@ -24,61 +24,6 @@ import config
 from util import pil2wxb, MyGauge
 
 
-class OverlayGrid(wx.Frame):
-
-    def __init__(self, parent, maybefilled, maybeunfilled):
-        wx.Frame.__init__(self, parent, size=(800, 800))
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        self.parent = parent
-        self.maybefilled = maybefilled
-        self.maybeunfilled = maybeunfilled
-
-        bit = self.createImages(np.max, 90, maybefilled)
-
-        for i in range(0, len(bit), 10):
-            s2 = wx.BoxSizer(wx.HORIZONTAL)
-            for each in bit[i:i + 10]:
-                s2.Add(each)
-            sizer.Add(s2)
-
-        bit = self.createImages(np.min, 90, maybeunfilled)
-
-        for i in range(0, len(bit), 10):
-            s2 = wx.BoxSizer(wx.HORIZONTAL)
-            for each in bit[i:i + 10]:
-                s2.Add(each)
-            sizer.Add(s2)
-
-        self.SetSizer(sizer)
-
-    def createImages(self, fn, numImgs, whichside):
-        parent = self.parent
-        results = []
-        print "GO UP TO", len(whichside)
-        gap = int(math.floor(float(len(whichside)) / numImgs))
-        for i in range(0, len(whichside), gap):
-            print i, gap
-            # BOUNDRY ERROR
-            use_imgs, ch = parent.imagefile.readManyImages_filter(whichside[i:i + gap], parent.numcols,
-                                                                  parent.basetargetw, parent.basetargeth,
-                                                                  parent.targetw, parent.targeth, True)
-
-            if ch == True:
-                res = np.uint8(np.round(fn(np.array(use_imgs), axis=0)))
-                res = (res, res, res)
-            else:
-                res = [np.uint8(np.round(fn(np.array(use_imgs[i::3]), axis=0)))
-                       for i in range(3)]
-            args = [Image.fromarray(
-                x.reshape((parent.targeth, parent.targetw))) for x in res]
-            resimg = Image.merge('RGB', tuple(args))
-
-            results.append(wx.StaticBitmap(self, -1, pil2wxb(resimg)))
-
-        return results
-
-
 class GridShow(wx.ScrolledWindow):
     """
     Class that displays voting targets

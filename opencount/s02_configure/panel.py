@@ -391,26 +391,6 @@ class ConfigPanel(ffwx.Panel):
         self.project.raw_samplesdir = self.voteddir
         pub.sendMessage("processing.register", data=self.project)
 
-    def get_samplepath(self):
-        return self.box_samples.txt_samplespath.GetLabelText().replace("\n", "")
-
-    def onSanityCheck(self, evt):
-        """
-        Triggered when either the templates or samples sanity check
-        completes. Update the relevant ListBox widget with the results
-        of a sanity check.
-        """
-        type, results_dict = evt.data
-        listbox = self.upper_scroll if type == 'templates' else self.lower_scroll
-        if len(results_dict) == 0:
-            listbox.Append("All files valid")
-        else:
-            for imgpath, msg in results_dict.items():
-                listbox.Append(imgpath + ": " + msg)
-        if type == 'samples':
-            # Assume that we first process the templates, then the samples last
-            self.parent.Enable()
-
     # Event Handlers
     def onButton_choosesamplesdir(self, evt):
         dlg = wx.DirDialog(self, "Select Directory",
@@ -419,20 +399,6 @@ class ConfigPanel(ffwx.Panel):
         if result == wx.ID_OK:
             dirpath = dlg.GetPath()
             self.set_samplepath(dirpath)
-
-    def onButton_runsanitycheck(self, evt):
-        self.upper_scroll.Clear()
-        self.lower_scroll.Clear()
-        num_files = 0
-        for dirpath, dirnames, filenames in os.walk(self.voteddir):
-            num_files += len(filenames)
-        self.parent.Disable()
-        pgauge = util_widgets.ProgressGauge(
-            self, num_files, msg="Checking files...")
-        pgauge.Show()
-        thread = threading.Thread(target=sanity_check.sanity_check,
-                                  args=(self.voteddir, self))
-        thread.start()
 
     def onCheckBox_regexCtr(self, evt):
         if self.regex_ctr_chkbox.GetValue():
@@ -463,53 +429,6 @@ class ConfigPanel(ffwx.Panel):
             self.numpages_txtctrl.Disable()
         else:
             self.numpages_txtctrl.Enable()
-
-
-class DoubleSideDialog(wx.Dialog):
-
-    def __init__(self, parent, *args, **kwargs):
-        wx.Dialog.__init__(
-            self, parent, title="Set Double Sided Properties", *args, **kwargs)
-
-        self.num_pages = None
-        self.regex = None
-        self.is_alternating = None
-
-        txt0 = wx.StaticText(self, label="Number of pages:")
-        self.numpages_txtctrl = wx.TextCtrl(self, value="2")
-        sizer0 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer0.AddMany([(txt0,), ((10, 0),), (self.numpages_txtctrl,)])
-
-        txt1 = wx.StaticText(
-            self, label="Enter a regex to match on the file name.")
-        self.regex_txtctrl = wx.TextCtrl(self, value=r".*-(.*)")
-        sizer1 = wx.BoxSizer(wx.HORIZONTAL)
-        sizer1.AddMany([(txt1,), ((10, 0),), (self.regex_txtctrl,)])
-
-        self.alternate_chkbox = wx.CheckBox(
-            self, label="Ballots alternate front and back")
-
-        btn_done = wx.Button(self, label="Ok")
-        btn_done.Bind(wx.EVT_BUTTON, self.onButton_done)
-        btn_cancel = wx.Button(self, label="Cancel")
-        btn_cancel.Bind(wx.EVT_BUTTON, self.onButton_cancel)
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        btn_sizer.AddMany([(btn_done,), (btn_cancel,)])
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.AddMany([(sizer0,), (sizer1,), (self.alternate_chkbox,),
-                       (btn_sizer, 0, wx.ALIGN_CENTER)])
-        self.SetSizer(sizer)
-        self.Layout()
-
-    def onButton_done(self, evt):
-        self.num_pages = int(self.numpages_txtctrl.GetValue())
-        self.regex = self.regex_txtctrl.GetValue()
-        self.is_alternating = self.alternate_chkbox.GetValue()
-        self.EndModal(wx.ID_OK)
-
-    def onButton_cancel(self, evt):
-        self.EndModal(wx.ID_CANCEL)
 
 
 def separate_imgs(voteddir, num_pages, MODE,

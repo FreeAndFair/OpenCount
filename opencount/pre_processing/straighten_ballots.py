@@ -62,13 +62,6 @@ def straighten_images_process(imgpaths, imgsdir, outdir, queue, size):
     return 0
 
 
-def get_images_gen(imgsdir):
-    for dirpath, dirnames, filenames in os.walk(imgsdir):
-        for imgname in [f for f in filenames if util_gui.is_image_ext(f)]:
-            yield imgname
-    raise StopIteration
-
-
 def divy_images(imgsdir, num):
     count = 0
     result = []
@@ -102,91 +95,6 @@ def spawn_jobs(imgsdir, outdir, num_imgs, queue, size=None):
             imgpaths, imgsdir, outdir, queue, size))
     pool.close()
     pool.join()
-
-
-def start_straightening(imgsdir, outdir, num_imgs, queue, size=None):
-    """
-    Kicks off the straightening by spawning a 'master' process which
-    spawns child worker processes.
-    """
-    print "Spawning master process to start straightening images in", imgsdir
-    # logger = multiprocessing.log_to_stderr()
-    # logger.setLevel(logging.INFO)
-
-    p = multiprocessing.Process(target=spawn_jobs, args=(
-        imgsdir, outdir, num_imgs, queue, size))
-    p.start()
-
-
-class StraightenThread(threading.Thread):
-
-    def __init__(self, imgsdir, project, num_tasks, outdir=None, job_id=None, *args, **kwargs):
-        threading.Thread.__init__(self, *args, **kwargs)
-        self.imgsdir = imgsdir
-        self.project = project
-        self.num_tasks = num_tasks
-        if not outdir:
-            self.outdir = os.path.join(
-                project.projdir_path, 'straightened_imgs')
-        else:
-            self.outdir = outdir
-        self.job_id = job_id
-
-    def run(self):
-        if IMPORT_STRAIGHTENER_FAIL:
-            print "==== Notice -- because the unrotating code was unable \
-to be imported, no unrotating will happen during this run which, while it \
-might be fine at this early stage, eventually other components will \
-depend on straightening being done, making it imperative that the \
-code be correctly imported."
-            if wx.App.IsMainLoopRunning():
-                self.job_id.done()
-            return
-        elif is_there_image(self.outdir):
-            # Current simple thing: if there's at least one image in the
-            # output directory, assume that straightening has been done
-            # already, so don't do it again.
-            print "BallotStraightener thinks that images in {0} has \
-already been straightened, so straightening will not be run. If this \
-isn't the case (i.e. if you terminated the previous straightening \
-in a previous session), then remove all images in {1}".format(self.imgsdir, self.outdir)
-            if wx.App.IsMainLoopRunning():
-                self.job_id.next_job(num_tasks)
-                self.job_id.done()
-            return
-
-        if wx.App.IsMainLoopRunning():
-            self.job_id.next_job(self.num_tasks)
-        manager = multiprocessing.Manager()
-        queue = manager.Queue()
-        start_straightening(self.imgsdir, self.outdir,
-                            self.num_tasks, queue, size=self.project.imgsize)
-        count = 0
-        while True:
-            if count >= self.num_tasks:
-                break
-            else:
-                # signal tick
-                foo = queue.get(block=True, timeout=None)
-                if foo == 'died':
-                    print" == Fatal Error: I detected that a subprocess \
-died. You should probably exit."
-                if wx.App.IsMainLoopRunning():
-                    self.job_id.tick()
-                count += 1
-        if wx.App.IsMainLoopRunning():
-            self.job_id.done()
-
-
-def is_there_image(dir):
-    """
-    Return True if there exists at least one image in this directory
-    (will recursively search).
-    """
-    for dirpath, dirnames, filenames in os.walk(dir):
-        if [f for f in filenames if util_gui.is_image_ext(f)]:
-            return True
-    return False
 
 
 def do_main():

@@ -346,25 +346,6 @@ def recover_theta_rot(H):
         return -theta_0
 
 
-def make_affine_mat(x, y, theta, w, h):
-    """ Creates affine mat, rotating w.r.t. image center. Assumes that
-    THETA is in radians. Outputs the affine mat H that is in image-coordinates.
-    """
-    T1, T0 = np.eye(3), np.eye(3)
-    T1[0, 2] = -w / 2.0
-    T1[1, 2] = -h / 2.0
-    Hrot = np.array([[math.cos(theta), math.sin(theta), 0.0],
-                     [-math.sin(theta), math.cos(theta), 0.0],
-                     [0.0, 0.0, 1.0]])
-    T0[0, 2] = w / 2.0
-    T0[1, 2] = h / 2.0
-    S = np.eye(3)
-    S[0, 2] = x
-    S[1, 2] = y
-    H_out = np.dot(S, np.dot(T0, np.dot(Hrot, T1)))
-    return H_out
-
-
 def warp_img(I, x, y, theta, bright_amt):
     """ Warps image I by translating by (X,Y), rotating by THETA, and
     adding BRIGHT_AMT to the intensities. Theta is in degrees, counter-clockwise

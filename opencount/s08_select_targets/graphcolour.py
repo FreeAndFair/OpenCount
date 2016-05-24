@@ -72,33 +72,6 @@ class AdjListGraph(Graph):
         return self.__repr__()
 
 
-class AdjMatGraph(Graph):
-    """
-    An Undirected Graph implemented with an adjacency matrix.
-    NOT COMPLETE
-    """
-
-    def __init__(self, nodes):
-        self.nodes = nodes
-        self.mat, self.node2id = self.generate_adj_mat(
-            nodes)  # [[bool bool, ...], [bool bool, ...], ...]
-
-    def generate_adj_mat(self, nodes):
-        """ Generates adjacency matrix from input NODES. """
-        n = len(nodes)
-        mat = [[False for _ in xrange(n)] for _ in xrange(n)]
-        node2id = {}
-        for i, node in enumerate(nodes):
-            node2id[node] = i
-        for node in nodes:
-            for neighbor in node.neighbors:
-                mat[node2id[node]][node2id[neighbor]] = True
-        return mat, node2id
-
-    def __repr__(self):
-        return "AdjMatGraph({0} nodes)".format(len(self.nodes))
-
-
 class Node(object):
     """ Assumes the graph is undirected. """
 

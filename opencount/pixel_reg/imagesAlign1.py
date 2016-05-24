@@ -218,12 +218,3 @@ def ds2H(ds, wts):
         H = np.dot(Hs[i, :, :], H)
 
     return (H, Hs)
-
-
-def imagesAlign1_profile(I, Iref, H0=np.eye(3, dtype=np.float32),
-                         trfm_type='similarity', verbose=False, minArea=np.power(2, 11)):
-    # TODO: fix this!
-    # cProfile.run('(H,err)=imagesAlign1(I,Iref)', 'profile_imagesalign1')
-    cProfile.runctx('(H,err)=imagesAlign1(I,Iref)', globals(),
-                    locals(), filename='profile_imagesalign1')
-    return (H, err)

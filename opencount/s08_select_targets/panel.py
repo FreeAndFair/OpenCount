@@ -18,7 +18,6 @@ except ImportError:
 from os.path import join as pathjoin
 
 
-
 import wx
 import cv
 import numpy as np
@@ -1184,22 +1183,6 @@ voting target on this ballot.")
         cur_groupid = self.parent.i2groupid[S.cur_i]
         debug("{0}", cur_groupid)
         self.parent.group_to_Iref[cur_groupid] = self.cur_j
-
-    def onButton_jump_page(self, evt):
-        dlg = wx.TextEntryDialog(
-            self, "Which Page Number?", "Enter Page number")
-        status = dlg.ShowModal()
-        if status == wx.ID_CANCEL:
-            return
-        try:
-            idx = int(dlg.GetValue()) - 1
-        except:
-            error("Invalid index: {0}", idx)
-            return
-        if idx < 0 or idx >= len(self.partitions[self.cur_i][self.cur_j]):
-            error("Invalid page index: {0}", idx)
-            return
-        self.display_image(self.cur_i, self.cur_j, idx)
 
     def infercontests(self):
         def are_there_boxes():
@@ -2953,28 +2936,6 @@ def get_boxes_within(boxes, box):
     return result
 
 
-def expand_box(box, factor, bounds=None):
-    """ Expands the Box BOX by FACTOR in each dimension. If BOUNDS is
-    given, then this dictates the maximum (width,height) allowed.
-    Input:
-        Box BOX:
-        float FACTOR: If 0.0, same size. 0.5 is 50% bigger, etc.
-        list BOUNDS: (w,h)
-    Output:
-        Box OUTBOX.
-    """
-    b = box.copy()
-    b.x1 = int(round(max(0, box.x1 - (box.width * factor))))
-    b.y1 = int(round(max(0, box.y1 - (box.height * factor))))
-    if bounds is not None:
-        b.x2 = int(round(min(bounds[0] - 1, box.x2 + (box.width * factor))))
-        b.y2 = int(round(min(bounds[1] - 1, box.y2 + (box.height * factor))))
-    else:
-        b.x2 = int(round(box.x2 + (box.width * factor)))
-        b.y2 = int(round(box.y2 + (box.height * factor)))
-    return b
-
-
 def compute_box_ids(boxes):
     """ Given a list of Boxes, some of which are Targets, others
     of which are Contests, geometrically compute the correct
@@ -3285,11 +3246,6 @@ def pil2iplimage(img):
     return img_cv
 
 
-def iplimage2pil(img):
-    """ Converts a (grayscale) CV IplImage to a PIL image. """
-    return Image.fromstring("L", cv.GetSize(img), img.tobytes())
-
-
 def bestmatch(A, B):
     """ Tries to find the image A within the (larger) image B.
     For instance, A could be a voting target, and B could be a
@@ -3455,29 +3411,6 @@ def wxImage2np(Iwx, is_rgb=True):
     else:
         Inp = Inp_flat.reshape(h, w)
     return Inp
-
-
-def wxBitmap2np(wxBmp, is_rgb=True):
-    """ Converts wxBitmap to numpy array """
-    total_t = time.time()
-
-    t = time.time()
-    Iwx = wxBmp.ConvertToImage()
-    dur_bmp2wximg = time.time() - t
-
-    t = time.time()
-    npimg = wxImage2np(Iwx, is_rgb=True)
-    dur_wximg2np = time.time() - t
-
-    total_dur = time.time() - total_t
-    debug("==== wxBitmap2np: {0:.6f}s (bmp2wximg: {1:.5f}s {2:.3f}%) "
-          "(wximg2np: {3:.5f}s {4:.3f}%)",
-          total_dur,
-          dur_bmp2wximg,
-          100 * (dur_bmp2wximg / total_dur),
-          dur_wximg2np,
-          100 * (dur_wximg2np / total_dur))
-    return npimg
 
 
 def wxBitmap2np_v2(wxBmp, is_rgb=True):

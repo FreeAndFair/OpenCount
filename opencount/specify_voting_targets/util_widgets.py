@@ -197,10 +197,6 @@ invalid.".format(pagenum), style=wx.OK)
             "Page: {0} / {1}".format(pagenum + 1, total_pages))
         self.maybe_btn_toggle()
 
-    def select_image(self, imgpath):
-        """ Selects an image within the ImageMosaicPanel. """
-        self.imagemosaic.select_img(imgpath)
-
     def get_img_pagenum(self, imgpath):
         """ Returns the page number of the given imgpath, assuming that
         this MosaicPanel contains the image.

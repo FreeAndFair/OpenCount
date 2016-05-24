@@ -672,14 +672,6 @@ class SmartScrolledGridPanel(ScrolledPanel):
         #       quirk, so, I've re-enabled mousewheel scrolling.
         evt.Skip()
 
-    def onScrollThumb(self, evt):
-        # Scrolling by clicking+dragging the thumbwheel causes strange scroll
-        # behavior for large scroll bars (i.e. when there are many elements).
-        # No idea why, so, I've disabled it for now.
-        # Note: Binding EVT_SCROLLWIN_THUMBTRACK + EVT_SCROLLWIN_THUMBRElEASE
-        # did not fix the problem (just made even stranger scroll quirks). Hm.
-        pass
-
 
 class ImagePanel(wx.Panel):
 

@@ -152,22 +152,6 @@ class SequoiaVendor(Vendor):
         return 'SequoiaVendor()'
 
 
-def is_valid_decodings(decodings):
-    """
-    Input:
-        list DECODINGS: [str barcode_upperleft, str barcode_upperright]
-    Output:
-        True/False.
-    """
-    if not decodings or len(decodings) != 2:
-        return False
-    if decodings[0] == '0' and decodings[1] == '':
-        return True  # Hacky signal for 'back side' in manual label: '0,'
-    if len(decodings[0]) != 8 or len(decodings[1]) != 8:
-        return False
-    return True
-
-
 def get_imginfo(decodings):
     """ Note: barcode values are output top-to-down.
     """

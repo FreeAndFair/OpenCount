@@ -666,60 +666,6 @@ def bbUnion(bb1, bb2):
     return bbOut
 
 
-def csv2bbs(csvP):
-    bdReader = csv.reader(open(csvP, 'r'))
-    isFirst = True
-    pFac = .1
-    bbs = np.empty((0, 5))
-    # loop over every target location
-    for row in bdReader:
-        if isFirst:
-            isFirst = False
-            continue
-        isContest = string.atoi(row[7])
-        if isContest == 1:
-            continue
-        x1 = string.atoi(row[2])
-        x2 = x1 + string.atoi(row[4])
-        y1 = string.atoi(row[3])
-        y2 = y1 + string.atoi(row[5])
-        idx = string.atoi(row[1])
-        # expand region around target
-        row1 = np.array([y1, y2, x1, x2, idx])
-        bbs = np.vstack((bbs, row1))
-
-    return bbs
-
-
-def maskBordersTargets(I, bbs, pf=.05):
-    return maskBorders(maskTargets(I, bbs, pf=pf), pf=pf)
-
-
-def maskBorders(I, pf=.05):
-    # to account for poorly scanned borders, create nan-padded Irefs
-    IM = np.copy(I)
-    rPd = pf * I.shape[0]
-    cPd = pf * I.shape[1]
-    IM[1:rPd, :] = np.nan
-    IM[-rPd:, :] = np.nan
-    IM[:, 1:cPd] = np.nan
-    IM[:, -cPd:] = np.nan
-    return IM
-
-
-def maskTargets(I, bbs, pf=.05):
-    ''' Set regions of targets to be NANs '''
-    IM = np.copy(I)
-    for i in range(bbs.shape[0]):
-        y1 = bbs[i, 0]
-        y2 = bbs[i, 1]
-        x1 = bbs[i, 2]
-        x2 = bbs[i, 3]
-        IM[y1:y2, x1:x2] = np.nan
-
-    return IM
-
-
 def resizeOrNot(shape, c, MIN_DIM=MIN_IMG_DIM):
     """ Given an image shape, and an integer 'c', returns the
     appropriate scaling factor required to make the largest

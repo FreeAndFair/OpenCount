@@ -438,58 +438,10 @@ def imgdistortion_vardiff(A, B, M=3):
     B[B < thr] = 0
     return imgdistortiondiff(A, B)
 
-
-def _get_clusterfn(clusterfn_method):
-    if clusterfn_method == 'mean':
-        clusterfn = _meandist
-    elif clusterfn_method == 'median':
-        clusterfn = _mediandist
-    elif clusterfn_method == 'min':
-        clusterfn = _mindist
-    elif clusterfn_method == 'max':
-        clusterfn = _maxdist
-    else:
-        clusterfn = _mindist
-    return clusterfn
-
 """
 For the following, I is one data pt, C is a cluster of data pts. Used
 in k-mediods to compute the distance between a point and a cluster.
 """
-
-
-def _meandist(I, C, distfn, debug=False):
-    dists = []
-    for I2 in C:
-        dists.append(distfn(I, I2, debug))
-    return sum(dists) / len(dists)
-
-
-def _mediandist(I, C, distfn, debug=False):
-    dists = []
-    for I2 in C:
-        dists.append(distfn(I, I2, debug))
-    if len(dists) <= 2:
-        return dists[0]
-    return sorted(dists)[len(dists) / 2]
-
-
-def _mindist(I, C, distfn, debug=False):
-    mindist = None
-    for I2 in C:
-        dist = distfn(I, I2, debug)
-        if mindist is None or dist < mindist:
-            mindist = dist
-    return mindist
-
-
-def _maxdist(I, C, distfn, debug=False):
-    maxdist = None
-    for I2 in C:
-        dist = distfn(I, I2, debug)
-        if maxdist is None or dist > maxdist:
-            maxdist = dist
-    return maxdist
 
 
 def mean_nan(A):
@@ -498,134 +450,6 @@ def mean_nan(A):
     dat = np.ma.masked_array(A, np.isnan(A))
     mean = np.mean(dat, axis=0)
     return mean.filled(np.nan)
-
-
-def hag_cluster_maketree(data, distfn='L2', clusterdist_method='single', VERBOSE=True):
-    """ Performs Hierarchical-Agglomerative Clustering on DATA. Returns
-    a dendrogram (i.e. tree), where the children of a node N is
-    considered to have been 'merged' into the cluster denoted by N.
-    Input:
-        array DATA: An NxM array, where N is the number of observations,
-            and M is the dimensionality of the feature space.
-    Output:
-        A tree structure, which consists of the results of merges during
-        the agglomerative clustering. The leaf nodes contain indices into
-        rows of the original DATA matrix.
-    """
-    if distfn == 'L2':
-        distfn = lambda a, b: np.linalg.norm(a - b)
-    elif distfn == 'vardiff':
-        distfn = vardiff
-    if clusterdist_method == 'single':
-        clusterdist = single_linkage
-    elif clusterdist_method == 'complete':
-        clusterdist = complete_linkage
-    else:
-        warn("Unrecognized clusterdist method: {0}. Using 'single'.",
-             clusterdist_method)
-        clusterdist = single_linkage
-    clusters = [HAG_Leaf(rowidx) for rowidx in xrange(data.shape[0])]
-    curiter = 0
-    memo = {}    # maps {(i, j) : float dist between data[i,j]}
-    while len(clusters) != 1:
-        debug("HAG Cluster iteration: {0}", curiter)
-        # 0.) Compute pair-wise distances between all clusters
-        c1_min, c2_min, mindist = None, None, None
-        for i, c1 in enumerate(clusters):
-            for j, c2 in enumerate(clusters):
-                if i == j:
-                    continue
-                dist = clusterdist(c1, c2, data, memo, distfn)
-                if mindist is None or dist < mindist:
-                    c1_min = c1
-                    c2_min = c2
-                    mindist = dist
-        # 1.) Merge two-closest clusters.
-        debug("...Merging clusters {0}, {1}. Dist: {2}",
-              c1_min, c2_min, mindist)
-        parent = HAG_Node((c1_min, c2_min), dist=mindist)
-        c1_min.parent = parent
-        c2_min.parent = parent
-        clusters = [c for c in clusters if c not in (c1_min, c2_min)]
-        clusters.append(parent)
-        curiter += 1
-    return clusters[0]
-
-
-def single_linkage(c1, c2, data, memo, distfn):
-    """ Minimum pair-wise distance between c1, c2. """
-    c1_idxs = c1.get_idxs()
-    c2_idxs = c2.get_idxs()
-    mindist = None
-    for i in c1_idxs:
-        for j in c2_idxs:
-            if i == j:
-                continue
-            dist = memo.get((i, j), None)
-            if dist is None:
-                dist = memo.get((j, i), None)
-            if dist is None:
-                dist = distfn(data[i], data[j])
-                memo[(i, j)] = dist
-            if mindist is None or dist < mindist:
-                mindist = dist
-    return mindist
-
-
-def complete_linkage(c1, c2, data, memo, distfn):
-    """ Maximum pair-wise distance between c1, c2. """
-    c1_idxs = c1.get_idxs()
-    c2_idxs = c2.get_idxs()
-    maxdist = None
-    for i in c1_idxs:
-        for j in c2_idxs:
-            if i == j:
-                continue
-            dist = memo.get((i, j), None)
-            if dist is None:
-                dist = memo.get((j, i), None)
-            if dist is None:
-                dist = distfn(data[i], data[j])
-                memo[(i, j)] = dist
-            if maxdist is None or dist > maxdist:
-                maxdist = dist
-    return maxdist
-
-
-def hag_cluster_flatten(data, C=0.8):
-    """ Performs Hierarchichal-Agglomerative Clustering on DATA, and
-    through the use of a threshold C, tries to infer the 'natural'
-    clustering by returning a clustering of DATA.
-    Input:
-        array DATA: An NxM array, N being the number of observations,
-        M being the dimensionality.
-        float C: Threshold value to use for inferring when to split
-        groups. Should range from [0.0, 1.0].
-    Output:
-        array assigns: An N-vector, where each N[i] contains an integer
-            saying which cluster N[i] belongs to.
-    """
-    # TODO: Normalize (somehow) the node.dist, so that the C threshold
-    # makes sense.
-    def flatten_hag_tree(node, C):
-        if node.isleaf():
-            return ((node.row,),)
-        elif node.dist < C:
-            return (node.get_idxs(),)
-        else:
-            idxs = []
-            for child in node.children:
-                idxs.extend(flatten_hag_tree(child, C))
-            return idxs
-    # 0.) Create HAG Cluster Tree
-    tree = hag_cluster_maketree(data)
-    # 1.) Create the ASSIGNS return value.
-    assigns = np.zeros(data.shape[0])
-    clusters = flatten_hag_tree(tree, C)
-    for clusterID, cluster in enumerate(clusters):
-        for row in cluster:
-            assigns[row] = clusterID
-    return assigns
 
 
 class Node(object):
@@ -640,9 +464,6 @@ class HAG_Node(Node):
         self.children = children
         self.parent = parent
         self.dist = dist
-
-    def isleaf(self):
-        return False
 
     def get_idxs(self):
         idxs = []
@@ -668,9 +489,6 @@ class HAG_Leaf(Node):
     def __init__(self, row, parent=None):
         self.row = row
         self.parent = parent
-
-    def isleaf(self):
-        return True
 
     def get_idxs(self):
         return (self.row,)

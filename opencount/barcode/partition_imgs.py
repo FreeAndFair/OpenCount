@@ -79,14 +79,6 @@ def partition_imgs(imgpaths, vendor="hart", queue=None):
     return grouping
 
 
-def partition_imgs_par(imgpaths, vendor="hart", queue=None):
-    grouping = partask.do_partask(_do_partition_imgs,
-                                  imgpaths,
-                                  _args=(vendor, queue),
-                                  combfn="dict",
-                                  N=None)
-
-
 def _do_partition_imgs(imgpaths, (vendor, queue)):
     try:
         return partition_imgs(imgpaths, vendor=vendor, queue=queue)

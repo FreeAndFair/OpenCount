@@ -289,12 +289,6 @@ class RunThread(threading.Thread):
         print "        imageFileMake: {0:.3f}%   |  {1:.3f} s".format(frac, dur_imageFileMake)
 
 
-def start_doandgetAvg(queue, rootdir, dirList):
-    p = multiprocessing.Process(
-        target=spawn_jobs, args=(queue, rootdir, dirList))
-    p.start()
-
-
 def doandgetAvgs(imgnames, rootdir, queue):
     for imgname in imgnames:
         imgpath = pathjoin(rootdir, imgname)

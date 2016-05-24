@@ -438,24 +438,6 @@ def writeMAP(imgs, targetDir, targetDiffDir, imageMetaDir, balId,
                       targetdiffout_rootdir, imgmeta_outpath])
 
 
-def debugWorker(job):
-    (Iref, bbs, fIn, destDir, extractedMeta, contestMeta, f1) = job
-
-    I = sh.standardImread(fIn)
-    # trim down or expand I to fit Iref
-    I1 = np.ones([Iref.shape[0], Iref.shape[1]], dtype='float32')
-    h = min(Iref.shape[0], I.shape[0]) - 1
-    w = min(Iref.shape[1], I.shape[1]) - 1
-    I1[1:h, 1:w] = I[1:h, 1:w]
-
-    # check if ballot is flipped
-    res = checkBallotFlipped(I1, Iref)
-    Ichk = res[1]
-    flipped = res[0]
-    # extract target and write result
-    return (Ichk, extractTargets(Ichk, Iref, bbs))
-
-
 def findOutliers(Errs, thr, N):
 
     sidx = np.argsort(Errs)
@@ -768,37 +750,6 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
         cnt += 1
     print 'done.'
     return avg_intensities, bal2targets
-
-
-def fix_ballot_order(balL, proj=None, bal2page=None):
-    """ Using ballot_to_page, correct the image ordering (i.e. 'side0',
-    'side1', ...
-    Input:
-        lst balL: [imgpath_i, ...]
-        obj proj
-    Output:
-        [side0_path, side1_path, ...]
-    """
-    assert issubclass(type(balL), list)
-    if bal2page is None:
-        bal2page = pickle.load(open(os.path.join(proj.projdir_path,
-                                                 proj.ballot_to_page),
-                                    'rb'))
-    out = [None] * len(balL)
-    for imgpath in balL:
-        if imgpath not in bal2page:
-            print "Uh oh, imgpath not in bal2page."
-            pdb.set_trace()
-        assert imgpath in bal2page
-        side = bal2page[imgpath]
-        assert issubclass(type(side), int)
-        out[side] = imgpath
-    assert None not in out
-    return out
-
-
-def hack_stopped():
-    return False
 
 
 def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_locs_map,
