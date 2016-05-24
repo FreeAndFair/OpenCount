@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import pdb
 import traceback
 import math
@@ -850,7 +849,6 @@ def main():
         # is file containing image paths on each line
         imgpaths = [line.strip() for line in open(arg0).readlines() if line]
 
-    t = time.time()
     cnt = 0
     decoding2imgs = {}  # maps {str decoding: [imgpath_i, ...]}
     img2decoding = {}  # maps {imgpath: str decoding}
@@ -908,12 +906,6 @@ original resolution {1}. Rescaling Imark, Icol, H_GAP accordingly...".format((w_
             img2bbs[imgpath] = bbs
         cnt += 1
 
-    total_dur = time.time() - t
-    print "...Done ({0:.6f} s).".format(total_dur)
-    if N is None:
-        print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(len(imgpaths)))
-    else:
-        print "    Average Time Per Image: {0:.6f} s".format(total_dur / float(N))
     print "    Number of Errors: {0}".format(len(errs))
 
     if EXP_PARAMS:

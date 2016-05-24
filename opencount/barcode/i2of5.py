@@ -604,13 +604,11 @@ def main():
     topbot_imgs = [[cv.LoadImage(imP0, cv.CV_LOAD_IMAGE_GRAYSCALE), cv.LoadImage(
         imP1, cv.CV_LOAD_IMAGE_GRAYSCALE)] for imP0, imP1 in topbot_paths]
 
-    t = time.time()
     print "Starting decode_i2of5 on: {0}...".format(imgpath)
     decoded, bbfull, bbmarks = decode_i2of5(
         img, ndigits, topbot_imgs, debug=args.debug, imgP=imgpath)
-    dur = time.time() - t
-    print "...Finished decode_i2of5 ({0} s)".format(dur)
-    print "    Decoded: {0} Barcode BB: {1}  [x,y,w,h])".format(decoded, bbfull)
+    print "    Decoded: {0} Barcode BB: {1}  [x,y,w,h])".format(decoded,
+                                                                bbfull)
 
 if __name__ == '__main__':
     main()

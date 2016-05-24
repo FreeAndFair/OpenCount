@@ -1,6 +1,5 @@
 import os
 import pdb
-import time
 import cPickle as pickle
 import math
 import argparse
@@ -116,7 +115,6 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     # maps {(str srcimgP, str dstimgP): (tuple P_EXPECTED, tuple P_ESTIMATED)}
     errs_map = {}
     userdata = {}
-    t_start = time.time()
 
     def load_img(imP, dtype='float32', normalize=True):
         if alt_refimgpath is not None:
@@ -133,20 +131,17 @@ def eval_testset(testsetdir, align_strat=STRAT_CV,
     else:
         N = NUM_BALLOTS * len(src2dsts[src2dsts.keys()[0]])
     i = 0
-    t_prev = time.time()
     step = N / 10  # Print out at each 10% interval
     step = 1 if step == 0 else step
 
     def update_status():
         if i == 0:
             return False
-        t_cur = time.time()
-        dur_step = t_cur - t_prev
+
         n_remain = N - i
         est = ((dur_step / float(step)) * n_remain) / \
             60.0  # est. time left in minutes
         if i % step == 0:
-            print "...{0:.2f}% complete... ({1} left, {2:.4f} min. left)".format(100.0 * (i / float(N)), n_remain, est)
             return True
         return False
 
@@ -202,8 +197,7 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
             # counter-clockwise.
             if show_progress:
                 did_update = update_status()
-                if did_update:
-                    t_prev = time.time()
+
             if align_strat == STRAT_CV:
                 if dstimgpath is not None:
                     I = standardImread_v2(
@@ -282,7 +276,6 @@ Err={6:.4f}".format(x_, y_, theta_, x, y, theta, err))
                 pdb.set_trace()
             i += 1
 
-    dur_total = time.time() - t_start
     return errs_map, errs, errs_x, errs_y, errs_theta, dur_total, userdata
 
 
@@ -572,28 +565,25 @@ Crops={4}".format(testsetdir, align_strat, num_ballots, num_alignments, str_crop
     # errs_theta, dur)}
     errs_all = {}
     iter_i = 0
-    t_total = time.time()
     for cropx in cropXs:
         for cropy in cropYs:
             if args.crop_box is not None and cropy != cropx:
                 continue
             for rszfac in rszfacs:
                 print "(Iter {0}/{1}) Doing cropx={2:.3f} cropy={3:.3f} rszfac={4:.3f}...".format(iter_i, len(cropXs), cropx, cropy, rszfac)
-                t = time.time()
+
                 # dict errs_map: maps {(srcpath, dstpath): (P_expected,
                 # P_found)}
-                errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
-                                                                                  debug=debug, NUM_BALLOTS=N,
-                                                                                  show_overlays_interactive=interactive_overlays,
-                                                                                  cropx=cropx, cropy=cropy, rszfac=rszfac,
-                                                                                  show_progress=False)
+                errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(
+                    testsetdir, align_strat=align_strat,
+                    debug=debug, NUM_BALLOTS=N,
+                    show_overlays_interactive=interactive_overlays,
+                    cropx=cropx, cropy=cropy, rszfac=rszfac,
+                    show_progress=False)
                 errs_all[(cropx, cropy, rszfac)] = (
                     errs_map, errs, errs_x, errs_y, errs_theta, dur)
-                dur = time.time() - t
-                print "...Finished iter {0}/{1} ({2:.4f}s)".format(iter_i, len(cropXs), dur)
+                print "...Finished iter {0}/{1}".format(iter_i, len(cropXs))
                 iter_i += 1
-    dur_total = time.time()
-    print "Done. ({0:.4f}s total)".format(dur_total - t_total)
     plot_err_vs_crop(errs_all)
 
 
@@ -634,14 +624,14 @@ def experiment_compare_align_strats(args):
     TRANS_TOLS = np.linspace(0.0, 40, num=_GOODBAD_NUMSTEPS, endpoint=True)
     THETA_TOLS = np.linspace(0.0, 0.5, num=_GOODBAD_NUMSTEPS, endpoint=True)
     for i_align, align_strat in enumerate(ALIGN_STRATS_ALL):
-        print "({0}/{1} align_strat={2})".format(i_align + 1, len(ALIGN_STRATS_ALL), align_strat)
-        t = time.time()
-        errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
-                                                                          debug=debug, NUM_BALLOTS=N,
-                                                                          cropx=cropx, cropy=cropy,
-                                                                          show_overlays_interactive=args.interactive)
-        dur = time.time() - t
-        print "Done ({0:.4f}s) (Iter {1}/{2})".format(dur, i_align + 1, len(ALIGN_STRATS_ALL))
+        print "({0}/{1} align_strat={2})".format(
+            i_align + 1, len(ALIGN_STRATS_ALL), align_strat)
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(
+            testsetdir, align_strat=align_strat,
+            debug=debug, NUM_BALLOTS=N,
+            cropx=cropx, cropy=cropy,
+            show_overlays_interactive=args.interactive)
+        print "Done (Iter {1}/{2})".format(i_align + 1, len(ALIGN_STRATS_ALL))
         strat2xerrs[align_strat] = errs_x
         strat2yerrs[align_strat] = errs_y
         strat2terrs[align_strat] = errs_theta
@@ -812,16 +802,16 @@ def experiment_vary_contrast(args):
     # maps {float ALPHA: [(I_inkmean, I_inkstd, Iref_inkmean, Iref_inkstd),
     # ...]}
     alpha2inkstats = {}
-    t_total = time.time()
     for i, alpha in enumerate(ALPHAS):
-        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i + 1, len(ALPHAS), alpha)
-        t = time.time()
-        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
-                                                                                 debug=debug, NUM_BALLOTS=N,
-                                                                                 CONTRAST_ALPHA=alpha,
-                                                                                 show_overlays_interactive=args.interactive)
-        dur = time.time() - t
-        print "Finished iter {0}/{1} ({2:.4f}s)".format(i + 1, len(ALPHAS), dur)
+        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(
+            i + 1, len(ALPHAS), alpha)
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = \
+            eval_testset(
+                testsetdir, align_strat=align_strat,
+                debug=debug, NUM_BALLOTS=N,
+                CONTRAST_ALPHA=alpha,
+                show_overlays_interactive=args.interactive)
+        print "Finished iter {0}/{1}".format(i + 1, len(ALPHAS))
         alpha2L1norms[alpha] = errs
         alpha2xerrs[alpha] = np.abs(errs_x)
         alpha2yerrs[alpha] = np.abs(errs_y)
@@ -829,8 +819,6 @@ def experiment_vary_contrast(args):
         alpha2inkstats[alpha] = userdata['inkstats']
         for (srcpath, dstpath), (P_expected, P_found) in errs_map.iteritems():
             alpha2Ps.setdefault(alpha, []).append((P_expected, P_found))
-    dur_total = time.time() - t_total
-    print "Done. ({0:.4f}s)".format(dur_total)
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
@@ -920,25 +908,23 @@ def experiment_vary_contrast_patches(args):
             (C_ALPHA_HIGH - C_ALPHA_LOW) / C_ALPHA_STEP), endpoint=True)
     alpha2Ps = {}
     alpha2L1norms, alpha2xerrs, alpha2yerrs, alpha2terrs = {}, {}, {}, {}
-    t_total = time.time()
     for i, alpha in enumerate(ALPHAS):
-        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(i + 1, len(ALPHAS), alpha)
-        t = time.time()
-        errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(testsetdir, align_strat=align_strat,
-                                                                          debug=debug, NUM_BALLOTS=N,
-                                                                          CONTRAST_NUM=C_N, CONTRAST_W=C_W, CONTRAST_H=C_H, CONTRAST_ALPHA=alpha,
-                                                                          CONTRAST_BBOXES=contrast_bboxes,
-                                                                          show_overlays_interactive=args.interactive)
-        dur = time.time() - t
-        print "Finished iter {0}/{1} ({2:.4f}s)".format(i + 1, len(ALPHAS), dur)
+        print "({0}/{1}) Evaluating with alpha={2:.3f}".format(
+            i + 1, len(ALPHAS), alpha)
+
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, _ = eval_testset(
+            testsetdir, align_strat=align_strat,
+            debug=debug, NUM_BALLOTS=N,
+            CONTRAST_NUM=C_N, CONTRAST_W=C_W, CONTRAST_H=C_H, CONTRAST_ALPHA=alpha,
+            CONTRAST_BBOXES=contrast_bboxes,
+            show_overlays_interactive=args.interactive)
+        print "Finished iter {0}/{1}".format(i + 1, len(ALPHAS))
         alpha2L1norms[alpha] = errs
         alpha2xerrs[alpha] = np.abs(errs_x)
         alpha2yerrs[alpha] = np.abs(errs_y)
         alpha2terrs[alpha] = np.abs(errs_theta)
         for (srcpath, dstpath), (P_expected, P_found) in errs_map.iteritems():
             alpha2Ps.setdefault(alpha, []).append((P_expected, P_found))
-    dur_total = time.time() - t_total
-    print "Done. ({0:.4f}s)".format(dur_total)
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))
@@ -1036,24 +1022,22 @@ def experiment_alt_refimg(args):
     alt_refimgsdir = args.alt_refimg
     alt_refimgpaths = get_refimgpaths(alt_refimgsdir)
     ref2xerrs, ref2yerrs, ref2terrs, ref2L1norms = {}, {}, {}, {}
-    t_total = time.time()
     for i, refimgpath in enumerate(sorted(alt_refimgpaths)):
-        print "({0}/{1}) Trying refimg={2}".format(i + 1, len(alt_refimgpaths), refimgpath)
-        t = time.time()
+        print "({0}/{1}) Trying refimg={2}".format(
+            i + 1, len(alt_refimgpaths), refimgpath)
 
-        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
-                                                                                 debug=debug, NUM_BALLOTS=N,
-                                                                                 alt_refimgpath=refimgpath,
-                                                                                 minArea=np.power(
-                                                                                     2, 14),
-                                                                                 show_overlays_interactive=args.interactive)
+        errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = \
+            eval_testset(testsetdir, align_strat=align_strat,
+                         debug=debug, NUM_BALLOTS=N,
+                         alt_refimgpath=refimgpath,
+                         minArea=np.power(2, 14),
+                         show_overlays_interactive=args.interactive)
         ref2xerrs[refimgpath] = np.abs(errs_x)
         ref2yerrs[refimgpath] = np.abs(errs_y)
         ref2terrs[refimgpath] = np.abs(errs_theta)
         ref2L1norms[refimgpath] = errs
 
-        dur = time.time() - t
-        print "Done with iter {0}/{1} ({2:.4f}s)".format(i + 1, len(alt_refimgpaths), dur)
+        print "Done with iter {0}/{1}".format(i + 1, len(alt_refimgpaths))
 
     fig0 = plt.figure()
     fig0.suptitle("Experiment: Alt. Refimgs. (testset={0} align_strat={1} numBallots={2} numAligns={3})".format(
@@ -1084,9 +1068,6 @@ def experiment_alt_refimg(args):
     plot_L1norms.set_xlabel("L1 norm (ranges from [0.0, 1.0])")
     plot_stacked_hists(ref2L1norms, plot_L1norms, labels=refpath2refname)
 
-    dur_total = time.time() - t_total
-    print "Done ({0:.4f}s total)".format(dur_total)
-
     fig0.show()
 
     pdb.set_trace()
@@ -1114,12 +1095,10 @@ def experiment_vary_minarea(args):
     ks = np.linspace(k_low, k_high, num=math.ceil(
         (k_high - k_low) / k_step), endpoint=True)
 
-    t_total = time.time()
     k2xerrs, k2yerrs, k2terrs, k2L1norms = {}, {}, {}, {}
     for i, k in enumerate(ks):
         minArea = np.power(2, k)
         print "({0}/{1}) Running with minArea={2}".format(i + 1, len(ks), minArea)
-        t = time.time()
         errs_map, errs, errs_x, errs_y, errs_theta, dur, userdata = eval_testset(testsetdir, align_strat=align_strat,
                                                                                  debug=debug, NUM_BALLOTS=N,
                                                                                  minArea=minArea,
@@ -1129,10 +1108,7 @@ def experiment_vary_minarea(args):
         k2yerrs[k] = np.abs(errs_y)
         k2terrs[k] = np.abs(errs_theta)
         k2L1norms[k] = errs
-        dur = time.time() - t
-        print "Iter Finished ({0:.4f}s) ({1}/{2})".format(dur, i + 1, len(ks))
-
-    dur_total = time.time() - t_total
+        print "Iter Finished ({1}/{2})".format(i + 1, len(ks))
 
     def get_nums():
         src2dsts = pickle.load(open(os.path.join(testsetdir, 'src2dsts.p')))

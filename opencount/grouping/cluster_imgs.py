@@ -1,7 +1,4 @@
-import sys
 import os
-import time
-import pdb
 
 from os.path import join as pathjoin
 import numpy as np
@@ -12,6 +9,7 @@ import cv
 import cluster_fns
 import pixel_reg.imagesAlign as imagesAlign
 import util
+from util import debug
 
 """
 A script designed to cluster images.
@@ -119,17 +117,15 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
         Returns the clustering, in the form:
             {clusterID: [impath_i, ...]}
     """
-    t_total = time.time()
 
     MIN_DIM = 25
     MAX_DIM = 300
-    t = time.time()
     data = imgpaths_to_mat(imgpaths, bb_map=bb_map, do_align=do_align,
                            MIN_DIM=MIN_DIM, MAX_DIM=MAX_DIM, imgCache=imgCache,
                            bindataP=bindataP)
     debug("(Kmeans) data.nbytes: {0}    ({1} MB)",
           data.nbytes, data.nbytes / 1e6)
-    dur_imgs2mat = time.time() - t
+
     '''
     if bb_map is None:
         bb_map = {}
@@ -158,23 +154,13 @@ def cluster_imgs_kmeans(imgpaths, bb_map=None, k=2, do_chopmid=False, chop_prop=
     debug('    data.shape: {0}', data.shape)
 
     # 1.) Call scipy's kmeans implementation
-    t = time.time()
     centroids, _ = scipy.cluster.vq.kmeans(data, k)
-    dur_kmeans = time.time() - t
     # 2.) Assign each image to a cluster
     idx, dists = scipy.cluster.vq.vq(data, centroids)
     clusters = {}
     for i, clusterid in enumerate(idx):
         clusters.setdefault(clusterid, []).append(imgpaths[i])
 
-    dur_total = time.time() - t_total
-    debug("Split K_Means finished ({0:.4f}s total)", dur_total)
-    debug("    imgs2mat: {0:.5f}s ({1:.4f}%)",
-          dur_imgs2mat,
-          100.0 * (dur_imgs2mat / dur_total))
-    debug("    kmeans  : {0:.5f}s ({1:.4f}%)",
-          dur_kmeans,
-          100.0 * (dur_kmeans / dur_total))
     return clusters
 
 

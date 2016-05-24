@@ -1,4 +1,3 @@
-import time
 import threading
 import shutil
 import os
@@ -16,7 +15,6 @@ import pixel_reg.doGrouping as doGrouping
 import pixel_reg.part_match as part_match
 import grouping.digit_group_new as digit_group_new
 import util_gui
-import config
 
 from util import debug, error
 
@@ -140,9 +138,6 @@ class RunGroupingMainPanel(wx.Panel):
         pickle.dump(state, open(self.stateP, 'wb'), pickle.HIGHEST_PROTOCOL)
 
     def run_imgbased_grouping(self):
-        if config.TIMER:
-            config.TIMER.start_task("Grouping_ImgBased_CPU")
-        self._t_imggrp = time.time()
         if not exists_imgattr(self.proj):
             self.on_imggrouping_done(None)
         else:
@@ -208,18 +203,12 @@ class RunGroupingMainPanel(wx.Panel):
             Note: Only contains grouping-results for attributes that are NOT
                   consistent within each partition.
         """
-        if config.TIMER:
-            config.TIMER.stop_task("Grouping_ImgBased_CPU")
-        self._dur_imggrp = time.time() - self._t_imggrp
-        debug("Finished ImgBased-Grouping ({0:.4f}s)", self._dur_imggrp)
         self.extract_results = imggrouping_results
         doGrouping.JOBID_GROUPING_IMGBASED.done()
 
         self.run_digitbased_grouping()
 
     def run_digitbased_grouping(self):
-        if config.TIMER:
-            config.TIMER.start_task("Grouping_DigitBased_CPU")
 
         def is_digit_part_consistent(proj):
             attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
@@ -228,7 +217,6 @@ class RunGroupingMainPanel(wx.Panel):
                     return attr['grp_per_partition']
             raise Exception("Digit Attrbute Must Exist!")
 
-        self._t_digitgrp = time.time()
         if not exists_digattr(self.proj):
             self.on_digitgrouping_done((None, None))
         elif is_digit_part_consistent(self.proj):
@@ -272,12 +260,9 @@ class RunGroupingMainPanel(wx.Panel):
                            where ID is partitionID/ballotID depending on MODE.
              int DIGITDIST)
         """
-        if config.TIMER:
-            config.TIMER.stop_task("Grouping_DigitBased_CPU")
         digitgrouping_results, digit_dist = digitgrouping_results_tpl
         if digit_dist is not None:
             self.digitdist = digit_dist
-        self._dur_digitgrp = time.time() - self._t_digitgrp
         debug("Finished DigitGrouping ({0:.4f}s)", self._dur_digitgrp)
         self.digitgroup_results = digitgrouping_results
         part_match.JOBID_GROUPING_DIGITBASED.done()
@@ -286,18 +271,9 @@ class RunGroupingMainPanel(wx.Panel):
 
     def on_grouping_done(self):
         """ Both Image-based and Digit-based grouping is finished. """
-        dur_total = time.time() - self._t_total
-        dur_total = 0.0001 if dur_total == 0.0 else dur_total  # avoid div-by-0
-        debug("Grouping Done ({0:.4f}s)", dur_total)
-        debug("    Image-Based: {0:.2f}s ({1:.4f}%)",
-              self._dur_imggrp,
-              100.0 * (self._dur_imggrp / dur_total))
-        debug("    Digit-Based: {0:.2f}s ({1:.4f}%)",
-              self._dur_digitgrp,
-              100.0 * (self._dur_digitgrp / dur_total))
 
-        wx.MessageDialog(self, message="Grouping is finished ({0:.2f} seconds elapsed).\n\n\
-You may proceed to the next task.".format(dur_total),
+        wx.MessageDialog(self, message="Grouping is finished.\n\n"
+                         "You may proceed to the next task.",
                          style=wx.OK,
                          caption="Grouping Completed").ShowModal()
         self.Enable()
@@ -362,7 +338,6 @@ the state files from the prior grouping will NOT be deleted."
             remove_related_files()
 
         debug("Starting Grouping")
-        self._t_total = time.time()
         self.btn_rungrouping.Disable()
         self.run_imgbased_grouping()
 

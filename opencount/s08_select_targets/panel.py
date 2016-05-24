@@ -175,8 +175,6 @@ class SelectTargetsMainPanel(OpenCountPanel):
         if not self.restore_session():
             manager = multiprocessing.Manager()
             queue = manager.Queue()
-            if config.TIMER:
-                config.TIMER.start_task("SelectTargets_GlobalAlign_CPU")
             tlisten = ListenThread(queue, self.GLOBALALIGN_JOBID)
             workthread = GlobalAlignThread(groups, self.img2flip, align_outdir, ocrtmpdir,
                                            manager, queue, self.on_align_done,
@@ -195,8 +193,6 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 None, self.img2flip, seltargets_stateP, ocrtmpdir)
 
     def on_align_done(self, groups_align_map, ocrtmpdir):
-        if config.TIMER:
-            config.TIMER.stop_task("SelectTargets_GlobalAlign_CPU")
         groups_align = []
         for groupid in sorted(groups_align_map.keys()):
             ballots = groups_align_map[groupid]
@@ -842,8 +838,6 @@ voting target on this ballot.")
                 will skip the auto-cropping.
         """
         self.Disable()
-        if config.TIMER:
-            config.TIMER.start_task("SelectTargets_TempMatch_CPU")
         if patch is None:
             # 1.) Do an autofit.
             patch_prefit = img.crop((box.x1, box.y1, box.x2, box.y2))
@@ -917,8 +911,6 @@ voting target on this ballot.")
                      abs(b1.y1 - b2.y1) <= h / 2.0) or
                     is_overlap(b1, b2) or
                     is_overlap(b2, b1))
-        if config.TIMER:
-            config.TIMER.stop_task("SelectTargets_TempMatch_CPU")
         # 1.) Add the new matches to self.BOXES, but also filter out
         # any matches in RESULTS that are too close to previously-found
         # matches.
@@ -1198,8 +1190,6 @@ before running the automatic contest detection routine.")
             dlg.ShowModal()
             return
 
-        if config.TIMER:
-            config.TIMER.start_task("SelectTargets_InferContestRegions_CPU")
         imgpaths_exs = []  # list of [imgpath_i, ...]
         # Arbitrarily choose the first one Ballot from each partition
         for partition_idx, imgpaths_sides in enumerate(self.partitions):
@@ -1247,8 +1237,6 @@ before running the automatic contest detection routine.")
         #     so that LabelContests does the right thing.
             self.GetParent().proj.infer_bounding_boxes = True
             self.Refresh()
-            if config.TIMER:
-                config.TIMER.stop_task("SelectTargets_InferContestRegions_CPU")
 
         ocrtempdir = self.ocrtempdir
 
@@ -2173,15 +2161,12 @@ class BoxDrawPanel(ImagePanel):
             self.Refresh()
 
     def onPaint(self, evt):
-        total_t = time.time()
         dc = ImagePanel.onPaint(self, evt)
         if self.isResize:
             dboxes = [b for b in self.boxes if b != self.box_resize]
         else:
             dboxes = self.boxes
-        t = time.time()
         self.drawBoxes(dboxes, dc)
-        dur = time.time() - t
         if self.isCreate:
             # Draw Box-Being-Created
             can_box = self.box_create.copy().canonicalize()
@@ -2189,7 +2174,6 @@ class BoxDrawPanel(ImagePanel):
         if self.isResize:
             resize_box_can = self.box_resize.copy().canonicalize()
             self.drawBox(resize_box_can, dc)
-        total_dur = time.time() - total_t
         return dc
 
     def drawBoxes(self, boxes, dc):
@@ -2244,19 +2228,17 @@ class BoxDrawPanel(ImagePanel):
             draw_border(npimg_cpy, contestbox,
                         thickness=thickness, color=(0, 0, 0))
             if contestbox.is_sel:
-                transparent_color = np.array(
-                    contestbox.shading_selected_clr) if contestbox.shading_selected_clr else None
+                transparent_color = np.array(contestbox.shading_selected_clr) \
+                    if contestbox.shading_selected_clr else None
             else:
                 transparent_color = np.array(
                     contestbox.colour) if contestbox.colour else None
             if transparent_color is not None:
-                t = time.time()
                 _x1, _y1 = self.img2c(contestbox.x1, contestbox.y1)
                 _x2, _y2 = self.img2c(contestbox.x2, contestbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
                 np_rect[:, :] = np_rect[:, :] * 0.7
                 np_rect[:, :] = np_rect[:, :] + transparent_color * 0.3
-                dur_wxbmp2np = time.time() - t
 
             contestbox._dirty = False
 
@@ -2271,22 +2253,18 @@ class BoxDrawPanel(ImagePanel):
                 transparent_color = np.array(
                     targetbox.shading_clr) if targetbox.shading_clr else None
             if transparent_color is not None:
-                t = time.time()
                 _x1, _y1 = self.img2c(targetbox.x1, targetbox.y1)
                 _x2, _y2 = self.img2c(targetbox.x2, targetbox.y2)
                 np_rect = npimg_cpy[max(0, _y1):_y2, max(0, _x1):_x2]
                 np_rect[:, :] = np_rect[:, :] * 0.7
                 np_rect[:, :] = np_rect[:, :] + transparent_color * 0.3
-                dur_wxbmp2np = time.time() - t
 
             targetbox._dirty = False
 
         h, w = npimg_cpy.shape[:2]
-        t = time.time()
         _image = wx.EmptyImage(w, h)
         _image.SetData(npimg_cpy.tobytes())
         bitmap = _image.ConvertToBitmap()
-        dur_img2bmp = time.time() - t
 
         self.imgbitmap = bitmap
         self.Refresh()
@@ -2303,9 +2281,7 @@ class BoxDrawPanel(ImagePanel):
             list box: (x1, y1, x2, y2)
             wxDC DC:
         """
-        total_t = time.time()
 
-        t = time.time()
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         drawops = box.get_draw_opts()
         dc.SetPen(wx.Pen(*drawops))
@@ -2313,12 +2289,10 @@ class BoxDrawPanel(ImagePanel):
         h = int(round(abs(box.y2 - box.y1) * self.scale))
         client_x, client_y = self.img2c(box.x1, box.y1)
         dc.DrawRectangle(client_x, client_y, w, h)
-        dur_drawrect = time.time() - t
 
         transparent_color = np.array([200, 0, 0]) if isinstance(
             box, TargetBox) else np.array([0, 0, 200])
         if self.imgbitmap and type(box) in (TargetBox, ContestBox):
-            t = time.time()
             _x1, _y1 = self.img2c(box.x1, box.y1)
             _x2, _y2 = self.img2c(box.x2, box.y2)
             _x1, _y1 = max(0, _x1), max(0, _y1)
@@ -2333,24 +2307,18 @@ class BoxDrawPanel(ImagePanel):
             np_rect = wxBitmap2np_v2(sub_bitmap, is_rgb=True)
             np_rect[:, :] = np_rect[:, :] * 0.7
             np_rect[:, :] = np_rect[:, :] + transparent_color * 0.3
-            dur_wxbmp2np = time.time() - t
 
             _h, _w, channels = np_rect.shape
 
-            t = time.time()
             _image = wx.EmptyImage(_w, _h)
             _image.SetData(np_rect.tobytes())
             bitmap = _image.ConvertToBitmap()
-            dur_img2bmp = time.time() - t
 
-            t = time.time()
             memdc = wx.MemoryDC()
             memdc.SelectObject(bitmap)
             dc.Blit(client_x, client_y, _w, _h, memdc, 0, 0)
             memdc.SelectObject(wx.NullBitmap)
-            dur_memdcBlit = time.time() - t
 
-        t = time.time()
         if isinstance(box, TargetBox) or isinstance(box, ContestBox):
             # Draw the 'grabber' circles
             CIRCLE_RAD = 2
@@ -2371,10 +2339,6 @@ class BoxDrawPanel(ImagePanel):
             dc.DrawCircle(client_x + w, client_y + h,
                           CIRCLE_RAD)           # Lower-Right
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
-
-        dur_drawgrabbers = time.time() - t
-
-        total_dur = time.time() - total_t
 
 
 class TemplateMatchDrawPanel(BoxDrawPanel):
@@ -3276,7 +3240,6 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
     # near the center, then apply the discovered transformation H to
     # the entire image. Works better than working on the entire image.
     partitions_align = {}  # maps {partitionID: [[imgpath_i, ...], ...]}
-    t = time.time()
     debug("...this process is aligning {0} ballots...",
           sum(map(lambda t: len(t[1]),
                   partitions),
@@ -3320,7 +3283,6 @@ def align_partitions(partitions, (outrootdir, img2flip), queue=None, result_queu
                 partitions_align[partitionid].append(curBallot)
             if queue:
                 queue.put(True)
-        dur = time.time() - t
         if result_queue:
             result_queue.put(partitions_align)
         return partitions_align
@@ -3415,7 +3377,6 @@ def wxImage2np(Iwx, is_rgb=True):
 
 def wxBitmap2np_v2(wxBmp, is_rgb=True):
     """ Converts wxBitmap to numpy array """
-    total_t = time.time()
 
     w, h = wxBmp.GetSize()
 
@@ -3423,7 +3384,6 @@ def wxBitmap2np_v2(wxBmp, is_rgb=True):
     wxBmp.CopyToBuffer(npimg, format=wx.BitmapBufferFormat_RGB)
     npimg = npimg.reshape(h, w, 3)
 
-    total_dur = time.time() - total_t
     return npimg
 
 

@@ -1,5 +1,4 @@
 import os
-import time
 import traceback
 import argparse
 import threading
@@ -132,13 +131,11 @@ class LabelDigitsPanel(OpenCountPanel):
 
         if not os.path.exists(extracted_digitpatches_fulldir):
             print "Extracting Digit Patches..."
-            t = time.time()
             # TODO: Add progress bar here
             patch2temp = do_extract_digitbased_patches(self.proj,
                                                        GRP_MODE_ALL_BALLOTS_NUM,
                                                        GRP_MODE_ALL_BALLOTS_NUM_MIN,
                                                        GRP_MODE_ALL_BALLOTS_NUM_MAX)
-            print "...Finished Extracting Digit Patches ({0:.4f} s).".format(time.time() - t)
             pickle.dump(patch2temp, open(pathjoin(proj.projdir_path,
                                                   proj.digitpatch2temp),
                                          'wb'))
@@ -625,7 +622,6 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
             bb = [0, h - 1, 0, w - 1]
             # list MATCHES: [(imgath, score1, score2, patch, i1, i2, j1, j2,
             # rszFac), ...]
-            t = time.time()
 
             imgpatch = self.img1.astype('float32') / 255.0
 
@@ -643,7 +639,7 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
                 else:
                     manager = progress_queue._manager
                 queue = manager.Queue()
-                t_start = time.time()
+
                 step = int(math.ceil(len(self.imgpaths) / float(NPROCS)))
                 for procnum in xrange(NPROCS):
                     i_start = procnum * step
@@ -668,12 +664,11 @@ def do_tempmatch_async(patch, imgpaths, callback, outdir,
                 matches = []
                 for i, (proc, numimgs) in enumerate(procs):
                     proc.join()
-                    dur = time.time() - t_start
+
                     p_matches = queue.get()
                     print "(Process_{0}) Finished temp matching, got {1} matches ({2:.4f}s, {3} images total)".format(i, len(p_matches), dur, numimgs)
                     matches.extend(p_matches)
 
-            dur = time.time() - t
             print "DONE with temp matching. Found: {0} matches    ({1:.4f}s, {2:.5f}s per image)".format(len(matches), dur, dur / float(len(self.imgpaths)))
             GLOBAL_ID += len(matches)
             matches_size = asizeof(matches)

@@ -14,9 +14,8 @@ import itertools
 from grouping.partask import do_partask
 from vendors import Vendor
 import util
-import numpy as np
-from scipy.optimize import fmin
-import s08_select_targets.panel  # as select_targets XXXX
+
+# import s08_select_targets.panel as select_targets  # XXX
 
 
 def pdb_on_crash(f):
@@ -684,8 +683,6 @@ def extract_contest(args):
     else:
         raise Error("Wrong number of args")
 
-    now = time.time()
-
     print len(giventargets), giventargets
 
     print "processing", image_path
@@ -758,7 +755,6 @@ def extract_contest(args):
     # os.popen("open tmp/*")
     # exit(0)
 
-    print "Took", time.time() - now
     queue.put(1)
 
     if returnimage:
@@ -1196,7 +1192,6 @@ def group_by_pairing(contests_text, CONST):
             print 'eq', k1, k2, dmap, best
         contests[k1].similarity[k2] = dmap
     print "Created"
-    now = time.time()
     for (k1, k2), (dmap, best) in diff:
         if best[0] > CONST:
             continue
@@ -1207,7 +1202,6 @@ def group_by_pairing(contests_text, CONST):
         # print 'data', contests[k1].writein_num, contests[k2].writein_num
         # print contests_text[k1][2][1]
         # print contests_text[k2][2][1]
-    print "taken", time.time() - now
     print "Traverse"
     seen = {}
     res = []

@@ -15,7 +15,6 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 
 import util
-import config
 import s08_select_targets.panel as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
@@ -351,9 +350,6 @@ Would you like to review the ballot annotations?",
             queue = manager.Queue()
             tlisten = ThreadListener(queue, JOBID_COMPUTE_MULT_EXEMPLARS)
             tlisten.start()
-            if config.TIMER:
-                config.TIMER.start_task(
-                    "BallotAttributes_ComputeMultExemplars_CPU")
             t = ThreadComputeMultExemplars(self.proj, self.boxes_map, self.bal2imgs, self.img2page,
                                            self.patch2bal, self.bal2patches, attrprops,
                                            queue, JOBID_COMPUTE_MULT_EXEMPLARS,
@@ -368,8 +364,6 @@ Would you like to review the ballot annotations?",
             self.on_compute_mult_exemplars_done(None)
 
     def on_compute_mult_exemplars_done(self, multexemplars_map):
-        if config.TIMER:
-            config.TIMER.stop_task("BallotAttributes_ComputeMultExemplars_CPU")
         if multexemplars_map is not None:
             pickle.dump(multexemplars_map, open(pathjoin(self.proj.projdir_path,
                                                          self.proj.multexemplars_map), 'wb'))
@@ -578,8 +572,6 @@ Would you like to review the ballot annotations?",
                                     OVERLAY_EXEMPLAR_IMGNAME)
 
         self.Disable()
-        if config.TIMER:
-            config.TIMER.start_task("BallotAttributes_FindAttrMatches_CPU")
         manager = multiprocessing.Manager()
         queue_mygauge = manager.Queue()
         jobid = JOBID_FIND_ATTR_MATCHES
@@ -608,8 +600,6 @@ Would you like to review the ballot annotations?",
             dict PATCHPATH2BAL: {str patchpath: int ballotid}
             obj ATTRBOX:
         """
-        if config.TIMER:
-            config.TIMER.stop_task("BallotAttributes_FindAttrMatches_CPU")
         # Filter matches for only high-quality matches (w.r.t.
         # self.tm_threshold)
         patchpaths_filtered = []
@@ -624,8 +614,6 @@ Would you like to review the ballot annotations?",
         for patchpath_bad in patchpaths_bad:
             os.remove(patchpath_bad)
 
-        if config.TIMER:
-            config.TIMER.start_task("BallotAttributes_VerifyMatches_H")
         callback = lambda verifyresults: self.on_verifymatches_done(
             verifyresults, matches, patchpath2bal, attrbox)
         exemplar_imgpath = pathjoin(self.proj.projdir_path,
@@ -645,8 +633,6 @@ Would you like to review the ballot annotations?",
             dict PATCHPATH2BAL: {str patchpath: int ballotid}
             obj ATTRBOX:
         """
-        if config.TIMER:
-            config.TIMER.stop_task("BallotAttributes_VerifyMatches_H")
         self.f.Close()
         self.Enable()
         good_matches = verifyresults.get(CheckImageEquals.TAG_YES, ())

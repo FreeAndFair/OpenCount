@@ -150,8 +150,6 @@ class MainFrame(wx.Frame):
 
         if self.project:
             self.project.save()
-        if config.TIMER:
-            config.TIMER.dump()
 
         if old != -1:
             curpanel = self.notebook.GetPage(old)
@@ -238,9 +236,6 @@ class MainFrame(wx.Frame):
         """
         if self.project:
             self.project.save()
-        if config.TIMER:
-            config.TIMER.stop_task("TOTALTIME")
-            config.TIMER.dump()
         for fn in Project.closehook:
             fn()
         evt.Skip()
@@ -277,7 +272,6 @@ def main():
             now.year, now.month, now.day, now.hour, now.minute)
         # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
         timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
-        config.TIMER = util.MyTimer(timing_filepath)
         debug("User passed in '--time': Saving timing statistics to {0}",
               timing_filepath)
 

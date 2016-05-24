@@ -1,16 +1,10 @@
-import pickle
 import pdb
-import time
 import copy
-import random
-import scipy
-import scipy.misc
 import numpy as np
 import cv
 
 
 import common
-import partask
 from pixel_reg import shared
 
 _i = 0
@@ -104,19 +98,17 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
         A (hopefully smaller) dict mapping {label: ((imgpath_i, bb_i), ...)}
     """
     def get_closest_ncclk(imgpath, img, bb, imgpaths2, bbs2):
-        # t = time.time()
-        # print "Running find_patch_matchesV1..."
         if bb is None:
             bb = [0, img.shape[0] - 1, 0, img.shape[1] - 1]
             bbs2 = None
-        # matches = shared.find_patch_matchesV1(img, bb, imgpaths2, bbSearches=bbs2, threshold=0.0, doPrep=False)
+
         matches = temp_match(img, bb, imgpaths2, bbSearches=bbs2)
-        # dur = time.time() - t
-        # print "...Finished Running find_patch_matchesV1 ({0} s)".format(dur)
+
         if not matches:
             print "Uhoh, no matches found for imgpath {0}.".format(imgpath)
             pdb.set_trace()
             return 9999, bb
+
         matches = sorted(matches, key=lambda t: t[2])
         imgpath, bb, rszFac = (matches[0][0], matches[0][4:8], matches[0][8])
         bb = map(lambda c: int(round(c / rszFac)), bb)
@@ -147,12 +139,10 @@ def compute_exemplars_fullimg(mapping, MAXCAP=None):
         print "Chose starting exemplar {0}, with a score of {1}".format(pathL, scoreL)
         imgpath, bb = tuples.pop(idxL)
         exemplars[label] = [(imgpath, bb)]
-    t = time.time()
     print "Making tasks..."
     tasks = make_tasks(mapping)
     init_len_tasks = len(tasks)
-    dur = time.time() - t
-    print "...Finished Making tasks ({0} s)".format(dur)
+
     # tasks = make_interleave_gen(*[(imgpath, bb) for (imgpath, bb) in
     # itertools.izip(imgpath, bbs)
     counter = {}  # maps {str label: int count}

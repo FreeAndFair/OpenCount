@@ -250,7 +250,6 @@ def main():
                     [cv.LoadImage(i2of5.TOP_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE),
                      cv.LoadImage(i2of5.BOT_GUARD_SKINNY_IMGP, cv.CV_LOAD_IMAGE_GRAYSCALE)]]
     errs = []
-    t = time.time()
     if not args.patch:
         for imgpath in imgpaths:
             bcs, isflip, bcloc, bbstripes = decode(
@@ -316,10 +315,6 @@ def main():
     elif args.patch:
         n = args[2]
         decoded = decode_patch(imgpath, n)
-    dur = time.time() - t
-    print "...Time elapsed: {0} s".format(dur)
-    avg_time = dur / len(imgpaths)
-    print "Avg. Time per ballot ({0} ballots): {1} s".format(len(imgpaths), avg_time)
     print "    Number of Errors: {0}".format(len(errs))
     print errs
 

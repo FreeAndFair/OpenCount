@@ -199,18 +199,11 @@ def test_diebold():
 
     for i, (imgpath, (orient, decoding)) in enumerate(test_data.iteritems()):
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
-        t = time.time()
         syms = parse_patch(I, cv.GetSize(mark) if orient ==
                            HORIZONTAL else cv.GetSize(mark_rot), orient=orient)
-        dur = time.time() - t
 
         decoding_guess = ''.join(t[0] for t in syms)
-        is_correct = decoding == decoding_guess
-        if is_correct:
-            print "== CORRECT ({0:.4f}s)".format(dur)
-
-        else:
-            print "== WRONG ({0:.4f}s) ({1}!={2})".format(dur, decoding_guess, decoding)
+        print decoding == decoding_guess
         print "    {0}".format(imgpath)
 
         # Draw marks

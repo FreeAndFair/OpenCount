@@ -15,7 +15,6 @@ from grouping.verify_overlays_new import VerifyOrFlagOverlaysPanel, \
     VerifyOrFlagOverlaysFooter, VerifyOrFlagOverlays, VerifyOverlaysMultCats
 
 import util_gui
-import config
 import ffwx
 from util import debug, error
 
@@ -54,9 +53,6 @@ class VerifyGroupingMainPanel(wx.Panel):
         stateP = project.path('_state_correct_grouping.p')
         self.proj.addCloseEvent(self.save_session)
         self.stateP = stateP
-
-        if config.TIMER:
-            config.TIMER.start_task("VerifyGrouping_Verify_H")
 
         if not self.restore_session():
             self.group_exemplars = get_group_exemplars(project)
@@ -382,8 +378,6 @@ class VerifyGroupingMainPanel(wx.Panel):
             dict QUARANTINED_RESULTS: {attrtype: [patchpath_i, ...]}
         """
         debug("verify done")
-        if config.TIMER:
-            config.TIMER.stop_task("VerifyGrouping_Verify_H")
         attrs = pickle.load(open(self.proj.ballot_attributesfile, 'rb'))
         if exists_imgattr(self.proj):
             # Convert the attrpatchpaths in VERIFY_RESULTS back into

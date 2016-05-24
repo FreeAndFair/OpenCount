@@ -84,9 +84,6 @@ class PartitionMainPanel(ffwx.Panel):
         Also, choose a set of exemplars for each partition and save
         them as PARTITION_EXMPLS: {partitionID: [int BallotID_i, ...]}
         """
-        if config.TIMER:
-            config.TIMER.start_task("Partition_ExportResults_CPU")
-        t_total = time.time()
 
         # partitioning: {int partitionID: [int ballotID_i, ...]}
         partitions_map = {}
@@ -148,11 +145,7 @@ class PartitionMainPanel(ffwx.Panel):
             msg += "What should OpenCount do?"
 
             dlg = BadPagesDialog(self, msg, pages_counter)
-            if config.TIMER:
-                config.TIMER.start_task("Partition_DialogBadPages_H")
             status = dlg.ShowModal()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_DialogBadPages_H")
             if status == BadPagesDialog.ID_TREATNORMAL:
                 # map everything to the 0 page
                 for decoderPage in pages_norm_map.keys()[:]:
@@ -308,15 +301,8 @@ class PartitionMainPanel(ffwx.Panel):
         pickle.dump(partition_exmpls, open(partition_exmpls_outP, 'wb'),
                     pickle.HIGHEST_PROTOCOL)
 
-        dur_total = time.time() - t_total
-        debug("(Partition) Total Time to Export Results: {0:.8f}s",
-              dur_total)
-
         JOBID_EXPORT_RESULTS.done()
         thread_listen._stop.set()
-
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_ExportResults_CPU")
 
         wx.CallAfter(self.partitionpanel.on_export_done)
 
@@ -621,9 +607,6 @@ class PartitionPanel(ScrolledPanel):
                 due to a read/load error (e.g. IOError).
         """
         debug("Decoding Done!")
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_Decode_CPU")
-            config.TIMER.start_task("Partition_HandleDecodingResults_CPU")
         debug('Errors ({0} total): {1}', len(err_imgpaths), err_imgpaths)
         debug('IOErrors ({0} total): {1}', len(ioerr_imgpaths), ioerr_imgpaths)
         # Save the raw decoding output, in case for later usage
@@ -637,12 +620,8 @@ class PartitionPanel(ScrolledPanel):
         img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
         bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
         if err_imgpaths:
-            if config.TIMER:
-                config.TIMER.start_task("Partition_HandleErrs_H")
             dlg = LabelDialog(self, err_imgpaths)
             status = dlg.ShowModal()
-            if config.TIMER:
-                config.TIMER.stop_task("Partition_HandleErrs_H")
             # dict ERRS_CORRECTED: {str imgpath: str label or
             # ID_Quarantine/ID_Discard}
             self.errs_corrected = dlg.label_res
@@ -737,8 +716,6 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         debug("{0} Quarantined Ballots, {1} Discarded Ballots",
               len(self.quarantined_bals),
               len(self.discarded_bals))
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_HandleDecodingResults_CPU")
         self.start_verify(img2decoding, flipmap, verifypatch_bbs)
 
     def start_verify(self, img2decoding, flipmap, verifypatch_bbs):
@@ -773,8 +750,6 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                                                        manager, queue_mygauge,
                                                        thread_updateMyGauge,
                                                        callback=self.on_extract_done)
-        if config.TIMER:
-            config.TIMER.start_task("Partition_ExtractBarcodePatches_CPU")
         thread_doextract.start()
 
         gauge = util.MyGauge(self, 1, thread=thread_doextract,
@@ -795,8 +770,6 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             dict IMG2DECODING: {imgpath: (str decoding_0, ...)}
         """
         self.JOBID_EXTRACT_BARCODE_MARKS.done()
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_ExtractBarcodePatches_CPU")
         cattag = 'BarcodeCategory'
         imgcats = {}  # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
         exmplcats = {}  # maps {cat_tag: {grouptag: [imgpath_i, ...]}}
@@ -808,8 +781,6 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                     bc_val, []).append(patchpath)
         callback = lambda verifyRes: self.on_verify_done(
             verifyRes, patch2stuff, img2decoding, flipmap, verifypatch_bbs)
-        if config.TIMER:
-            config.TIMER.start_task("Partition_VerifyBarcodeMarks_H")
         f = VerifyOverlaysFrame(self, imgcats, exmplcats, callback)
         f.Maximize()
         f.Show()
@@ -827,8 +798,6 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
             Will be None if skipVerify was True.
         """
         debug("...barcode patch verification done!")
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_VerifyBarcodeMarks_H")
         # maps {str bc_val: [(imgpath, (x1,y1,x2,y2), userdata), ...]}
         verified_decodes = {}
         if skipVerify:
@@ -851,15 +820,11 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
                 manual_labeled[imgpath] = decodings
         debug("generating partitions")
         # dict PARTITIONING: maps {int partitionID: [int ballotID_i, ...]}
-        if config.TIMER:
-            config.TIMER.start_task("Partition_GeneratePartitions_CPU")
         # TODO: This call to partition_ballots takes a few minutes on large
         # elections -- add a progress bar or something, so that it doesn't
         # look like the UI is hanging.
         partitioning, img2decoding, imginfo_map = self.proj.vendor_obj.partition_ballots(
             img2decoding, verified_decodes, manual_labeled)
-        if config.TIMER:
-            config.TIMER.stop_task("Partition_GeneratePartitions_CPU")
         debug("...done generating partitions...")
         # Add in manually-corrected flipped
         for imgpath, isflip in self.errs_flipmap.iteritems():

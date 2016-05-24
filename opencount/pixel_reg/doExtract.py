@@ -671,7 +671,6 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
     targetDiffDir = targetDir + '_diffs'
 
     print "...removing previous Target Extract results..."
-    _t = time.time()
     if os.path.exists(targetDir):
         shutil.rmtree(targetDir)
     if os.path.exists(targetDiffDir):
@@ -680,8 +679,7 @@ def convertImagesMasterMAP(targetDir, targetMetaDir, imageMetaDir, jobs,
         shutil.rmtree(targetMetaDir)
     if os.path.exists(imageMetaDir):
         shutil.rmtree(imageMetaDir)
-    dur = time.time() - _t
-    print "...Finished removing previous Target Extract results ({0} s).".format(dur)
+    print "...Finished removing previous Target Extract results"
 
     create_dirs(targetDir)
     create_dirs(targetDiffDir)
@@ -886,7 +884,6 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
                                                           stopped, queue, result_queue, imgcount, nProc=nProc, method_galign=method_galign, method_lalign=method_lalign)
     if avg_intensities:
         # Quarantine any ballots with large error
-        t = time.time()
         print "...Starting quarantineCheckMAP..."
         qballotids = quarantineCheckMAP(
             jobs, targetDiffDir, targetextract_quarantined, img2b, bal2targets, imageMetaDir=imageMetaDir)
@@ -899,12 +896,18 @@ def extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip, target_
             #    print "    CAUGHT QBALLOTID", ballotid
             return ballotid in qballotids
 
-        avg_intensities = [tup for tup in avg_intensities if not is_quarantined(
-            tup, voted_rootdir, targetDir, qballotids, img2b)]
+        avg_intensities = [tup for tup
+                           in avg_intensities
+                           if not is_quarantined(
+                               tup,
+                               voted_rootdir,
+                               targetDir,
+                               qballotids,
+                               img2b)
+                           ]
         for qballotid in qballotids:
             bal2targets.pop(qballotid)
-        dur = time.time() - t
-        print "...Finished quarantineCheckMAP ({0} s).".format(dur)
+
     return avg_intensities, bal2targets
 
 

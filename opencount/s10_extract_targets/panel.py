@@ -3,7 +3,6 @@ import os
 import threading
 import multiprocessing
 import math
-import time
 import shutil
 import cProfile
 try:
@@ -146,8 +145,6 @@ class RunThread(threading.Thread):
             self.do_target_extract()
 
     def do_target_extract(self):
-        if config.TIMER:
-            config.TIMER.start_task("TargetExtract_DoTargetExtract_CPU")
         if not self.skip_extract:
             group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                          self.proj.group_to_ballots), 'rb'))
@@ -162,8 +159,6 @@ class RunThread(threading.Thread):
         target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.target_locs_map), 'rb'))
 
-        totalTime = time.time()
-        time_doExtract = time.time()
         print "...starting doExtract..."
         if not self.skip_extract:
             qballotids = quarantinepanel.get_quarantined_ballots(self.proj)
@@ -200,15 +195,6 @@ class RunThread(threading.Thread):
             bal2targets = pickle.load(open(pathjoin(self.proj.projdir_path,
                                                     self.proj.ballot_to_targets), 'rb'))
             print "    (skip_extract was True - not running doExtract)"
-        dur_doExtract = time.time() - time_doExtract
-        print "...Finished doExtract ({0} s)...".format(dur_doExtract)
-        if config.TIMER:
-            config.TIMER.stop_task("TargetExtract_DoTargetExtract_CPU")
-        print "...Doing post-target-extraction work..."
-        time_post = time.time()
-
-        if config.TIMER:
-            config.TIMER.start_task("TargetExtract_DoPostWork_CPU")
 
         total = len(bal2targets)
 
@@ -216,7 +202,6 @@ class RunThread(threading.Thread):
 
         manager = multiprocessing.Manager()
         queue = manager.Queue()
-        time_doandgetAvg = time.time()
 
         if wx.App.IsMainLoopRunning():
             util.MyGauge.all_next_job(total)
@@ -227,24 +212,18 @@ class RunThread(threading.Thread):
 
         fulllst = [(x, int(y)) for x, y in fulllst]
 
-        time_classifiedWrite = time.time()
-
         out = open(self.proj.classified, "w")
         # Store imgpath \0 avg_intensity to output file OUT
         for a, b in fulllst:
             out.write(a + "\0" + str(b) + "\n")
         out.close()
 
-        dur_classifiedWrite = time.time() - time_classifiedWrite
-
         print "...Starting imageFileMake..."
-        time_imageFileMake = time.time()
 
         def get_target_size():
             # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
             #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
             #     box := [x1, y1, width, height, id, contest_id]
-            widgh, height = None, None
             for groupid, pagedict in target_locs_map.iteritems():
                 for page, contests in pagedict.iteritems():
                     for contest in contests:
@@ -264,29 +243,10 @@ class RunThread(threading.Thread):
                               (w, h),
                               SORT_METHOD=imageFile.METHOD_DYN,
                               MEM_C=0.6)
-        dur_imageFileMake = time.time() - time_imageFileMake
-        print "...Finished imageFileMake ({0} s).".format(dur_imageFileMake)
-
-        if config.TIMER:
-            config.TIMER.stop_task("TargetExtract_DoPostWork_CPU")
 
         if wx.App.IsMainLoopRunning():
             wx.CallAfter(pub.sendMessage, "broadcast.rundone", msg=())
             util.MyGauge.all_done()
-
-        dur_post = time.time() - time_post
-        print "...Finished post-target-extraction work ({0} s).".format(dur_post)
-        dur_totalTime = time.time() - totalTime
-
-        print "...Finished Target Extraction. ({0} s).".format(dur_totalTime)
-        frac = (dur_doExtract / dur_totalTime) * 100
-        print "    doExtract: {0:.3f}%  |  {1:.3f} s".format(frac, dur_doExtract)
-        frac = (dur_post / dur_totalTime) * 100
-        print "    post-work: {0:.3f}%  |  {1:.3f} s".format(frac, dur_post)
-        frac = (dur_classifiedWrite / dur_post) * 100
-        print "        classifiedWrite: {0:.3f}%  |  {1:.3f} s".format(frac, dur_classifiedWrite)
-        frac = (dur_imageFileMake / dur_post) * 100
-        print "        imageFileMake: {0:.3f}%   |  {1:.3f} s".format(frac, dur_imageFileMake)
 
 
 def doandgetAvgs(imgnames, rootdir, queue):
@@ -352,6 +312,8 @@ def _run_target_extract(proj, do_profile, profile_out):
 
 
 def main():
+    import time
+
     args = sys.argv[1:]
     projdir = args[-1]
     do_profile = '--profile' in args
@@ -368,16 +330,8 @@ def main():
     print "    (Best of {0} trials)".format(N)
     proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
     os.chdir('..')
-    times = []
     for i in xrange(N):
-        t = time.time()
         _run_target_extract(proj, do_profile, profile_out)
-        dur = time.time() - t
-        times.append(dur)
-    tot_time = sum(times)
-    print "Total Time: {0:.6f}s (Out of {1} trials)".format(tot_time, N)
-    print "    Mean   : {0:.8f}s".format(np.mean(times))
-    print "    Std.Dev: {0:.8f}s".format(np.std(times))
 
     print "Done."
 

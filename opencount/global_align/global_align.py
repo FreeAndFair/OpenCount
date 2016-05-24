@@ -346,7 +346,6 @@ def main():
         Iref = Iref[y1:y2, x1:x2]
 
     print "Aligning against {0} images...".format(len(imgpaths))
-    t = time.time()
     errs, errs_map = [], {}
     errs_rel, errs_rel_map = [], {}
     for imgpath in imgpaths:
@@ -385,7 +384,6 @@ def main():
         else:
             scipy.misc.imsave(outpath, Ireg)
 
-    dur = time.time() - t
     err_mean, err_std = np.mean(errs), np.std(errs)
     file_stats = open(pathjoin(outdir, 'stats'), 'w')
     print "Err_Mean: {0}".format(err_mean)
@@ -394,15 +392,11 @@ def main():
     print "ErrRel_Mean: {0}".format(np.mean(errs_rel))
     print "ErrRel_Std : {0}".format(np.std(errs_rel))
 
-    print "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
-                                                             dur / len(imgpaths))
     print >>file_stats, "Err_Mean: {0}".format(err_mean)
     print >>file_stats, "Err_Std : {0}".format(err_std)
     print >>file_stats, "ErrRel_Mean: {0}".format(np.mean(errs_rel))
     print >>file_stats, "ErrRel_Std : {0}".format(np.std(errs_rel))
 
-    print >>file_stats, "Done ({0:.5f}s Total, {1:.8f}s per image)".format(dur,
-                                                                           dur / len(imgpaths))
     file_stats.close()
 
     fig = plt.figure()

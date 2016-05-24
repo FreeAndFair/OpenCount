@@ -362,7 +362,6 @@ class SmartScrolledGridPanel(ScrolledPanel):
         cellids = self.page2cellids[pageidx]
         panels = []
         for cellid in cellids:
-            t_total = time.time()
             imgpath = self.cellid2imgpath[cellid]
             if type(imgpath) == int:
                 clr = self.colors[imgpath % len(self.colors)]
@@ -372,21 +371,12 @@ class SmartScrolledGridPanel(ScrolledPanel):
             else:
                 # TODO: Handle reading in images.
                 panel = self.get_panel()
-                t = time.time()
                 npimg = self.get_image(imgpath)
-                dur_getimg = time.time() - t
                 # Assumes that each cell is the same size.
                 text = "Image:{0}".format(os.path.split(imgpath)[1])
-                t = time.time()
                 panel.configure_me(cellid=cellid, npimg=npimg,
                                    text=text, size=self.cellsize)
-                dur_config = time.time() - t
             panels.append(panel)
-            dur_total = time.time() - t_total
-            # print "(Total): {0:.6f}s".format(dur_total)
-            # print "    GetImg: {0:.5f}%".format(0.0 if dur_total == 0 else (100.0 * (dur_getimg / float(dur_total))))
-            # print "    Config: {0:.5f}%".format(0.0 if dur_total == 0 else
-            # (100.0 * (dur_config / float(dur_total))))
 
         sizer_page = wx.BoxSizer(wx.VERTICAL)
         for row in xrange(self.pagesize[0]):
@@ -588,7 +578,6 @@ class SmartScrolledGridPanel(ScrolledPanel):
                 If ISSCROLLPOS is True, then POS is in scroll-units.
                 Else, POS is in pixel (unscrolled) coordinates.
         """
-        t_total = time.time()
         if not hasattr(self, 'scroll_evt_idx'):
             self.scroll_evt_idx = 0
         orient = evt.GetOrientation()
@@ -622,20 +611,16 @@ class SmartScrolledGridPanel(ScrolledPanel):
 
         pages_toload, pages_toevict = self.check_pages(pos)
         flag_didchange = False
-        t = time.time()
         for pageidx in sorted(pages_toevict):
             self.deactivate_page(pageidx)
             flag_didchange = True
-        dur_evict = time.time() - t
-        t = time.time()
+
         for pageidx in sorted(pages_toload):
             self.activate_page(pageidx)
             flag_didchange = True
-        dur_activate = time.time() - t
 
         # Finally -- ask our thread friend to load images of prior/post pages
         # as a pre-fetching scheme, asynchronously
-        t_threadask = time.time()
         cur_pageidx = self.pos2pageidx(pos)
         C = 1
         min_pageidx = max(0, cur_pageidx - self.lookahead - C)
@@ -650,19 +635,9 @@ class SmartScrolledGridPanel(ScrolledPanel):
                 for cellid in cellids:
                     wx.CallAfter(self.t_loadimgs.request_img,
                                  self.cellid2imgpath[cellid])
-        dur_threadask = time.time() - t_threadask
-        t = time.time()
+
         if flag_didchange:
             self.Layout()
-        dur_layout = time.time() - t
-        dur_total = time.time() - t_total
-        if dur_total >= 0.1:
-            print "(Total): {0:.5f}s".format(dur_total)
-            print "    Deactivate: {0:.4f}%".format(0.0 if dur_total == 0 else (100.0 * (dur_evict / float(dur_total))))
-            print "    Activate: {0:.4f}%".format(0.0 if dur_total == 0 else (100.0 * (dur_activate / float(dur_total))))
-            print "    ThreadAsk: {0:.4f}%".format(0.0 if dur_total == 0 else (100.0 * (dur_threadask / float(dur_total))))
-            print "    Layout: {0:.4f}%".format(0.0 if dur_total == 0 else (100.0 * (dur_layout / float(dur_total))))
-            print len(pages_prefetch), pages_prefetch, cur_pageidx
 
     def onMouseWheel(self, evt):
         # Mousewheel events lead to weird scrolling behavior! In particular,

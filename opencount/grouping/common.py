@@ -1,7 +1,5 @@
 import os
 import pdb
-import time
-import traceback
 from os.path import join as pathjoin
 
 try:
@@ -17,9 +15,7 @@ from util import error
 
 
 import pixel_reg.shared as sh
-import pixel_reg.part_match as part_match
 
-from imageviewer import WorldState as WorldState
 from imageviewer import BoundingBox as BoundingBox
 import cust_attrs
 import cluster_imgs
@@ -446,7 +442,6 @@ class GroupClass(object):
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
-        _t = time.time()
         with util.time_operation("running k-means."):
             clusters = cluster_imgs.cluster_imgs_kmeans(patchpaths,
                                                         k=K,
@@ -615,12 +610,11 @@ class GroupClass(object):
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
-        _t = time.time()
         print "...running k-means2"
         clusters = cluster_imgs.kmeans_2D(patchpaths, k=K,
                                           distfn_method='vardiff',
                                           do_align=True)
-        print "...Completed running k-means2 ({0} s).".format(time.time() - _t)
+        print "...Completed running k-means2."
         # 3.) Create GroupClasses
         groups = []
         found_patchpaths = set()
@@ -671,12 +665,11 @@ class GroupClass(object):
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
-        _t = time.time()
         print "...running k-mediods."
         clusters = cluster_imgs.kmediods_2D(patchpaths, k=K,
                                             distfn_method='vardiff',
                                             do_align=True)
-        print "...Completed running k-mediods ({0} s).".format(time.time() - _t)
+        print "...Completed running k-mediods."
         # 3.) Create GroupClasses
         groups = []
         for clusterid, patchpaths in clusters.iteritems():
@@ -735,11 +728,10 @@ class DigitGroupClass(GroupClass):
             patchpaths.append(patchpath)
             patchpath_map[patchpath] = (sampleid, rlist)
         # 2.) Call kmeans clustering
-        _t = time.time()
         print "...running k-means."
         clusters = cluster_imgs.cluster_imgs_kmeans(
             patchpaths, k=K, do_align=True)
-        print "...Completed running k-means ({0} s).".format(time.time() - _t)
+        print "...Completed running k-means"
         # 3.) Create DigitGroupClasses
         groups = []
         for clusterid, patchpaths in clusters.iteritems():

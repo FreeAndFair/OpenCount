@@ -1,7 +1,6 @@
 import os
 import sys
 import pdb
-import time
 import argparse
 import multiprocessing
 try:
@@ -275,7 +274,6 @@ def decode_ballots(ballots,
                    skipVerify=True,
                    N=None,
                    cache=None):
-    t = time.time()
     decoded_results = partask.do_partask(_do_decode_ballots,
                                          ballots,
                                          _args=(topbot_paths,
@@ -284,9 +282,7 @@ def decode_ballots(ballots,
                                          manager=manager,
                                          pass_queue=queue,
                                          N=N)
-    dur = time.time() - t
-    debug("...finished decoding {0} ballots ({1:.2f}s, {2:.5f} secs per ballot)",
-          len(ballots), dur, dur / float(len(ballots)))
+    debug("...finished decoding {0} ballots", len(ballots))
     return decoded_results
 
 

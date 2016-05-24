@@ -353,7 +353,6 @@ def main():
     IsymD = tempmatch.smooth(IsymD, 3, 3, bordertype='const', val=255.0)
     IsymE = tempmatch.smooth(IsymE, 3, 3, bordertype='const', val=255.0)
 
-    t = time.time()
     err_imgpaths = []
     for imgpath in imgpaths:
         I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_GRAYSCALE)
@@ -399,9 +398,7 @@ def main():
             os.path.splitext(imgname)[0]))
         cv.SaveImage(outpath, Icolor)
 
-    dur = time.time() - t
-    print "...Finished Decoding {0} images ({1} s).".format(len(imgpaths), dur)
-    print "    Avg. Time per Image: {0} s".format(dur / float(len(imgpaths)))
+    print "...Finished Decoding {0} images.".format(len(imgpaths))
     print "    Number of Errors: {0}".format(len(err_imgpaths))
     print "Done."
 

@@ -1,5 +1,4 @@
 import os
-import pickle
 import pdb
 import shutil
 import tempfile
@@ -12,7 +11,6 @@ try:
 except:
     from wx.lib.pubsub import Publisher
     pub = Publisher()
-import wx
 import numpy as np
 
 import extsort
@@ -68,7 +66,6 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
         which = "%02x" % index
         data = []
         names = []
-        n = time.time()
 
         filepairs = []  # [(str filepath, str indexpath, int size), ...]
         for directory in os.listdir(radix):
@@ -80,12 +77,10 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
 
         total_size = sum([tup[2] for tup in filepairs])
         try:
-            mem_avail, mem_total = util.get_memory_stats()
+            mem_avail, _ = util.get_memory_stats()
         except:
-            mem_avail, mem_total = np.inf, np.inf
-        # print "(Info) {0} Radix files, {1}MB.   Avail: {2}MB".format(len(filepairs),
-        #                                                             total_size / 1e6,
-        # mem_avail / 1e6)
+            mem_avail = np.inf
+
         if SORT_METHOD == METHOD_EXT_SORT:
             mem_avail = -1  # Force the external-sort method
         if (total_size < mem_avail) or (SORT_METHOD == METHOD_MEM_SORT):
@@ -96,8 +91,10 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
                              for i in range(len(content) / imgSize)])
                 names.extend(open(indexpath).read().split("\n")[:-1])
 
-            sort_order = sorted([x for x in range(len(data)) if names[
-                                x] in reverse_mapping], key=lambda x: reverse_mapping[names[x]])
+            sort_order = sorted(
+                [x for x in range(len(data))
+                 if names[x] in reverse_mapping],
+                key=lambda x: reverse_mapping[names[x]])
             sorted_data = [data[i] for i in sort_order]
 
             out.write("".join(sorted_data))
@@ -114,7 +111,8 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
                                         outpath_extsort,
                                         index, imgSize)
             if num_entries == -1:
-                print "(makeOneFile) Error: ext_merge_sort returned FAILURE for radix index {0}. Oh no!".format(index)
+                print ("Error: ext_merge_sort returned FAILURE "
+                       "for radix index {0}. Oh no!".format(index))
                 pdb.set_trace()
             # Concatenate the sorted radixfile to OUT.
             f_extsort = open(outpath_extsort, 'rb')

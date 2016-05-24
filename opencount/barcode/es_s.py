@@ -188,12 +188,10 @@ def main():
     bits = 36
     trials = 1
 
-    start = time.time()
     mark = cv.LoadImage(mark_path, cv.CV_LOAD_IMAGE_GRAYSCALE)
     for i in range(trials):
         bitstring, is_flipped, bit_locations = decode(imgpath, mark, bits)
     print "%s\t%s\t%s" % (imgpath, is_flipped, bitstring)
-    print "Time/ballot: %s" % str((time.time() - start) / trials)
 
     print "\nTesting build_bitstrings():"
     img_bc_temp = {}

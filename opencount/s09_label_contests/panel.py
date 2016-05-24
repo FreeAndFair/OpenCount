@@ -507,8 +507,6 @@ class LabelContest(wx.Panel):
         return result
 
     def compute_equivs(self, x):
-        if config.TIMER:
-            config.TIMER.start_task("LabelContests_ComputeEquivClasses_CPU")
         self.has_equiv_classes = True
         languages = self.load_languages()
 
@@ -628,14 +626,9 @@ class LabelContest(wx.Panel):
         # pdb.set_trace()
 
         def putresults(data):
-            if config.TIMER:
-                config.TIMER.stop_task("LabelContests_VerifyContestGrouping_H")
             print "I get the data", data
             self.equivs_processed = data
             print "(ComputeEquivClasses) Done with verify contest grouping and infer contests."
-
-        if config.TIMER:
-            config.TIMER.stop_task("LabelContests_ComputeEquivClasses_CPU")
 
         dlg = wx.MessageDialog(self, style=wx.OK,
                                message="Contest duplicate detection complete!")
@@ -643,9 +636,6 @@ class LabelContest(wx.Panel):
 
         if any(len(x) > 1 for x in self.equivs) and run_verification:
             print "RUN"
-            if config.TIMER:
-                config.TIMER.start_task(
-                    "LabelContests_VerifyContestGrouping_H")
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, self.equivs,
                                   self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse,
                                   self.multiboxcontests, putresults,
