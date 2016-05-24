@@ -13,7 +13,7 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
-from util import encodepath, GaugeID
+from util import GaugeID
 
 JOBID_GROUPING_IMGBASED = GaugeID("GROUPING_IMGBASED")
 

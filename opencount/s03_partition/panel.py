@@ -21,6 +21,7 @@ import config
 from util import debug, warn, error
 import grouping.label_imgs as label_imgs
 import grouping.verify_overlays_new as verify_overlays_new
+import s03_partition.extract_patches as extract_patches
 import ffwx
 
 JOBID_EXPORT_RESULTS = util.GaugeID("PartitioningExportResults")
