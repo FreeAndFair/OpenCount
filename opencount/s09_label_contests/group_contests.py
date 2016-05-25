@@ -15,20 +15,7 @@ from grouping.partask import do_partask
 from vendors import Vendor
 import util
 
-# import s08_select_targets.panel as select_targets  # XXX
-
-
-def pdb_on_crash(f):
-    """
-    Decorator to run PDB on crashing
-    """
-    def res(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except:
-            import pdb as err_pdb
-            err_pdb.post_mortem()
-    return res
+from ffwx.boxes import TargetBox, ContestBox, compute_box_ids
 
 black = 200
 
@@ -37,8 +24,6 @@ do_test = True
 export = False
 
 flipped = {}
-
-# @pdb_on_crash
 
 
 def num2pil(img):
@@ -332,7 +317,7 @@ def dfs(graph, start):
     return seen.keys()
 
 
-@pdb_on_crash
+@util.pdb_on_crash
 def extend_to_line(lines, width, height):
     table = [[False] * (width + 200) for _ in range(height + 200)]
     for d, each in lines:
@@ -778,17 +763,15 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
 
     all_boxes = []
     for l, u, r, d in contests:
-        all_boxes.append(
-            specify_voting_targets.select_targets.ContestBox(l, u, r, d))
+        all_boxes.append(ContestBox(l, u, r, d))
 
     for l, u, r, d in targets:
-        all_boxes.append(
-            specify_voting_targets.select_targets.TargetBox(l, u, r, d))
+        all_boxes.append(TargetBox(l, u, r, d))
 
-    assocs, _ = specify_voting_targets.select_targets.compute_box_ids(
-        all_boxes)
+    assocs, _ = compute_box_ids(all_boxes)
 
-    def grab(box): return (box.x1, box.y1, box.x2, box.y2)
+    def grab(box):
+        return (box.x1, box.y1, box.x2, box.y2)
 
     for c, targets in assocs.values():
         c = grab(c)
@@ -801,8 +784,6 @@ def ballot_preprocess(i, f, image, contests, targets, lang, vendor):
         res.append((i, c, t))
     print "RESULTING", res
     return res
-
-# @pdb_on_crash
 
 
 def compare_preprocess(lang, path, image, contest, targets, vendor):
@@ -1355,15 +1336,12 @@ def get_target_to_contest(contests, targets):
     if 1 == 1:
         all_boxes = []
         for l, u, r, d in contests:
-            all_boxes.append(
-                specify_voting_targets.select_targets.ContestBox(l, u, r, d))
+            all_boxes.append(ContestBox(l, u, r, d))
 
         for l, u, r, d in targets:
-            all_boxes.append(
-                specify_voting_targets.select_targets.TargetBox(l, u, r, d))
+            all_boxes.append(TargetBox(l, u, r, d))
 
-        assocs, _ = specify_voting_targets.select_targets.compute_box_ids(
-            all_boxes)
+        assocs, _ = compute_box_ids(all_boxes)
 
         def grab(box): return (box.x1, box.y1, box.x2, box.y2)
 
@@ -1452,7 +1430,7 @@ def extend_multibox(ballots, box1, box2, orders):
     return res, newgroup
 
 
-@pdb_on_crash
+@util.pdb_on_crash
 def find_contests(t, paths, giventargets):
     """
     Input:
@@ -1531,8 +1509,6 @@ def group_given_contests_map(arg):
     lang = lang_map[f] if f in lang_map else 'eng'
     return ballot_preprocess(i, f, im, conts, sum(giventargets[i], []), lang, vendor)
 
-# @pdb_on_crash
-
 
 def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_map={}, NPROC=None):
     global tmp, flipped
@@ -1571,7 +1547,7 @@ def group_given_contests(t, paths, giventargets, contests, flip, vendor, lang_ma
     return ballots, final_grouping(ballots, giventargets, paths, lang_map)
 
 
-@pdb_on_crash
+@util.pdb_on_crash
 def final_grouping(ballots, giventargets, paths, langs, t=None):
     global tmp
     if t is not None:
@@ -1600,67 +1576,4 @@ def sort_nicely(l):
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     l.sort(key=alphanum_key)
 
-import re
-import csv
-
-
-"""
-if __name__ == "__main__":
-    _, paths, them = pickle.load(open("marin_contest_run"))
-    paths = [x.replace("/media/data1/audits2012_straight/marin/blankballots", "marin") for x in paths]
-    find_contests("tmp", paths, them)
-    exit(0)
-# """
-
 tmp = "tmp"
-
-"""
-if __name__ == "__main__":
-    p = "./"
-    class FakeProj:
-        target_locs_dir = p+"sc_target_locations"
-        ocr_tmp_dir = p+"tmp"
-    class FakeQueue:
-        def put(self, x):
-            return
-    thr = ThreadDoInferContests(FakeQueue(), 0, FakeProj())
-    print thr
-    thr.run()
-    exit(0)
-"""
-
-if __name__ == "__main__":
-    find_contests(u'../projects_new/napa/ocr_tmp_dir', [u'../projects_new/napa/groupsAlign_seltargs/partition_0/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_0/bal_0_side_1.png', u'../projects_new/napa/groupsAlign_seltargs/partition_1/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_1/bal_0_side_1.png', u'../projects_new/napa/groupsAlign_seltargs/partition_2/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_2/bal_0_side_1.png', u'../projects_new/napa/groupsAlign_seltargs/partition_3/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_4/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_4/bal_0_side_1.png', u'../projects_new/napa/groupsAlign_seltargs/partition_5/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_5/bal_0_side_1.png', u'../projects_new/napa/groupsAlign_seltargs/partition_6/bal_0_side_0.png', u'../projects_new/napa/groupsAlign_seltargs/partition_6/bal_0_side_1.png'], [[[(1212, 1423, 1342, 1456)], [(1211, 1677, 1341, 1710)], [(1209, 2185, 1339, 2218)], [(1208, 2435, 1338, 2468)], [(1206, 2932, 1336, 2965)], [(1210, 1846, 1340, 1879)], [(1210, 1931, 1340, 1964)], [(607, 1504, 737, 1537)], [(1212, 1508, 1342, 1541)], [(1209, 2269, 1339, 2302)], [(1207, 2600, 1337, 2633)], [(607, 1363, 737, 1396)], [(1206, 3015, 1336, 3048)], [(1209, 2100, 1339, 2133)], [(607, 1433, 737, 1466)], [(1207, 2767, 1337, 2800)], [(1211, 1593, 1341, 1626)], [(1207, 2684, 1337, 2717)], [(1210, 2016, 1340, 2049)], [(1209, 2352, 1339, 2385)], [(1813, 2601, 1943, 2634)], [(607, 1574, 737, 1607)], [(1211, 1761, 1341, 1794)], [(1207, 2519, 1337, 2552)], [(1815, 2193, 1945, 2226)], [(1813, 2519, 1943, 2552)], [(1812, 3026, 1942, 3059)], [(1815, 2108, 1945, 2141)], [(1812, 2944, 1942, 2977)], [(1816, 1764, 1946, 1797)], [(1207, 2850, 1337, 2883)], [(1815, 2024, 1945, 2057)], [(1815, 2277, 1945, 2310)], [(1817, 1596, 1947, 1629)], [(1813, 2861, 1943, 2894)], [(1817, 1511, 1947, 1544)], [(1817, 1425, 1947, 1458)], [(1817, 1679, 1947, 1712)]], [[(602, 1527, 732, 1560)], [(602, 1192, 732, 1225)], [(602, 1121, 732, 1154)], [(602, 1598, 732, 1631)], [(603, 675, 733, 708)], [(603, 603, 733, 636)], [(603, 745, 733, 778)], [(603, 532, 733, 565)]], [[(1211, 1755, 1341, 1788)], [(1210, 2594, 1340, 2627)], [(1211, 2009, 1341, 2042)], [(606, 1460, 736, 1493)], [(606, 1530, 736, 1563)], [(1211, 1840, 1341, 1873)], [(606, 1670, 736, 1703)], [(1211, 1417, 1341, 1450)], [(606, 1810, 736, 1843)], [(1210, 2677, 1340, 2710)], [(1211, 2094, 1341, 2127)], [(1211, 1587, 1341, 1620)], [(606, 1740, 736, 1773)], [(1211, 2263, 1341, 2296)], [(1211, 1502, 1341, 1535)], [(1210, 2512, 1340, 2545)], [(1210, 2760, 1340, 2793)], [(1211, 1924, 1341, 1957)], [(606, 1390, 736, 1423)], [(1211, 1671, 1341, 1704)], [(1210, 2926, 1340, 2959)], [(606, 1600, 736, 1633)], [(1211, 2179, 1341, 2212)], [(1211, 2345, 1341, 2378)], [(1210, 3009, 1340, 3042)], [(1210, 2429, 1340, 2462)], [(1210, 2843, 1340, 2876)], [(1817, 2185, 1947, 2218)], [(1817, 1756, 1947, 1789)], [(1817, 2593, 1947, 2626)], [(1816, 2511, 1946, 2544)], [(1817, 1503, 1947, 1536)], [(1817, 2016, 1947, 2049)], [(1817, 1418, 1947, 1451)], [(1817, 1588, 1947, 1621)], [(1816, 3018, 1946, 3051)], [(1817, 2100, 1947, 2133)], [(1816, 2935, 1946, 2968)], [(1817, 2269, 1947, 2302)], [(1817, 1672, 1947, 1705)], [(1817, 2853, 1947, 2886)]], [[(602, 605, 732, 638)], [(602, 1194, 732, 1227)], [(602, 1123, 732, 1156)], [(602, 677, 732, 710)], [(602, 1599, 732, 1632)], [(602, 534, 732, 567)], [(602, 1529, 732, 1562)], [(602, 748, 732, 781)]], [[(607, 1582, 737, 1615)], [(1212, 1516, 1342, 1549)], [(1206, 2940, 1336, 2973)], [(1209, 2193, 1339, 2226)], [(1210, 2024, 1340, 2057)], [(1208, 2609, 1338, 2642)], [(1206, 3023, 1336, 3056)], [(1209, 2277, 1339, 2310)], [(1212, 1601, 1342, 1634)], [(1211, 1685, 1341, 1718)], [(1211, 1939, 1341, 1972)], [(607, 1511, 737, 1544)], [(1211, 1770, 1341, 1803)], [(1210, 2109, 1340, 2142)], [(607, 1370, 737, 1403)], [(1208, 2527, 1338, 2560)], [(1211, 1854, 1341, 1887)], [(1209, 2360, 1339, 2393)], [(607, 1441, 737, 1474)], [(1208, 2692, 1338, 2725)], [(1207, 2775, 1337, 2808)], [(1212, 1430, 1342, 1463)], [(1208, 2443, 1338, 2476)], [(1207, 2858, 1337, 2891)], [(1812, 2610, 1942, 2643)], [(1811, 2952, 1941, 2985)], [(1812, 2528, 1942, 2561)], [(1814, 2202, 1944, 2235)], [(1814, 2117, 1944, 2150)], [(1814, 2033, 1944, 2066)], [(1811, 3035, 1941, 3068)], [(1816, 1519, 1946, 1552)], [(1815, 1773, 1945, 1806)], [(1811, 2869, 1941, 2902)], [(1816, 1604, 1946, 1637)], [(1816, 1688, 1946, 1721)], [(1814, 2286, 1944, 2319)], [(1816, 1434, 1946, 1467)]], [[(600, 1206, 730, 1239)], [(600, 1613, 730, 1646)], [(600, 686, 730, 719)], [(600, 542, 730, 575)], [(600, 614, 730, 647)], [(600, 757, 730, 790)], [(600, 1542, 730, 1575)], [(600, 1135, 730, 1168)]], [[(1210, 1509, 1340, 1542)], [(1215, 2191, 1345, 2224)], [
-                  (1211, 1677, 1341, 1710)], [(1214, 2022, 1344, 2055)], [(1212, 1762, 1342, 1795)], [(1221, 2941, 1351, 2974)], [(1221, 3024, 1351, 3057)], [(605, 1513, 735, 1546)], [(1214, 2106, 1344, 2139)], [(609, 2020, 739, 2053)], [(1218, 2598, 1348, 2631)], [(1211, 1594, 1341, 1627)], [(607, 1766, 737, 1799)], [(1209, 1424, 1339, 1457)], [(1217, 2517, 1347, 2550)], [(617, 3019, 747, 3052)], [(610, 2189, 740, 2222)], [(615, 2688, 745, 2721)], [(614, 2604, 744, 2637)], [(609, 1935, 739, 1968)], [(610, 2105, 740, 2138)], [(606, 1681, 736, 1714)], [(611, 2273, 741, 2306)], [(608, 1851, 738, 1884)], [(606, 1598, 736, 1631)], [(616, 2936, 746, 2969)], [(615, 2771, 745, 2804)], [(612, 2356, 742, 2389)], [(604, 1428, 734, 1461)], [(613, 2523, 743, 2556)], [(1216, 2275, 1346, 2308)], [(612, 2439, 742, 2472)], [(1220, 2858, 1350, 2891)], [(616, 2854, 746, 2887)], [(1814, 1321, 1944, 1354)], [(1815, 1392, 1945, 1425)], [(1816, 1533, 1946, 1566)], [(1816, 1462, 1946, 1495)], [(1819, 1904, 1949, 1937)], [(1820, 1974, 1950, 2007)], [(1822, 2303, 1952, 2336)], [(1822, 2373, 1952, 2406)]], [[(605, 1674, 735, 1707)], [(1210, 1845, 1340, 1878)], [(605, 1605, 735, 1638)], [(1209, 2099, 1339, 2132)], [(604, 2025, 734, 2058)], [(1209, 2268, 1339, 2301)], [(1209, 2184, 1339, 2217)], [(1208, 2682, 1338, 2715)], [(1210, 1930, 1340, 1963)], [(605, 1394, 735, 1427)], [(1208, 2599, 1338, 2632)], [(1206, 3013, 1336, 3046)], [(605, 1744, 735, 1777)], [(604, 1884, 734, 1917)], [(1210, 1676, 1340, 1709)], [(604, 1955, 734, 1988)], [(1208, 2434, 1338, 2467)], [(604, 1814, 734, 1847)], [(605, 1464, 735, 1497)], [(1210, 2015, 1340, 2048)], [(1211, 1422, 1341, 1455)], [(1207, 2930, 1337, 2963)], [(1211, 1507, 1341, 1540)], [(1208, 2517, 1338, 2550)], [(605, 1535, 735, 1568)], [(1207, 2765, 1337, 2798)], [(1210, 1760, 1340, 1793)], [(1211, 1593, 1341, 1626)], [(1209, 2350, 1339, 2383)], [(1207, 2848, 1337, 2881)], [(1814, 2942, 1944, 2975)], [(1814, 3025, 1944, 3058)], [(1817, 2023, 1947, 2056)], [(1815, 2859, 1945, 2892)], [(1817, 2192, 1947, 2225)], [(1815, 2518, 1945, 2551)], [(1817, 2107, 1947, 2140)], [(1816, 2600, 1946, 2633)], [(1818, 1763, 1948, 1796)], [(1818, 1679, 1948, 1712)], [(1818, 1510, 1948, 1543)], [(1818, 1595, 1948, 1628)], [(1816, 2276, 1946, 2309)], [(1818, 1425, 1948, 1458)]], [[(600, 749, 730, 782)], [(600, 1195, 730, 1228)], [(600, 678, 730, 711)], [(600, 607, 730, 640)], [(600, 1530, 730, 1563)], [(600, 1124, 730, 1157)], [(600, 535, 730, 568)], [(600, 1600, 730, 1633)]], [[(1210, 1674, 1340, 1707)], [(1209, 2432, 1339, 2465)], [(1210, 1928, 1340, 1961)], [(1209, 2182, 1339, 2215)], [(605, 1573, 735, 1606)], [(1210, 2013, 1340, 2046)], [(605, 1362, 735, 1395)], [(1209, 2266, 1339, 2299)], [(1208, 2929, 1338, 2962)], [(1209, 2681, 1339, 2714)], [(1208, 3012, 1338, 3045)], [(1210, 1843, 1340, 1876)], [(1209, 2097, 1339, 2130)], [(605, 1432, 735, 1465)], [(1209, 2516, 1339, 2549)], [(1209, 2764, 1339, 2797)], [(1209, 2349, 1339, 2382)], [(605, 1503, 735, 1536)], [(1210, 1505, 1340, 1538)], [(1210, 1590, 1340, 1623)], [(1210, 1759, 1340, 1792)], [(1209, 2598, 1339, 2631)], [(1210, 1421, 1340, 1454)], [(1816, 2189, 1946, 2222)], [(1817, 1507, 1947, 1540)], [(1815, 2940, 1945, 2973)], [(1815, 3023, 1945, 3056)], [(1209, 2847, 1339, 2880)], [(1817, 1592, 1947, 1625)], [(1817, 1422, 1947, 1455)], [(1816, 2597, 1946, 2630)], [(1817, 2020, 1947, 2053)], [(1817, 1760, 1947, 1793)], [(1815, 2515, 1945, 2548)], [(1816, 2104, 1946, 2137)], [(1815, 2857, 1945, 2890)], [(1817, 1676, 1947, 1709)], [(1816, 2273, 1946, 2306)]], [[(601, 1527, 731, 1560)], [(601, 1598, 731, 1631)], [(601, 532, 731, 565)], [(601, 1122, 731, 1155)], [(601, 746, 731, 779)], [(601, 675, 731, 708)], [(601, 1193, 731, 1226)], [(601, 603, 731, 636)]], [[(1209, 2186, 1339, 2219)], [(1208, 2602, 1338, 2635)], [(1209, 2101, 1339, 2134)], [(1210, 1932, 1340, 1965)], [(606, 1435, 736, 1468)], [(1210, 2017, 1340, 2050)], [(1207, 2934, 1337, 2967)], [(1208, 2520, 1338, 2553)], [(1210, 1762, 1340, 1795)], [(1209, 2353, 1339, 2386)], [(1209, 2271, 1339, 2304)], [(1814, 2602, 1944, 2635)], [(1816, 1764, 1946, 1797)], [(1208, 2685, 1338, 2718)], [(1210, 1678, 1340, 1711)], [(1813, 3027, 1943, 3060)], [(1210, 1594, 1340, 1627)], [(1210, 1848, 1340, 1881)], [(1207, 3016, 1337, 3049)], [(1211, 1424, 1341, 1457)], [(1208, 2436, 1338, 2469)], [(1211, 1509, 1341, 1542)], [(1816, 2024, 1946, 2057)], [(605, 1364, 735, 1397)], [(1817, 1510, 1947, 1543)], [(1814, 2520, 1944, 2553)], [(1815, 2278, 1945, 2311)], [(1208, 2768, 1338, 2801)], [(1815, 2194, 1945, 2227)], [(1816, 2109, 1946, 2142)], [(1817, 1425, 1947, 1458)], [(1814, 2944, 1944, 2977)], [(1816, 1679, 1946, 1712)], [(1817, 1596, 1947, 1629)], [(1814, 2862, 1944, 2895)], [(1207, 2852, 1337, 2885)]], [[(604, 606, 734, 639)], [(603, 1532, 733, 1565)], [(603, 1603, 733, 1636)], [(604, 678, 734, 711)], [(604, 1125, 734, 1158)], [(604, 534, 734, 567)], [(604, 1196, 734, 1229)], [(604, 748, 734, 781)]]])
-    exit(0)
-    equ_class(*pickle.load(open("/tmp/aaa")))
-    exit(0)
-    paths = eval(open("../orangedata_paths").read())
-    lookup = dict((x, i) for i, x in enumerate(paths))
-    languages = eval(open("../orangedata_lang").read())
-    languages = dict((lookup[k], v) for k, v in languages.items())
-
-    equ_class(merge_contests(*pickle.load(open("../orangedata"))), languages)
-
-    from labelcontest import LabelContest
-    p = "../projects/label_grouping/"
-    # Regroup the targets so that equal contests are merged.
-
-    class FakeProj:
-        target_locs_dir = p + "target_locations"
-
-    class FakeMe(LabelContest):
-        proj = FakeProj()
-    fakeme = FakeMe(None, None)
-    LabelContest.gatherData(fakeme)
-    groupedtargets = fakeme.groupedtargets
-    targets = []
-    for bid, ballot in enumerate(groupedtargets):
-        ballotlist = []
-        for gid, targlist in enumerate(ballot):
-            ballotlist.append([x[2:] for x in targlist])
-        targets.append(ballotlist)
-
-    internal = pickle.load(open(p + "contest_internal.p"))[2]
-    print type(internal)
-    print final_grouping(internal, targets)

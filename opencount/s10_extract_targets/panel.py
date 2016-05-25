@@ -13,7 +13,6 @@ from os.path import join as pathjoin
 
 import wx
 import cv
-import numpy as np
 try:
     from wx.lib.pubsub import pub
 except:
@@ -25,8 +24,6 @@ import util
 import config
 import image_file as imageFile
 import pixel_reg.doExtract as doExtract
-import s12_quarantine.panel as quarantinepanel
-import s06_run_grouping.panel as run_grouping
 
 
 class TargetExtractPanel(wx.Panel):
@@ -161,10 +158,9 @@ class RunThread(threading.Thread):
 
         print "...starting doExtract..."
         if not self.skip_extract:
-            qballotids = quarantinepanel.get_quarantined_ballots(self.proj)
-            discarded_ballotids = quarantinepanel.get_discarded_ballots(
-                self.proj)
-            ioerr_ballotids = run_grouping.get_ioerr_bals(self.proj)
+            qballotids = self.proj.get_quarantined_ballots()
+            discarded_ballotids = self.proj.get_discarded_ballots()
+            ioerr_ballotids = self.proj.get_ioerr_ballots()
             bad_ballotids = list(
                 set(qballotids + discarded_ballotids + ioerr_ballotids))
             nProc = 1 if self.do_profile else None

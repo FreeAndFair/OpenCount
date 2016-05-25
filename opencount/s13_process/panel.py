@@ -10,8 +10,6 @@ except:
 import csv
 from os.path import join as pathjoin
 import util
-from s12_quarantine.panel import get_quarantined_ballots, get_discarded_ballots
-from s06_run_grouping.panel import get_ioerr_bals
 
 
 class ResultsPanel(ScrolledPanel):
@@ -30,7 +28,7 @@ class ResultsPanel(ScrolledPanel):
     def start(self, project=None, projdir=None):
         self.proj = project
         # 0.) Grab all quarantined ballots
-        self.qballotids = sorted(get_quarantined_ballots(project))
+        self.qballotids = project.get_quarantined_ballots()
         bal2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
 
         self.qvotedpaths = []
@@ -309,8 +307,8 @@ class ResultsPanel(ScrolledPanel):
         cvr.writerow(headerstr)
 
         full_cvr = []
-        discarded_balids = get_discarded_ballots(self.proj)
-        ioerr_balids = get_ioerr_bals(self.proj)
+        discarded_balids = self.proj.get_discarded_ballots()
+        ioerr_balids = self.proj.get_ioerr_ballots()
         print 'And now going up to', len(ballot_to_images)
         for i, (ballotid, images) in enumerate(ballot_to_images.items()):
             # Ignore discarded ballots

@@ -274,8 +274,26 @@ class Project(object):
         '''
         if not self.exists_attrs():
             return False
-        attrs = self.load_field(self.attrprops)
-        return len(attrprops[ATTRMODE_CUSTOM])
+        return len(self.load_field(self.attrprops)['CUSTATTR'])
+
+    def get_ioerr_ballots(self):
+        '''
+        Returns a list of all ballotids that had some image that
+        was unable to be read by OpenCount during Partitioning.
+        '''
+        return list(set(self.load_field(self.partition_ioerr)))
+
+    def get_discarded_ballots(self):
+        '''
+        Returns a list of all ballotids discarded prior to grouping.
+        '''
+        return list(set(self.load_field(self.partition_discarded)))
+
+    def get_quarantined_ballots(self):
+        '''
+        Returns a list of all ballotids quarantined prior to grouping.
+        '''
+        return list(set(self.load_field(self.partition_quarantined)))
 
     @staticmethod
     def load_projects(projdir):

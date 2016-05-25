@@ -15,13 +15,13 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 
 import util
-import s08_select_targets.panel as select_targets
 import grouping.cust_attrs as cust_attrs
 from panel_opencount import OpenCountPanel
-from grouping.verify_overlays_new import CheckImageEqualsFrame, \
-    CheckImageEquals
+from grouping.verify_overlays_new import \
+    CheckImageEqualsFrame, CheckImageEquals
 
 import ffwx
+from ffwx.boxes import AttrBox, SelectionBox, BoxDrawPanel, get_boxes_within
 from util import debug
 
 """
@@ -1017,10 +1017,10 @@ class MyFooter(wx.Panel):
         self.GetParent().mark_all_ballots_done()
 
 
-class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
+class DrawAttrBoxPanel(BoxDrawPanel):
 
     def __init__(self, parent, *args, **kwargs):
-        select_targets.BoxDrawPanel.__init__(self, parent, *args, **kwargs)
+        BoxDrawPanel.__init__(self, parent, *args, **kwargs)
 
     def onLeftDown(self, evt):
         self.SetFocus()
@@ -1043,7 +1043,7 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
                     self.select_boxes(boxes[0][0])
             else:
                 self.clear_selected()
-                self.startBox(x, y, select_targets.SelectionBox)
+                self.startBox(x, y, SelectionBox)
         else:
             self.clear_selected()
             self.dirty_all_boxes()
@@ -1075,17 +1075,16 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             self.GetParent().handle_usermade_attrbox(box)
         elif self.mode_m == self.M_IDLE and self.isCreate:
             box = self.finishBox(x, y)
-            boxes = select_targets.get_boxes_within(self.boxes, box)
+            boxes = get_boxes_within(self.boxes, box)
             debug("...Selecting {0} boxes.", len(boxes))
             self.select_boxes(*boxes)
         self.Refresh()
 
     def drawBoxes(self, boxes, dc):
-        select_targets.BoxDrawPanel.drawBoxes(self, boxes, dc)
+        BoxDrawPanel.drawBoxes(self, boxes, dc)
         for attrbox in [b for b in self.boxes if isinstance(b, AttrBox)]:
             dc.SetBrush(wx.TRANSPARENT_BRUSH)
             dc.SetTextForeground("Blue")
-            w = int(round(abs(attrbox.x2 - attrbox.x1) * self.scale))
             h = int(round(abs(attrbox.y2 - attrbox.y1) * self.scale))
             client_x, client_y = self.img2c(attrbox.x1, attrbox.y1)
             w_txt, h_txt = dc.GetTextExtent(attrbox.label)
@@ -1093,72 +1092,6 @@ class DrawAttrBoxPanel(select_targets.BoxDrawPanel):
             if y_txt < 0:
                 y_txt = client_y + h
             dc.DrawText(attrbox.label, x_txt, y_txt)
-
-
-class AttrBox(select_targets.Box):
-    shading_clr = (0, 255, 0)
-    shading_selected_clr = (255, 0, 0)
-
-    def __init__(self, x1, y1, x2, y2, is_sel=False, label='', attrtypes=None,
-                 attrvals=None,
-                 is_digitbased=None, num_digits=None, is_tabulationonly=None,
-                 side=None, grp_per_partition=None):
-        """
-        Input:
-            bool GRP_PER_PARTITION:
-                If True, then this is an attribute that is consistent
-                within a single partition P, where partitions are
-                defined by the barcode value(s).
-        """
-        select_targets.Box.__init__(self, x1, y1, x2, y2)
-        self.is_sel = is_sel
-        self.label = label
-        # TODO: Assume that there is only one attrtype per AttrBox.
-        # I don't think we'll ever need multiple attributes per bounding box.
-        self.attrtypes = attrtypes
-        self.attrvals = attrvals
-        self.is_digitbased = is_digitbased
-        self.num_digits = num_digits
-        self.is_tabulationonly = is_tabulationonly
-        self.side = side
-        self.grp_per_partition = grp_per_partition
-
-    def __str__(self):
-        return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
-
-    def __repr__(self):
-        return "AttrBox({0},{1},{2},{3},{4})".format(self.x1, self.y1, self.x2, self.y2, self.label)
-
-    def __eq__(self, o):
-        return (isinstance(o, AttrBox) and self.x1 == o.x1 and self.x2 == o.x2
-                and self.y1 == o.y1 and self.y2 == o.y2 and self.label == o.label
-                and self.side == o.side and self.attrvals == o.attrvals
-                and self.attrtypes == o.attrtypes)
-
-    def copy(self):
-        return AttrBox(self.x1, self.y1, self.x2, self.y2, label=self.label,
-                       attrtypes=self.attrtypes, attrvals=self.attrvals,
-                       is_digitbased=self.is_digitbased,
-                       num_digits=self.num_digits, is_tabulationonly=self.is_tabulationonly,
-                       side=self.side, grp_per_partition=self.grp_per_partition)
-
-    def get_draw_opts(self):
-        if self.is_sel:
-            return ("Yellow", 3)
-        else:
-            return ("Green", 3)
-
-    def marshall(self):
-        """ Return a dict-equivalent version of myself. """
-        data = select_targets.Box.marshall(self)
-        data['attrs'] = self.attrtypes
-        data['attrvals'] = self.attrvals
-        data['side'] = self.side
-        data['is_digitbased'] = self.is_digitbased
-        data['num_digits'] = self.num_digits
-        data['is_tabulationonly'] = self.is_tabulationonly
-        data['grp_per_partition'] = self.grp_per_partition
-        return data
 
 
 class AddAttributeDialog(wx.Dialog):
@@ -1322,7 +1255,8 @@ name of the new attribute type.")
                     self, size=(150, -1), style=wx.TE_PROCESS_ENTER)
                 self.txtctrl_attrname.Bind(wx.EVT_TEXT_ENTER, self.onButton_ok)
                 sizer_attrname.AddMany(
-                    [(stxt_attrname, 0, wx.ALL, 10), (self.txtctrl_attrname, 0, wx.ALL, 10)])
+                    [(stxt_attrname, 0, wx.ALL, 10),
+                     (self.txtctrl_attrname, 0, wx.ALL, 10)])
 
                 self.chkbox_isdigit = wx.CheckBox(
                     self, label="Is this a digit attribute?")
@@ -1338,7 +1272,8 @@ name of the new attribute type.")
 
                 self.sizer = wx.BoxSizer(wx.VERTICAL)
                 self.sizer.AddMany(
-                    [(sizer_attrname, 0, wx.ALL, 5), (self.chkbox_isdigit, 0, wx.ALL, 5)])
+                    [(sizer_attrname, 0, wx.ALL, 5),
+                     (self.chkbox_isdigit, 0, wx.ALL, 5)])
                 self.sizer.Add(sizer_btns, 0, flag=wx.ALL |
                                wx.ALIGN_CENTER, border=5)
 

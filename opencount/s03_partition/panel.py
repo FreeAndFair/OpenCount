@@ -3,7 +3,6 @@ import multiprocessing
 import Queue
 import shutil
 import textwrap
-import time
 import threading
 
 try:
