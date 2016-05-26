@@ -4,15 +4,9 @@ import wx
 import wx.lib.scrolledpanel
 import wx.lib.intctrl
 import os
-import sys
-from os.path import join as pathjoin
 from sets import Set
 from PIL import Image
 import csv
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 import re
 import numpy as np
 import scipy.misc
@@ -61,32 +55,22 @@ class LabelContest(wx.Panel):
         """
         self.dirList = []
         # Maps {groupID: [csvpath_side0, ...]}
-        group_targets_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                      self.proj.group_targets_map),
-                                             'rb'))
-        # GROUP_TO_BALLOTS: {int groupID: [int ballotID_i, ...]}
-        group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.group_to_ballots), 'rb'))
+
         # GROUP_EXMPLS: {int groupID: [int ballotID_i, ...]}
-        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.group_exmpls), 'rb'))
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        group_exmpls = self.proj.load_field(self.proj.group_exmpls)
+        b2imgs = self.proj.load_field(self.proj.ballot_to_images)
 
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
+        img2page = self.proj.load_field(self.proj.image_to_page)
         # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}
-        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                    self.proj.target_locs_map), 'rb'))
+        target_locs_map = self.proj.load_field(self.proj.target_locs_map)
 
-        self.flipped = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_flip), 'rb'))
+        self.flipped = self.proj.load_field(self.proj.image_to_flip)
 
-        if os.path.exists(pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p')):
-            groups_quar = set(pickle.load(
-                open(pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p'))))
+        if self.proj.path_exists('quarantinedgroups_seltargets.p'):
+            groups_quar = set(self.proj.load_field(
+                'quarantinedgroups_seltargets.p'))
         else:
             groups_quar = set()
-        quar_groups = pickle
 
         # groupedtargets is [[[(targetid,contestid,left,up,right,down)]]]
         # where:
@@ -178,7 +162,7 @@ class LabelContest(wx.Panel):
 
     firstTime = True
 
-    def start(self, project=None):
+    def start(self, project=None, projdir=None):
         """
         Set everything up to display.
         """
@@ -233,7 +217,7 @@ class LabelContest(wx.Panel):
 
         self.gatherData()
 
-        self.grouping_cached = None
+        self.grouping_cached = []
         self.getValues()
 
         self.text_targets = []
@@ -328,7 +312,6 @@ class LabelContest(wx.Panel):
         button6.Bind(wx.EVT_BUTTON, self.compute_equivs)
         template.Add(button6)
 
-        @util.pdb_on_crash
         def addmultibox(x):
             print "ADD MULTI BOX CLICKED HERE"
             orders = []
@@ -337,9 +320,11 @@ class LabelContest(wx.Panel):
                 for cid in range(len(self.grouping_cached[bid]) - 1):
                     # print (bid,cid)
                     # print self.multiboxcontests
-                    if any((bid, self.contest_order[bid][cid + 1]) in mult for mult in self.multiboxcontests):
+                    if any((bid, self.contest_order[bid][cid + 1])
+                           in mult for mult in self.multiboxcontests):
                         continue
-                    if any((bid, self.contest_order[bid][cid + 1]) in mult for mult in self.multiboxcontests):
+                    if any((bid, self.contest_order[bid][cid + 1])
+                           in mult for mult in self.multiboxcontests):
                         continue
                     m1 = self.mapping_inverse[
                         (bid, self.contest_order[bid][cid])]
@@ -349,18 +334,23 @@ class LabelContest(wx.Panel):
                 orders.append(order)
             # print "ORDS", orders
             # print "inv", self.mapping_inverse
-            if any(any((self.templatenum, self.contest_order[self.templatenum][self.count + x]) in y for y in self.multiboxcontests) for x in range(2)):
+            if any(any((self.templatenum,
+                        self.contest_order[self.templatenum][self.count + x])
+                       in y for y in self.multiboxcontests) for x in range(2)):
                 return
-            extension, newgroup = extend_multibox(self.grouping_cached,
-                                                  self.mapping_inverse[(self.templatenum, self.contest_order[
-                                                                        self.templatenum][self.count])],
-                                                  self.mapping_inverse[(self.templatenum, self.contest_order[
-                                                                        self.templatenum][self.count + 1])],
-                                                  orders)
+            extension, newgroup = extend_multibox(
+                self.grouping_cached,
+                self.mapping_inverse[(self.templatenum, self.contest_order[
+                    self.templatenum][self.count])],
+                self.mapping_inverse[(self.templatenum, self.contest_order[
+                    self.templatenum][self.count + 1])],
+                orders)
             print "EXTENSION", extension
             print "NEWGROUP", newgroup
-            self.multiboxcontests_enter += [tuple([(self.mapping[x][0], self.contest_order[
-                                                  self.mapping[x][0]].index(self.mapping[x][1])) for x in pair]) for pair in extension]
+            self.multiboxcontests_enter += [
+                tuple([(self.mapping[x][0], self.contest_order[
+                    self.mapping[x][0]].index(self.mapping[x][1]))
+                    for x in pair]) for pair in extension]
 
             print "MULTIBOX"
             print self.multiboxcontests_enter
@@ -378,7 +368,7 @@ class LabelContest(wx.Panel):
                     cleared.append(new_group)
             fixed = cleared + [[((bid, boxes), order)
                                 for ((bid, boxes, text), order) in newgroup]]
-            # newvalids[len(cleared)] = [[self.mapping[bid,bb[0]] for ((bid,bb,_),_) in newgroup]]
+
             self.groups_saved = fixed
 
             # print "BEFORE", self.equivs_processed
@@ -392,7 +382,6 @@ class LabelContest(wx.Panel):
                 print "take it", ids_in_new_group
                 # HACK -- WE DON'T USE THE VERIFICATION STUFF AT ALL
 
-                old = self.equivs_processed
                 print "OLD", self.equivs_processed
                 new_processed = []
                 for each in self.equivs_processed:
@@ -411,7 +400,10 @@ class LabelContest(wx.Panel):
 
             print 'verify here'
             VerifyContestGrouping(self.proj.ocr_tmp_dir, self.dirList, [
-                                  ids_in_new_group], self.reorder, self.reorder_inverse, self.mapping, self.mapping_inverse, self.multiboxcontests, putresults)
+                                  ids_in_new_group], self.reorder,
+                                  self.reorder_inverse, self.mapping,
+                                  self.mapping_inverse,
+                                  self.multiboxcontests, putresults)
 
             return
 
@@ -481,14 +473,11 @@ class LabelContest(wx.Panel):
                 if thing in d:
                     return d[thing]
             return None
-        bal2grp = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                            self.proj.ballot_to_group), 'rb'))
-        grp2bals = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.group_to_ballots), 'rb'))
-        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+
+        grp2bals = self.proj.load_field(self.proj.group_to_ballots)
+        bal2imgs = self.proj.load_field(self.proj.ballot_to_images)
         # GROUP2INFO: {int groupID: {attrtype: attrval}}
-        group2info = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                               self.proj.group_infomap), 'rb'))
+        group2info = self.proj.load_field(self.proj.group_infomap)
         lang2tesseract = {'english': 'eng', 'eng': 'eng', 'en': 'eng',
                           'spanish': 'spa', 'span': 'spa', 'esp': 'spa',
                           'korean': 'kor', 'kor': 'kor',
@@ -723,25 +712,36 @@ class LabelContest(wx.Panel):
                 did[mapping[k]] = True
         print "Step 2"
 
-        pickle.dump((self.text, self.voteupto, self.grouping_cached),
-                    open(self.proj.contest_internal, "w"))
+        self.proj.save_field(
+            (self.text, self.voteupto, self.grouping_cached),
+            self.proj.contest_internal)
         if self.has_equiv_classes:
-            pickle.dump((self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached,
-                         self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed), open(self.proj.contest_grouping_data, "w"))
+            self.proj.save_field(
+                (self.mapping,
+                 self.mapping_inverse,
+                 self.reorder,
+                 self.reorder_inverse,
+                 self.equivs,
+                 self.groups_saved,
+                 self.grouping_cached,
+                 self.multiboxcontests,
+                 self.multiboxcontests_enter,
+                 self.equivs_processed),
+                self.proj.contest_grouping_data)
         print "Done"
 
     def setupBoxes(self):
         self.proj.infer_bounding_boxes = True
         if self.proj.infer_bounding_boxes:
             res = []
-            target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                        self.proj.target_locs_map), 'rb'))
+            target_locs_map = self.proj.load_field(self.proj.target_locs_map)
             for groupID, contests_sides in target_locs_map.iteritems():
-                for side, contests in sorted(contests_sides.iteritems(), key=lambda t: t[0]):
+                for side, contests in sorted(contests_sides.iteritems(),
+                                             key=lambda t: t[0]):
                     ballot = []
                     for contest in contests:
                         # CBOX := [x1, y1, w, h, id, contest_id]
-                        cbox, tboxes = contest[0], contest[1:]
+                        cbox = contest[0]
                         entry = (cbox[4], cbox[0], cbox[1],
                                  cbox[0] + cbox[2], cbox[1] + cbox[3])
                         ballot.append(entry)
@@ -823,8 +823,8 @@ class LabelContest(wx.Panel):
         if os.path.exists(self.proj.contest_internal):
             if open(self.proj.contest_internal).read():
                 restored = True
-                self.text, self.voteupto, self.grouping_cached = pickle.load(
-                    open(self.proj.contest_internal))
+            self.text, self.voteupto, self.grouping_cached = \
+                self.proj.load_field(self.proj.contest_internal)
 
         self.equivs = []
         self.has_equiv_classes = False
@@ -834,12 +834,20 @@ class LabelContest(wx.Panel):
 
         if os.path.exists(self.proj.contest_grouping_data):
             if open(self.proj.contest_grouping_data).read():
-                print 'GOT THE DATA'
-                dat = pickle.load(open(self.proj.contest_grouping_data))
+                dat = self.proj.load_field(self.proj.contest_grouping_data)
                 if len(dat) == 9:
-                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter = dat
+                    self.mapping, self.mapping_inverse, self.reorder, \
+                        self.reorder_inverse, self.equivs, \
+                        self.groups_saved, self.grouping_cached, \
+                        self.multiboxcontests, \
+                        self.multiboxcontests_enter = dat
                 else:
-                    self.mapping, self.mapping_inverse, self.reorder, self.reorder_inverse, self.equivs, self.groups_saved, self.grouping_cached, self.multiboxcontests, self.multiboxcontests_enter, self.equivs_processed = dat
+                    self.mapping, self.mapping_inverse, \
+                        self.reorder, self.reorder_inverse, \
+                        self.equivs, self.groups_saved, \
+                        self.grouping_cached, self.multiboxcontests, \
+                        self.multiboxcontests_enter, \
+                        self.equivs_processed = dat
                 self.has_equiv_classes = True
 
         # The PIL image for the contest.

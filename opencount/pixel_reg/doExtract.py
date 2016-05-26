@@ -7,6 +7,7 @@ import time
 import os
 import multiprocessing as mp
 import wx
+import util
 from util import create_dirs
 import pickle
 import shutil

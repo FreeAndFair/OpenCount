@@ -2,7 +2,7 @@ import pdb
 import traceback
 import wx
 import os
-from os.path import join as pathjoin
+import image_file as imageFile
 
 from PIL import Image, ImageDraw
 
@@ -11,7 +11,6 @@ try:
     import cPickle as pickle
 except:
     import pickle
-import math
 import csv
 
 import numpy as np
@@ -19,6 +18,7 @@ import wx.lib
 import wx.lib.dialogs
 
 
+import ffwx
 import util
 import config
 from util import pil2wxb, MyGauge
@@ -449,7 +449,8 @@ class GridShow(wx.ScrolledWindow):
     def show_overlays(self, ii, evt):
         # Starting at the place where the user right-clicked, generate
         # min/max overlays from all voting targets, up to the last target.
-        start_idx = ii+int(round(float(evt.GetPositionTuple()[0])/self.targetw))
+        start_idx = ii+ \
+            int(round(float(evt.GetPositionTuple()[0])/self.targetw))
 
         print 'start_idx:', start_idx
         imgpaths = []
@@ -469,14 +470,11 @@ class GridShow(wx.ScrolledWindow):
 
         self.proj = proj
         self.proj.addCloseEvent(self.dosave)
-        self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
-        self.bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-        self.img2page = pickle.load(
-            open(pathjoin(proj.projdir_path, proj.image_to_page), 'rb'))
-        self.img2flip = pickle.load(
-            open(pathjoin(proj.projdir_path, proj.image_to_flip), 'rb'))
-        self.bal2targets = pickle.load(
-            open(pathjoin(proj.projdir_path, proj.ballot_to_targets), 'rb'))
+        self.img2bal = proj.load_field(proj.image_to_ballot)
+        self.bal2imgs = proj.load_field(proj.ballot_to_images)
+        self.img2page = proj.load_field(proj.image_to_page)
+        self.img2flip = proj.load_field(proj.image_to_flip)
+        self.bal2targets = proj.load_field(proj.ballot_to_targets)
 
         self.somethingHasChanged = False
 
@@ -498,8 +496,15 @@ class GridShow(wx.ScrolledWindow):
         # gr.Show()
         # return
 
-        dlg = wx.lib.dialogs.MultipleChoiceDialog(None, "Select the filter mode.", "Filter", [
-                                                  "Show All", "Show only even", "Show only filled", "Show only overvotes", "Show strange cases"])
+        dlg = wx.lib.dialogs.MultipleChoiceDialog(
+            None,
+            "Select the filter mode.",
+            "Filter", [
+                "Show All",
+                "Show only even",
+                "Show only filled",
+                "Show only overvotes",
+                "Show strange cases"])
         dlg.ShowModal()
 
         self.jpgs = {}
@@ -517,12 +522,9 @@ class GridShow(wx.ScrolledWindow):
         elif dlg.GetValue()[0] == 2:
             self.visibleTargets = range(0, self.threshold)
         elif dlg.GetValue()[0] == 3:
-            target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                        self.proj.target_locs_map), 'rb'))
-            ballot_to_group = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                        self.proj.ballot_to_group), 'rb'))
-            group_examples = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                       self.proj.group_exmpls), 'rb'))
+            target_locs_map = self.proj.load_field(self.proj.target_locs_map)
+            ballot_to_group = self.proj.load_field(self.proj.ballot_to_group)
+            group_examples = self.proj.load_field(self.proj.group_exmpls)
 
             has_contest_data = False
             if os.path.exists(self.proj.contest_text):
@@ -536,7 +538,7 @@ class GridShow(wx.ScrolledWindow):
             for each in range(self.numberOfTargets):
                 (bid, side, tid), _ = self.classified_file[each]
                 targets = dict((x[4], x[5]) for y in target_locs_map[
-                               ballot_to_group[bid]][side] for x in y[1:])
+                    ballot_to_group[bid]][side] for x in y[1:])
                 contest = targets[tid]
                 if (bid, side, contest) not in over_count:
                     over_count[bid, side, contest] = []
@@ -594,7 +596,7 @@ class GridShow(wx.ScrolledWindow):
             argsorted = np.argsort(targets)
             weird = argsorted > self.threshold
             weird = list(np.arange(bound)[weird[
-                         :bound]]) + list(np.arange(bound, len(weird))[np.logical_not(weird[bound:])])
+                :bound]]) + list(np.arange(bound, len(weird))[np.logical_not(weird[bound:])])
             print weird
             print len(weird)
             self.visibleTargets = sorted(weird)
@@ -608,14 +610,12 @@ class GridShow(wx.ScrolledWindow):
         Get a list of all the images.
         """
 
-        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                    self.proj.target_locs_map), 'rb'))
+        target_locs_map = self.proj.load_field(self.proj.target_locs_map)
 
         def get_target_size():
             # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
             #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
             #     box := [x1, y1, width, height, id, contest_id]
-            widgh, height = None, None
             for groupid, pagedict in target_locs_map.iteritems():
                 for page, contests in pagedict.iteritems():
                     for contest in contests:
@@ -731,7 +731,6 @@ class GridShow(wx.ScrolledWindow):
 
     def setup(self):
         self.somethingHasChanged = True
-        i = 0
 
         self.Bind(wx.EVT_SCROLLWIN_THUMBTRACK,
                   lambda x: self.onScroll(evtpos=x.GetPosition()))
@@ -742,9 +741,11 @@ class GridShow(wx.ScrolledWindow):
         self.Bind(wx.EVT_SCROLLWIN_LINEDOWN,
                   lambda x: self.onScroll(self.lastpos + self.numcols))
         self.Bind(wx.EVT_SCROLLWIN_PAGEUP,
-                  lambda x: self.onScroll(self.lastpos - self.numcols * self.numrows))
+                  lambda x: self.onScroll(self.lastpos -
+                                          self.numcols * self.numrows))
         self.Bind(wx.EVT_SCROLLWIN_PAGEDOWN,
-                  lambda x: self.onScroll(self.lastpos + self.numcols * self.numrows))
+                  lambda x: self.onScroll(self.lastpos +
+                                          self.numcols * self.numrows))
 
         self.classified_file = [l.split("\0")
                                 for l in open(self.proj.classified)]
@@ -786,13 +787,15 @@ class GridShow(wx.ScrolledWindow):
         if os.path.exists(self.proj.threshold_internal):
             dat = open(self.proj.threshold_internal).read()
             if dat:
-                data = pickle.load(open(self.proj.threshold_internal))
+                data = self.proj.load_field(self.proj.threshold_internal)
                 if len(data) == 4:
-                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets = data
-                    self.onScroll(self.index_to_visible[
-                                  self.threshold] - (self.numcols * self.numrows) / 2)
+                    self.threshold, self.wrong, self.quarantined, \
+                        self.quarantined_targets = data
+                    self.onScroll(self.index_to_visible[self.threshold] -
+                                  (self.numcols * self.numrows) / 2)
                 else:
-                    self.threshold, self.wrong, self.quarantined, self.quarantined_targets, pos = data
+                    self.threshold, self.wrong, self.quarantined, \
+                        self.quarantined_targets, pos = data
                     self.onScroll(pos)
 
         else:
@@ -923,13 +926,18 @@ class GridShow(wx.ScrolledWindow):
                 f.write(", ".join(map(str, t)) + ", 0\n")
         f.close()
 
-        pickle.dump((self.threshold, self.wrong, self.quarantined, self.quarantined_targets,
-                     self.lastpos), open(self.proj.threshold_internal, "w"))
-        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        self.proj.save_field(
+            (self.threshold,
+             self.wrong,
+             self.quarantined,
+             self.quarantined_targets,
+             self.lastpos),
+            self.proj.threshold_internal)
+        img2bal = self.proj.load_field(self.proj.image_to_ballot)
 
         out = open(self.proj.quarantined_manual, "w")
         for each in self.quarantined:
-            if type(each) == type(0):
+            if isinstance(each, int):
                 targetpath = self.lookupFullList(each)[0]
                 ballotpath = self.target_to_sample(targetpath)
                 ballotid = img2bal[ballotpath]
@@ -941,7 +949,7 @@ class GridShow(wx.ScrolledWindow):
         out.close()
 
 
-class ThresholdPanel(wx.Panel):
+class ThresholdPanel(ffwx.Panel):
 
     def __init__(self, parent, size):
         wx.Panel.__init__(self, parent, id=-1, size=size)
@@ -1017,8 +1025,10 @@ class ThresholdPanel(wx.Panel):
         self.tabOne.dosave()
 
     def onButton_jumpto(self, evt):
-        dlg = wx.TextEntryDialog(self, style=wx.CAPTION | wx.OK | wx.CANCEL,
-                                 message="Please enter a position value greater than 0.")
+        dlg = wx.TextEntryDialog(
+            self,
+            style=wx.CAPTION | wx.OK | wx.CANCEL,
+            message="Please enter a position value greater than 0.")
         status = dlg.ShowModal()
         if status == wx.ID_CANCEL:
             return

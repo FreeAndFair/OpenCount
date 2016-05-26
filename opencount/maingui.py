@@ -4,18 +4,17 @@ contains all the other panels.
 '''
 
 import argparse
-import datetime
-import wx
-
 import matplotlib
 matplotlib.use('Agg')
+import wx
 
-from project import Project
-import panels
-import ffwx
-from util import debug, warn
 
 import config
+import ffwx
+import panels
+from project import Project
+import util
+from util import debug, warn, error
 
 
 PROJROOTDIR = 'projects_new'
@@ -62,51 +61,36 @@ class MainFrame(wx.Frame):
     def setup_pages(self):
         self.pages = [
             (panels.ProjectPanel(self.notebook),
-             "Projects",
              "Projects"),
             (panels.ConfigPanel(self.notebook),
-             "Import Files",
              "Import"),
             (panels.PartitionMainPanel(self.notebook),
-             "Partition Ballots",
              "Partition"),
             (panels.BallotAttributesPanel(self.notebook),
-             "Ballot Attributes",
              "Attrs"),
             (panels.LabelDigitsPanel(self.notebook),
-             "Label Digit-Based Attributes",
              "Label Digit Attrs"),
             (panels.RunGroupingMainPanel(self.notebook),
-             "Run Grouping",
              "Group"),
             (panels.VerifyGroupingMainPanel(self.notebook),
-             "Correct Grouping",
              "Correct Grouping"),
             (panels.SelectTargetsMainPanel(self.notebook),
-             "Select Voting Targets",
              "Targets"),
             (panels.LabelContest(self.notebook, self.GetSize()),
-             "Label Contests",
              "Contests"),
             (panels.TargetExtractPanel(self.notebook),
-             "Extract Targets",
              "Extract"),
             (panels.ThresholdPanel(self.notebook, self.GetSize()),
-             "Set Threshold",
              "Threshold"),
             (panels.QuarantinePanel(self.notebook),
-             "Process Quarantine",
              "Quarantine"),
             (panels.ResultsPanel(self.notebook),
-             "Results",
              "Results"),
         ]
-        self.panels = list((panel for (panel, _, _) in self.pages))
+        self.panels = list((panel for (panel, _) in self.pages))
 
-        self.titles = {}
-        for panel, fullname, shortname in self.pages:
+        for panel, shortname in self.pages:
             self.notebook.AddPage(panel, shortname)
-            self.titles[panel] = (fullname, shortname)
 
     def set_project(self, proj):
         self.project = proj
@@ -114,7 +98,6 @@ class MainFrame(wx.Frame):
 
     def onPageChanging(self, evt):
         old = evt.GetOldSelection()
-        new = evt.GetSelection()
         if old == -1:
             # Don't know why these events are sometimes triggered...
             return
@@ -130,6 +113,7 @@ class MainFrame(wx.Frame):
             warn('can_move_on method for {0} should be switched to '
                  'new exception-based API',
                  self.notebook.GetPage(old))
+            msg = '[CHANGE ME]'
             ffwx.modal(self, msg)
             evt.Veto()
             return
@@ -137,8 +121,13 @@ class MainFrame(wx.Frame):
         if old == util.Steps.PROJECT:
             self.set_project(self.notebook.GetPage(old).get_project())
 
-        if old >= 1:
-            self.panels[old].stop()
+        try:
+            if old >= 1:
+                self.panels[old].stop()
+        except ffwx.Panel.StepNotFinished as exn:
+            ffwx.modal(self, exn.message)
+            evt.Veto()
+            return
 
     def switch_to(self, tgt, old):
         self.notebook.ChangeSelection(tgt)
@@ -150,13 +139,6 @@ class MainFrame(wx.Frame):
 
         if self.project:
             self.project.save()
-
-        if old != -1:
-            curpanel = self.notebook.GetPage(old)
-            # self.notebook.SetPageText(old, self.titles[curpanel][1])
-
-        newpanel = self.notebook.GetPage(new)
-        # self.notebook.SetPageText(new, self.titles[newpanel][0])
 
         if new >= MainFrame.SELTARGETS:
             if not self.project.is_grouped():
@@ -177,17 +159,7 @@ class MainFrame(wx.Frame):
                     self.switch_to(self.PARTITION, old)
                     return
 
-        if new == MainFrame.LABEL_DIGATTRS:
-            # Skip if there are no digit-based attributes
-            if not self.project.has_digitbasedattr():
-                ffwx.modal(self,
-                           'There are no Digit-Based Attributes in this '
-                           'election -- skipping to the next page.')
-                # self.switch_to(self.RUN_GROUPING, old)
-                self.notebook.ChangeSelection(self.RUN_GROUPING)
-                self.notebook.SendPageChangedEvent(
-                    self.LABEL_DIGATTRS, self.RUN_GROUPING)
-        elif new == MainFrame.RUN_GROUPING:
+        if new == MainFrame.RUN_GROUPING:
             if not self.project.has_imgattr() \
                and not self.project.has_digitbasedattr():
                 ffwx.modal(self,
@@ -260,20 +232,14 @@ def parse_args():
 def main():
     args = parse_args()
     if args.n:
-        debug("Processing first {0} ballots [user passed in -n,--num]", args.n)
+        warn("Processing first {0} ballots [user passed in -n,--num]", args.n)
         config.BALLOT_LIMIT = args.n
+    if args.time:
+        error("Timing code has been temporarily removed.")
+        return
     config.IS_DEV = args.dev
     if config.IS_DEV:
         debug("Running in dev-mode")
-    if args.time:
-        prefix = args.time
-        now = datetime.datetime.now()
-        date_suffix = "{0}_{1}_{2}_{3}_{4}".format(
-            now.year, now.month, now.day, now.hour, now.minute)
-        # "PREFIX_YEAR_MONTH_DAY_HOUR_MINUTE.log"
-        timing_filepath = "{0}_{1}.log".format(prefix, date_suffix)
-        debug("User passed in '--time': Saving timing statistics to {0}",
-              timing_filepath)
 
     app = wx.App(False)
     f = MainFrame(None, size=wx.GetDisplaySize())

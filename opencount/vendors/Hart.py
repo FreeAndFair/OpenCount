@@ -153,9 +153,8 @@ class HartVendor(Vendor):
         partitions = {}  # maps {partitionID: [int ballotID, ...]}
         imginfo_map = {}  # maps {imgpath: {str PROPNAME: str PROPVAL}}
         # maps {('precinct', 'language', 'party'): int partitionID}
-        attrs2partitionID = {}
-        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        bal2imgs = self.proj.load_field(self.proj.ballot_to_images)
+        img2bal = self.proj.load_field(self.proj.image_to_ballot)
         if verified_results:
             img2decoding = {}  # Ignore the input IMG2DECODING
             img_bc_temp = {}  # maps {imgpath: [(i, bcLabel_i), ...]}

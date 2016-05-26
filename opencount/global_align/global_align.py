@@ -3,7 +3,6 @@ import cv2
 import cv
 import numpy as np
 import os
-import time
 
 from os.path import join as pathjoin
 
@@ -15,10 +14,7 @@ import scipy.linalg
 import pixel_reg.imagesAlign as imagesAlign
 import pixel_reg.shared as sh
 
-try:
-    import matplotlib.pyplot as plt
-except:
-    print "Couldn't import matplotlib. Can't plot."
+import matplotlib.pyplot as plt
 
 """
 Functions that globally-align ballot images together.

@@ -43,6 +43,19 @@ class Panel(wx.Panel):
                 repr(self.message),
                 self.target_step)
 
+    class FatalError(Exception):
+        '''
+        An exception that should only be triggered due to something
+        buggy in the program itself. We should throw these proactively
+        so that we can hunt them down more easily.
+        '''
+
+        def __init__(self, message):
+            self.message = message
+
+        def __repr__(self):
+            return 'FatalError({0})'.format(repr(self.message))
+
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(self, parent, *args, **kwargs)
 

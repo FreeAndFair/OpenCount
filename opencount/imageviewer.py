@@ -1,6 +1,5 @@
 import os
 import sys
-import csv
 import traceback
 import util_gui
 

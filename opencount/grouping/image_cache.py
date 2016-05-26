@@ -1,6 +1,5 @@
 import sys
 import os
-import time
 import pdb
 from collections import deque
 import cv

@@ -63,6 +63,7 @@ def makeOneFile(src, radix, dst, targetdims, MEM_C=0.8, SORT_METHOD=METHOD_DYN):
     imgSize = targetdims[0] * targetdims[1]
 
     for index in range(256):
+        print index
         which = "%02x" % index
         data = []
         names = []

@@ -3,8 +3,6 @@ import traceback
 import os
 import numpy as np
 import cv
-import csv
-import string
 import math
 import imagesAlign as lk
 from scipy import misc

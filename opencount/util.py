@@ -6,7 +6,6 @@ import os
 import re
 import sys
 import time
-import threading
 
 import cv
 import numpy as np
@@ -96,7 +95,8 @@ class MyGauge(wx.Dialog):
         """
         self.job_id = job_id
         if not self.job_id:
-            raise Exception("All Gauges now must have a Job ID.")
+            pass
+            # raise Exception("All Gauges now must have a Job ID.")
 
         self.destroyondone = destroyondone
         wx.Dialog.__init__(self, parent, size=size, *args, **kwargs)
@@ -182,7 +182,7 @@ class MyGauge(wx.Dialog):
         return msg
 
     def _pubsub_done(self, msg):
-        if not self.is_event_relevant(msg):
+        if msg[0] is not None and not self.is_event_relevant(msg):
             return
         pub.unsubscribe(self._pubsub_done, "signals.MyGauge.done")
         pub.unsubscribe(self._pubsub_tick, "signals.MyGauge.tick")
@@ -288,15 +288,20 @@ class MyGauge(wx.Dialog):
 
     @staticmethod
     def all_next_job(num_tasks):
-        raise Exception('REPLACE ME')
+        pass
+        # raise Exception('REPLACE ME')
 
     @staticmethod
     def all_tick():
-        raise Exception('REPLACE ME')
+        pass
+        # raise Exception('REPLACE ME')
 
     @staticmethod
     def all_done():
-        raise Exception('REPLACE ME')
+        print 'ALL DONE'
+        wx.CallAfter(pub.sendMessage,
+                     "signals.MyGauge.done",
+                     msg=(None,))
 
 
 class GaugeID(object):
@@ -356,6 +361,8 @@ class Gauges:
     compute_mult_exemplars = GaugeID()
     generate_mix_max_overlays = GaugeID()
     select_attrs = GaugeID()
+    extract_targets = GaugeID()
+    targets_create_image = GaugeID()
 
 
 class MyTimer(object):
@@ -500,10 +507,10 @@ def PilImageToWxImage(myPilImage, copyAlpha=True):
         myWxImage = wx.EmptyImage(*myPilImage.size)
         myPilImageCopyRGBA = myPilImage.copy()
         myPilImageCopyRGB = myPilImageCopyRGBA.convert('RGB')    # RGBA --> RGB
-        myPilImageRgbData = myPilImageCopyRGB.tostring()
+        myPilImageRgbData = myPilImageCopyRGB.tobytes()
         myWxImage.SetData(myPilImageRgbData)
         # Create layer and insert alpha values.
-        myWxImage.SetAlphaData(myPilImageCopyRGBA.tostring()[3::4])
+        myWxImage.SetAlphaData(myPilImageCopyRGBA.tobytes()[3::4])
 
     else:    # The resulting image will not have alpha.
 
@@ -511,7 +518,7 @@ def PilImageToWxImage(myPilImage, copyAlpha=True):
         myPilImageCopy = myPilImage.copy()
         # Discard any alpha from the PIL image.
         myPilImageCopyRGB = myPilImageCopy.convert('RGB')
-        myPilImageRgbData = myPilImageCopyRGB.tostring()
+        myPilImageRgbData = myPilImageCopyRGB.tobytes()
         myWxImage.SetData(myPilImageRgbData)
 
     return myWxImage
@@ -561,7 +568,7 @@ def np2wxImage(nparray):
         Inp = nparray
     h, w, channels = Inp.shape
     image = wx.EmptyImage(w, h)
-    image.SetData(Inp.tostring())
+    image.SetData(Inp.tobytes())
     return image
 
 
@@ -918,9 +925,12 @@ class Counter(dict):
         of elements to their counts.
 
         >>> c = Counter()                           # a new, empty counter
-        >>> c = Counter('gallahad')                 # a new counter from an iterable
-        >>> c = Counter({'a': 4, 'b': 2})           # a new counter from a mapping
-        >>> c = Counter(a=4, b=2)                   # a new counter from keyword args
+        # a new counter from an iterable
+        >>> c = Counter('gallahad')
+        # a new counter from a mapping
+        >>> c = Counter({'a': 4, 'b': 2})
+        # a new counter from keyword args
+        >>> c = Counter(a=4, b=2)
 
         '''
         self.update(iterable, **kwds)
@@ -1084,11 +1094,6 @@ def is_multipage(project):
     Currently an ad-hoc method of determining if the current election
     is multipage or not.
     """
-    # ballot_to_images_path = project.ballot_to_images
-    # try:
-    #    return len(pickle.load(open(ballot_to_images_path)).items()[0][1]) != 1
-    # except:
-    #    return False
     return project.is_multipage
 
 
@@ -1097,20 +1102,24 @@ def sort_nicely(l):
     From:
         http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
     """
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    def convert(text):
+        return int(text) if text.isdigit() else text
+
+    def alphanum_key(key):
+        return [convert(c) for c in re.split('([0-9]+)', key)]
+
     l.sort(key=alphanum_key)
 
 
-def sorted_nicely(l):
+def sorted_nicely(lst):
     """ Sort the given list in the way that humans expect. Returns a new
     list.
     From:
         http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
     """
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-    return sorted(l, key=alphanum_key)
+    lst_copy = lst[:]
+    sort_nicely(lst_copy)
+    return lst_copy
 
 
 def pdb_on_crash(f):

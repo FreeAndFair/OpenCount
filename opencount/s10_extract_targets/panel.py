@@ -1,14 +1,9 @@
-import sys
 import os
 import threading
 import multiprocessing
 import math
 import shutil
 import cProfile
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 from os.path import join as pathjoin
 
 import wx
@@ -104,8 +99,11 @@ Extraction, but you just want to create the Image File:")
         t = RunThread(self.proj)
         t.start()
 
-        gauge = util.MyGauge(self, 5, tofile=self.proj.timing_runtarget,
-                             ondone=self.on_targetextract_done, thread=t)
+        gauge = util.MyGauge(self,
+                             5,
+                             job_id=util.Gauges.extract_targets,
+                             ondone=self.on_targetextract_done,
+                             thread=t)
         gauge.Show()
 
     def onButton_createImageFile(self, evt):
@@ -113,8 +111,11 @@ Extraction, but you just want to create the Image File:")
         t = RunThread(self.proj, skip_extract=True)
         t.start()
 
-        gauge = util.MyGauge(self, 4, tofile=self.proj.timing_runtarget,
-                             ondone=self.on_targetextract_done, thread=t)
+        gauge = util.MyGauge(self,
+                             4,
+                             job_id=util.Gauges.targets_create_image,
+                             ondone=self.on_targetextract_done,
+                             thread=t)
         gauge.Show()
 
     def on_targetextract_done(self):
@@ -143,18 +144,13 @@ class RunThread(threading.Thread):
 
     def do_target_extract(self):
         if not self.skip_extract:
-            group_to_ballots = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                         self.proj.group_to_ballots), 'rb'))
-            group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.group_exmpls), 'rb'))
-            b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-            img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-            img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_page), 'rb'))
-            img2flip = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_flip), 'rb'))
-        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                    self.proj.target_locs_map), 'rb'))
+            group_to_ballots = self.proj.load_field(self.proj.group_to_ballots)
+            group_exmpls = self.proj.load_field(self.proj.group_exmpls)
+            b2imgs = self.proj.load_field(self.proj.ballot_to_images)
+            img2b = self.proj.load_field(self.proj.image_to_ballot)
+            img2page = self.proj.load_field(self.proj.image_to_page)
+            img2flip = self.proj.load_field(self.proj.image_to_flip)
+        target_locs_map = self.proj.load_field(self.proj.target_locs_map)
 
         print "...starting doExtract..."
         if not self.skip_extract:
@@ -166,30 +162,30 @@ class RunThread(threading.Thread):
             nProc = 1 if self.do_profile else None
             # list AVG_INTENSITIES: [(str targetid, float avg_intensity), ...]
             # where TARGETID :=  str(balId)+"\0"+str(page)+"\0"+str(int(uid))
-            avg_intensities, bal2targets = doExtract.extract_targets(group_to_ballots, b2imgs, img2b, img2page, img2flip,
-                                                                     target_locs_map, group_exmpls,
-                                                                     bad_ballotids,
-                                                                     self.proj.extracted_dir,
-                                                                     self.proj.extracted_metadata,
-                                                                     self.proj.ballot_metadata,
-                                                                     pathjoin(self.proj.projdir_path,
-                                                                              self.proj.targetextract_quarantined),
-                                                                     self.proj.voteddir,
-                                                                     self.proj.projdir_path,
-                                                                     nProc=nProc,
-                                                                     method_galign=doExtract.GALIGN_NORMAL,
-                                                                     method_lalign=doExtract.LALIGN_NORMAL)
-            pickle.dump(avg_intensities, open(pathjoin(self.proj.projdir_path,
-                                                       'targetextract_avg_intensities.p'), 'wb'),
-                        pickle.HIGHEST_PROTOCOL)
-            pickle.dump(bal2targets, open(pathjoin(self.proj.projdir_path,
-                                                   self.proj.ballot_to_targets), 'wb'),
-                        pickle.HIGHEST_PROTOCOL)
+            avg_intensities, bal2targets = doExtract.extract_targets(
+                group_to_ballots, b2imgs, img2b, img2page, img2flip,
+                target_locs_map, group_exmpls,
+                bad_ballotids,
+                self.proj.extracted_dir,
+                self.proj.extracted_metadata,
+                self.proj.ballot_metadata,
+                pathjoin(self.proj.projdir_path,
+                         self.proj.targetextract_quarantined),
+                self.proj.voteddir,
+                self.proj.projdir_path,
+                nProc=nProc,
+                method_galign=doExtract.GALIGN_NORMAL,
+                method_lalign=doExtract.LALIGN_NORMAL)
+            self.proj.save_field(
+                avg_intensities,
+                'targetextract_avg_intensities.p')
+            self.proj.save_field(
+                bal2targets,
+                self.proj.ballot_to_targets)
         else:
-            avg_intensities = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                        'targetextract_avg_intensities.p'), 'rb'))
-            bal2targets = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                    self.proj.ballot_to_targets), 'rb'))
+            avg_intensities = self.proj.load_field(
+                'targetextract_avg_intensities.p')
+            bal2targets = self.proj.load_field(self.proj.ballot_to_targets)
             print "    (skip_extract was True - not running doExtract)"
 
         total = len(bal2targets)
@@ -197,10 +193,9 @@ class RunThread(threading.Thread):
         del bal2targets  # Try to reclaim some memory
 
         manager = multiprocessing.Manager()
-        queue = manager.Queue()
 
         if wx.App.IsMainLoopRunning():
-            util.MyGauge.all_next_job(total)
+            util.Gauges.extract_targets.next_job(1)
         fulllst = sorted(avg_intensities, key=lambda x: x[
                          1])  # sort by avg. intensity
 
@@ -291,7 +286,8 @@ def _run_target_extract(proj, do_profile, profile_out):
         shutil.rmtree(proj.extracted_metadata)
     if os.path.exists(proj.ballot_metadata):
         shutil.rmtree(proj.ballot_metadata)
-    if os.path.exists(pathjoin(proj.projdir_path, proj.targetextract_quarantined)):
+    if os.path.exists(pathjoin(proj.projdir_path,
+                               proj.targetextract_quarantined)):
         os.remove(pathjoin(proj.projdir_path, proj.targetextract_quarantined))
     if os.path.exists(pathjoin(proj.projdir_path, "extracted_radix")):
         shutil.rmtree(pathjoin(proj.projdir_path, "extracted_radix"))
@@ -305,31 +301,3 @@ def _run_target_extract(proj, do_profile, profile_out):
     t = RunThread(proj, do_profile=do_profile, profile_out=profile_out)
     t.start()
     t.join()
-
-
-def main():
-    import time
-
-    args = sys.argv[1:]
-    projdir = args[-1]
-    do_profile = '--profile' in args
-    try:
-        N = int(args[args.index('-n') + 1])
-    except:
-        N = 3
-    try:
-        profile_out = args[args.index('--profile') + 1]
-        print "Profiling with cProfile -> {0}".format(profile_out)
-        N = 1  # Only profile once
-    except:
-        profile_out = None
-    print "    (Best of {0} trials)".format(N)
-    proj = pickle.load(open(pathjoin(projdir, 'proj.p')))
-    os.chdir('..')
-    for i in xrange(N):
-        _run_target_extract(proj, do_profile, profile_out)
-
-    print "Done."
-
-if __name__ == '__main__':
-    main()

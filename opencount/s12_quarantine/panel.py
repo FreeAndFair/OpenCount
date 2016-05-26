@@ -6,13 +6,6 @@ import csv
 import os
 from collections import defaultdict
 
-try:
-    import cPickle as pickle
-except:
-    import pickle
-
-from os.path import join as pathjoin
-
 
 class QuarantinePanel(wx.Panel):
     firstTime = True
@@ -58,22 +51,20 @@ class MainPanel(wx.Panel):
         self.proj = proj
         self.qballotids = qballotids
         # print 'QBALLOTS {}'.format(qballotids)
-        self.img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
-        bal2img = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2page = pickle.load(
-            open(pathjoin(self.proj.projdir_path, self.proj.image_to_page), 'rb'))
-        self.bal2group = pickle.load(
-            open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group), 'rb'))
-        if os.path.exists(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap)):
-            self.part2attrs = pickle.load(
-                open(pathjoin(self.proj.projdir_path, self.proj.partition_attrmap), 'rb'))
+
+        self.img2bal = proj.load_field(proj.image_to_ballot)
+        bal2img = proj.load_field(proj.ballot_to_images)
+        img2page = proj.load_field(proj.image_to_page)
+        self.bal2group = proj.load_field(proj.ballot_to_group)
+        if proj.path_exists(proj.partition_attrmap):
+            self.part2attrs = proj.load_field(proj.partition_attrmap)
 
         # compute contests for each group ID to display contests for decoded
         # ballots
-        group_exmpls = pickle.load(
-            open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls), 'rb'))
-        groupID_imgpaths = [(x[0], sorted(bal2img[x[1][0]], key=lambda imP: img2page[
-                             imP])) for x in group_exmpls.items()]
+        group_exmpls = proj.load_field(proj.group_exmpls)
+        groupID_imgpaths = [(k, sorted(bal2img[v[0]],
+                                       key=lambda imP: img2page[imP]))
+                            for k, v in group_exmpls.items()]
         rep_paths = [
             path for id_paths in groupID_imgpaths for path in id_paths[1]]
         img_contest_dict = defaultdict(list)
@@ -143,9 +134,9 @@ class MainPanel(wx.Panel):
         # print 'sorted_titles {}'.format(self.title_names)
 
         # load saved information
-        if os.path.exists(self.proj.quarantine_internal):
-            self.data, self.discardlist, self.attributes = pickle.load(
-                open(self.proj.quarantine_internal))
+        if self.proj.path_exists(self.proj.quarantine_internal):
+            self.data, self.discardlist, self.attributes = \
+                self.proj.load_field(self.proj.quarantine_internal)
 
         # create left pane for image
         self.image_width = max(sz[0] / 2, 400)
@@ -225,10 +216,11 @@ class MainPanel(wx.Panel):
 
         # move on to next step if no quarantined ballots
         if not self.qfiles:
-            dlg = wx.MessageDialog(self, message="OpenCount did not \
-                quarantine any voted ballot images - in fact, it seemed to be able \
-                to process all voted ballots just fine. Press 'Ok' to proceed to \
-                the next step.", style=wx.OK)
+            dlg = wx.MessageDialog(
+                self,
+                message="OpenCount did not quarantine any voted ballot "
+                "images. Press 'Ok' to proceed to the next step.",
+                style=wx.OK)
             self.Disable()
             dlg.ShowModal()
             self.Enable()
@@ -399,23 +391,27 @@ class MainPanel(wx.Panel):
     def save(self):
         ''' Save and dump all data to disk '''
         self.save_contest_data()
-        pickle.dump((self.data, self.discardlist, self.attributes),
-                    open(self.proj.quarantine_internal, "w"))
-        out = open(self.proj.quarantine_res, "w")
-        outattr = csv.writer(open(self.proj.quarantine_attributes, "w"))
-        for bpath, ballot, drop, attr in zip(self.qfiles, self.data, self.discardlist, self.attributes):
-            if drop:
-                continue
-            out.write(bpath + ",")
-            outattr.writerow([bpath] + attr)
-            for contest in ballot:
-                out.write(str(contest[0]) + ",")
-                for each in contest[1:]:
-                    # Write T/F for this contest
-                    out.write(str(each)[0])
-                out.write(",")
-            out.write("\n")
-        out.close()
+        self.proj.save_field(
+            (self.data, self.discardlist, self.attributes),
+            self.proj.quarantine_internal)
+        with open(self.proj.path(self.proj.quarantine_res), 'w') as out:
+            outattr = csv.writer(open(self.proj.quarantine_attributes, "w"))
+            for bpath, ballot, drop, attr in \
+                    zip(self.qfiles,
+                        self.data,
+                        self.discardlist,
+                        self.attributes):
+                if drop:
+                    continue
+                out.write(bpath + ",")
+                outattr.writerow([bpath] + attr)
+                for contest in ballot:
+                    out.write(str(contest[0]) + ",")
+                    for each in contest[1:]:
+                        # Write T/F for this contest
+                        out.write(str(each)[0])
+                    out.write(",")
+                out.write("\n")
 
     def save_contest_data(self):
         ''' Save contest data for ballot currently opened '''
@@ -450,9 +446,8 @@ class MainPanel(wx.Panel):
         if not os.path.exists(self.proj.grouping_results):
             return None
 
-        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
+        bal2imgs = self.proj.load_field(self.proj.ballot_to_images)
+        img2page = self.proj.load_field(self.proj.image_to_page)
 
         c_t = {}
         for line in csv.reader(open(self.proj.grouping_results)):
@@ -535,48 +530,44 @@ class TopPanel(wx.Panel):
 
 def get_quarantined_ballots(proj):
     qballotids = []
-    partition_qpath = pathjoin(proj.projdir_path, proj.partition_quarantined)
-    if os.path.exists(partition_qpath):
-        qballotids.extend(pickle.load(open(partition_qpath, 'rb')))
-    grouping_qpath = pathjoin(proj.projdir_path, proj.grouping_quarantined)
-    if os.path.exists(grouping_qpath):
-        # list GROUPING_QUARANTINED: [int ballotID_i, ...]
-        qballotids.extend(pickle.load(open(grouping_qpath, 'rb')))
-    if os.path.exists(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')):
-        qballotids.extend(list(pickle.load(
-            open(pathjoin(proj.projdir_path, 'quarantinedbals_seltargets.p')))))
-    targetextract_qpath = pathjoin(
-        proj.projdir_path, proj.targetextract_quarantined)
-    if os.path.exists(targetextract_qpath):
-        qballotids.extend(pickle.load(open(targetextract_qpath, 'rb')))
-    if os.path.exists(proj.quarantined):
-        lines = open(proj.quarantined, 'r').read().split("\n")
-        lines = [int(l) for l in lines if l != '']
-        qballotids.extend(lines)
-    if os.path.exists(proj.quarantined_manual):
-        lines = open(proj.quarantined_manual, 'r').read().split("\n")
-        lines = [int(l) for l in lines if l != '']
-        qballotids.extend(lines)
+    for field in (proj.partition_quarantined,
+                  proj.grouping_quarantined,
+                  'quarantinedbals_seltargets.p',
+                  proj.targetextract_quarantined):
+        print field
+        print proj.load_field_default(field, [])
+        qballotids.extend(proj.load_field_default(field, []) or [])
+
+    if proj.path_exists(proj.quarantined):
+        with open(proj.quarantined) as f:
+            qballotids.extend((int(line)) for line in f.readlines() if line)
+
+    if proj.path_exists(proj.quarantined_manual):
+        with open(proj.quarantined_manual) as f:
+            qballotids.extend((int(line)) for line in f.readlines() if line)
+
     return list(set(qballotids))
 
 
 def get_discarded_ballots(proj):
     discarded_balids = []
-    if os.path.exists(pathjoin(proj.projdir_path, proj.partition_discarded)):
-        discarded_balids.extend(pickle.load(open(pathjoin(proj.projdir_path,
-                                                          proj.partition_discarded), 'rb')))
-    if os.path.exists(proj.quarantine_internal):
+
+    discarded_balids.extend(
+        proj.load_field_default(proj.partition_discarded, []))
+
+    if proj.path_exists(proj.quarantine_internal):
         # Bit hacky: Peer into QuarantinePanel's internal state
-        bal2imgs = pickle.load(open(proj.ballot_to_images, 'rb'))
-        img2bal = pickle.load(open(proj.image_to_ballot, 'rb'))
+        bal2imgs = proj.load_field(proj.ballot_to_images)
+        img2bal = proj.load_field(proj.image_to_ballot)
+
         # Recreate the qfiles data structure...
         qballotids = list(sorted(get_quarantined_ballots(proj)))
         qfiles = []
         for qballotid in qballotids:
             qfiles.extend(bal2imgs[qballotid])
         qfiles = sorted(list(set(qfiles)))
-        data, discardlist, attributes = pickle.load(
-            open(proj.quarantine_internal, 'rb'))
+        data, discardlist, attributes = proj.load_field(
+            proj.quarantine_internal)
         for i, isDiscard in enumerate(discardlist):
             if isDiscard:
                 imgpath = qfiles[i]

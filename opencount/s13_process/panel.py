@@ -8,8 +8,43 @@ try:
 except:
     import pickle
 import csv
-from os.path import join as pathjoin
+import json
+import subprocess
+
 import util
+from util import debug, error
+
+
+def external_vote_count(ranks, candidates):
+    '''
+    Use the external `rcv_election` vote-counting utility to count
+    votes. Accepts a list of lists of lists of ints. (Yeah.)
+    '''
+    # Right now, the subprocess expects numbers for candidates.
+    # These tables let us convert back and forth:
+    index_to_candidates = dict(enumerate(candidates))
+    candidates_to_index = dict((v, k) for (k, v)
+                               in index_to_candidates.items())
+
+    # Massage the output here:
+    ranks = [[[candidates_to_index[c] for c in g]
+              for g in vote] for vote in ranks]
+    votes = {'votes': [{'id': i, 'ranks': r}
+                       for (i, r) in enumerate(ranks)]}
+
+    # Open the subprocess:
+    process = subprocess.Popen(['rcv_election'],
+                               stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE)
+    # and write the JSON to it
+    json.dump(votes, process.stdin)
+    process.stdin.close()
+    process.wait()
+    # pull it back out
+    result = json.load(process.stdout)
+    debug('{0}', result)
+    # and present the winner in proper form
+    return index_to_candidates[result['winner']], result
 
 
 class ResultsPanel(ScrolledPanel):
@@ -29,7 +64,7 @@ class ResultsPanel(ScrolledPanel):
         self.proj = project
         # 0.) Grab all quarantined ballots
         self.qballotids = project.get_quarantined_ballots()
-        bal2imgs = pickle.load(open(project.ballot_to_images, 'rb'))
+        bal2imgs = project.load_field(project.ballot_to_images)
 
         self.qvotedpaths = []
         for ballotid in self.qballotids:
@@ -68,9 +103,9 @@ class ResultsPanel(ScrolledPanel):
         """
         if not os.path.exists(self.proj.grouping_results):
             return None
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
+        b2imgs = self.proj.load_field(self.proj.ballot_to_images)
+        img2page = self.proj.load_field(self.proj.image_to_page)
+
         c_t = {}
         for line in csv.reader(open(self.proj.grouping_results)):
             if len(line) < 2:
@@ -120,23 +155,23 @@ class ResultsPanel(ScrolledPanel):
             localid_to_globalid[(line[0], int(line[1]))] = int(line[2])
         # template -> target id -> contest
         templatemap = {}
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        group_exmpls = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.group_exmpls), 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
-        target_locs_map = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                    self.proj.target_locs_map), 'rb'))
+
+        b2imgs = self.proj.load_field(self.proj.ballot_to_images)
+        group_exmpls = self.proj.load_field(self.proj.group_exmpls)
+        img2page = self.proj.load_field(self.proj.image_to_page)
+        target_locs_map = self.proj.load_field(self.proj.target_locs_map)
+
         for groupID, contests_sides in target_locs_map.iteritems():
             exmpl_id = group_exmpls[groupID][0]
             imgpaths = b2imgs[exmpl_id]
             imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
-            for side, contests in sorted(contests_sides.iteritems(), key=lambda t: t[0]):
+            for side, contests in sorted(contests_sides.iteritems(),
+                                         key=lambda t: t[0]):
                 exmpl_imgP = imgpaths_ordered[side]
                 thismap = {}
                 for contest in contests:
                     # BOX := [x1, y1, x2, y2, id, contest_id]
-                    contestbox, targetboxes = contest[0], contest[1:]
+                    targetboxes = contest[1:]
                     for tbox in targetboxes:
                         if (exmpl_imgP, tbox[5]) in localid_to_globalid:
                             # only do it if it's in the map
@@ -145,7 +180,7 @@ class ResultsPanel(ScrolledPanel):
                             glob = localid_to_globalid[(exmpl_imgP, tbox[5])]
                             thismap[tbox[4]] = glob
                         else:
-                            print 'error:', (exmpl_imgP, tbox[5]), 'not in id map'
+                            error('{0} not in ID map', (exmpl_imgP, tbox[5]))
                             pdb.set_trace()
                 if thismap == {}:
                     # Means that 'template' has no contests/targets on it
@@ -179,18 +214,14 @@ class ResultsPanel(ScrolledPanel):
 
         text, order = self.get_text()
 
-        ballot_to_images = pickle.load(open(self.proj.ballot_to_images))
-        image_to_ballot = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        img2page = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                             self.proj.image_to_page), 'rb'))
-        group_exmpls = pickle.load(
-            open(pathjoin(self.proj.projdir_path, self.proj.group_exmpls)))
-        bal2group = pickle.load(
-            open(pathjoin(self.proj.projdir_path, self.proj.ballot_to_group)))
+        ballot_to_images = self.proj.load_field(self.proj.ballot_to_images)
+        image_to_ballot = self.proj.load_field(self.proj.image_to_ballot)
+        img2page = self.proj.load_field(self.proj.image_to_page)
+        group_exmpls = self.proj.load_field(self.proj.group_exmpls)
+        bal2group = self.proj.load_field(self.proj.ballot_to_group)
 
-        if os.path.exists(pathjoin(self.proj.projdir_path, 'group_to_Iref.p')):
-            group2refidx = pickle.load(
-                open(pathjoin(self.proj.projdir_path, 'group_to_Iref.p')))
+        if self.proj.path_exists('group_to_Iref.p'):
+            group2refidx = self.proj.load_field('group_to_Iref.p')
         else:
             group2refidx = None
         print 'Loaded all the information'
@@ -215,6 +246,7 @@ class ResultsPanel(ScrolledPanel):
                 meta = pickle.load(open(os.path.join(dirpath, f), 'rb'))
                 if i % 1000 == 0:
                     print 'On ballot', i
+
                 # meta['ballot'] is a voted imgpath, not an int ballotID
                 ballotid = image_to_ballot[meta['ballot']]
                 groupid = bal2group[ballotid]
@@ -222,28 +254,32 @@ class ResultsPanel(ScrolledPanel):
                 votedpaths = sorted(votedpaths, key=lambda imP: img2page[imP])
                 page = img2page[meta['ballot']]
 
-                # votedpaths = ballot_to_images[image_to_ballot[meta['ballot']]]
-                bools = [votedpath in self.qvotedpaths for votedpath in votedpaths]
+                # votedpaths =
+                # ballot_to_images[image_to_ballot[meta['ballot']]]
+                bools = [votedpath in self.qvotedpaths
+                         for votedpath in votedpaths]
                 # If any of the sides is quarantined, skip it
                 if True in bools:
                     continue
 
-                # Annoying detail: META will have the Iref path used, which may not
-                # match the keys in TEMPLATEMAP. TEMPLATEMAP has imagepaths from the
-                # first group exemplar, whereas TEMPLATE could be any of the GROUP_EXMPLS,
-                # if the user chooses a Representative Ballot in 'Select
-                # Targets'.
+                # Annoying detail: META will have the Iref path used, which
+                # may not match the keys in TEMPLATEMAP. TEMPLATEMAP has
+                # imagepaths from the first group exemplar, whereas TEMPLATE
+                # could be any of the GROUP_EXMPLS, if the user chooses a
+                # Representative Ballot in 'Select Targets'.
                 if group2refidx is None:
                     # Easy case: the TEMPLATE path here will always match
                     # TEMPLATEMAP
                     template = meta['template']
                 else:
-                    # Annoying case: meta['template'] holds the Irefpath used during
-                    # target extraction, which may NOT be the templatepath that
-                    # TEMPLATEMAP is expecting. So, we explicitly grab the correct
-                    # templatepath. Sigh.
-                    template = sorted(ballot_to_images[group_exmpls[groupid][
-                                      0]], key=lambda imP: img2page[imP])[page]
+                    # Annoying case: meta['template'] holds the Irefpath
+                    # used during target extraction, which may NOT be the
+                    # templatepath that TEMPLATEMAP is expecting. So, we
+                    # explicitly grab the correct templatepath. Sigh.
+                    template = sorted(
+                        ballot_to_images[group_exmpls[groupid][0]],
+                        key=lambda imP: img2page[imP])[page]
+
                 targets = meta['targets']
                 voted = {}
 
@@ -317,7 +353,7 @@ class ResultsPanel(ScrolledPanel):
             if i % 1000 == 0:
                 print 'on', i
             # print "----"
-            # print ballot
+            # print ballotid
             # print images
             # print "----"
             # Store the cvr for the full ballot
@@ -334,7 +370,7 @@ class ResultsPanel(ScrolledPanel):
             cvr.writerow([images[0]] + sum(ballot_cvr, []))
 #        print 'end', full_cvr
 
-        print 'And ending'
+        print 'And ending', full_cvr
 
         return full_cvr
 
@@ -363,7 +399,6 @@ class ResultsPanel(ScrolledPanel):
                 out.write("\n")
             out.close()
 
-    @util.pdb_on_crash
     def final_tally(self, cvr, name=None):
         """Aggregrate tallies to form a final tally.
 
@@ -392,6 +427,26 @@ class ResultsPanel(ScrolledPanel):
                     overunder[cid][1] += 1
                 total[cid] += 1
 
+        winner = {}
+        output = {}
+        for contest, votes in res.items():
+            debug('Selecting winner for contest {0}', contest[0][1])
+            ranks = []
+            cname = contest[0][1]
+            choices = contest[1]
+            for v, k in votes.items():
+                choice = v
+                others = [x for x in choices if x != choice]
+                for _ in range(k):
+                    ranks.append([[choice], others])
+            if ranks:
+                won, raw = external_vote_count(ranks, choices)
+                winner[cname] = won
+                output[cname] = raw
+            else:
+                winner[cname] = 'N/A'
+                output[cname] = 'null'
+
         s = ""
         if name is not None:
             s += "------------------\n" + name + "\n------------------\n"
@@ -399,9 +454,11 @@ class ResultsPanel(ScrolledPanel):
             votelist = [a + ": " + str(b) for a, b in votes.items()]
             show_overunder = ['Over Votes: ' + str(overunder[cid][0]),
                               'Under Votes: ' + str(overunder[cid][1]),
-                              'Total Ballots: ' + str(total[cid])]
+                              'Total Ballots: ' + str(total[cid]),
+                              'Winner: ' + winner[cid[0][1]]]
             s += "\n\t".join([cid[0][1]] + votelist + show_overunder)
-            s += "\n"
+            s += '\n  [raw output: {0}]'.format(output[cid[0][1]])
+            s += "\n\n"
         # print s
         return s + "\n"
 
@@ -418,7 +475,7 @@ class ResultsPanel(ScrolledPanel):
         def is_attrtype_exists(attrtype, proj):
             if not os.path.exists(proj.ballot_attributesfile):
                 return False
-            attrs = pickle.load(open(proj.ballot_attributesfile, 'rb'))
+            attrs = proj.load_field(proj.ballot_attributesfile)
             for attr in attrs:
                 attrtypestr = '_'.join(sorted(attr['attrs'])).lower()
                 if attrtypestr == attrtype:
@@ -427,9 +484,10 @@ class ResultsPanel(ScrolledPanel):
         # dict BALLOT_ATTRIBUTES: {'header': header_stuff, str imgpath: imgpath
         # attr info}
         ballot_attributes = self.load_grouping()
-        b2grp = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                          self.proj.ballot_to_group), 'rb'))
-        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+
+        b2grp = self.proj.load_field(self.proj.ballot_to_group)
+        img2bal = self.proj.load_field(self.proj.image_to_ballot)
+
         quar = self.qvotedpaths
         result = ""
         result += self.final_tally(cvr, name="TOTAL")

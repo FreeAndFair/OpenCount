@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 import os
+import subprocess
 import sys
-import time
 import random
 
 try:
@@ -15,6 +15,7 @@ from grouping.partask import do_partask
 from vendors import Vendor
 import util
 
+import ffwx
 from ffwx.boxes import TargetBox, ContestBox, compute_box_ids
 
 black = 200
@@ -833,17 +834,14 @@ def compare_preprocess(lang, path, image, contest, targets, vendor):
             img = num2pil(cont_area[upper:lower])
             img.save(name)
 
-        txt = ""
-        for iternum in range(3):  # try 3 times
-            if txt != "":
-                continue
-            os.popen("tesseract %s %s -l %s" % (name, name, lang))
-            print 'Invoke tesseract'
-            time.sleep(max((iternum - 1) * .1, 0))
-            if os.path.exists(name + ".txt"):
-                print 'DONE'
-                txt = open(name + ".txt").read().decode('utf8')
-                break
+        try:
+            subprocess.check_call(
+                ("tesseract-ocr", name, name, "-l", lang))
+        except subprocess.CalledProcessError:
+            raise ffwx.Panel.FatalError(
+                'Error invoking tesseract')
+        with open(name + '.txt') as f:
+            txt = f.read().decode('utf8')
 
         if os.path.exists(name + ".txt"):
             blocks.append((istarget, txt))

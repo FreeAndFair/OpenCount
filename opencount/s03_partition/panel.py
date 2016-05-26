@@ -92,8 +92,8 @@ class PartitionMainPanel(ffwx.Panel):
         # from 0, and increase by 1.
         image_to_page = {}  # maps {str imgpath: int side}
         image_to_flip = {}  # maps {str imgpath: bool isflip}
-        img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2b = self.proj.load_field(self.proj.image_to_ballot)
+        b2imgs = self.proj.load_field(self.proj.ballot_to_images)
         curPartID = 0
 
         # 0.) Record all pages outputted by the decoder, in order to
@@ -126,7 +126,9 @@ class PartitionMainPanel(ffwx.Panel):
 
         # 1.) Perform a few sanity checks if this is a single-sided
         #     election.
-        if not self.proj.is_varnum_pages and self.proj.num_pages == 1 and len(pages_norm_map) != self.proj.num_pages:
+        if not self.proj.is_varnum_pages and \
+           self.proj.num_pages == 1 and \
+           len(pages_norm_map) != self.proj.num_pages:
             debug("...Uhoh, detected {0} pages, but election \
                   \specifies {1} pages.",
                   len(pages_norm_map),
@@ -157,8 +159,10 @@ class PartitionMainPanel(ffwx.Panel):
                         pages_norm_map.pop(decoderPage)
                         pages_counter.pop(decoderPage)
                 doQuarantine = dlg.do_quarantine
-                handleballot = self.partitionpanel.quarantine_ballot if doQuarantine else self.partitionpanel.discard_ballot
-                for imgpath, imginfo in self.partitionpanel.imginfo.iteritems():
+                handleballot = self.partitionpanel.quarantine_ballot \
+                    if doQuarantine else self.partitionpanel.discard_ballot
+                for (imgpath, imginfo) in \
+                        self.partitionpanel.imginfo.iteritems():
                     decoderPage = imginfo['page']
                     if decoderPage != keepDecoderPage:
                         if doQuarantine:
@@ -166,7 +170,8 @@ class PartitionMainPanel(ffwx.Panel):
                         else:
                             debug("discarding ballot {0}", img2b[imgpath])
                         handleballot(img2b[imgpath])
-        if not self.proj.is_varnum_pages and len(set(pages_norm_map.values())) != self.proj.num_pages:
+        if not self.proj.is_varnum_pages and \
+           len(set(pages_norm_map.values())) != self.proj.num_pages:
             warn("Warning: User specified this is an election with "
                  "{0} pages, yet partitioning only discovered {1} pages",
                  self.proj.num_pages,
@@ -254,51 +259,39 @@ class PartitionMainPanel(ffwx.Panel):
         for (ballotid, _img2page) in ballots_unevenpages:
             self.partitionpanel.quarantined_bals.add(ballotid)
 
-        partitions_map_outP = pathjoin(
-            self.proj.projdir_path, self.proj.partitions_map)
-        partitions_invmap_outP = pathjoin(
-            self.proj.projdir_path, self.proj.partitions_invmap)
-        img2decoding_outP = pathjoin(
-            self.proj.projdir_path, self.proj.img2decoding)
-        imginfo_map_outP = pathjoin(
-            self.proj.projdir_path, self.proj.imginfo_map)
-        partition_exmpls_outP = pathjoin(
-            self.proj.projdir_path, self.proj.partition_exmpls)
         # Finally, also output the quarantined/discarded ballots
         JOBID_EXPORT_RESULTS.next_job(8)
 
-        pickle.dump(tuple(self.partitionpanel.quarantined_bals),
-                    open(pathjoin(self.proj.projdir_path,
-                                  self.proj.partition_quarantined), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            tuple(self.partitionpanel.quarantined_bals),
+            self.proj.partition_quarantined)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(tuple(self.partitionpanel.discarded_bals),
-                    open(pathjoin(self.proj.projdir_path,
-                                  self.proj.partition_discarded), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            tuple(self.partitionpanel.discarded_bals),
+            self.proj.partition_discarded)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(partitions_map, open(partitions_map_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            partitions_map, self.proj.partitions_map)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(partitions_invmap, open(partitions_invmap_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            partitions_invmap, self.proj.partitions_invmap)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(self.partitionpanel.img2decoding, open(img2decoding_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            self.partitionpanel.img2decoding,
+            self.proj.img2decoding)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(self.partitionpanel.imginfo, open(imginfo_map_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            self.partitionpanel.imginfo,
+            self.proj.imginfo_map)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(image_to_page, open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_page), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            image_to_page, self.proj.image_to_page)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(image_to_flip, open(pathjoin(self.proj.projdir_path,
-                                                 self.proj.image_to_flip), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(
+            image_to_flip, self.proj.image_to_flip)
         JOBID_EXPORT_RESULTS.tick()
-        pickle.dump(partition_exmpls, open(partition_exmpls_outP, 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(partition_exmpls,
+                             self.proj.partition_exmpls)
 
         JOBID_EXPORT_RESULTS.done()
         thread_listen._stop.set()
@@ -576,8 +569,7 @@ class PartitionPanel(ScrolledPanel):
         self.discarded_bals = set()
 
         vendor_obj = self.proj.vendor_obj
-        b2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
-        img2b = pickle.load(open(self.proj.image_to_ballot, 'rb'))
+        b2imgs = self.proj.load_field(self.proj.ballot_to_images)
 
         skipVerify = self.chkbox_skip_verify.GetValue()
 
@@ -609,15 +601,16 @@ class PartitionPanel(ScrolledPanel):
         debug('Errors ({0} total): {1}', len(err_imgpaths), err_imgpaths)
         debug('IOErrors ({0} total): {1}', len(ioerr_imgpaths), ioerr_imgpaths)
         # Save the raw decoding output, in case for later usage
-        pickle.dump({'img2decoding': img2decoding,
-                     'flipmap': flipmap, 'verifypatch_bbs': verifypatch_bbs,
-                     'err_imgpaths': err_imgpaths, 'ioerr_imgpaths': ioerr_imgpaths},
-                    open(pathjoin(self.proj.projdir_path,
-                                  '_decoder_output.p'), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field({'img2decoding': img2decoding,
+                              'flipmap': flipmap,
+                              'verifypatch_bbs': verifypatch_bbs,
+                              'err_imgpaths': err_imgpaths,
+                              'ioerr_imgpaths': ioerr_imgpaths},
+                             '_decoder_output.p')
 
-        img2bal = pickle.load(open(self.proj.image_to_ballot, 'rb'))
-        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        img2bal = self.proj.load_field(self.proj.image_to_ballot)
+        bal2imgs = self.proj.load_field(self.proj.ballot_to_images)
+
         if err_imgpaths:
             dlg = LabelDialog(self, err_imgpaths)
             status = dlg.ShowModal()
@@ -654,8 +647,8 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
         ioerr_balids = set()
         for ioerr_imgpath in self.ioerr_imgpaths:
             ioerr_balids.add(img2bal[ioerr_imgpath])
-        pickle.dump(ioerr_balids, open(pathjoin(self.proj.projdir_path,
-                                                self.proj.partition_ioerr), 'wb'))
+        self.proj.save_field(ioerr_balids,
+                             self.proj.partition_ioerr)
 
         def nuke_ballots(ballotids, img2decoding, verifypatch_bbs, flipmap):
             """ Removes all references to ballotids in BALLOTIDS from
@@ -835,7 +828,7 @@ The imagepaths will be written to: {1}".format(len(self.ioerr_imgpaths), errpath
 
         # Finally, sanity check that, within each partition, each ballot
         # has the same number of pages.
-        bal2imgs = pickle.load(open(self.proj.ballot_to_images, 'rb'))
+        bal2imgs = self.proj.load_field(self.proj.ballot_to_images)
         bad_ballotids = []
         for partitionID, ballotids in partitioning.iteritems():
             num_pages = max([len(bal2imgs[b]) for b in ballotids])

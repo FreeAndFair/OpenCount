@@ -46,6 +46,17 @@ SEPARATE_MODE_REGEX_CTR = 45
 
 
 class ConfigPanel(ffwx.Panel):
+    WORKING_FIELDS = (
+        'voteddir',
+        'is_straightened',
+        'num_pages',
+        'varnumpages',
+        'regexShr',
+        'regexDiff',
+        'is_regex_ctr',
+        'is_alternating',
+        'vendor',
+    )
 
     def __init__(self, parent, *args, **kwargs):
         wx.Panel.__init__(
@@ -69,28 +80,8 @@ class ConfigPanel(ffwx.Panel):
             .add(ff.button(label='Choose voted ballot directory',
                            on_click=self.onButton_choosesamplesdir)) \
             .add(ff.text('Voted ballot directory: ')) \
-            .add(ff.text('/'), name='txt_samplespath') \
+            .add(ff.text(os.getcwd()), name='txt_samplespath') \
             .add((0, 20))
-
-        # self.box_samples = wx.StaticBox(self, label="Samples")
-        # self.box_samples.sizer = wx.StaticBoxSizer(
-        #     self.box_samples, orient=wx.VERTICAL)
-        # self.box_samples.txt = wx.StaticText(
-        #     self, label="Please choose the directory where the sample images reside.")
-        # self.box_samples.btn = wx.Button(
-        #     self, label="Choose voted ballot directory...")
-        # self.box_samples.btn.Bind(
-        #     wx.EVT_BUTTON, self.onButton_choosesamplesdir)
-        # self.box_samples.txt2 = wx.StaticText(
-        #     self, label="Voted ballot directory:")
-        # self.box_samples.txt_samplespath = wx.StaticText(self)
-        # # self.box_samples.sizer.Add(self.box_samples.txt)
-        # # self.box_samples.sizer.Add((0, 20))
-        # self.box_samples.sizer.Add(self.box_samples.btn)
-        # self.box_samples.sizer.Add((0, 20))
-        # self.box_samples.sizer.Add(self.box_samples.txt2)
-        # self.box_samples.sizer.Add(self.box_samples.txt_samplespath)
-        # self.box_samples.sizer.Add((0, 20))
 
         sizer0 = ff.hbox() \
             .add(self.box_samples, proportion=1, flag=wx.EXPAND) \
@@ -192,14 +183,12 @@ class ConfigPanel(ffwx.Panel):
         Input:
             obj PROJECT:
         """
-        print 'got', project
         self.project = project
         self.stateP = self.project.path('_state_config.p')
         self._hookfn = lambda: self.save_session(self.stateP)
         self.project.addCloseEvent(self._hookfn)
-        if self.restore_session(stateP=self.stateP):
-            return
-        self.voteddir = ''
+        if not self.restore_session(stateP=self.stateP):
+            self.voteddir = ''
 
     def stop(self):
         self.save_session(stateP=self.stateP)
@@ -221,12 +210,14 @@ class ConfigPanel(ffwx.Panel):
                 return SEPARATE_MODE_ALTERNATING
             elif int(self.numpages_txtctrl.GetValue()) == 1:
                 return SEPARATE_MODE_SINGLE_SIDED
-            elif self.regex_ctr_chkbox.IsEnabled() and self.regex_ctr_chkbox.GetValue():
+            elif self.regex_ctr_chkbox.IsEnabled() and \
+                    self.regex_ctr_chkbox.GetValue():
                 return SEPARATE_MODE_REGEX_CTR
             else:
                 return SEPARATE_MODE_REGEX_SIMPLE
         MODE = get_separate_mode()
-        by_ballots = separate_imgs(self.voteddir, int(self.numpages_txtctrl.GetValue()),
+        by_ballots = separate_imgs(self.voteddir,
+                                   int(self.numpages_txtctrl.GetValue()),
                                    MODE,
                                    regexShr=self.regexShr_txtctrl.GetValue(),
                                    regexDiff=self.regexDiff_txtctrl.GetValue())
@@ -239,7 +230,8 @@ class ConfigPanel(ffwx.Panel):
                 stats_numpages[_numpages] = 1
             else:
                 stats_numpages[_numpages] += 1
-            if not self.varnumpages_chkbox.GetValue() and len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
+            if not self.varnumpages_chkbox.GetValue() and \
+               len(imgpaths) != int(self.numpages_txtctrl.GetValue()):
                 # Ballot has too many/few sides.
                 debug("Warning -- found Ballot with {0} sides, yet project \
                       \specified {1} sides.",
@@ -260,40 +252,39 @@ class ConfigPanel(ffwx.Panel):
               len(weirdballots))
         if weirdballots:
             ffwx.warn(self,
-                      "Warning: OpenCount detected {0} ballots \
-                    \that had too many/few sides. The project \
-                    \specified that there are {1} sides for \
-                    \each ballot. These ballots will be discarded \
-                    \from the election, but stored in \
-                    \'_config_weirdballots.p'.".format(
+                      "Warning: OpenCount detected {0} ballots "
+                      "that had too many/few sides. The project "
+                      "specified that there are {1} sides for "
+                      "each ballot. These ballots will be discarded "
+                      "from the election, but stored in "
+                      "'_config_weirdballots.p'.".format(
                           len(weirdballots),
                           self.numpages_txtctrl.GetValue()))
 
-        pickle.dump(weirdballots, open(
-            pathjoin(self.project.projdir_path, '_config_weirdballots.p'), 'wb'))
-        pickle.dump(ballot_to_images, open(
-            self.project.ballot_to_images, 'wb'), pickle.HIGHEST_PROTOCOL)
-        pickle.dump(image_to_ballot, open(
-            self.project.image_to_ballot, 'wb'), pickle.HIGHEST_PROTOCOL)
+        self.project.save_field(weirdballots, '_config_weirdballots.p')
+        self.project.save_field(
+            ballot_to_images, self.project.ballot_to_images)
+        self.project.save_field(
+            image_to_ballot, self.project.image_to_ballot)
         # 2.) Set project.voteddir
         self.project.voteddir = self.voteddir
         # 3.) Set project.imgsize, assuming that all image dimensions are the
         # same
         if len(image_to_ballot) == 0:
             ffwx.warn(self,
-                      "Fatal Error: OpenCount couldn't \
-                    \find any valid ballots in the \
-                    \directory:\n\n {0}\n\n \
-                    \Are you sure this is the correct \
-                    \directory containing the voted \
-                    \ballots?\n\n \
-                    \Alternately, is the correct vendor \
-                    \specified in the configuration?\n\n\
-                    \Please correct the misconfiguration \
-                    \(if any) and create a new Project \
-                    \with the corrections.".format(self.voteddir))
-            error("Everything is going to break. OpenCount didn't find \
-                  \any ballots.")
+                      "Fatal Error: OpenCount couldn't "
+                      "find any valid ballots in the "
+                      "directory:\n\n {0}\n\n "
+                      "Are you sure this is the correct "
+                      "directory containing the voted "
+                      "ballots?\n\n "
+                      "Alternately, is the correct vendor "
+                      "specified in the configuration?\n\n"
+                      "Please correct the misconfiguration "
+                      "(if any) and create a new Project "
+                      "with the corrections.".format(self.voteddir))
+            error("Everything is going to break. OpenCount didn't find "
+                  "any ballots.")
             return
         w, h = None, None
         for imgpath in image_to_ballot.keys():
@@ -302,18 +293,17 @@ class ConfigPanel(ffwx.Panel):
             try:
                 I = cv.LoadImage(imgpath, cv.CV_LOAD_IMAGE_UNCHANGED)
                 w, h = cv.GetSize(I)
-            except IOError as e:
+            except IOError:
                 pass
         if w is None:
-            ffwx.warn(self, "Fatal Error: OpenCount couldn't open any of \
-                          \the ballot images in {0}. Processing can not \
-                          \continue. If you believe the images are in \
-                          \fact not corrupt, you could try converting \
-                          \all images to new PNG images, in the hopes \
-                          \of OpenCV being able to read the \
-                          \new images.".format(self.project.voteddir))
-            error("Cannot open any ballot images.")
-            exit(1)
+            raise ffwx.Panel.StepNotFinished(
+                'Fatal Error: OpenCount couldn\'t open any of '
+                'the ballot images in {0}. Processing can not '
+                'continue. If you believe the images are in '
+                'fact not corrupt, you could try converting '
+                'all images to new PNG images, in the hopes '
+                'of OpenCV being able to read the '
+                'new images.'.format(self.project.voteddir))
 
         self.project.imgsize = (w, h)
         # 4.) Set project.is_multipage
@@ -449,18 +439,27 @@ def separate_imgs(voteddir, num_pages, MODE,
     elif MODE == SEPARATE_MODE_REGEX_CTR:
         return separate_regex_ctr(voteddir, regexShr)
     else:
-        error("Fatal Error: Unrecognized separate_imgs mode: '{0}'", MODE)
-        raise Exception("Bad mode: '{0}'".format(MODE))
+        raise ffwx.Panel.FatalError(
+            'Programmer Error: unknown mode in '
+            '`s02_configure/panel.py:separate_imgs`')
+
+
+def get_all_images(directory):
+    '''
+    Walk a given directory and return a list of all the filenames
+    that are images.
+    '''
+    images = []
+    for _, _, filenames in os.walk(directory):
+        images.extend(f for f in filenames if util.is_image_ext(f))
+    return images
 
 
 def separate_singlesided(voteddir):
-    ballots = []
-    for dirpath, dirnames, filenames in os.walk(voteddir):
-        imgnames = [f for f in filenames if util.is_image_ext(f)]
-        for imgname in imgnames:
-            imgpath = pathjoin(dirpath, imgname)
-            ballots.append([imgpath])
-    return ballots
+    '''
+    Take all the images and break them into individual chunks.
+    '''
+    return [[path] for path in get_all_images(voteddir)]
 
 
 def separate_alternating(voteddir, num_pages):
@@ -469,14 +468,18 @@ def separate_alternating(voteddir, num_pages):
         imgnames = [f for f in filenames if util.is_image_ext(f)]
         imgnames_ordered = util.sorted_nicely(imgnames)
         if len(imgnames_ordered) % num_pages != 0:
-            error("There are {0} images in directory {1}, which \
-                  \isn't divisible by num_pages {2}",
-                  len(imgnames_ordered),
-                  dirpath,
-                  num_pages)
-            pdb.set_trace()
-            raise RuntimeError
-        i = 0
+            raise ffwx.Panel.StepNotFinished(
+                ('The selected directory:\n\n'
+                 '  {0}\n\n'
+                 'contains {1} images, but the '
+                 'selected options indicate that pages should '
+                 'come in sets of {2}, and {1} isn\'t divisible '
+                 'by {2}.\n\n'
+                 'Try double-checking your chosen settings and your '
+                 'selected ballot directory.'.format(
+                     dirpath,
+                     len(imgnames_ordered),
+                     num_pages)))
         while imgnames_ordered:
             curballot = []
             for j in xrange(num_pages):
@@ -498,8 +501,8 @@ def separate_regex_simple(voteddir, regexShr, regexDiff):
             sim_match = shrPat.match(imgname)
             diff_match = diffPat.match(imgname)
             if sim_match is None or diff_match is None:
-                warn("Ballot {0} was skipped because it didn't \
-                     \match the regular expressions.",
+                warn("Ballot {0} was skipped because it didn't "
+                     "match the regular expressions.",
                      imgpath)
                 continue
             sim_part = sim_match.groups()[0]

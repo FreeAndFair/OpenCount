@@ -647,7 +647,7 @@ class SplitOverlays(ViewOverlays):
                                     MAX_GROUP_SIZE=MAX_GROUP_SIZE,
                                     imgCache=self.imgCache)
             self.enable_ui()
-        debug("{1} total new groups added",
+        debug("{0} total new groups added",
               len(groups))
         for group in groups:
             self.add_group(group)
