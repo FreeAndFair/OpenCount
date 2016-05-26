@@ -217,13 +217,19 @@ class Project(object):
 
     # ----
 
-    def load_field(self, field):
+    def load_field(self, field, **kwargs):
         '''
         Load the named field from the disk. This assumes it exists,
         and if it does not, it will raise a FileNotFound exception.
         '''
-        with open(self.path(field), 'rb') as f:
-            return pickle.load(f)
+        try:
+            with open(self.path(field), 'rb') as f:
+                return pickle.load(f)
+        except Exception as e:
+            if 'default' in kwargs:
+                return kwargs['default']
+            else:
+                raise e
 
     def load_field_default(self, field, default=None):
         '''

@@ -15,36 +15,41 @@ import util
 from util import debug, error
 
 
-def external_vote_count(ranks, candidates):
+def external_vote_count(choices, candidates):
     '''
-    Use the external `rcv_election` vote-counting utility to count
-    votes. Accepts a list of lists of lists of ints. (Yeah.)
+    Use the external `plurality_election` vote-counting utility to
+    count votes. Accepts a list of choices (names) and a list of
+    possible candidate names.
     '''
     # Right now, the subprocess expects numbers for candidates.
     # These tables let us convert back and forth:
-    index_to_candidates = dict(enumerate(candidates))
-    candidates_to_index = dict((v, k) for (k, v)
-                               in index_to_candidates.items())
+    index_to_candidate = dict(enumerate(candidates))
+    candidate_to_index = dict((v, k) for (k, v)
+                              in index_to_candidate.items())
 
     # Massage the output here:
-    ranks = [[[candidates_to_index[c] for c in g]
-              for g in vote] for vote in ranks]
-    votes = {'votes': [{'id': i, 'ranks': r}
-                       for (i, r) in enumerate(ranks)]}
+    choices = [candidate_to_index[c] for c in choices]
+    votes = {'votes': [{'id': i, 'selection': r}
+                       for (i, r) in enumerate(choices)]}
 
     # Open the subprocess:
-    process = subprocess.Popen(['rcv_election'],
+    process = subprocess.Popen(['plurality_election'],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE)
     # and write the JSON to it
     json.dump(votes, process.stdin)
     process.stdin.close()
     process.wait()
+
     # pull it back out
-    result = json.load(process.stdout)
-    debug('{0}', result)
+    raw = process.stdout.read()
+    debug('{0}', raw)
+    result = json.loads(raw)
     # and present the winner in proper form
-    return index_to_candidates[result['winner']], result
+    if result:
+        return index_to_candidate[result['winner']], raw
+    else:
+        return 'Tie', raw
 
 
 class ResultsPanel(ScrolledPanel):
@@ -434,11 +439,10 @@ class ResultsPanel(ScrolledPanel):
             ranks = []
             cname = contest[0][1]
             choices = contest[1]
+
             for v, k in votes.items():
-                choice = v
-                others = [x for x in choices if x != choice]
-                for _ in range(k):
-                    ranks.append([[choice], others])
+                ranks.extend([v] * k)
+
             if ranks:
                 won, raw = external_vote_count(ranks, choices)
                 winner[cname] = won
