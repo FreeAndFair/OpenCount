@@ -2,7 +2,6 @@ import wx
 import wx.lib.scrolledpanel
 from util import ImageManipulate
 from PIL import Image
-import csv
 import os
 from collections import defaultdict
 
@@ -68,9 +67,10 @@ class MainPanel(wx.Panel):
         rep_paths = [
             path for id_paths in groupID_imgpaths for path in id_paths[1]]
         img_contest_dict = defaultdict(list)
-        for line in csv.reader(open(self.proj.contest_id)):
+        for line in self.proj.read_csv(self.proj.contest_id):
             if line[0] in rep_paths:
                 img_contest_dict[line[0]].append((line[1], line[2]))
+
         self.group2contests = {}
         for groupID, imgpaths in groupID_imgpaths:
             self.group2contests[groupID] = []
@@ -117,7 +117,7 @@ class MainPanel(wx.Panel):
 
         # make list of contests and candidates
         temp_contest_dict = {}
-        for line in csv.reader(open(self.proj.contest_text)):
+        for line in self.proj.read_csv(self.proj.contest_text):
             if len(line) < 2:
                 break
             temp_contest_dict[int(line[0])] = line[2:]
@@ -394,24 +394,25 @@ class MainPanel(wx.Panel):
         self.proj.save_field(
             (self.data, self.discardlist, self.attributes),
             self.proj.quarantine_internal)
-        with open(self.proj.path(self.proj.quarantine_res), 'w') as out:
-            outattr = csv.writer(open(self.proj.quarantine_attributes, "w"))
-            for bpath, ballot, drop, attr in \
+        with self.proj.open_field(self.proj.quarantine_res, 'w') as out:
+            with self.proj.write_csv(self.proj.quarantine_attributes) \
+                    as outattr:
+                for bpath, ballot, drop, attr in \
                     zip(self.qfiles,
                         self.data,
                         self.discardlist,
                         self.attributes):
-                if drop:
-                    continue
-                out.write(bpath + ",")
-                outattr.writerow([bpath] + attr)
-                for contest in ballot:
-                    out.write(str(contest[0]) + ",")
-                    for each in contest[1:]:
-                        # Write T/F for this contest
-                        out.write(str(each)[0])
-                    out.write(",")
-                out.write("\n")
+                    if drop:
+                        continue
+                    out.write(bpath + ",")
+                    outattr.writerow([bpath] + attr)
+                    for contest in ballot:
+                        out.write(str(contest[0]) + ",")
+                        for each in contest[1:]:
+                            # Write T/F for this contest
+                            out.write(str(each)[0])
+                        out.write(",")
+                    out.write("\n")
 
     def save_contest_data(self):
         ''' Save contest data for ballot currently opened '''
@@ -450,7 +451,7 @@ class MainPanel(wx.Panel):
         img2page = self.proj.load_field(self.proj.image_to_page)
 
         c_t = {}
-        for line in csv.reader(open(self.proj.grouping_results)):
+        for line in self.proj.read_csv(self.proj.grouping_results):
             if len(line) < 2:
                 continue
             if line[0] == 'ballotid':

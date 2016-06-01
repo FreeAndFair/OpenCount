@@ -244,7 +244,7 @@ class SelectTargetsMainPanel(OpenCountPanel):
             4.) A set of quarantined ballotids ('flagged' partitions)
         """
         try:
-            os.makedirs(self.proj.target_locs_dir)
+            os.makedirs(self.proj.path(self.proj.target_locs_dir))
         except:
             pass
         pickle.dump(self.group_to_Iref, open(pathjoin(
@@ -266,16 +266,18 @@ class SelectTargetsMainPanel(OpenCountPanel):
         debug("Quarantining {0} flagged groups ({1} ballots total)",
               len(groups_quar),
               len(balids_quar))
-        pickle.dump(balids_quar, open(
-            pathjoin(self.proj.projdir_path, 'quarantinedbals_seltargets.p'), 'wb'))
+        self.proj.save_field(balids_quar,
+                             'quarantinedbals_seltargets.p')
         # Also, temporarily export the quarantined groups.
-        debug('Exporting \'quarantinedgroups_seltarets.p\' as well, just in case.')
-        pickle.dump(groups_quar, open(
-            pathjoin(self.proj.projdir_path, 'quarantinedgroups_seltargets.p'), 'wb'))
+        debug('Exporting \'quarantinedgroups_seltarets.p\' as well, '
+              'just in case.')
+        self.proj.save_field(groups_quar,
+                             'quarantinedgroups_seltargets.p')
         del grp2bals
 
         group_targets_map = {}  # maps {int groupID: [csvpath_side0, ...]}
-        # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}}, where each
+        # TARGET_LOCS_MAP: maps {int groupID: {int page: [CONTEST_i, ...]}},
+        #     where each
         #     CONTEST_i is: [contestbox, targetbox_i, ...], where each
         #     box := [x1, y1, width, height, id, contest_id]
         target_locs_map = {}
@@ -289,14 +291,17 @@ class SelectTargetsMainPanel(OpenCountPanel):
             group_idx = self.i2groupid[i]
             csvpaths = []
             for side, boxes in enumerate(boxes_sides):
-                outpath = pathjoin(self.proj.target_locs_dir,
-                                   "group_{0}_side_{1}.csv".format(group_idx, side))
+                outpath = self.proj.path(
+                    pathjoin(self.proj.target_locs_dir,
+                             'group_{0}_side_{1}.csv'.format(
+                                 group_idx, side)))
                 csvpaths.append(outpath)
                 writer = csv.DictWriter(open(outpath, 'wb'), fields)
-                # Make sure that TARGET_LOCS_MAP at least has something for this
-                # (To help out target extraction)
+                # Make sure that TARGET_LOCS_MAP at least has something for
+                # this (To help out target extraction)
                 target_locs_map.setdefault(group_idx, {}).setdefault(side, [])
-                # BOX_ASSOCS: dict {int contest_id: [ContestBox, [TargetBox_i, ...]]}
+                # BOX_ASSOCS: dict {int contest_id: [ContestBox,
+                #   [TargetBox_i, ...]]}
                 # LONELY_TARGETS: list [TargetBox_i, ...]
                 box_assocs, lonely_targets = compute_box_ids(boxes)
                 lonely_targets_map.setdefault(i, {}).setdefault(
@@ -308,7 +313,8 @@ class SelectTargetsMainPanel(OpenCountPanel):
                 rows_contests = []
                 rows_targets = []
                 id_c, id_t = 0, 0
-                for contest_id, (contestbox, targetboxes) in box_assocs.iteritems():
+                for contest_id, (contestbox, targetboxes) in \
+                        box_assocs.iteritems():
                     x1_out, y1_out = contestbox.x1, contestbox.y1
                     w_out, h_out = contestbox.width, contestbox.height
                     # Make sure contest doesn't extend outside image.
@@ -357,12 +363,10 @@ class SelectTargetsMainPanel(OpenCountPanel):
                         side, []).append(curcontest)
                 writer.writerows(rows_contests + rows_targets)
             group_targets_map[group_idx] = csvpaths
-        pickle.dump(group_targets_map, open(pathjoin(self.proj.projdir_path,
-                                                     self.proj.group_targets_map), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
-        pickle.dump(target_locs_map, open(pathjoin(self.proj.projdir_path,
-                                                   self.proj.target_locs_map), 'wb'),
-                    pickle.HIGHEST_PROTOCOL)
+        self.proj.save_field(group_targets_map,
+                             self.proj.group_targets_map)
+        self.proj.save_field(target_locs_map,
+                             self.proj.target_locs_map)
         # target_roi := (int x1, y1, x2, y2). If self.target_roi is None, then
         # the string None will be written to the output file.
         # Otherwise, four comma-delimited ints will be written, like:

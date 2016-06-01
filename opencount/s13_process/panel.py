@@ -7,7 +7,6 @@ try:
     import cPickle as pickle
 except:
     import pickle
-import csv
 import json
 import subprocess
 
@@ -112,7 +111,7 @@ class ResultsPanel(ScrolledPanel):
         img2page = self.proj.load_field(self.proj.image_to_page)
 
         c_t = {}
-        for line in csv.reader(open(self.proj.grouping_results)):
+        for line in self.proj.read_csv(self.proj.grouping_results):
             if len(line) < 2:
                 continue
             if line[0] == 'ballotid':
@@ -129,32 +128,16 @@ class ResultsPanel(ScrolledPanel):
                 attrvals = attrvals[:-1]  # ignore partitionID (always at end)
                 c_t[imgpaths[0]] = attrvals
 
-        for line in csv.reader(open(self.proj.quarantine_attributes)):
+        for line in self.proj.read_csv(self.proj.quarantine_attributes):
             c_t[line[0]] = [None] + line[1:]
         if len(c_t) < 2:
             return None
 
         return c_t
 
-        '''
-        # TODO: Fill in the QUARANTINE_ATTRIBUTES dict by reading from
-        # self.proj.quarantine_attributes
-        quarantine_attributes = {} # maps {int ballotID: {str prop: str propval}}
-        qimgpath_attrs = {} # maps {str imgpath: {str prop: str propval}}
-        for line in csv.reader(open(self.proj.quarantine_attributes, 'rb')):
-            imgpath = line[0]
-            attrs = line[1:]
-
-        # GROUP_INFOMAP: maps {int groupID: {str key: str val}}
-        group_infomap = pickle.load(open(pathjoin(self.proj.projdir_path,
-                                                  self.proj.group_infomap), 'rb'))
-
-        return group_infomap, quarantine_attributes
-        '''
-
     def get_templatemap(self):
         localid_to_globalid = {}
-        for line in csv.reader(open(self.proj.contest_id)):
+        for line in self.proj.read_csv(self.proj.contest_id):
             if len(line) < 3:
                 continue
             localid_to_globalid[(line[0], int(line[1]))] = int(line[2])
@@ -202,9 +185,9 @@ class ResultsPanel(ScrolledPanel):
         # template -> global cid -> order
         order = {}
 
-        for row in csv.reader(open(self.proj.contest_text)):
+        for row in self.proj.read_csv(self.proj.contest_text):
             text[int(row[0])] = [int(row[1])] + row[2:]
-        for row in csv.reader(open(self.proj.contest_id)):
+        for row in self.proj.read_csv(self.proj.contest_id):
             order[row[0], int(row[2])] = map(int, row[3:])
 
         return text, order
@@ -324,7 +307,7 @@ class ResultsPanel(ScrolledPanel):
             return ['01'[x] for x in voted] + ['OK']
 
         if os.path.exists(self.proj.quarantine_res):
-            for data in csv.reader(open(self.proj.quarantine_res)):
+            for data in self.proj.read_csv(self.proj.quarantine_res):
                 bpath, data = data[0], data[1:]
 
                 # Group by contest, so we have (CID, votecast)
@@ -342,38 +325,39 @@ class ResultsPanel(ScrolledPanel):
         # print "BCVR", image_cvr
         print 'And now the quarantine ones'
 
-        cvr = csv.writer(open(self.proj.cvr_csv, "w"))
-        headerstr = ['# path'] + sum([[b[1] + ":" + c for c in b[2:]] + [b[1]]
-                                      for _, b in text.items()], [])
-        cvr.writerow(headerstr)
+        with self.proj.write_csv(self.proj.cvr_csv) as cvr:
+            # cvr = csv.writer(open(self.proj.cvr_csv, "w"))
+            headerstr = ['# path'] + sum(
+                [[b[1] + ":" + c for c in b[2:]] + [b[1]]
+                 for _, b in text.items()], [])
+            cvr.writerow(headerstr)
 
-        full_cvr = []
-        discarded_balids = self.proj.get_discarded_ballots()
-        ioerr_balids = self.proj.get_ioerr_ballots()
-        print 'And now going up to', len(ballot_to_images)
-        for i, (ballotid, images) in enumerate(ballot_to_images.items()):
-            # Ignore discarded ballots
-            if ballotid in discarded_balids or ballotid in ioerr_balids:
-                continue
-            if i % 1000 == 0:
-                print 'on', i
-            # print "----"
-            # print ballotid
-            # print images
-            # print "----"
-            # Store the cvr for the full ballot
-            ballot_cvr = {}
-            for image in images:
-                if image in image_cvr:
-                    # print 'imcvr', image_cvr[image]
-                    for cid, filled in image_cvr[image].items():
-                        ballot_cvr[cid] = filled
+            full_cvr = []
+            discarded_balids = self.proj.get_discarded_ballots()
+            ioerr_balids = self.proj.get_ioerr_ballots()
+            print 'And now going up to', len(ballot_to_images)
+            for i, (ballotid, images) in enumerate(ballot_to_images.items()):
+                # Ignore discarded ballots
+                if ballotid in discarded_balids or ballotid in ioerr_balids:
+                    continue
+                if i % 1000 == 0:
+                    print 'on', i
+                # print "----"
+                # print ballotid
+                # print images
+                # print "----"
+                # Store the cvr for the full ballot
+                ballot_cvr = {}
+                for image in images:
+                    if image in image_cvr:
+                        # print 'imcvr', image_cvr[image]
+                        for cid, filled in image_cvr[image].items():
+                            ballot_cvr[cid] = filled
 
-            full_cvr.append((images[0], ballot_cvr))
+                full_cvr.append((images[0], ballot_cvr))
 
-            ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
-            cvr.writerow([images[0]] + sum(ballot_cvr, []))
-#        print 'end', full_cvr
+                ballot_cvr = [x[1] for x in sorted(ballot_cvr.items())]
+                cvr.writerow([images[0]] + sum(ballot_cvr, []))
 
         print 'And ending', full_cvr
 

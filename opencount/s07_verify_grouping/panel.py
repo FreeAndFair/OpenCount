@@ -332,22 +332,21 @@ class VerifyGroupingMainPanel(wx.Panel):
                 all_attrtypes.add(attrtype)
         fields = ('ballotid', 'groupid') + \
             tuple(sorted(tuple(all_attrtypes))) + ('pid',)
-        csvfile = open(self.proj.grouping_results, 'wb')
-        dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
-        try:
-            dictwriter.writeheader()
-        except:
-            util_gui._dictwriter_writeheader(csvfile, fields)
-        rows = []
-        for ballotid, ballotprops in ballot_attrvals.iteritems():
-            row = {}
-            for attrtype, attrval in ballotprops.iteritems():
-                row[attrtype] = attrval
-            row['ballotid'] = ballotid
-            row['groupid'] = b2g[ballotid]
-            rows.append(row)
-        dictwriter.writerows(rows)
-        csvfile.close()
+        with self.proj.write_csv(self.proj.grouping_results) as csvfile:
+            dictwriter = csv.DictWriter(csvfile, fieldnames=fields)
+            try:
+                dictwriter.writeheader()
+            except:
+                util_gui._dictwriter_writeheader(csvfile, fields)
+            rows = []
+            for ballotid, ballotprops in ballot_attrvals.iteritems():
+                row = {}
+                for attrtype, attrval in ballotprops.iteritems():
+                    row[attrtype] = attrval
+                row['ballotid'] = ballotid
+                row['groupid'] = b2g[ballotid]
+                rows.append(row)
+            dictwriter.writerows(rows)
 
         debug("{0} ballots have made it this far past grouping",
               len(ballot_attrvals))

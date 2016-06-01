@@ -4,6 +4,7 @@ In the future, all loading and saving logic should exist here,
 instead of scattered throughout the codebase.
 '''
 
+import contextlib
 import csv
 import os
 from os import path
@@ -201,7 +202,7 @@ class Project(object):
 
             group_examples[group_id] = ballots
 
-        with open(self.grouping_results, 'wb') as csvfile:
+        with open(self.path(self.grouping_results), 'wb') as csvfile:
             dictwriter = csv.DictWriter(csvfile,
                                         fieldnames=('ballotid', 'groupid'))
             dictwriter.writeheader()
@@ -247,6 +248,25 @@ class Project(object):
         '''
         with open(self.path(field), 'wb') as f:
             pickle.dump(value, f, pickle.HIGHEST_PROTOCOL)
+
+    def read_csv(self, field):
+        '''
+        Open the given field as a CSV file and produce the rows
+        in order.
+        '''
+        with open(self.path(field)) as f:
+            for line in csv.reader(f):
+                yield line
+
+    @contextlib.contextmanager
+    def write_csv(self, field):
+        with open(self.path(field), 'w') as f:
+            yield csv.writer(f)
+
+    @contextlib.contextmanager
+    def open_field(self, field, mode='r'):
+        with open(self.path(field), mode) as f:
+            yield f
 
     def save(self):
         '''

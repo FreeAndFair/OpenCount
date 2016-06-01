@@ -6,7 +6,6 @@ import wx.lib.intctrl
 import os
 from sets import Set
 from PIL import Image
-import csv
 import re
 import numpy as np
 import scipy.misc
@@ -677,24 +676,25 @@ class LabelContest(wx.Panel):
             equal.append(eq)
             used[k1] = True
 
-        c_id = csv.writer(open(self.proj.contest_id, "w"))
-        # path, ID in select-and-group-targets file, new ID, ordering
+        with self.proj.write_csv(self.proj.contest_id) as c_id:
+            # path, ID in select-and-group-targets file, new ID, ordering
 
-        print "Step 1"
-        mapping = {}
-        for num, group in enumerate(equal):
-            for item in group:
-                # print "ITEM", item
-                mapping[item] = num
-                ids = []
-                for each in self.continued_contest(item):
-                    # We need to get the contest ID in the new list
-                    targets = [x for x in self.groupedtargets[
-                        each[0]] if x[0][1] == each[1]][0]
-                    ids += [str(x[0]) for x in targets]
-                for cont in did_multibox[each]:
-                    # Save it for all boxes in the contest.
-                    c_id.writerow([self.dirList[cont[0]], cont[1], num] + ids)
+            print "Step 1"
+            mapping = {}
+            for num, group in enumerate(equal):
+                for item in group:
+                    # print "ITEM", item
+                    mapping[item] = num
+                    ids = []
+                    for each in self.continued_contest(item):
+                        # We need to get the contest ID in the new list
+                        targets = [x for x in self.groupedtargets[
+                            each[0]] if x[0][1] == each[1]][0]
+                        ids += [str(x[0]) for x in targets]
+                    for cont in did_multibox[each]:
+                        # Save it for all boxes in the contest.
+                        c_id.writerow(
+                            [self.dirList[cont[0]], cont[1], num] + ids)
 
         # We write out the result as a mapping from Contest ID to text
         id_to_text = {}
@@ -702,15 +702,14 @@ class LabelContest(wx.Panel):
             bid, cid = self.contestID[k]
             id_to_text[(bid, cid)] = [str(self.voteupto[k])] + v
 
-        fout = csv.writer(open(self.proj.contest_text, "w"))
-
-        did = {}
-        for k, v in id_to_text.items():
-            if mapping[k] not in did:
-                # ContestID, upto, title, (label)*
-                fout.writerow([mapping[k]] + v)
-                did[mapping[k]] = True
-        print "Step 2"
+        with self.proj.write_csv(self.proj.contest_text) as fout:
+            did = {}
+            for k, v in id_to_text.items():
+                if mapping[k] not in did:
+                    # ContestID, upto, title, (label)*
+                    fout.writerow([mapping[k]] + v)
+                    did[mapping[k]] = True
+            print "Step 2"
 
         self.proj.save_field(
             (self.text, self.voteupto, self.grouping_cached),
