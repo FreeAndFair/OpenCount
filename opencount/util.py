@@ -1,5 +1,6 @@
 import contextlib
 import itertools
+from distutils.spawn import find_executable
 import math
 import multiprocessing
 import os
@@ -64,6 +65,26 @@ def warn(str, *args, **kwargs):
 
 def error(str, *args, **kwargs):
     debug(str, *args, debug_level='error', **kwargs)
+
+
+def ensure_applications_installed():
+    '''
+    Make sure that the applications used by OpenCount are
+    properly installed.
+    '''
+    if (find_executable('tesseract-ocr') is None and
+            find_executable('tesseract') is None):
+        raise InformativeException(
+            'Unable to find the `tesseract-ocr` application. '
+            'Without it, you will be unable to complete the '
+            '"Label Contests" step.\n'
+            'This should be available in your package manager')
+    if find_executable('plurality_election') is None:
+        raise InformativeException(
+            'Unable to find the plurality_election application, '
+            'which is provided by the "formal-rcv" library.\n'
+            'You will have to install it from here:\n'
+            'https://github.com/cjerdonek/formal-rcv')
 
 
 class MyGauge(wx.Dialog):
@@ -416,7 +437,8 @@ class MyTimer(object):
                 dur = time.time() - self.start_times[task]
 
             print >>f, "    {0:.8f} seconds".format(dur)
-        print "(MyTimer) Writing timing statistics to: {0}".format(os.path.abspath(self.filepath))
+        print "(MyTimer) Writing timing statistics to: {0}".format(
+            os.path.abspath(self.filepath))
         f.flush()
         f.close()
 
@@ -536,9 +558,7 @@ def imageToPil(myWxImage):
 def WxImageToWxBitmap(myWxImage):
     return myWxImage.ConvertToBitmap()
 
-# ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## #
 # # Additional methods to quickly convert between wx* and numpy/cv # #
-# ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## #
 
 
 def wxImage2np(Iwx, is_rgb=True):
@@ -560,7 +580,7 @@ def np2wxImage(nparray):
     """
     if len(nparray.shape) == 2:
         Inp = np.zeros((nparray.shape[0], nparray.shape[
-                       1], 3), dtype=nparray.dtype)
+            1], 3), dtype=nparray.dtype)
         Inp[:, :, 0] = nparray
         Inp[:, :, 1] = nparray
         Inp[:, :, 2] = nparray
@@ -587,8 +607,9 @@ class MainFrame(wx.Frame):
         wx.Frame.__init__(self, parent, size=(800, 800),
                           title='Image Manipulate', *args, **kwargs)
         self.img_manipulate = ImageManipulate(self, size=(500, 600))
-        self.img_manipulate.set_image(Image.open('a_election/colored_test/20111129143441041_0001-a.jpg'),
-                                      scale=2.0)
+        self.img_manipulate.set_image(
+            Image.open('a_election/colored_test/20111129143441041_0001-a.jpg'),
+            scale=2.0)
         self._contest = 0
 
         self.btn_zoomin = wx.Button(self, label="Zoom in")

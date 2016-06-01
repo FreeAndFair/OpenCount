@@ -38,6 +38,7 @@ class MainFrame(wx.Frame):
     QUARANTINE = 11
     PROCESS = 12
 
+    @util.show_exception_as_modal
     def __init__(self, parent, *args, **kwargs):
         wx.Frame.__init__(self, parent, title="OpenCount", *args, **kwargs)
 
@@ -52,6 +53,7 @@ class MainFrame(wx.Frame):
 
         self.notebook.ChangeSelection(0)
         self.notebook.SendPageChangedEvent(-1, 0)
+        util.ensure_applications_installed()
 
     def init_ui(self):
         self.notebook = wx.Notebook(self)
