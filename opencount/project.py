@@ -260,13 +260,34 @@ class Project(object):
 
     @contextlib.contextmanager
     def write_csv(self, field):
+        '''
+        Create a context manager that exposes access to a CSV writer.
+        '''
         with open(self.path(field), 'w') as f:
             yield csv.writer(f)
 
     @contextlib.contextmanager
     def open_field(self, field, mode='r'):
+        '''
+        Create a context manager to access the raw file handler for
+        a given field.
+        '''
         with open(self.path(field), mode) as f:
             yield f
+
+    def load_raw_field(self, field):
+        '''
+        Load a field as a string.
+        '''
+        with self.open_field(field) as f:
+            return f.read()
+
+    def save_raw_field(self, value, field):
+        '''
+        Save a field as a string.
+        '''
+        with self.open_field(field, 'w') as f:
+            f.write(value)
 
     def save(self):
         '''

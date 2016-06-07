@@ -527,12 +527,13 @@ class GridShow(wx.ScrolledWindow):
             group_examples = self.proj.load_field(self.proj.group_exmpls)
 
             has_contest_data = False
-            if os.path.exists(self.proj.contest_text):
+            if self.proj.path_exists(self.proj.contest_text):
                 has_contest_data = True
                 contest_text = dict((x[0], x[1:]) for x in csv.reader(
                     open(self.proj.contest_text, 'rb')))
                 contest_id = dict((tuple(x[:2]), x[2:]) for x in csv.reader(
                     open(self.proj.contest_id, 'rb')))
+
             over_count = {}
             self.visibleTargets = []
             for each in range(self.numberOfTargets):
@@ -916,15 +917,14 @@ class GridShow(wx.ScrolledWindow):
                     unfilled[i] = True
                 else:
                     filled[i] = True
-        f = open(self.proj.targets_result, "w")
 
-        for i, (t, _) in enumerate(self.enumerateOverFullList()):
-            if i in filled:
-                f.write(", ".join(map(str, t)) + ", 1\n")
-        for i, (t, _) in enumerate(self.enumerateOverFullList()):
-            if i in unfilled:
-                f.write(", ".join(map(str, t)) + ", 0\n")
-        f.close()
+        with self.proj.open_field(self.proj.targets_result, 'w') as f:
+            for i, (t, _) in enumerate(self.enumerateOverFullList()):
+                if i in filled:
+                    f.write(", ".join(map(str, t)) + ", 1\n")
+            for i, (t, _) in enumerate(self.enumerateOverFullList()):
+                if i in unfilled:
+                    f.write(", ".join(map(str, t)) + ", 0\n")
 
         self.proj.save_field(
             (self.threshold,

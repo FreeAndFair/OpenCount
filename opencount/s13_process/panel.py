@@ -10,6 +10,7 @@ except:
 import json
 import subprocess
 
+import ffwx
 import util
 from util import debug, error
 
@@ -70,6 +71,13 @@ class ResultsPanel(ScrolledPanel):
         self.qballotids = project.get_quarantined_ballots()
         bal2imgs = project.load_field(project.ballot_to_images)
 
+        if (not self.proj.path_exists(self.proj.contest_id) or
+                not list(self.proj.read_csv(self.proj.contest_id))):
+            raise ffwx.Panel.SkipToStep(
+                ('Unable to find contest label information. '
+                 'Complete that before continuing.'),
+                8)
+
         self.qvotedpaths = []
         for ballotid in self.qballotids:
             votedpaths = bal2imgs[ballotid]
@@ -90,13 +98,14 @@ class ResultsPanel(ScrolledPanel):
         res = self.tally_by_precinct_and_mode(cvr)
         self.results.SetLabel(res)
         self.SetupScrolling()
-        open(self.proj.election_results, "w").write(res)
+        self.proj.save_raw_field(res, self.proj.election_results)
 
         # If there are batches
         if len([x[0] for x in os.walk(self.proj.voteddir)]) > 1:
             print 'Tally by batch finally'
             batches_res = self.tally_by_batch(cvr)
-            open(self.proj.election_results_batches, "w").write(batches_res)
+            self.proj.save_raw_field(batches_res,
+                                     self.proj.election_results_batches)
 
     def load_grouping(self):
         """Processes grouping_results.
@@ -194,7 +203,8 @@ class ResultsPanel(ScrolledPanel):
 
     def process(self):
         # target -> voted yes/no
-        isvoted = open(self.proj.targets_result).read().split("\n")[:-1]
+        isvoted = (self.proj.load_raw_field(self.proj.targets_result)
+                   .split("\n")[:-1])
         isvoted = set([tuple(map(int, x.split(",")[:-1]))
                        for x in isvoted if x[-1] == '1'])
 

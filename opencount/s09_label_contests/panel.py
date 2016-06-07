@@ -16,7 +16,7 @@ from group_contests import final_grouping, extend_multibox, \
 from verifycontestgrouping import VerifyContestGrouping
 
 
-from util import ImageManipulate
+from util import ImageManipulate, warn
 import util
 import config
 
@@ -106,7 +106,7 @@ class LabelContest(wx.Panel):
                 # maps {int contestID: [[id, contest_id, x1, y1, x2, y2], ...]}
                 gr = {}
                 for contest in contests:
-                    contestbox, targetboxes = contest[0], contest[1:]
+                    targetboxes = contest[1:]
                     for tbox in targetboxes:
                         # TBOX := [x1, y1, w, h, id, contest_id]
                         gr.setdefault(tbox[5], []).append((tbox[4], tbox[5],
@@ -119,7 +119,7 @@ class LabelContest(wx.Panel):
                     # values to my data structures
                     # Grab an arbitrary voted ballot from this group
                     # imgpaths = b2imgs[group_exmpls[groupID][0]]
-                    # imgpaths_ordered = sorted(imgpaths, key=lambda imP: img2page[imP])
+                    # imgpaths_ordered = sorted(imgpaths,key=lambda imP: img2page[imP])
                     # self.dirList.append(imgpaths_ordered[side])
                     self.groupedtargets.append([])
                     continue
@@ -415,9 +415,14 @@ class LabelContest(wx.Panel):
             for cbox_name in self.text_targets:
                 cbox_name.SetValue("")
             self.Layout()
+
         button_clearnames = wx.Button(self, label="Clear Names")
         button_clearnames.Bind(wx.EVT_BUTTON, clear_names)
         template.Add(button_clearnames)
+
+        button_dummynames = wx.Button(self, label="[Demo] Fill In Fake Names")
+        button_dummynames.Bind(wx.EVT_BUTTON, self.dummy_names)
+        template.Add(button_dummynames)
 
         if self.proj.devmode:
             button5 = wx.Button(self, label="Magic \"I'm Done\" Button")
@@ -426,7 +431,10 @@ class LabelContest(wx.Panel):
 
             def declareReady(x):
                 dlg = wx.MessageDialog(
-                    None, "Are you sure?\nThis will destroy all text you have entered.", style=wx.YES_NO | wx.NO_DEFAULT)
+                    None,
+                    "Are you sure?\nThis will destroy all text "
+                    "you have entered.",
+                    style=wx.YES_NO | wx.NO_DEFAULT)
                 status = dlg.ShowModal()
                 if status == wx.ID_NO:
                     return
@@ -463,6 +471,12 @@ class LabelContest(wx.Panel):
         self.Fit()
 
         self.Show()
+
+    def dummy_names(self, evt):
+        warn('Filling in fields with fake names.')
+        self.text_title.SetValue('Contest {0}'.format(self.count))
+        for n, tgt in enumerate(self.text_targets):
+            tgt.SetValue('Choice {0}'.format(n))
 
     def load_languages(self):
         """ Returns a mapping from imgpath -> language. """
@@ -508,30 +522,36 @@ class LabelContest(wx.Panel):
                     continue
                 if any((bid, gid) in x for x in self.multiboxcontests_enter):
                     # These are the ones we will merge
-                    use = [x for x in self.multiboxcontests_enter if (bid, gid) in x][
-                        0]
+                    use = [y for y in self.multiboxcontests_enter
+                           if (bid, gid) in y][0]
                     tmp = []
                     for b, g in use:
                         tmp += self.groupedtargets[b][g]
                         did[b, g] = True
-                    ballotlist.append([x[2:] for x in tmp])
+                    ballotlist.append([z[2:] for z in tmp])
                 else:
-                    ballotlist.append([x[2:] for x in targlist])
+                    ballotlist.append([z[2:] for z in targlist])
                     did[bid, gid] = True
             targets.append(ballotlist)
 
         # print "ALL", targets
         if self.grouping_cached:
-            groups = final_grouping(self.grouping_cached, targets,
-                                    self.dirList, self.load_languages(), t=self.proj.ocr_tmp_dir)
+            groups = final_grouping(
+                self.grouping_cached, targets,
+                self.dirList, self.load_languages(),
+                t=self.proj.ocr_tmp_dir)
         else:
             if not self.proj.infer_bounding_boxes:
                 dlg = wx.MessageDialog(
-                    self, message="You must auto-detect bounding boxes in select-and-group-targets to run the inference.", style=wx.OK)
+                    self,
+                    message="You must auto-detect bounding boxes in "
+                    "select-and-group-targets to run the inference.",
+                    style=wx.OK)
                 dlg.ShowModal()
                 return
 
-            vendor = self.proj.vendor_obj if 'vendor_obj' in self.proj.vals else None
+            vendor = self.proj.vendor_obj \
+                if 'vendor_obj' in self.proj.vals else None
             ballots, groups = group_given_contests(self.proj.ocr_tmp_dir,
                                                    self.dirList, targets,
                                                    self.boxes,
@@ -693,6 +713,8 @@ class LabelContest(wx.Panel):
                         ids += [str(x[0]) for x in targets]
                     for cont in did_multibox[each]:
                         # Save it for all boxes in the contest.
+                        warn('{0}',
+                             ([self.dirList[cont[0]], cont[1], num] + ids))
                         c_id.writerow(
                             [self.dirList[cont[0]], cont[1], num] + ids)
 
@@ -892,7 +914,8 @@ class LabelContest(wx.Panel):
         """
         self.save()
 
-        if self.templatenum + ct >= len(self.dirList) or self.templatenum + ct < 0:
+        if (self.templatenum + ct >= len(self.dirList) or
+                self.templatenum + ct < 0):
             self.templatenum = max(self.templatenum, 0)
             self.templatenum = min(self.templatenum, len(self.dirList) - 1)
             # Don't do anything bad.
@@ -942,7 +965,8 @@ class LabelContest(wx.Panel):
     def updateTemplate(self):
         """
         Make the template image correspond to how it should.
-        Color the current selected contest, as well as the ones we've seen so far.
+        Color the current selected contest, as well as the ones we've seen
+        so far.
         """
         # return
         img = np.array(self.imgo_resize)
@@ -976,7 +1000,6 @@ class LabelContest(wx.Panel):
             c += 1
         # Redraw the yellow on the current so it goes on top of everything else
         l, u, r, d = fix(self.boxes[self.templatenum][self.count])
-        # dr.rectangle(self.boxes[self.templatenum][self.count], fill=(200,200,0))
         img[u:d, l:r] = self.imgo_resize[u:d, l:r]
         img[u:d, l:r] = img[u:d, l:r] * .5
         img[u:d, l:r] = img[u:d, l:r] + np.array([200, 200, 0]) * .5
@@ -991,8 +1014,6 @@ class LabelContest(wx.Panel):
             img[u:d, l:r] = self.imgo_resize[u:d, l:r]
             img[u:d, l:r] = img[u:d, l:r] * .5
             img[u:d, l:r] = img[u:d, l:r] + np.array([0, 0, 200]) * .5
-
-        # new_template = pil2wxb(Image.blend(img,self.imgo,.5).resize((303, 500)))
 
         image = wx.EmptyImage(self.small_x_size, self.small_y_size)
         image.SetData(img.tostring())
