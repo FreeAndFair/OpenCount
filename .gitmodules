@@ -1,0 +1,6 @@
+[submodule "tevs.gui"]
+	path = tevs.gui
+	url = git@github.com:FreeAndFair/tevs.gui.git
+[submodule "tevs"]
+	path = tevs
+	url = git@github.com:FreeAndFair/tevs.git
